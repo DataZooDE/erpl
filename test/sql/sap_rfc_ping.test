@@ -1,0 +1,36 @@
+# name: test/sql/ping.test
+# description: test sap rfc ping functionality
+# group: [erpel]
+
+# Before we load the extension, this will fail
+statement error
+PRAGMA sap_rfc_ping;
+----
+Catalog Error: Pragma Function with name sap_rfc_ping does not exist!
+
+# Require statement will ensure this test is run with this extension loaded
+require erpel
+
+statement ok
+SET sap_ashost = 'vhcalnplci'
+
+statement ok
+SET sap_sysnr = '00'
+
+statement ok
+SET sap_user = 'DEVELOPER'
+
+statement ok
+SET sap_password = 'Bym38tpl'
+
+statement ok
+SET sap_client = '001'
+
+statement ok
+SET sap_lang = 'EN'
+
+# Confirm ping works
+query I
+PRAGMA sap_rfc_ping;
+----
+PONG

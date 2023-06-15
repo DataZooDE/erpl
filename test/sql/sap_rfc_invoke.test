@@ -1,0 +1,104 @@
+# name: test/sql/ping.test
+# description: test sap rfc ping functionality
+# group: [erpel]
+
+# Before we load the extension, this will fail
+statement error
+PRAGMA sap_rfc_ping;
+----
+Catalog Error: Pragma Function with name sap_rfc_ping does not exist!
+
+# Require statement will ensure this test is run with this extension loaded
+require erpel
+
+statement ok
+SET sap_ashost = 'vhcalnplci'
+
+statement ok
+SET sap_sysnr = '00'
+
+statement ok
+SET sap_user = 'DEVELOPER'
+
+statement ok
+SET sap_password = 'Bym38tpl'
+
+statement ok
+SET sap_client = '001'
+
+statement ok
+SET sap_lang = 'EN'
+
+# Verify that multiple calls also works
+loop i 0 10
+
+# Confirm echo rfc call works
+query I
+select trim(ECHOTEXT) from sap_rfc_invoke('STFC_CONNECTION', {'REQUTEXT': 'Hello'});
+----
+Hello
+
+endloop
+
+# Confirm structure input / output works
+query IIIIII
+select ECHOSTRUCT.RFCFLOAT, ECHOSTRUCT.RFCCHAR1, ECHOSTRUCT.RFCDATE, ECHOSTRUCT.RFCTIME, ECHOSTRUCT.RFCINT4, ECHOSTRUCT.RFCDATA1 from sap_rfc_invoke('STFC_STRUCTURE', {
+    'IMPORTSTRUCT': { 
+        'RFCCHAR1': 'A', 
+        'RFCCHAR2': 'BB',
+        'RFCDATE': '2022-01-01'::DATE,
+        'RFCTIME': '12:34:56'::TIME,
+        'RFCFLOAT': 1.23456789,
+        'RFCINT1': 1,
+        'RFCINT2': 130,
+        'RFCINT4': 32767,
+        'RFCHEX3': 'XXX',
+        'RFCDATA1': repeat('X', 50),
+    }
+});
+----
+1.23456789
+A
+2022-01-01
+12:34:56
+32767
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+# Verify that multiple calls also works
+loop i 0 10
+
+# Confirm table input / output works
+query III
+select RFCTABLE[1].RFCCHAR1, RFCTABLE[2].RFCCHAR2, RFCTABLE[3].RFCDATE from sap_rfc_invoke('STFC_STRUCTURE', {
+    'RFCTABLE': [
+        {'RFCCHAR1': 'A', 'RFCCHAR2': 'AA', 'RFCDATE': '2022-01-01'::DATE, 'RFCINT4': ${i}}, 
+        {'RFCCHAR1': 'B', 'RFCCHAR2': 'BB', 'RFCDATE': '2022-01-02'::DATE, 'RFCINT4': ${i}},
+        {'RFCCHAR1': 'C', 'RFCCHAR2': 'CC', 'RFCDATE': '2022-01-03'::DATE, 'RFCINT4': ${i}},
+    ]
+});
+----
+A
+BB
+2022-01-03
+
+endloop
+
+# Verify that multiple calls also works
+loop i 0 10
+
+# Confirm path selection on table works
+query I
+select RFCCHAR1 from sap_rfc_invoke('STFC_STRUCTURE', {
+    'RFCTABLE': [
+        {'RFCCHAR1': 'A', 'RFCCHAR2': 'AA', 'RFCDATE': '2022-01-01'::DATE}, 
+        {'RFCCHAR1': 'B', 'RFCCHAR2': 'BB', 'RFCDATE': '2022-01-02'::DATE},
+        {'RFCCHAR1': 'C', 'RFCCHAR2': 'CC', 'RFCDATE': '2022-01-03'::DATE},
+    ]
+}, path='/RFCTABLE');
+----
+A
+B
+C
+X
+
+endloop
