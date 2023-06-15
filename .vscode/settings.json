@@ -1,0 +1,15 @@
+{
+    "cmake.sourceDirectory": "${workspaceFolder}/duckdb",
+    "cmake.buildDirectory": "${workspaceFolder}/build/debug",
+    "cmake.configureArgs": [
+        "-DDUCKDB_OOT_EXTENSION_NAMES=erpel",
+        "-DDUCKDB_OOT_EXTENSION_ERPEL_PATH=${workspaceFolder}",
+        "-DDUCKDB_OOT_EXTENSION_ERPEL_SHOULD_LINK=TRUE",
+        "-DDUCKDB_OOT_EXTENSION_ERPEL_INCLUDE_PATH=${workspaceFolder}/src/include",
+        "-DEXTENSION_STATIC_BUILD=1",
+        "-DBUILD_TPCH_EXTENSION=1",
+        "-DBUILD_PARQUET_EXTENSION=1",
+        "-DCMAKE_BUILD_TYPE=Debug",
+        "-Wno-unused-variable"
+    ]
+}
