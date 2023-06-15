@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug DuckDB Extension SQL Unit Test",
+            "name": "Debug ERPEL SQL Unit Tests",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/debug/test/unittest",

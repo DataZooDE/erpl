@@ -1,17 +1,21 @@
-# WIP Disclaimer
-This template is currently work-in-progress. Feel free to play around with it and give us feedback. Note also that this template depends on a development version of DuckDB. Follow https://duckdb.org/news for more information on official launch.
+# ★ Erpel Extension
+The main goal of this [DuckDB](https://duckdb.org) extension is to provide easy access to SAP data ecosystem. This should be done with 
+*minimal dependencies* and as *easy and natural* as possible from the perspective of the DuckDB User.
 
-# DuckDB Extension Template
-The main goal of this template is to allow users to easily develop, test and distribute their own DuckDB extension.
+We have two man target use cases:
+- Accessing data from SAP ERP (via RFC) or SAP BW (via BICS) for interactiver Data Science and Analytics use cases.
+- Replicating data from SAP ERP or SAP BW to DuckDB in DuckDB based data pipelines.
 
 ## Getting started
-First step to getting started is to create your own repo from this template by clicking `Use this template`. Then clone your new repository using 
+First step to getting started is to clone this template onto your local computer. Then clone your new repository using 
 ```sh
-git clone --recurse-submodules https://github.com/<you>/<your-new-extension-repo>.git
+git clone --recurse-submodules https://bitbucket.org/erpel/erpel.git
 ```
-Note that `--recurse-submodules` will ensure the correct version of duckdb is pulled allowing you to get started right away.
+Note that `--recurse-submodules` will ensure the correct version of duckdb is pulled. This is necessary to make the DuckDB based extension build system work.
+Another dependency is the SAP Netweaver RFC SDK. This is not included in the template, but can be downloaded from the SAP Service Marketplace. The resulting 
+zip file should be placed in the `./nwrfcsdk` folder. The build system will automatically detect the SDK and build the extension against it.
 
-## Building
+## ⚙ Building from the shell
 To build the extension:
 ```sh
 make
@@ -26,7 +30,16 @@ The main binaries that will be built are:
 - `unittest` is the test runner of duckdb. Again, the extension is already linked into the binary.
 - `<extension_name>.duckdb_extension` is the loadable binary as it would be distributed.
 
-## Running the extension
+## ⚙ Builidng from VSCode IDE
+(The configuration IMHO would be a good candiate for a blog post).
+We spent some time to make the extension buildable from VSCode IDE. The main challenge was to get the build system to work, attach the debugger and run the tests.
+However there are now two launch configurations that allow to do this:
+
+- "Debug ERPEL SQL Unit tests" will build the extension and run the SQL unit tests. (For details on this tests see below).
+- "Debug ERPEL CPP Unit tests" will build and debug the extension unit tests. (For details on this tests see below).
+
+
+## ➜ Running the extension
 To run the extension code, simply start the shell with `./build/release/duckdb`.
 
 Now we can use the features from the extension directly in DuckDB. The template contains a single scalar function `quack()` that takes a string arguments and returns a string:
@@ -40,51 +53,18 @@ D select quack('Jane') as result;
 └───────────────┘
 ```
 
-## Running the tests
+## ✔ Running the tests
 Different tests can be created for DuckDB extensions. The primary way of testing DuckDB extensions should be the SQL tests in `./test/sql`. These SQL tests can be run using:
 ```sh
 make test
 ```
 
-## Getting started with your own extension
-After creating a repository from this template, the first step is to name your extension. To rename the extension, run:
-```
-python3 ./scripts/set_extension_name.py <extension_name_you_want>
-```
-Feel free to delete the script after this step.
+## 📦 Deploying the extension (TODO)
+To deploy the extension, simply run:
+```sh ./scripts/extension_upload.sh```
 
-Now you're good to go! After a (re)build, you should now be able to use your duckdb extension:
-```
-./build/release/duckdb
-D select <extension_name_you_chose>('Jane') as result;
-┌─────────────────────────────────────┐
-│                result               │
-│               varchar               │
-├─────────────────────────────────────┤
-│ <extension_name_you_chose> Jane 🐥  │
-└─────────────────────────────────────┘
-```
 
-For inspiration/examples on how to extend DuckDB in a more meaningful way, check out the [test extensions](https://github.com/duckdb/duckdb/blob/master/test/extension),
-the [in-tree extensions](https://github.com/duckdb/duckdb/tree/master/extension), and the [out-of-tree extensions](https://github.com/duckdblabs).
-
-## Distributing your extension
-Easy distribution of extensions built with this template is facilitated using a similar process used by DuckDB itself. 
-Binaries are generated for various versions/platforms allowing duckdb to automatically install the correct binary.
-
-This step requires that you pass the following 4 parameters to your GitHub repo as action secrets:
-
-| secret name   | description                         |
-| ------------- | ----------------------------------- |
-| S3_REGION     | s3 region holding your bucket       |
-| S3_BUCKET     | the name of the bucket to deploy to |
-| S3_DEPLOY_ID  | the S3 key id                       |
-| S3_DEPLOY_KEY | the S3 key secret                   |
-
-After setting these variables, all pushes to master will trigger a new (dev) release. Note that your AWS token should
-have full permissions to the bucket, and you will need to have ACLs enabled.
-
-### Installing the deployed binaries
+## 💻 Installing the deployed binaries
 To install your extension binaries from S3, you will need to do two things. Firstly, DuckDB should be launched with the 
 `allow_unsigned_extensions` option set to true. How to set this will depend on the client you're using. Some examples:
 
@@ -128,14 +108,3 @@ strategy:
         duckdb_version: [ '<submodule_version>', 'v0.7.0']
 ```
 
-## Setting up CLion 
-
-### Opening project
-Configuring CLion with the extension template requires a little work. Firstly, make sure that the DuckDB submodule is available. 
-Then make sure to open `./duckdb/CMakeLists.txt` (so not the top level `CMakeLists.txt` file from this repo) as a project in CLion.
-Now to fix your project path go to `tools->CMake->Change Project Root`([docs](https://www.jetbrains.com/help/clion/change-project-root-directory.html)) to set the project root to the root dir of this repo.
-
-### Debugging
-To set up debugging in CLion, there are two simple steps required. Firstly, in `CLion -> Settings / Preferences -> Build, Execution, Deploy -> CMake` you will need to add the desired builds (e.g. Debug, Release, RelDebug, etc). There's different ways to configure this, but the easiest is to leave all empty, except the `build path`, which needs to be set to `../build/{build type}`. Now on a clean repository you will first need to run `make {build type}` to initialize the CMake build directory. After running make, you will be able to (re)build from CLion by using the build target we just created.
-
-The second step is to configure the unittest runner as a run/debug configuration. To do this, go to `Run -> Edit Configurations` and click `+ -> Cmake Application`. The target and executable should be `unittest`. This will run all the DuckDB tests. To specify only running the extension specific tests, add `--test-dir ../../.. [sql]` to the `Program Arguments`. Note that it is recommended to use the `unittest` executable for testing/development within CLion. The actual DuckDB CLI currently does not reliably work as a run target in CLion.
