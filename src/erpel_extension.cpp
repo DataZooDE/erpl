@@ -10,6 +10,7 @@
 #include "erpel_extension.hpp"
 #include "pragma_ping.hpp"
 #include "scanner_invoke.hpp"
+#include "scanner_search_group.hpp"
 #include "scanner_describe_function.hpp"
 #include "scanner_search_function.hpp"
 
@@ -53,6 +54,9 @@ namespace duckdb {
 
 	    auto rfc_invoke_info = CreateRfcInvokeScanFunction();
 	    catalog.CreateTableFunction(context, &rfc_invoke_info);
+
+        auto rfc_search_group_info = CreateRfcSearchGroupScanFunction();
+        catalog.CreateTableFunction(context, &rfc_search_group_info);
 
         auto rfc_search_function_info = CreateRfcSearchFunctionScanFunction();
         catalog.CreateTableFunction(context, &rfc_search_function_info);

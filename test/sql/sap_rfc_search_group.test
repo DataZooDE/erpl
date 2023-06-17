@@ -1,0 +1,38 @@
+# name: test/sql/sap_rfc_search_function.test
+# description: test sap rfc search function
+# group: [erpel]
+
+# Require statement will ensure this test is run with this extension loaded
+require erpel
+
+statement ok
+SET sap_ashost = 'vhcalnplci'
+
+statement ok
+SET sap_sysnr = '00'
+
+statement ok
+SET sap_user = 'DEVELOPER'
+
+statement ok
+SET sap_password = 'Bym38tpl'
+
+statement ok
+SET sap_client = '001'
+
+statement ok
+SET sap_lang = 'EN'
+
+# Do a query on one individual group
+query II
+select GROUPNAME, STEXT from sap_rfc_search_group(GROUPNAME='RSBOLAP_BICS');
+----
+RSBOLAP_BICS
+BI Consumer Services
+
+
+# Check whether we can query all groups
+query I
+select COUNT(*) from sap_rfc_search_group();
+----
+13604

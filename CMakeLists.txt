@@ -43,6 +43,7 @@ set(EXTENSION_SOURCES
       src/sap_type_conversion.cpp
       src/sap_rfc.cpp
       src/scanner_invoke.cpp
+      src/scanner_search_group.cpp
       src/scanner_search_function.cpp
       src/scanner_describe_function.cpp
       ${BICS_SOURCES}

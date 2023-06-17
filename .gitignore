@@ -48,3 +48,7 @@ Thumbs.db
 *.mov
 *.wmv
 
+# SAP Trace files
+dev_rfc.log
+rfc*.trc
+
