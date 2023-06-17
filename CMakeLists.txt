@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 2.8.12)
 
 option(BUILD_UNITTESTS "Build ERPEL C++ Unit Tests." TRUE)
+option(BUILD_BICS "Build BICS functionality in ERPEL." TRUE)
+option(BUILD_ODP "Build ODP functionality in ERPEL." TRUE)
 
 # Set extension name here
 set(TARGET_NAME erpel)
@@ -16,12 +18,24 @@ include_directories(src/include
                     ${SAPNWRFC_HOME}/include)
 
 
+
 if(${BUILD_UNITTESTS})
       add_subdirectory(test)
 endif()
 
+if (${BUILD_BICS})
+      add_definitions(-DWITH_BICS)
+      add_subdirectory(src/bics)
+      include_directories(src/bics/include)
+endif()
 
-set(EXTENSION_SOURCES 
+if (${BUILD_ODP})
+      add_definitions(-DWITH_ODP)
+      add_subdirectory(src/odp)
+      include_directories(src/odp/include)
+endif()
+
+set(EXTENSION_SOURCES
       src/erpel_extension.cpp
       src/pragma_ping.cpp
       src/sap_connection.cpp
@@ -30,8 +44,13 @@ set(EXTENSION_SOURCES
       src/sap_rfc.cpp
       src/scanner_invoke.cpp
       src/scanner_search_function.cpp
-      src/scanner_describe_function.cpp)
-      
+      src/scanner_describe_function.cpp
+      ${BICS_SOURCES}
+      ${ODP_SOURCES}
+)
+
+message(STATUS "EXTENSION_SOURCES: ${EXTENSION_SOURCES}")
+
 add_library(${EXTENSION_NAME} STATIC ${EXTENSION_SOURCES})
 add_definitions(-DSAPonUNIX -DSAPwithUNICODE -DSAPwithTHREADS -DSAPonLIN)
 

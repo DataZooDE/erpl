@@ -13,6 +13,10 @@
 #include "scanner_describe_function.hpp"
 #include "scanner_search_function.hpp"
 
+#ifdef WITH_BICS
+    #include "bics/include/scanner_search_infoprovider.hpp"
+#endif
+
 namespace duckdb {
 
     inline void QuackScalarFun(DataChunk &args, ExpressionState &state, Vector &result) 
@@ -67,10 +71,29 @@ namespace duckdb {
         con.Commit();
     }
 
+    static void RegisterBicsFunctions(DatabaseInstance &instance)
+    {
+        #ifndef WITH_BICS
+            return;
+        #endif
+
+        Connection con(instance);
+        con.BeginTransaction();
+
+        auto &context = *con.context;
+        auto &catalog = Catalog::GetSystemCatalog(context);
+
+        auto rfc_search_infoprovider_info = CreateBicsSearchInfoProviderScanFunction();
+        catalog.CreateTableFunction(context, &rfc_search_infoprovider_info);
+
+        con.Commit();
+    }
+
     static void LoadInternal(DatabaseInstance &instance) 
     {  
         RegisterConfiguration(instance);
         RegisterFunctions(instance);
+        RegisterBicsFunctions(instance);
     }
 
     void ErpelExtension::Load(DuckDB &db) {
