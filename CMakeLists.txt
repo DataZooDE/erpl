@@ -42,6 +42,7 @@ set(EXTENSION_SOURCES
       src/sap_function.cpp
       src/sap_type_conversion.cpp
       src/sap_rfc.cpp
+      src/duckdb_argument_helper.cpp
       src/scanner_invoke.cpp
       src/scanner_search_group.cpp
       src/scanner_search_function.cpp

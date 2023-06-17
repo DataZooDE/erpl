@@ -7,10 +7,5 @@
 
 namespace duckdb 
 {
-	
-	
 	string RfcFunctionDesc(ClientContext &context, const FunctionParameters &parameters);
-
-	
-
 } // namespace duckdb

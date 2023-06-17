@@ -1,0 +1,1588 @@
+<RfcFunction Name="RSOBJS_GET_NODES">
+    <Imports>
+        <E_T_NODES Type="ITAB" Length="1598" Tag="" Decimals="0" IsSupplied="True">
+            <Structure FixedLength="1598" ABAPStructureName="RSOBJS_S_NODES_RFC">
+                <OBJ_TYPE Type="CHAR" Length="8" Offset="208" Decimals="0" Tag="" IsNonStructureLineType="False" />
+                <OBJ_TEXT Type="CHAR" Length="120" Offset="216" Decimals="0" Tag="" IsNonStructureLineType="False" />
+                <OBJ_TECHNAME Type="CHAR" Length="60" Offset="846" Decimals="0" Tag="" IsNonStructureLineType="False" />
+                <ATTRIB_KEY Type="CHAR" Length="500" Offset="914" Decimals="0" Tag="" IsNonStructureLineType="False" />
+            </Structure>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>BPC BPF Activity Report Total Page</OBJ_TEXT>
+                <OBJ_TECHNAME>0BPC_BPF_ACTIVITY_PAGE_REP</OBJ_TECHNAME>
+                <ATTRIB_KEY>0BPCBPFVP</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>BPC BPF Activity Report</OBJ_TEXT>
+                <OBJ_TECHNAME>0BPC_BPF_ACTIVITY_REP</OBJ_TECHNAME>
+                <ATTRIB_KEY>0BPCBPFVP</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>BPC BPF Instance Report</OBJ_TEXT>
+                <OBJ_TECHNAME>0BPC_BPF_INSTANCE_REP</OBJ_TECHNAME>
+                <ATTRIB_KEY>0BPCBPFVP</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_CNSTSEL_Q001</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_CNSTSEL_Q001</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_CONDITION_Q0001</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_CONDITION_Q0001</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_CONDITION_Q0002</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_CONDITION_Q0002</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_CONDITION_Q0003</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_CONDITION_Q0003</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_CONDITION_Q0010</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_CONDITION_Q0010</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_CONDITION_Q0011</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_CONDITION_Q0011</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_CONDITION_Q0012</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_CONDITION_Q0012</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_CONDITION_Q0013</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_CONDITION_Q0013</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_CONDITION_Q0014</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_CONDITION_Q0014</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_CONDITION_Q0015</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_CONDITION_Q0015</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_CURNTMEM_Q001</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_CURNTMEM_Q001</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_CURNTMEM_Q002</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_CURNTMEM_Q002</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Elimination of Internal Business Volume - Country</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_EOIBV_Q001</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C02</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Elimination of Internal Business Volume - Cost Center</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_EOIBV_Q002</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C02</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Elimination of Internal Bus. Vol. - Cost Center AND Country</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_EOIBV_Q003</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C02</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Elimination of Internal Business Vol. Cost Center OR Country</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_EOIBV_Q004</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C02</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_EXTAGGR_Q001</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_EXTAGGR_Q001</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_FIXOPER_Q001</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_FIXOPER_Q001</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_LOCAL_CALC_Q0001</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_LOCAL_CALC_Q0001</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C03</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_LOCAL_CALC_Q0002</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_LOCAL_CALC_Q0002</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C03</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_LOCAL_CALC_Q0003</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_LOCAL_CALC_Q0003</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C03</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_LOCAL_CALC_Q0004</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_LOCAL_CALC_Q0004</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C03</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_LOCAL_CALC_Q0005</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_LOCAL_CALC_Q0005</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C03</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_NCUM_Q001</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_NCUM_Q001</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C05</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_NCUM_Q002</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_NCUM_Q002</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C05</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_SLWMVIT_Q001</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_SLWMVIT_Q001</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_STOCKCVRG_Q002</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_STOCKCVRG_Q002</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C09</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_TMPHRJN_Q001</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_TMPHRJN_Q001</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_VAR_Q01</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_VAR_Q01</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C03</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_VAR_Q02</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_VAR_Q02</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C03</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_VAR_Q03</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_VAR_Q03</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C03</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_VAR_Q04</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_VAR_Q04</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_VIRTTHIER_Q0001</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_VIRTTHIER_Q0001</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_AE_VIRTTHIER_Q0002</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_AE_VIRTTHIER_Q0002</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_FC_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Disaggregation 001</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_DISAGGR_001</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A009</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Disaggregation 002</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_DISAGGR_002</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A009</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Disaggregation 003</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_DISAGGR_003</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A009</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Disaggregation 004</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_DISAGGR_004</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A009</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Disaggregation 005</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_DISAGGR_005</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A009</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Disaggregation 006</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_DISAGGR_006</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A009</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Disaggregation 007</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_DISAGGR_007</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A009</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Access Type for result values 001 - posted</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_EMPTY_001</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A010</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Access Type for result values 002 - char. rel.</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_EMPTY_002</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A010</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Access Type for result values 003 - masterdata</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_EMPTY_003</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A010</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Access Type for result values 004a - posted, masterdata</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_EMPTY_004A</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A010</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Access Type for result values 004b - posted, masterdata</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_EMPTY_004B</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A010</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Access Type for result values 005a - masterdata, posted</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_EMPTY_005A</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A010</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Access Type for result values 005b - masterdata, posted</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_EMPTY_005B</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A010</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Cell input 001</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_INPCELL_001</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A002</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Cell (no)input 002</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_INPCELL_002</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A002</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Cell input 003</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_INPCELL_003</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A003</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Cell input 004</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_INPCELL_004</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A003</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Cell input 005</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_INPCELL_005</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A003</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_IP_INPCELL_007</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_INPCELL_007</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A0A2</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>New line 001</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_INPLINE_001</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A001</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>New line 002</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_INPLINE_002</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A002</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>New line 003</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_INPLINE_003</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A002</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>New line 004</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_INPLINE_004</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A003</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>(no) New line 005 - drilldown</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_INPLINE_005</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A003</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>New line 006</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_INPLINE_006</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A003</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>New line 007</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_INPLINE_007</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A003</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>New line 008</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_INPLINE_008</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A0A3</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>(no) New line 009</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_INPLINE_009</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A0A3</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>New line 010</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_INPLINE_010</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A005</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>New line 011</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_INPLINE_011</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A0A5</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>New line 012</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_INPLINE_012</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A006</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>New line 013</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_INPLINE_013</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A006</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>New line 014</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_INPLINE_014</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A007</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_IP_LOCK_001</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_LOCK_001</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A014</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_IP_LOCK_002</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_LOCK_002</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0T015</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_IP_LOCK_003 - User</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_LOCK_003</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0T015</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_IP_LOCK_004</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_LOCK_004</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A014</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Currency 001</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_UNIT_001</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A002</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Currency 002</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_UNIT_002</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A002</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Currency 003</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_UNIT_003</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A002</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Currency - no unit - 004</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_IP_UNIT_004</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TSC0A004</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_NW_C01_Q0001</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_NW_C01_Q0001</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_NW_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_NW_C01_Q0002</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_NW_C01_Q0002</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_NW_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_NW_C01_Q0003</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_NW_C01_Q0003</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_NW_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_NW_C01_Q0004</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_NW_C01_Q0004</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_NW_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_NW_C01_Q0005</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_NW_C01_Q0005</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_NW_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_NW_C01_Q0006</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_NW_C01_Q0006</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_NW_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Monthly Sales by Product Group (Dyn. Date)</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_NW_C01_Q0007</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_NW_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>YTD Sales by Sales Org (Dyn. Date)</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_NW_C01_Q0008</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_NW_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>YTD Sales by Product Group (Dyn. Date)</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_NW_C01_Q0009</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_NW_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Revenue by Product Category and Region (Hierarchy view)</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_NW_C01_Q0010</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_NW_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Revenue by Country and Products (Time depend. Hier. view)</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_NW_C01_Q0011</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_NW_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Revenue by Cty. Prod. Cat. and Prod. Grp. (time depend. Att)</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_NW_C01_Q0012</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_NW_C01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_NW_M01_Q0001</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_NW_M01_Q0001</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_NW_M01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>0D_FC_NW_M01_Q0002</OBJ_TEXT>
+                <OBJ_TECHNAME>0D_FC_NW_M01_Q0002</OBJ_TECHNAME>
+                <ATTRIB_KEY>0D_NW_M01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Real Time Daemon Monitor</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCTHP24_Q0101</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCTHP24</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>BI Demon Overload Status.</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCTHP24_Q0110</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCTHP24</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>BI Real Time Datasource Duration</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCTHP24_Q0111</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCTHP24</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Daemon Performance: Daily Overview</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCTHP24_Q0501</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCTHP24</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Daemon Performance: Weekly Overview</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCTHP24_Q0502</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCTHP24</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Daemon Performance: Monthly Overview</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCTHP24_Q0503</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCTHP24</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Runtimes of BI Applications</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0111</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Deviations in Runtimes of BI Applications</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0112</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Short-Term Trends in Total Runtimes of BI Applications</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0113</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Long-Term Trends in Total Runtimes of BI Applications</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0114</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>BI KPI Monitoring - RunTimes of BI Applications</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0115</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Runtimes of BI Application Objects</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0121</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Deviations in Runtimes of BI Application Objects</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0122</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Short-Term Trends in Total Runtimes of BI Application Obj.</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0123</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Long-Term Trends in Total Runtimes of BI Application Objects</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0124</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>BI KPI Monitoring - RunTimes of BI Application Objects</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0125</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Runtimes of InfoProviders</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0131</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Deviations in Runtimes of InfoProviders</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0132</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Short-Term Trends in Total Runtimes of InfoProviders</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0133</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Long-Term Trends in Total Runtimes of InfoProviders</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0134</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Aggregated Query Runtime Statistics: Analysis</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0200</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>BI Application Runtimes Overview</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0201</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>BI Application Object Runtimes Overview</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0202</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Long-Term Trends in Total Runtimes of BI Application Objects</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0303</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Pre-Query: Short-Term Max. in Total Runtimes of BI Applicat.</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0313</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Pre-Query: Long-Term Max in Total Runtims of BI Applications</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0314</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Pre-Query: Short-Term Max in Total Runtimes of BI Appl. Obj.</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0323</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Pre-Query: Long-Term Max. in Total Runtimes of BI Appl. Obj.</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0324</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Pre-Query: Short-Term Max in Total Runtimes of InfoProviders</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0333</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Pre-Query: Long-Term Max. in Total Runtimes of InfoProviders</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0334</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Short-Term Trends in Total Runtimes of a BI Application</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0413</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Long-Term Trends in Total Runtimes of a BI Application</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0414</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Short-Term Trends in Total Runtimes of a BI Application Obj.</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0423</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Long-Term Trends in Total Runtimes of a BI Application Objec</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0424</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Short-Term Trends in Total Runtimes of a InfoProvider</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0433</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Long-Term Trends in Total Runtimes of a InfoProvider</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0434</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Query Performance: Daily Overview</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0501</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Query Performance: Weekly Overview</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0502</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Query Performance: Monthly Overview</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC01_Q0503</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC01</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Detailed Query Runtime Statistics: Analysis</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC02_Q0200</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC02</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Data Manager Statistics: Analysis</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC03_Q0200</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC03</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Missing Aggregate Report for Infoprovider</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC03_Q0201</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC03</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Missing Aggregate report for Queries</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC03_Q0202</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC03</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Memory Consumption of Cache Types</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC05_Q0101</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC05</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Memory Consumption of Cache Types (Graphical)</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC05_Q0102</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC05</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>OLAP Cache status overview</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC05_Q0200</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC05</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Memory Consumption of Cache Vs SHM</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC06_Q0101</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC06</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Entries of Cache Vs SHM</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC06_Q0102</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC06</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Query Memory Consumption</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC07_Q0101</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC07</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>PSA Table Status</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC11_Q0110</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC11</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Master Data Status</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC11_Q0120</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC11</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>DataStore Object Status</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC11_Q0130</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC11</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>InfoCube Status</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC11_Q0140</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC11</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>BI KPI Monitoring - dataLoad Status</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC11_Q0150</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC11</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Requests Not Available for Reporting</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC11_Q0200</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC11</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>PSA Table Status: Analysis</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC11_Q0210</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC11</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Master Data Status: Analysis</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC11_Q0220</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC11</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>DataStore Object Status: Analysis</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC11_Q0230</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC11</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>InfoCube Status: Analysis</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC11_Q0240</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC11</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Process Chain Status</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC12_Q0100</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC12</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>BI KPI Monitoring -Process Chain Status</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC12_Q0101</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC12</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Process Status</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC12_Q0110</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC12</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Process Chain Status Overview</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC12_Q0200</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC12</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Process Status Overview</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC12_Q0201</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC12</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Process Status: Analysis</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC12_Q0210</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC12</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>BW data storages with inconsistent and incomplete data</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC15_Q0100</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC15</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>List of Impacted objects due to inconsistency in BW Data Sto</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC15_Q0101</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC15</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Total Runtimes of Process Chains</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0101</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Total Runtimes of Process Chains_xlcs</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0101_XLCS</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Deviations in Total Runtimes of Process Chains</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0102</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Short-Term Trends in Total Runtimes of Process Chains</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0103</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Long-Term Trends in Total Runtimes of Process Chains_XLCS</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0103_30D_XLCS</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Short-Term Trends in Total Runtimes of Process Chains_xcls</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0103_XCLS</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Short-Term Trends in Total Runtimes of Process Chains_XLCS</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0103_XLCS</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Long-Term Trends in Total Runtimes of Process Chains</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0104</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>BI KPI Monitoring - Total Runtimes of process chains</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0105</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Total Runtimes of Processes</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0111</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Deviations in Total Runtimes of Processes</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0112</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Short-Term Trends in Total Runtimes of Processes</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0113</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Long-Term Trends in Total Runtimes of Processes</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0114</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Deviations in Process Chain Durations</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0201</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Process Statistics: Analysis</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0210</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Frequency of Process Chain Execution</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0301</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Pre-Query: Short-Term Max in Total Runtims of Process Chains</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0303</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Pre-Query: Long-Term Max in Total Runtimes of Process Chains</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0304</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Pre-Query: Short-Term Max. in Total Runtimes of Processes</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0313</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Pre-Query: Long-Term Max. in Total Runtimes of Processes</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0314</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Short-Term Trends in Total Runtimes of a Process Chain</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0403</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Long-Term Trends in Total Runtimes of a Process Chain</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0404</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Short-Term Trends in Total Runtimes of a Process</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0413</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Long-Term Trends in Total Runtimes of a Process</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0414</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Total Runtimes of a Process_xlcs</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0414_XLCS</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Process Chain Performance: Daily Overview</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0501</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Process Chain Performance: Weekly Overview</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0502</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Process Chain Performance: Monthly Overview</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC21_Q0503</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC21</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Total Runtimes of DTPs</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC22_Q0101</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC22</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Deviations in Total Runtimes of DTPs</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC22_Q0102</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC22</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Short-Term Trends in Total Runtimes of DTPs</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC22_Q0103</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC22</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Long-Term Trends in Total Runtimes of DTPs</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC22_Q0104</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC22</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Deviations in DTP Durations</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC22_Q0202</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC22</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>DTP Statistics: Analysis</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC22_Q0210</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC22</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Pre-Query: Short-Term Max. in Total Runtimes of DTPs</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC22_Q0303</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC22</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Pre-Query: Long-Term Max. in Total Runtimes of DTPs</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC22_Q0304</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC22</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Short-Term Trends in Total Runtimes of a DTP</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC22_Q0403</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC22</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Long-Term Trends in Total Runtimes of a DTP</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC22_Q0404</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC22</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Total Runtimes of InfoPackages</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC23_Q0101</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC23</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Deviations in Total Runtimes of InfoPackages</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC23_Q0102</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC23</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Short-Term Trends in Total Runtimes of InfoPackages</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC23_Q0103</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC23</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Long-Term Trends in Total Runtimes of InfoPackages</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC23_Q0104</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC23</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Deviations in InfoPackage Durations</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC23_Q0203</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC23</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>InfoPackage Statistics: Analysis</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC23_Q0210</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC23</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Pre-Query: Short-Term Max. in Total Runtimes of InfoPackages</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC23_Q0303</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC23</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Pre-Query: Long-Term Max. in Total Runtimes of InfoPackages</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC23_Q0304</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC23</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Short-Term Trends in Total Runtimes of a InfoPackage</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC23_Q0403</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC23</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Long-Term Trends in Total Runtimes of a InfoPackage</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC23_Q0404</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC23</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>BW DB Usage: Monthly Overview</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC25_Q0105</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC25</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>BI Data Distribution By Infoarea</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC25_Q0201</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC25</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>BI Data Distribution By Application Component</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC25_Q0202</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC25</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Top N System Tables</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC25_Q0203</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC25</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>BI Data Distribution By Object Types</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC25_Q0204</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC25</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>BI Data Distribution By Table Types</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC25_Q0205</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC25</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>CPU Utilization</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC31_Q0101</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC31</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>BI Accelerator Status Overview</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC31_Q0200</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC31</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Hourly Trends in CPU Utilization</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC31_Q0401</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC31</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>InfoProvider Memory Usage</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MC32_Q0101</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MC32</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Runtimes of BI Applications_xlcs</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MCA1_Q0111_XLCS</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MCA1</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Number of BI Application Object Executions per User</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MCA1_Q0141</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MCA1</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Number of Executions per BI Application Object</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MCA1_Q0142</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MCA1</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Usage of BWA/Cache/DB by Queries</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MCA1_Q0500</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MCA1</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>BWA Memory Usage</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MCWS_Q0100</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MCWS</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Percentage of Max AINX usage</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MCWS_Q0107</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MCWS</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Percentage of Max memory usage</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MCWS_Q0108</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MCWS</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Top N Min Lifetime Workspaces</OBJ_TEXT>
+                <OBJ_TECHNAME>0TCT_MCWS_Q0109</OBJ_TECHNAME>
+                <ATTRIB_KEY>0TCT_MCWS</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>REPM : Closed Sales Order Query View</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_CLOSED_SO1Q</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_CLOSED_SOC2</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Closed Purchase Order Query View</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_CLOSEQ</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_CLOSEC</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>No. Of Employees in a Department</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_DEPEMPHQ</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_ESTAFF</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Number of Employees in Department</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_DEPEMPHQV1</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_ESTAFFV1</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>No. Of Employees in a Department</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_DEPEMPHQV2</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_ESTAFFV2</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Employee Service in Department Query View</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_DEPEMPSER1</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_EMPVALDATE</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Query View</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_DEPSOQ</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_DEPSO</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Query View</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_DEPSOQV3</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_DEPSOV3</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Departments an Employee has worked</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_EINDQV1</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_ESTAFFV1</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Departments an Employee has worked</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_EINDV2</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_ESTAFFV2</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>REPM_EMPDEPT_SERVICES</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_EMPDEPSERV</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPMDEP_VALEND_V</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Employee with Dept. Details Query View</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_EMPINDEP</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_ESTAFF</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>REPM_EMP_SALESGEN</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_EMPSALGENV</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_DEPSOV3</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Open Days Query View</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_OPENDYSQ</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_OPENDAYSC</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>REPM : Open Sales Order Query View</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_OPEN_SOQ1</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_OPEN_SOC2</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>REPM_PROD_FILTER</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_PRODFILV</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_SOIC_V</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Product Details Query View</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_PRODQ</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_SAORC</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Product Details Query View</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_PRODTQ</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_SAORC</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Product Details Query View</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_PRODUCTQ</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_PRODUCT</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Purchase Order Query View</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_PURCHASEQ</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_PURCHASEO</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Gross Amount Query View</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_PURGROSSQ</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_PURGROSSC</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Sales Order Details Query View</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_SALORD</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_DEPSO</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Sales Order Details Query View</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_SALORDTQ</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_DEPSO</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>REPM: Sales Order Analysis Query View</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_SOANLYQ1</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_SOANLYC1</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Sales Order Analysis Query View</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_SOANLYQ11</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_SOANLYC11</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>REPM: Sales Order Details Query View</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_SODETAILSQ</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_SODETAILSC</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>REPM : Sales Order Product Query View</OBJ_TEXT>
+                <OBJ_TECHNAME>2CREPM_SOQV1</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CREPM_SO_PRODC2</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Query on RSPM DTP Load</OBJ_TEXT>
+                <OBJ_TECHNAME>2CRVCDTPLOADQ</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CRVCDTPLOAD</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>RSPM Request Query</OBJ_TEXT>
+                <OBJ_TECHNAME>2CRVCREQQRY</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CRVCREQUEST</ATTRIB_KEY>
+            </item>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_TEXT>Query on sizing details for tables</OBJ_TEXT>
+                <OBJ_TECHNAME>2CRVCTABSIZQRY</OBJ_TECHNAME>
+                <ATTRIB_KEY>2CRVCTABSIZE</ATTRIB_KEY>
+            </item>
+        </E_T_NODES>
+    </Imports>
+    <Exports>
+        <I_S_PARAMS Type="STRUCTURE" Length="98" Tag="" Decimals="0" IsSupplied="True">
+            <Structure FixedLength="98" ABAPStructureName="RSOBJS_S_INPUT_PARAMS">
+                <OBJ_TYPE Type="CHAR" Length="8" Offset="0" Decimals="0" Tag=""
+                    IsNonStructureLineType="False" />
+                <OBJ_VIEW Type="CHAR" Length="4" Offset="8" Decimals="0" Tag=""
+                    IsNonStructureLineType="False" />
+                <EXPAND_NODE_ID Type="CHAR" Length="24" Offset="12" Decimals="0" Tag=""
+                    IsNonStructureLineType="False" />
+                <OBJ_KEY Type="CHAR" Length="60" Offset="36" Decimals="0" Tag=""
+                    IsNonStructureLineType="False" />
+                <DISP_MODE Type="CHAR" Length="2" Offset="96" Decimals="0" Tag=""
+                    IsNonStructureLineType="False" />
+            </Structure>
+            <item>
+                <OBJ_TYPE>QU</OBJ_TYPE>
+                <OBJ_VIEW>SE</OBJ_VIEW>
+                <EXPAND_NODE_ID></EXPAND_NODE_ID>
+                <OBJ_KEY></OBJ_KEY>
+                <DISP_MODE>O</DISP_MODE>
+            </item>
+        </I_S_PARAMS>
+        <I_S_SEARCH_PARAMS Type="STRUCTURE" Length="124" Tag="" Decimals="0" IsSupplied="True">
+            <Structure FixedLength="124" ABAPStructureName="RSOBJS_S_SEARCH_PARAMS">
+                <SEARCH_STRING Type="CHAR" Length="120" Offset="0" Decimals="0" Tag=""
+                    IsNonStructureLineType="False" />
+                <SEARCH_IN_KEY Type="CHAR" Length="2" Offset="120" Decimals="0" Tag=""
+                    IsNonStructureLineType="False" />
+                <SEARCH_IN_TEXT Type="CHAR" Length="2" Offset="122" Decimals="0" Tag=""
+                    IsNonStructureLineType="False" />
+            </Structure>
+            <item>
+                <SEARCH_STRING></SEARCH_STRING>
+                <SEARCH_IN_KEY>X</SEARCH_IN_KEY>
+                <SEARCH_IN_TEXT>X</SEARCH_IN_TEXT>
+            </item>
+        </I_S_SEARCH_PARAMS>
+    </Exports>
+    <Changings />
+    <Tables />
+</RfcFunction>

@@ -36,6 +36,40 @@
             "miDebuggerPath": ""
         },
         {
+            "name": "Debug BICS SQL Unit Tests",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/debug/test/unittest",
+            "args": [
+                "--test-dir",
+                ".",
+                "[sql_bics]"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "RFC_TRACE",
+                    "value": "1"
+                },
+                {
+                    "name": "LD_LIBRARY_PATH",
+                    "value": "${env:LD_LIBRARY_PATH}:${workspaceFolder}/nwrfcsdk/lib"
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "CMake: build",
+            "miDebuggerPath": ""
+        },
+        {
             "name": "Debug ERPEL CPP Unit Tests",
             "type": "cppdbg",
             "request": "launch",
