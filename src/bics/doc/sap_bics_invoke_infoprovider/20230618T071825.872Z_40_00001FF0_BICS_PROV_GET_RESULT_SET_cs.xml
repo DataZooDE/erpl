@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<RfcFunction Name="BICS_PROV_GET_RESULT_SET">
+  <Imports>
+    <E_N_ROWS Type="INT" Length="4" Tag="" Decimals="0" IsSupplied="True">0</E_N_ROWS>
+    <E_T_MEMBER_PRESENTATION Type="ITAB" Length="20" Tag="" Decimals="0" IsSupplied="True">
+      <Structure FixedLength="20" ABAPStructureName="">
+        <PRESENTATION Type="INT1" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <ATTRIBUTE_ID Type="INT" Length="4" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <CONTINUE Type="INT1" Length="1" Offset="8" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <VALUE Type="STRING" Length="8" Offset="12" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+      </Structure>
+    </E_T_MEMBER_PRESENTATION>
+  </Imports>
+  <Exports>
+    <I_DATA_PROVIDER_HANDLE Type="NUM" Length="8" Tag="" Decimals="0" IsSupplied="True">0003</I_DATA_PROVIDER_HANDLE>
+    <I_APPLICATION_HANDLE Type="NUM" Length="8" Tag="" Decimals="0" IsSupplied="True">0001</I_APPLICATION_HANDLE>
+  </Exports>
+  <Changings/>
+  <Tables>
+    <E_T_ROWS>
+      <Structure FixedLength="8" ABAPStructureName="">
+        <ELEMENT_INDEX Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <MEMBER_TABLE_INDEX Type="INT" Length="4" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+      </Structure>
+    </E_T_ROWS>
+    <E_T_MEMBER>
+      <Structure FixedLength="24" ABAPStructureName="">
+        <RESENTATION_INDEX_FROM Type="INT" Length="4" Offset="16" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <RESENTATION_INDEX_TO Type="INT" Length="4" Offset="20" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+      </Structure>
+    </E_T_MEMBER>
+    <E_T_DATA_CELLS>
+      <Structure FixedLength="32" ABAPStructureName="">
+        <ROW Type="INT" Length="4" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <COLUMN Type="INT" Length="4" Offset="8" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <VALTYPE Type="INT1" Length="1" Offset="16" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <VALEXCP Type="INT1" Length="1" Offset="17" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <NUM_PREC Type="INT1" Length="1" Offset="19" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <MAX_PREC Type="INT1" Length="1" Offset="20" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <DEFAULT_SCALE Type="INT1" Length="1" Offset="21" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <VALUE Type="FLOAT" Length="8" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+      </Structure>
+    </E_T_DATA_CELLS>
+  </Tables>
+</RfcFunction>

@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<RfcFunction Name="BICS_PROV_CLOSE">
+  <Imports>
+    <E_MAX_MESSAGE_TYPE Type="CHAR" Length="2" Tag="" Decimals="0" IsSupplied="True"/>
+  </Imports>
+  <Exports>
+    <I_APPLICATION_HANDLE Type="NUM" Length="8" Tag="" Decimals="0" IsSupplied="True">0003</I_APPLICATION_HANDLE>
+  </Exports>
+  <Changings/>
+  <Tables/>
+</RfcFunction>

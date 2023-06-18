@@ -16,6 +16,7 @@
 
 #ifdef WITH_BICS
     #include "bics/include/scanner_search_infoprovider.hpp"
+    #include "bics/include/scanner_describe_infoprovider.hpp"
 #endif
 
 namespace duckdb {
@@ -87,8 +88,11 @@ namespace duckdb {
         auto &context = *con.context;
         auto &catalog = Catalog::GetSystemCatalog(context);
 
-        auto rfc_search_infoprovider_info = CreateBicsSearchInfoProviderScanFunction();
-        catalog.CreateTableFunction(context, &rfc_search_infoprovider_info);
+        auto bics_search_infoprovider_info = CreateBicsSearchInfoProviderScanFunction();
+        catalog.CreateTableFunction(context, &bics_search_infoprovider_info);
+
+        auto bics_describe_infoprovider_info = CreateBicsDescribeInfoProviderScanFunction();
+        catalog.CreateTableFunction(context, &bics_describe_infoprovider_info);
 
         con.Commit();
     }

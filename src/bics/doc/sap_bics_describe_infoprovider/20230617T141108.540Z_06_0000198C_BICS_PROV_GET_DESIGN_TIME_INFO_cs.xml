@@ -1,0 +1,1808 @@
+<?xml version="1.0"?>
+<RfcFunction Name="BICS_PROV_GET_DESIGN_TIME_INFO">
+  <Imports>
+    <E_MAX_MESSAGE_TYPE Type="CHAR" Length="2" Tag="" Decimals="0" IsSupplied="True"/>
+    <E_SX_META_DATA Type="STRUCTURE" Length="1" Tag="" Decimals="0" IsSupplied="True">
+      <Structure FixedLength="1" ABAPStructureName="">
+        <CHARACTERISTICS Type="ITAB" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False">
+          <Structure FixedLength="1" ABAPStructureName="">
+            <NAME Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <ALTERNATIVE_NAME Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <TEXT Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <HAS_SHORT_TEXT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <HAS_MEDIUM_TEXT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <HAS_LONG_TEXT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <HAS_TEXT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <SUPPORTS_LOWERCASE_KEYS Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <HAS_COMPOUNDMENT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <COMPOUNDMENT_KEY_OFFSET Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <HAS_CONV_EXIT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <INTTP Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DEFAULT_MEMBER_ACCESS_MODE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DEFAULT_MEMBER_ACCESS_MODE_DT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <IS_DOCUMENT_RELEVANT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <BASE_CHARACTERISTIC Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <BASE_CHARACTERISTIC_ID Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DEFAULT_SELECTOR_PRSNT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <SELECTION_MODE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <BO_NAME Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <BO_NAMESPACE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <BON_NAME Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <BON_NAMESPACE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <BON_CCTS_NAME Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <BON_CCTS_NAMESPACE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <OBN_SYSTEM_ALIAS Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DEFAULT_VISUALIZATION_LEVEL Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <SUPPORTED_MEMBER_ACCESS_MODES Type="ITAB" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="1" ABAPStructureName="">
+                <READ_MODE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <TEXT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <FUZZY_SEARCH Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </SUPPORTED_MEMBER_ACCESS_MODES>
+            <SUPPORTED_MEMBER_ACC_MODES_DT Type="ITAB" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="1" ABAPStructureName="">
+                <READ_MODE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <TEXT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <FUZZY_SEARCH Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </SUPPORTED_MEMBER_ACC_MODES_DT>
+            <USED_FOR_NAVIGATION Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <USED_FOR_SELECTION_SPACE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <USED_FOR_DATA_CELL_DEFINITION Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <CONTAINS_KEYFIGURES Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <SUPPORTS_AGGREGATION Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <SUPPORTS_SELECTION Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <GIS_TYPE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <GIS_ATTRIBUTE_NAME Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <BOR_OBJTYP Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <SUPPORTS_HIERARCHIES Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <SUPPORTS_SORT_BY_SELECT_SPACE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <ATTRIBUTES Type="ITAB" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="1" ABAPStructureName="">
+                <NAME Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ALTERNATIVE_NAME Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <TEXT Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HAS_SHORT_TEXT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HAS_MEDIUM_TEXT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HAS_LONG_TEXT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HAS_TEXT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SUPPORTS_LOWERCASE_KEYS Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HAS_COMPOUNDMENT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <COMPOUNDMENT_KEY_OFFSET Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HAS_CONV_EXIT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <INTTP Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DEFAULT_MEMBER_ACCESS_MODE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DEFAULT_MEMBER_ACCESS_MODE_DT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <IS_DOCUMENT_RELEVANT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BASE_CHARACTERISTIC Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BASE_CHARACTERISTIC_ID Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DEFAULT_SELECTOR_PRSNT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SELECTION_MODE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BO_NAME Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BO_NAMESPACE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BON_NAME Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BON_NAMESPACE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BON_CCTS_NAME Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BON_CCTS_NAMESPACE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <OBN_SYSTEM_ALIAS Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DEFAULT_VISUALIZATION_LEVEL Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SUPPORTED_MEMBER_ACCESS_MODES Type="ITAB" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="1" ABAPStructureName="">
+                    <READ_MODE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <TEXT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <FUZZY_SEARCH Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </SUPPORTED_MEMBER_ACCESS_MODES>
+                <SUPPORTED_MEMBER_ACC_MODES_DT Type="ITAB" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="1" ABAPStructureName="">
+                    <READ_MODE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <TEXT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <FUZZY_SEARCH Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </SUPPORTED_MEMBER_ACC_MODES_DT>
+                <SUPPORTS_MEMBER_ACCESS Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </ATTRIBUTES>
+            <IS_STRUCTURE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <STRUCTURE_MEMBERS Type="ITAB" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="1" ABAPStructureName="">
+                <ID Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <NAME Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ALTERNATIVE_NAME Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <TEXT Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <STATIC Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <PARENT_ID Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <INITIAL_DRILLSTATE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <LEVEL Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <MEMBER_POSITION Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BASED_ON_TLOGO Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BASED_ON_NAME Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BASED_ON_TEXT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <STRUCTURE_ID Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ELTSID Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ELTUID Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ALLOWED_CHANM_ID Type="ITAB" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="1" ABAPStructureName="">
+                    <RSSID Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                  </Structure>
+                </ALLOWED_CHANM_ID>
+                <ELTUID_ORG Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </STRUCTURE_MEMBERS>
+            <RS_ACCESS_MODES Type="ITAB" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="1" ABAPStructureName="">
+                <MODE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <TEXT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </RS_ACCESS_MODES>
+            <DEFAULT_RS_ACCESS_MODE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <IS_SUMMABLE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DIMENSION Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <ARTIFICIAL_INFOOBJECT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <NO_MASTER_DATA Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DEFAULT_NEW_LINE_ACCESS_MODE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <NEW_LINE_ACCESS_MODES Type="ITAB" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="1" ABAPStructureName="">
+                <READ_MODE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <TEXT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <FUZZY_SEARCH Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </NEW_LINE_ACCESS_MODES>
+            <INIVIEW_PRIO Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DEFAULT_SORTING Type="STRUCTURE" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="1" ABAPStructureName="">
+                <TYPE Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DIRECTION Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ATTRIBUTE_ID Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DATA_CELL_ID Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <PREDEFINED_MEMBERS_ORDER Type="ITAB" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="1" ABAPStructureName="">
+                    <RSBOLAP_OBJECT_ID Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                  </Structure>
+                </PREDEFINED_MEMBERS_ORDER>
+                <PREDEFINED_MEMBERS_BOTTOM Type="ITAB" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="1" ABAPStructureName="">
+                    <RSBOLAP_OBJECT_ID Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                  </Structure>
+                </PREDEFINED_MEMBERS_BOTTOM>
+              </Structure>
+            </DEFAULT_SORTING>
+            <DISPHIER_FROM_FILTERHIER Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+          </Structure>
+        </CHARACTERISTICS>
+        <STRUCTURE_INFO Type="STRUCTURE" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False">
+          <Structure FixedLength="1" ABAPStructureName="">
+            <STRUCTURE_COUNT Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <NAME_1 Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <ID_1 Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <NAME_2 Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <ID_2 Type="CHAR" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+          </Structure>
+        </STRUCTURE_INFO>
+        <SELECTION_SPACE Type="ITAB" Length="8" Offset="184" Decimals="0" Tag="" IsNonStructureLineType="False">
+          <Structure FixedLength="112" ABAPStructureName="RSBOLAP_SO_SX_CHAR_SELECTION">
+            <NAME Type="CHAR" Length="80" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <SELECTION Type="ITAB" Length="8" Offset="80" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="480" ABAPStructureName="RSBOLAP_SO_S_CHAR_SELECTION">
+                <SIGN Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <OPERATOR Type="CHAR" Length="4" Offset="2" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ATTRIBUTE_NAME Type="CHAR" Length="80" Offset="6" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <PRESENTATION Type="INT1" Length="1" Offset="86" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <LOW Type="STRING" Length="2666" Offset="88" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <LOW_TEXT Type="CHAR" Length="120" Offset="96" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <LOW_IS_EXIT_VARIABLE Type="CHAR" Length="2" Offset="216" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HIGH Type="STRING" Length="2666" Offset="220" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HIGH_TEXT Type="CHAR" Length="120" Offset="228" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HIGH_IS_EXIT_VARIABLE Type="CHAR" Length="2" Offset="348" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HIERARCHY_NAME Type="CHAR" Length="80" Offset="350" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HIERARCHY_VERSION Type="CHAR" Length="6" Offset="430" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HIERARCHY_DUEDATE Type="DATE" Length="16" Offset="436" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <LOW_EXIT_SHIFT Type="INT" Length="4" Offset="452" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HIGH_EXIT_SHIFT Type="INT" Length="4" Offset="456" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ACTION Type="CHAR" Length="2" Offset="460" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HIERARCHY_MIN_LEVEL Type="INT" Length="4" Offset="464" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <REPL_FILTER Type="ITAB" Length="8" Offset="472" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="36" ABAPStructureName="RSBOLAP_SO_S_REPL_FILTER">
+                    <ENTRY_NR Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <FIELD Type="CHAR" Length="20" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <LINE_NR Type="INT" Length="4" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <VALUE Type="STRING" Length="2666" Offset="28" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </REPL_FILTER>
+              </Structure>
+            </SELECTION>
+            <IS_SINGLE_VALUE_SEL Type="INT" Length="4" Offset="88" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <IS_SELECTION_INCLUDED Type="CHAR" Length="2" Offset="92" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <SELECTION_LINE_COUNT Type="INT" Length="4" Offset="96" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <NODE Type="ITAB" Length="8" Offset="104" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="32" ABAPStructureName="RSBOLAP_S_NODE">
+                <LOW Type="STRING" Length="2666" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HIGH Type="STRING" Length="2666" Offset="8" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <TLEVEL Type="INT" Length="4" Offset="16" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SID Type="INT" Length="4" Offset="20" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <FROM_TLEVEL Type="INT" Length="4" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <TO_TLEVEL Type="INT" Length="4" Offset="28" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </NODE>
+          </Structure>
+        </SELECTION_SPACE>
+        <VARIABLE_VALUES Type="ITAB" Length="8" Offset="192" Decimals="0" Tag="" IsNonStructureLineType="False">
+          <Structure FixedLength="676" ABAPStructureName="RRX_VAR">
+            <VNAM Type="CHAR" Length="60" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <VARTYP Type="NUM" Length="2" Offset="60" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <VPARSEL Type="CHAR" Length="2" Offset="62" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <SIGN Type="CHAR" Length="2" Offset="64" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <OPT Type="CHAR" Length="4" Offset="66" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <LOW Type="STRING" Length="2666" Offset="72" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <LOW_EXT Type="STRING" Length="2666" Offset="80" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <HIGH Type="STRING" Length="2666" Offset="88" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <HIGH_EXT Type="STRING" Length="2666" Offset="96" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <LOWTXT Type="CHAR" Length="120" Offset="104" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <LOWTXT_LEN Type="INT" Length="4" Offset="224" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <HIGHTXT Type="CHAR" Length="120" Offset="228" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <HIGHTXT_LEN Type="INT" Length="4" Offset="348" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <HRYTXT Type="CHAR" Length="120" Offset="352" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <HRYTXT_LEN Type="INT" Length="4" Offset="472" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <VTXT Type="CHAR" Length="120" Offset="476" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <VTXT_LEN Type="INT" Length="4" Offset="596" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <HELP_AVAIL Type="CHAR" Length="2" Offset="600" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <MSG_NR Type="CHAR" Length="6" Offset="602" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <IOBJNM Type="CHAR" Length="60" Offset="608" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <LOW_CMP Type="STRING" Length="2666" Offset="668" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+          </Structure>
+        </VARIABLE_VALUES>
+        <QUERY_STATE Type="STRUCTURE" Length="840" Offset="200" Decimals="0" Tag="" IsNonStructureLineType="False">
+          <Structure FixedLength="840" ABAPStructureName="BICS_PROV_STATE">
+            <CHARACTERISTICS Type="ITAB" Length="8" Offset="200" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="384" ABAPStructureName="BICS_PROV_STATE_CHARACTERISTIC">
+                <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <RESULT_SET_PRESENTATION Type="INT" Length="4" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <MEMBER_ACCESS_INDIV_SETTINGS Type="CHAR" Length="2" Offset="8" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <MEMBER_ACCESS_PRESENTATION Type="INT" Length="4" Offset="12" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <MEMBER_ACCESS_MODE Type="CHAR" Length="2" Offset="16" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ATTRIBUTES Type="ITAB" Length="8" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="56" ABAPStructureName="BICS_PROV_STATE_ATTRIBUTE">
+                    <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <RESULT_SET_PRESENTATION Type="INT" Length="4" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_ACCESS_INDIV_SETTINGS Type="CHAR" Length="2" Offset="8" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_ACCESS_PRESENTATION Type="INT" Length="4" Offset="12" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_ACCESS_MODE Type="CHAR" Length="2" Offset="16" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_ACCESS_SORTING Type="STRUCTURE" Length="32" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="32" ABAPStructureName="BICS_PROV_STATE_SORTING">
+                        <TYPE Type="CHAR" Length="2" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <DIRECTION Type="CHAR" Length="2" Offset="26" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <ATTRIBUTE_ID Type="INT" Length="4" Offset="28" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <DATA_CELL_ID Type="INT" Length="4" Offset="32" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <PREDEFINED_MEMBERS_ORDER Type="ITAB" Length="8" Offset="40" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                            <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                          </Structure>
+                        </PREDEFINED_MEMBERS_ORDER>
+                        <PREDEFINED_MEMBERS_BOTTOM Type="ITAB" Length="8" Offset="48" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                            <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                          </Structure>
+                        </PREDEFINED_MEMBERS_BOTTOM>
+                      </Structure>
+                    </MEMBER_ACCESS_SORTING>
+                  </Structure>
+                </ATTRIBUTES>
+                <RESULT_SET_ATTRIBUTES Type="ITAB" Length="8" Offset="32" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="4" ABAPStructureName="BICS_PROV_T_OBJECT_ID">
+                    <BICS_PROV_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                  </Structure>
+                </RESULT_SET_ATTRIBUTES>
+                <RESULT_SET_SORTING Type="STRUCTURE" Length="32" Offset="40" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="32" ABAPStructureName="BICS_PROV_STATE_SORTING">
+                    <TYPE Type="CHAR" Length="2" Offset="40" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DIRECTION Type="CHAR" Length="2" Offset="42" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ATTRIBUTE_ID Type="INT" Length="4" Offset="44" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DATA_CELL_ID Type="INT" Length="4" Offset="48" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <PREDEFINED_MEMBERS_ORDER Type="ITAB" Length="8" Offset="56" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                        <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                      </Structure>
+                    </PREDEFINED_MEMBERS_ORDER>
+                    <PREDEFINED_MEMBERS_BOTTOM Type="ITAB" Length="8" Offset="64" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                        <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                      </Structure>
+                    </PREDEFINED_MEMBERS_BOTTOM>
+                  </Structure>
+                </RESULT_SET_SORTING>
+                <RESULT_VISIBILITY Type="CHAR" Length="2" Offset="72" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <MEMBER_ACCESS_ATTRIBUTES Type="ITAB" Length="8" Offset="80" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="4" ABAPStructureName="BICS_PROV_T_OBJECT_ID">
+                    <BICS_PROV_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                  </Structure>
+                </MEMBER_ACCESS_ATTRIBUTES>
+                <MEMBER_ACCESS_SORTING Type="STRUCTURE" Length="32" Offset="88" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="32" ABAPStructureName="BICS_PROV_STATE_SORTING">
+                    <TYPE Type="CHAR" Length="2" Offset="88" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DIRECTION Type="CHAR" Length="2" Offset="90" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ATTRIBUTE_ID Type="INT" Length="4" Offset="92" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DATA_CELL_ID Type="INT" Length="4" Offset="96" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <PREDEFINED_MEMBERS_ORDER Type="ITAB" Length="8" Offset="104" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                        <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                      </Structure>
+                    </PREDEFINED_MEMBERS_ORDER>
+                    <PREDEFINED_MEMBERS_BOTTOM Type="ITAB" Length="8" Offset="112" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                        <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                      </Structure>
+                    </PREDEFINED_MEMBERS_BOTTOM>
+                  </Structure>
+                </MEMBER_ACCESS_SORTING>
+                <STRUCTURE_HRY_DRILL_LEVEL Type="INT2" Length="2" Offset="120" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <STRUCTURE_HRY_NODE_ALIGNMENT Type="CHAR" Length="2" Offset="122" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <STRUCTURE_GROUPS_TUPLES Type="CHAR" Length="2" Offset="124" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <RESULT_ACCESS_MODE Type="CHAR" Length="2" Offset="126" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <RESULT_FULFILL_COND_VISIBLE Type="CHAR" Length="2" Offset="128" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <RESULT_VIOLATE_COND_VISIBLE Type="CHAR" Length="2" Offset="130" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <STRUCTURE_MEMBERS Type="ITAB" Length="8" Offset="136" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="176" ABAPStructureName="BICS_PROV_STATE_STRUC_MEMBER">
+                    <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <IN_SELECTION Type="CHAR" Length="2" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <START_LIST_DRILL_STATE Type="INT1" Length="1" Offset="6" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DISPLAY_LEVEL Type="INT2" Length="2" Offset="8" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HAS_ACTIVE_CHILDREN Type="CHAR" Length="2" Offset="10" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <LOCAL_FORMULA Type="ITAB" Length="8" Offset="16" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="120" ABAPStructureName="BICS_PROV_STATE_LOCAL_FORMULA">
+                        <STEPNR Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <OPERATOR Type="INT1" Length="1" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <OPERAND_TYPE1 Type="INT1" Length="1" Offset="5" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <OPERAND1 Type="INT" Length="4" Offset="8" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <CONSTANT1 Type="FLOAT" Length="8" Offset="16" Decimals="16" Tag="" IsNonStructureLineType="False"/>
+                        <OPERAND_TYPE2 Type="INT1" Length="1" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <OPERAND2 Type="INT" Length="4" Offset="28" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <CONSTANT2 Type="FLOAT" Length="8" Offset="32" Decimals="16" Tag="" IsNonStructureLineType="False"/>
+                        <FORMULA_DEP_ON Type="CHAR" Length="80" Offset="40" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                      </Structure>
+                    </LOCAL_FORMULA>
+                    <STRUCTURE_ID Type="INT" Length="4" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ELTSID Type="INT" Length="4" Offset="28" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ELTUID Type="CHAR" Length="50" Offset="32" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ALLOWED_CHANM_ID Type="ITAB" Length="8" Offset="88" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="4" ABAPStructureName="RRSI_TS_SID">
+                        <RSSID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                      </Structure>
+                    </ALLOWED_CHANM_ID>
+                    <RESTRICTED_KF_ID Type="CHAR" Length="80" Offset="96" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </STRUCTURE_MEMBERS>
+                <HIERARCHY_NAME Type="CHAR" Length="80" Offset="144" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HIERARCHY_VERSION Type="CHAR" Length="6" Offset="224" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HIERARCHY_DUEDATE Type="DATE" Length="16" Offset="230" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HIERARCHY_STATE Type="STRUCTURE" Length="104" Offset="248" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="104" ABAPStructureName="BICS_PROV_STATE_HIERARCHY">
+                    <ID Type="INT" Length="4" Offset="248" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ACTIVE Type="CHAR" Length="2" Offset="252" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <START_DRILL_LEVEL Type="INT2" Length="2" Offset="254" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <NODE_ALIGNMENT Type="CHAR" Length="2" Offset="256" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <NODE_VISIBILITY Type="CHAR" Length="2" Offset="258" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_ACCESS_MODE Type="CHAR" Length="2" Offset="260" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_ACCESS_MODES Type="ITAB" Length="8" Offset="264" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="124" ABAPStructureName="RSMD_RS_S_READ_MODE">
+                        <READ_MODE Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <TEXT Type="CHAR" Length="120" Offset="2" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <FUZZY_SEARCH Type="CHAR" Length="2" Offset="122" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                      </Structure>
+                    </MEMBER_ACCESS_MODES>
+                    <ALEAFNODSP Type="CHAR" Length="2" Offset="272" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <RESULT_SET_SORTING Type="STRUCTURE" Length="32" Offset="280" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="32" ABAPStructureName="BICS_PROV_STATE_SORTING">
+                        <TYPE Type="CHAR" Length="2" Offset="280" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <DIRECTION Type="CHAR" Length="2" Offset="282" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <ATTRIBUTE_ID Type="INT" Length="4" Offset="284" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <DATA_CELL_ID Type="INT" Length="4" Offset="288" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <PREDEFINED_MEMBERS_ORDER Type="ITAB" Length="8" Offset="296" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                            <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                          </Structure>
+                        </PREDEFINED_MEMBERS_ORDER>
+                        <PREDEFINED_MEMBERS_BOTTOM Type="ITAB" Length="8" Offset="304" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                            <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                          </Structure>
+                        </PREDEFINED_MEMBERS_BOTTOM>
+                      </Structure>
+                    </RESULT_SET_SORTING>
+                    <MEMBER_ACCESS_SORTING Type="STRUCTURE" Length="32" Offset="312" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="32" ABAPStructureName="BICS_PROV_STATE_SORTING">
+                        <TYPE Type="CHAR" Length="2" Offset="312" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <DIRECTION Type="CHAR" Length="2" Offset="314" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <ATTRIBUTE_ID Type="INT" Length="4" Offset="316" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <DATA_CELL_ID Type="INT" Length="4" Offset="320" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <PREDEFINED_MEMBERS_ORDER Type="ITAB" Length="8" Offset="328" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                            <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                          </Structure>
+                        </PREDEFINED_MEMBERS_ORDER>
+                        <PREDEFINED_MEMBERS_BOTTOM Type="ITAB" Length="8" Offset="336" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                            <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                          </Structure>
+                        </PREDEFINED_MEMBERS_BOTTOM>
+                      </Structure>
+                    </MEMBER_ACCESS_SORTING>
+                    <NODE_TYPES Type="ITAB" Length="8" Offset="344" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="80" ABAPStructureName="BICS_PROV_STATE_NODE_TYPE">
+                        <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <RESULT_SET_PRESENTATION Type="INT" Length="4" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <MEMBER_ACCESS_INDIV_SETTINGS Type="CHAR" Length="2" Offset="8" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <MEMBER_ACCESS_PRESENTATION Type="INT" Length="4" Offset="12" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <MEMBER_ACCESS_MODE Type="CHAR" Length="2" Offset="16" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <ATTRIBUTES Type="ITAB" Length="8" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="56" ABAPStructureName="BICS_PROV_STATE_ATTRIBUTE">
+                            <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <RESULT_SET_PRESENTATION Type="INT" Length="4" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <MEMBER_ACCESS_INDIV_SETTINGS Type="CHAR" Length="2" Offset="8" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <MEMBER_ACCESS_PRESENTATION Type="INT" Length="4" Offset="12" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <MEMBER_ACCESS_MODE Type="CHAR" Length="2" Offset="16" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <MEMBER_ACCESS_SORTING Type="STRUCTURE" Length="32" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False">
+                              <Structure FixedLength="32" ABAPStructureName="BICS_PROV_STATE_SORTING">
+                                <TYPE Type="CHAR" Length="2" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                                <DIRECTION Type="CHAR" Length="2" Offset="26" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                                <ATTRIBUTE_ID Type="INT" Length="4" Offset="28" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                                <DATA_CELL_ID Type="INT" Length="4" Offset="32" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                                <PREDEFINED_MEMBERS_ORDER Type="ITAB" Length="8" Offset="40" Decimals="0" Tag="" IsNonStructureLineType="False">
+                                  <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                                    <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                                  </Structure>
+                                </PREDEFINED_MEMBERS_ORDER>
+                                <PREDEFINED_MEMBERS_BOTTOM Type="ITAB" Length="8" Offset="48" Decimals="0" Tag="" IsNonStructureLineType="False">
+                                  <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                                    <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                                  </Structure>
+                                </PREDEFINED_MEMBERS_BOTTOM>
+                              </Structure>
+                            </MEMBER_ACCESS_SORTING>
+                          </Structure>
+                        </ATTRIBUTES>
+                        <RESULT_SET_ATTRIBUTES Type="ITAB" Length="8" Offset="32" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="4" ABAPStructureName="BICS_PROV_T_OBJECT_ID">
+                            <BICS_PROV_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                          </Structure>
+                        </RESULT_SET_ATTRIBUTES>
+                        <MEMBER_ACCESS_ATTRIBUTES Type="ITAB" Length="8" Offset="40" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="4" ABAPStructureName="BICS_PROV_T_OBJECT_ID">
+                            <BICS_PROV_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                          </Structure>
+                        </MEMBER_ACCESS_ATTRIBUTES>
+                        <MEMBER_ACCESS_SORTING Type="STRUCTURE" Length="32" Offset="48" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="32" ABAPStructureName="BICS_PROV_STATE_SORTING">
+                            <TYPE Type="CHAR" Length="2" Offset="48" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <DIRECTION Type="CHAR" Length="2" Offset="50" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <ATTRIBUTE_ID Type="INT" Length="4" Offset="52" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <DATA_CELL_ID Type="INT" Length="4" Offset="56" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <PREDEFINED_MEMBERS_ORDER Type="ITAB" Length="8" Offset="64" Decimals="0" Tag="" IsNonStructureLineType="False">
+                              <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                                <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                              </Structure>
+                            </PREDEFINED_MEMBERS_ORDER>
+                            <PREDEFINED_MEMBERS_BOTTOM Type="ITAB" Length="8" Offset="72" Decimals="0" Tag="" IsNonStructureLineType="False">
+                              <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                                <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                              </Structure>
+                            </PREDEFINED_MEMBERS_BOTTOM>
+                          </Structure>
+                        </MEMBER_ACCESS_SORTING>
+                      </Structure>
+                    </NODE_TYPES>
+                  </Structure>
+                </HIERARCHY_STATE>
+                <CUMULATION Type="CHAR" Length="2" Offset="352" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <GEO_PARAMETERS Type="STRUCTURE" Length="28" Offset="356" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="28" ABAPStructureName="RSMD_GEO_S_PARAMETERS">
+                    <TEXTTRANSFORMATION Type="CHAR" Length="24" Offset="356" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <SRID Type="INT" Length="4" Offset="380" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </GEO_PARAMETERS>
+              </Structure>
+            </CHARACTERISTICS>
+            <SELECTION_STATE Type="ITAB" Length="8" Offset="208" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="112" ABAPStructureName="RSBOLAP_SO_SX_CHAR_SELECTION">
+                <NAME Type="CHAR" Length="80" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SELECTION Type="ITAB" Length="8" Offset="80" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="480" ABAPStructureName="RSBOLAP_SO_S_CHAR_SELECTION">
+                    <SIGN Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <OPERATOR Type="CHAR" Length="4" Offset="2" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ATTRIBUTE_NAME Type="CHAR" Length="80" Offset="6" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <PRESENTATION Type="INT1" Length="1" Offset="86" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <LOW Type="STRING" Length="2666" Offset="88" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <LOW_TEXT Type="CHAR" Length="120" Offset="96" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <LOW_IS_EXIT_VARIABLE Type="CHAR" Length="2" Offset="216" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIGH Type="STRING" Length="2666" Offset="220" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIGH_TEXT Type="CHAR" Length="120" Offset="228" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIGH_IS_EXIT_VARIABLE Type="CHAR" Length="2" Offset="348" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIERARCHY_NAME Type="CHAR" Length="80" Offset="350" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIERARCHY_VERSION Type="CHAR" Length="6" Offset="430" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIERARCHY_DUEDATE Type="DATE" Length="16" Offset="436" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <LOW_EXIT_SHIFT Type="INT" Length="4" Offset="452" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIGH_EXIT_SHIFT Type="INT" Length="4" Offset="456" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ACTION Type="CHAR" Length="2" Offset="460" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIERARCHY_MIN_LEVEL Type="INT" Length="4" Offset="464" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <REPL_FILTER Type="ITAB" Length="8" Offset="472" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="36" ABAPStructureName="RSBOLAP_SO_S_REPL_FILTER">
+                        <ENTRY_NR Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <FIELD Type="CHAR" Length="20" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <LINE_NR Type="INT" Length="4" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <VALUE Type="STRING" Length="2666" Offset="28" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                      </Structure>
+                    </REPL_FILTER>
+                  </Structure>
+                </SELECTION>
+                <IS_SINGLE_VALUE_SEL Type="INT" Length="4" Offset="88" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <IS_SELECTION_INCLUDED Type="CHAR" Length="2" Offset="92" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SELECTION_LINE_COUNT Type="INT" Length="4" Offset="96" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <NODE Type="ITAB" Length="8" Offset="104" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="32" ABAPStructureName="RSBOLAP_S_NODE">
+                    <LOW Type="STRING" Length="2666" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIGH Type="STRING" Length="2666" Offset="8" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <TLEVEL Type="INT" Length="4" Offset="16" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <SID Type="INT" Length="4" Offset="20" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <FROM_TLEVEL Type="INT" Length="4" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <TO_TLEVEL Type="INT" Length="4" Offset="28" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </NODE>
+              </Structure>
+            </SELECTION_STATE>
+            <FREE_AXIS Type="STRUCTURE" Length="88" Offset="216" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="88" ABAPStructureName="BICS_PROV_STATE_AXIS">
+                <RESULT_ALIGNMENT Type="CHAR" Length="2" Offset="216" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HIERARCHICAL Type="CHAR" Length="2" Offset="218" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <INITIAL_LOAD_LEVEL Type="INT" Length="4" Offset="220" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ZERO_SUPPRESSION Type="CHAR" Length="2" Offset="224" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <CHARACTERISTICS Type="ITAB" Length="8" Offset="232" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="4" ABAPStructureName="BICS_PROV_T_OBJECT_ID">
+                    <BICS_PROV_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                  </Structure>
+                </CHARACTERISTICS>
+                <ZERO_SUPPRESSION_MODE Type="CHAR" Length="60" Offset="240" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </FREE_AXIS>
+            <COLUMNS_AXIS Type="STRUCTURE" Length="88" Offset="304" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="88" ABAPStructureName="BICS_PROV_STATE_AXIS">
+                <RESULT_ALIGNMENT Type="CHAR" Length="2" Offset="304" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HIERARCHICAL Type="CHAR" Length="2" Offset="306" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <INITIAL_LOAD_LEVEL Type="INT" Length="4" Offset="308" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ZERO_SUPPRESSION Type="CHAR" Length="2" Offset="312" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <CHARACTERISTICS Type="ITAB" Length="8" Offset="320" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="4" ABAPStructureName="BICS_PROV_T_OBJECT_ID">
+                    <BICS_PROV_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                  </Structure>
+                </CHARACTERISTICS>
+                <ZERO_SUPPRESSION_MODE Type="CHAR" Length="60" Offset="328" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </COLUMNS_AXIS>
+            <ROWS_AXIS Type="STRUCTURE" Length="88" Offset="392" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="88" ABAPStructureName="BICS_PROV_STATE_AXIS">
+                <RESULT_ALIGNMENT Type="CHAR" Length="2" Offset="392" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HIERARCHICAL Type="CHAR" Length="2" Offset="394" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <INITIAL_LOAD_LEVEL Type="INT" Length="4" Offset="396" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ZERO_SUPPRESSION Type="CHAR" Length="2" Offset="400" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <CHARACTERISTICS Type="ITAB" Length="8" Offset="408" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="4" ABAPStructureName="BICS_PROV_T_OBJECT_ID">
+                    <BICS_PROV_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                  </Structure>
+                </CHARACTERISTICS>
+                <ZERO_SUPPRESSION_MODE Type="CHAR" Length="60" Offset="416" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </ROWS_AXIS>
+            <CONDITIONS Type="ITAB" Length="8" Offset="480" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="112" ABAPStructureName="BICS_PROV_STATE_CONDITION">
+                <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <NAME Type="CHAR" Length="80" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DRILL_CONTEXT_CHARACTERISTICS Type="ITAB" Length="8" Offset="88" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                    <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                  </Structure>
+                </DRILL_CONTEXT_CHARACTERISTICS>
+                <DATA_CELL_CONDITIONS Type="ITAB" Length="8" Offset="96" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="64" ABAPStructureName="BICS_PROV_STATE_DATA_CELL_COND">
+                    <DATA_CELL_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <OPERATOR Type="CHAR" Length="4" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <LOW Type="FLOAT" Length="8" Offset="8" Decimals="16" Tag="" IsNonStructureLineType="False"/>
+                    <HIGH Type="FLOAT" Length="8" Offset="16" Decimals="16" Tag="" IsNonStructureLineType="False"/>
+                    <LOW_DF Type="DECF34" Length="16" Offset="32" Decimals="9" Tag="" IsNonStructureLineType="False"/>
+                    <HIGH_DF Type="DECF34" Length="16" Offset="48" Decimals="9" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </DATA_CELL_CONDITIONS>
+                <IGNORE_NULLS Type="CHAR" Length="2" Offset="104" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </CONDITIONS>
+            <QUERY_PROPERTIES Type="STRUCTURE" Length="112" Offset="488" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="112" ABAPStructureName="BICS_PROV_STATE_QUERY">
+                <SRDATE Type="DATE" Length="16" Offset="488" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <CTART Type="NUM" Length="2" Offset="504" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <TCUR Type="CHAR" Length="10" Offset="506" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <CTTNM Type="CHAR" Length="20" Offset="516" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <INPUT_ENABLED Type="CHAR" Length="2" Offset="536" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DRAG_RELATE_URLS Type="CHAR" Length="2" Offset="538" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ZERO_PRESENTATION Type="CHAR" Length="40" Offset="540" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ZERO_PRESENTATION_CUST_STRING Type="STRING" Length="8" Offset="580" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SIGN_PRESENTATION Type="CHAR" Length="2" Offset="588" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <CURRENCY_UNIT_PRESENTATION Type="CHAR" Length="2" Offset="590" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <RESULT_SET_SIZE_LIMIT Type="INT" Length="4" Offset="592" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <READ_CHILD_KIDS Type="CHAR" Length="2" Offset="596" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </QUERY_PROPERTIES>
+            <DATA_CELLS Type="ITAB" Length="8" Offset="600" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="60" ABAPStructureName="BICS_PROV_STATE_DATA_CELL">
+                <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <NUM_PREC Type="CHAR" Length="2" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <NUM_SCALE Type="CHAR" Length="2" Offset="6" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SIGN_INVERSION Type="CHAR" Length="2" Offset="8" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <CUMULATION Type="CHAR" Length="2" Offset="10" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <EMPHASIZED Type="CHAR" Length="2" Offset="12" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DETAIL_CALCULATION Type="CHAR" Length="4" Offset="14" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <CALCULATION_DIRECTION Type="CHAR" Length="24" Offset="18" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <RESULT_CALCULATION Type="CHAR" Length="4" Offset="42" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <APPLY_DETAIL_CALC_TO_RESULTS Type="CHAR" Length="2" Offset="46" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DISAGGR_KID Type="INT" Length="4" Offset="48" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DISAGGR_MODE Type="CHAR" Length="2" Offset="52" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <NUM_PREC_02 Type="CHAR" Length="4" Offset="54" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </DATA_CELLS>
+            <CONDITIONS_CONS Type="ITAB" Length="8" Offset="608" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="280" ABAPStructureName="BICS_CONS_STATE_CONDITION">
+                <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <NAME Type="CHAR" Length="80" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DRILL_CONTEXT_CHARACTERISTICS Type="ITAB" Length="8" Offset="88" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                    <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                  </Structure>
+                </DRILL_CONTEXT_CHARACTERISTICS>
+                <DATA_CELL_CONDITIONS Type="ITAB" Length="8" Offset="96" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="64" ABAPStructureName="BICS_PROV_STATE_DATA_CELL_COND">
+                    <DATA_CELL_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <OPERATOR Type="CHAR" Length="4" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <LOW Type="FLOAT" Length="8" Offset="8" Decimals="16" Tag="" IsNonStructureLineType="False"/>
+                    <HIGH Type="FLOAT" Length="8" Offset="16" Decimals="16" Tag="" IsNonStructureLineType="False"/>
+                    <LOW_DF Type="DECF34" Length="16" Offset="32" Decimals="9" Tag="" IsNonStructureLineType="False"/>
+                    <HIGH_DF Type="DECF34" Length="16" Offset="48" Decimals="9" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </DATA_CELL_CONDITIONS>
+                <IGNORE_NULLS Type="CHAR" Length="2" Offset="104" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <TEXT Type="CHAR" Length="120" Offset="112" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ACTIVE Type="CHAR" Length="2" Offset="232" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DRILL_CONTEXT Type="CHAR" Length="40" Offset="234" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <CHANGEABLE Type="CHAR" Length="2" Offset="274" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <COMPLETE Type="CHAR" Length="2" Offset="276" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </CONDITIONS_CONS>
+            <EXCEPTIONS_CONS Type="ITAB" Length="8" Offset="616" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="280" ABAPStructureName="BICS_CONS_STATE_EXCEPTION">
+                <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <NAME Type="CHAR" Length="80" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <TEXT Type="CHAR" Length="120" Offset="84" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ACTIVE Type="CHAR" Length="2" Offset="204" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <CHANGEABLE Type="CHAR" Length="2" Offset="206" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <APPLY_TO_DATA_CELLS Type="CHAR" Length="2" Offset="208" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <EXECUTE_AFTER_LIST_CALCULATION Type="CHAR" Length="2" Offset="210" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <AXIS_TO_APPLY_ALERT_LEVELS Type="CHAR" Length="2" Offset="212" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <THRESHOLDS Type="ITAB" Length="8" Offset="216" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="64" ABAPStructureName="BICS_CONS_STATE_THRESHOLD">
+                    <ALERT_LEVEL Type="INT1" Length="1" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <OPERATOR Type="CHAR" Length="4" Offset="2" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <LOW Type="DECF34" Length="16" Offset="16" Decimals="9" Tag="" IsNonStructureLineType="False"/>
+                    <HIGH Type="DECF34" Length="16" Offset="32" Decimals="9" Tag="" IsNonStructureLineType="False"/>
+                    <LOW_EXCLUDE Type="CHAR" Length="2" Offset="48" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIGH_EXCLUDE Type="CHAR" Length="2" Offset="50" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </THRESHOLDS>
+                <STRUCTURE_CONTEXT_1 Type="STRUCTURE" Length="20" Offset="224" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="20" ABAPStructureName="BICS_CONS_STATE_STRUCTURE_CTXT">
+                    <STRUCTURE_ID Type="INT" Length="4" Offset="224" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_ID Type="INT" Length="4" Offset="228" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ALL_MEMBERS Type="CHAR" Length="2" Offset="232" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <TARGET_MEMBER_ID Type="INT" Length="4" Offset="236" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <TARGET_ALL_MEMBERS Type="CHAR" Length="2" Offset="240" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </STRUCTURE_CONTEXT_1>
+                <STRUCTURE_CONTEXT_2 Type="STRUCTURE" Length="20" Offset="244" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="20" ABAPStructureName="BICS_CONS_STATE_STRUCTURE_CTXT">
+                    <STRUCTURE_ID Type="INT" Length="4" Offset="244" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_ID Type="INT" Length="4" Offset="248" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ALL_MEMBERS Type="CHAR" Length="2" Offset="252" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <TARGET_MEMBER_ID Type="INT" Length="4" Offset="256" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <TARGET_ALL_MEMBERS Type="CHAR" Length="2" Offset="260" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </STRUCTURE_CONTEXT_2>
+                <DEFAULT_CHAR_CTXT_OPERATOR Type="CHAR" Length="4" Offset="264" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <CHARACTERISTIC_CONTEXT Type="ITAB" Length="8" Offset="272" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="120" ABAPStructureName="BICS_CONS_STATE_CHAR_CONTEXT">
+                    <CHARACTERISTIC_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <OPERATOR Type="CHAR" Length="4" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_ID Type="INT" Length="4" Offset="8" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_NAME Type="CHAR" Length="80" Offset="12" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_LEVEL Type="INT2" Length="2" Offset="92" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_NAMES Type="ITAB" Length="8" Offset="96" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="80" ABAPStructureName="RSBOLAP_T_OBJECT_NAME">
+                        <RSBOLAP_OBJECT_NAME Type="CHAR" Length="80" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                      </Structure>
+                    </MEMBER_NAMES>
+                    <MEMBER_IDS Type="ITAB" Length="8" Offset="104" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                        <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                      </Structure>
+                    </MEMBER_IDS>
+                    <HIER_MEMBERS Type="ITAB" Length="8" Offset="112" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="160" ABAPStructureName="RSBOLAP_QV_S_NODE_SELECTION">
+                        <MEMBER_NODE_TYPE Type="CHAR" Length="80" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <MEMBER_NAME Type="CHAR" Length="80" Offset="80" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                      </Structure>
+                    </HIER_MEMBERS>
+                  </Structure>
+                </CHARACTERISTIC_CONTEXT>
+              </Structure>
+            </EXCEPTIONS_CONS>
+            <DOC_APP Type="STRUCTURE" Length="394" Offset="624" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="394" ABAPStructureName="RSDOC_S_QUERY_APPL_ID">
+                <COMPID Type="CHAR" Length="50" Offset="624" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <APPL_ID Type="CHAR" Length="60" Offset="674" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <TAG Type="CHAR" Length="120" Offset="734" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <IS_USED Type="CHAR" Length="2" Offset="854" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <TXTSH Type="CHAR" Length="40" Offset="856" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <TXTLG Type="CHAR" Length="120" Offset="896" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <WRITE_AUTHORIZED Type="CHAR" Length="2" Offset="1016" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </DOC_APP>
+            <DRILL_GROUPS Type="ITAB" Length="8" Offset="1024" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="192" ABAPStructureName="BICS_PROV_STATE_DRILL_GROUP">
+                <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <NAME Type="CHAR" Length="80" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <CHARACTERISTICS Type="ITAB" Length="8" Offset="88" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="4" ABAPStructureName="BICS_PROV_T_OBJECT_ID">
+                    <BICS_PROV_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                  </Structure>
+                </CHARACTERISTICS>
+                <START_DRILL_LEVEL Type="INT2" Length="2" Offset="96" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <NODE_ALIGNMENT Type="CHAR" Length="2" Offset="98" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ACTIVE Type="CHAR" Length="2" Offset="100" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <CHANGEABLE Type="CHAR" Length="2" Offset="102" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <AXIS Type="CHAR" Length="2" Offset="104" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <LEVEL_HIERARCHY_NAME Type="CHAR" Length="80" Offset="106" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </DRILL_GROUPS>
+            <SELECTION_STATE_NON_CART Type="STRUCTURE" Length="8" Offset="1032" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="8" ABAPStructureName="RSBOLAP_SO_SX_NON_CART_SEL">
+                <TUPLES Type="ITAB" Length="8" Offset="1032" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="16" ABAPStructureName="RSBOLAP_SO_SX_TUPLES">
+                    <COMPS Type="ITAB" Length="8" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="182" ABAPStructureName="RSBOLAP_SO_S_TUPLE_COMP">
+                        <NAME Type="CHAR" Length="80" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <HIERARCHY_NAME Type="CHAR" Length="80" Offset="80" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <HIERARCHY_VERSION Type="CHAR" Length="6" Offset="160" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <HIERARCHY_DUEDATE Type="DATE" Length="16" Offset="166" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                      </Structure>
+                    </COMPS>
+                    <VECTORS Type="ITAB" Length="8" Offset="8" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="16" ABAPStructureName="RSBOLAP_SO_SX_TUPLE_VECTOR">
+                        <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <VECTOR Type="ITAB" Length="8" Offset="8" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="480" ABAPStructureName="RSBOLAP_SO_S_CHAR_SELECTION">
+                            <SIGN Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <OPERATOR Type="CHAR" Length="4" Offset="2" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <ATTRIBUTE_NAME Type="CHAR" Length="80" Offset="6" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <PRESENTATION Type="INT1" Length="1" Offset="86" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <LOW Type="STRING" Length="2666" Offset="88" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <LOW_TEXT Type="CHAR" Length="120" Offset="96" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <LOW_IS_EXIT_VARIABLE Type="CHAR" Length="2" Offset="216" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <HIGH Type="STRING" Length="2666" Offset="220" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <HIGH_TEXT Type="CHAR" Length="120" Offset="228" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <HIGH_IS_EXIT_VARIABLE Type="CHAR" Length="2" Offset="348" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <HIERARCHY_NAME Type="CHAR" Length="80" Offset="350" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <HIERARCHY_VERSION Type="CHAR" Length="6" Offset="430" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <HIERARCHY_DUEDATE Type="DATE" Length="16" Offset="436" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <LOW_EXIT_SHIFT Type="INT" Length="4" Offset="452" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <HIGH_EXIT_SHIFT Type="INT" Length="4" Offset="456" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <ACTION Type="CHAR" Length="2" Offset="460" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <HIERARCHY_MIN_LEVEL Type="INT" Length="4" Offset="464" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <REPL_FILTER Type="ITAB" Length="8" Offset="472" Decimals="0" Tag="" IsNonStructureLineType="False">
+                              <Structure FixedLength="36" ABAPStructureName="RSBOLAP_SO_S_REPL_FILTER">
+                                <ENTRY_NR Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                                <FIELD Type="CHAR" Length="20" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                                <LINE_NR Type="INT" Length="4" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                                <VALUE Type="STRING" Length="2666" Offset="28" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                              </Structure>
+                            </REPL_FILTER>
+                          </Structure>
+                        </VECTOR>
+                      </Structure>
+                    </VECTORS>
+                  </Structure>
+                </TUPLES>
+              </Structure>
+            </SELECTION_STATE_NON_CART>
+          </Structure>
+        </QUERY_STATE>
+        <QUERY_PROPERTIES Type="STRUCTURE" Length="1152" Offset="1040" Decimals="0" Tag="" IsNonStructureLineType="False">
+          <Structure FixedLength="1152" ABAPStructureName="BICS_PROV_META_QUERY">
+            <COMPUID Type="CHAR" Length="50" Offset="1040" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <OBJVERS Type="CHAR" Length="2" Offset="1090" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <INFOCUBE Type="CHAR" Length="60" Offset="1092" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <GENUNIID Type="CHAR" Length="50" Offset="1152" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <COMPTYPE Type="CHAR" Length="6" Offset="1202" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <COMPID Type="CHAR" Length="60" Offset="1208" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <CURKZ Type="CHAR" Length="2" Offset="1268" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <PERIV Type="CHAR" Length="4" Offset="1270" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DUEDATE Type="DATE" Length="16" Offset="1274" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <INPUT_MODE Type="NUM" Length="2" Offset="1290" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <INFOPROVIDER_NAME Type="CHAR" Length="80" Offset="1292" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <INFOPROVIDER_TEXT Type="CHAR" Length="120" Offset="1372" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <BASE_INFOPROVIDER_NAME Type="CHAR" Length="120" Offset="1492" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <BASE_INFOPROVIDER_TEXT Type="CHAR" Length="120" Offset="1612" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <QUERY_NAME Type="CHAR" Length="80" Offset="1732" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <QUERY_TEXT Type="CHAR" Length="120" Offset="1812" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <QUERY_TRANSIENT Type="CHAR" Length="2" Offset="1932" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <QUERY_CREATED_BY Type="CHAR" Length="24" Offset="1934" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <QUERY_CREATION_DATE Type="DATE" Length="16" Offset="1958" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <QUERY_CREATION_TIME Type="TIME" Length="12" Offset="1974" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <QUERY_CHANGED_BY Type="CHAR" Length="24" Offset="1986" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <QUERY_CHANGE_DATE Type="DATE" Length="16" Offset="2010" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <QUERY_CHANGE_TIME Type="TIME" Length="12" Offset="2026" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DATA_REFRESH_DATE Type="DATE" Length="16" Offset="2038" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DATA_REFRESH_TIME Type="TIME" Length="12" Offset="2054" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DATA_ROLLUP_DATE Type="DATE" Length="16" Offset="2066" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DATA_ROLLUP_TIME Type="TIME" Length="12" Offset="2082" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DATA_ROLLUP_DATE_MAX Type="DATE" Length="16" Offset="2094" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DATA_ROLLUP_TIME_MAX Type="TIME" Length="12" Offset="2110" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <MDX_ENABLED Type="CHAR" Length="2" Offset="2122" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <HIDE_REPEATED_KEY_VALUES Type="CHAR" Length="2" Offset="2124" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <NEW_LINES_ON_ANY_LEVEL Type="CHAR" Length="2" Offset="2126" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DISAGGREGATE_WITHOUT_DATA Type="CHAR" Length="2" Offset="2128" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DOCUMENT_SUPPORT Type="CHAR" Length="2" Offset="2130" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DEFAULT_DOC_APPL_ID Type="CHAR" Length="60" Offset="2132" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+          </Structure>
+        </QUERY_PROPERTIES>
+        <DATA_CELLS Type="ITAB" Length="8" Offset="2192" Decimals="0" Tag="" IsNonStructureLineType="False">
+          <Structure FixedLength="460" ABAPStructureName="BICS_PROV_META_DATA_CELL">
+            <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <STRUCTURE_MEMBER_ID_1 Type="INT" Length="4" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <STRUCTURE_MEMBER_ID_2 Type="INT" Length="4" Offset="8" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <STRUCTURE_MEMBER_NAME_1 Type="CHAR" Length="80" Offset="12" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <STRUCTURE_MEMBER_NAME_2 Type="CHAR" Length="80" Offset="92" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <STRUCTURE_MEMBER_ALT_NAME_1 Type="CHAR" Length="80" Offset="172" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <STRUCTURE_MEMBER_ALT_NAME_2 Type="CHAR" Length="80" Offset="252" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <STATIC Type="CHAR" Length="2" Offset="332" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DFLT_PREC Type="CHAR" Length="2" Offset="334" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DFLT_SCALE Type="CHAR" Length="2" Offset="336" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <SIGNINV Type="CHAR" Length="2" Offset="338" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <TCUR Type="CHAR" Length="10" Offset="340" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <SUMABLE Type="CHAR" Length="2" Offset="350" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <INPUT_ENABLED Type="CHAR" Length="2" Offset="352" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <MWKZ Type="CHAR" Length="2" Offset="354" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <AGGREGATION Type="CHAR" Length="6" Offset="356" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <EMPHASIZED Type="CHAR" Length="2" Offset="362" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DISAGGR_KID Type="INT" Length="4" Offset="364" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DISAGGR_MODE Type="CHAR" Length="2" Offset="368" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <BASED_ON_CHANMID Type="INT" Length="4" Offset="372" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <BASED_ON_CHANM Type="CHAR" Length="60" Offset="376" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <BASED_ON_CHA_F4_SUPPORT Type="CHAR" Length="2" Offset="436" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <WITH_CALCULATION Type="CHAR" Length="2" Offset="438" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <RESULT_CALCULATION Type="CHAR" Length="4" Offset="440" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <SINGLE_VALUE_CALCULATION Type="CHAR" Length="4" Offset="444" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <CUMULATION Type="CHAR" Length="2" Offset="448" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <HIDDEN Type="CHAR" Length="2" Offset="450" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <DOCBNR Type="INT" Length="4" Offset="452" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <LOCAL_FORMULA Type="CHAR" Length="2" Offset="456" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <HAS_NO_CHECK_TABLE_BW4 Type="CHAR" Length="2" Offset="458" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+          </Structure>
+        </DATA_CELLS>
+        <DEFAULT_VIEW_DEFINITION Type="XSTRING" Length="8" Offset="2200" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <DESIGNTIME_INFO Type="STRUCTURE" Length="168" Offset="2208" Decimals="0" Tag="" IsNonStructureLineType="False">
+          <Structure FixedLength="168" ABAPStructureName="RSBOLAP_SX_DESIGNTIME_INFO">
+            <QUERY_NAME Type="CHAR" Length="80" Offset="2208" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <SELECTION_SPACE Type="ITAB" Length="8" Offset="2288" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="88" ABAPStructureName="RSBOLAP_DT_SX_CHAR_SELECTION">
+                <NAME Type="CHAR" Length="80" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SELECTION Type="ITAB" Length="8" Offset="80" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="212" ABAPStructureName="RSBOLAP_DT_S_CHAR_SELECTION">
+                    <SIGN Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <OPERATOR Type="CHAR" Length="4" Offset="2" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ATTRIBUTE_NAME Type="CHAR" Length="80" Offset="6" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <PRESENTATION Type="INT1" Length="1" Offset="86" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <LOW Type="STRING" Length="2666" Offset="88" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <LOW_IS_VARIABLE Type="CHAR" Length="2" Offset="96" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIGH Type="STRING" Length="2666" Offset="100" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIGH_IS_VARIABLE Type="CHAR" Length="2" Offset="108" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIERARCHY_NAME Type="CHAR" Length="80" Offset="110" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIERARCHY_VERSION Type="CHAR" Length="6" Offset="190" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIERARCHY_DUEDATE Type="DATE" Length="16" Offset="196" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </SELECTION>
+              </Structure>
+            </SELECTION_SPACE>
+            <SELECTION_STATE Type="ITAB" Length="8" Offset="2296" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="88" ABAPStructureName="RSBOLAP_DT_SX_CHAR_SELECTION">
+                <NAME Type="CHAR" Length="80" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SELECTION Type="ITAB" Length="8" Offset="80" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="212" ABAPStructureName="RSBOLAP_DT_S_CHAR_SELECTION">
+                    <SIGN Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <OPERATOR Type="CHAR" Length="4" Offset="2" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ATTRIBUTE_NAME Type="CHAR" Length="80" Offset="6" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <PRESENTATION Type="INT1" Length="1" Offset="86" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <LOW Type="STRING" Length="2666" Offset="88" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <LOW_IS_VARIABLE Type="CHAR" Length="2" Offset="96" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIGH Type="STRING" Length="2666" Offset="100" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIGH_IS_VARIABLE Type="CHAR" Length="2" Offset="108" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIERARCHY_NAME Type="CHAR" Length="80" Offset="110" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIERARCHY_VERSION Type="CHAR" Length="6" Offset="190" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIERARCHY_DUEDATE Type="DATE" Length="16" Offset="196" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </SELECTION>
+              </Structure>
+            </SELECTION_STATE>
+            <VARIABLES Type="ITAB" Length="8" Offset="2304" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="312" ABAPStructureName="RSBOLAP_DT_S_VARIABLE">
+                <NAME Type="CHAR" Length="80" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <TEXT Type="CHAR" Length="120" Offset="80" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <MANDATORY Type="CHAR" Length="2" Offset="200" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <INPUT_ENABLED Type="CHAR" Length="2" Offset="202" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <STATE_VARIABLE Type="CHAR" Length="2" Offset="204" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <VARTYP Type="NUM" Length="2" Offset="206" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <VPARSEL Type="CHAR" Length="2" Offset="208" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ENTRYTP Type="NUM" Length="2" Offset="210" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <REFERENCE_CHAR Type="CHAR" Length="60" Offset="212" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DEFAULT_VALUES Type="ITAB" Length="8" Offset="272" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="480" ABAPStructureName="RSBOLAP_SO_S_CHAR_SELECTION">
+                    <SIGN Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <OPERATOR Type="CHAR" Length="4" Offset="2" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ATTRIBUTE_NAME Type="CHAR" Length="80" Offset="6" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <PRESENTATION Type="INT1" Length="1" Offset="86" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <LOW Type="STRING" Length="2666" Offset="88" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <LOW_TEXT Type="CHAR" Length="120" Offset="96" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <LOW_IS_EXIT_VARIABLE Type="CHAR" Length="2" Offset="216" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIGH Type="STRING" Length="2666" Offset="220" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIGH_TEXT Type="CHAR" Length="120" Offset="228" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIGH_IS_EXIT_VARIABLE Type="CHAR" Length="2" Offset="348" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIERARCHY_NAME Type="CHAR" Length="80" Offset="350" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIERARCHY_VERSION Type="CHAR" Length="6" Offset="430" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIERARCHY_DUEDATE Type="DATE" Length="16" Offset="436" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <LOW_EXIT_SHIFT Type="INT" Length="4" Offset="452" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIGH_EXIT_SHIFT Type="INT" Length="4" Offset="456" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ACTION Type="CHAR" Length="2" Offset="460" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HIERARCHY_MIN_LEVEL Type="INT" Length="4" Offset="464" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <REPL_FILTER Type="ITAB" Length="8" Offset="472" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="36" ABAPStructureName="RSBOLAP_SO_S_REPL_FILTER">
+                        <ENTRY_NR Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <FIELD Type="CHAR" Length="20" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <LINE_NR Type="INT" Length="4" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <VALUE Type="STRING" Length="2666" Offset="28" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                      </Structure>
+                    </REPL_FILTER>
+                  </Structure>
+                </DEFAULT_VALUES>
+                <OUTPUTLEN Type="NUM" Length="12" Offset="280" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DEPENDENT_ON Type="ITAB" Length="8" Offset="296" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="156" ABAPStructureName="RSBOLAP_DT_S_VAR_DEPENDENCY">
+                    <NAME Type="CHAR" Length="80" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <REFERENCE_CHAR Type="CHAR" Length="60" Offset="80" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <FIX Type="CHAR" Length="2" Offset="140" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <CHAVL Type="STRING" Length="2666" Offset="144" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <NO_F4_RELEVANCE Type="CHAR" Length="2" Offset="152" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </DEPENDENT_ON>
+                <VPROCTP Type="NUM" Length="2" Offset="304" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <INPUT_ENABLED_AND_EXIT Type="CHAR" Length="2" Offset="306" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </VARIABLES>
+            <VARIABLE_CHARACTERISTICS_META Type="ITAB" Length="8" Offset="2312" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="752" ABAPStructureName="BICS_PROV_META_CHARACTERISTIC">
+                <NAME Type="CHAR" Length="80" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ALTERNATIVE_NAME Type="CHAR" Length="80" Offset="80" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ID Type="INT" Length="4" Offset="160" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <TEXT Type="CHAR" Length="120" Offset="164" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HAS_SHORT_TEXT Type="CHAR" Length="2" Offset="284" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HAS_MEDIUM_TEXT Type="CHAR" Length="2" Offset="286" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HAS_LONG_TEXT Type="CHAR" Length="2" Offset="288" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HAS_TEXT Type="CHAR" Length="2" Offset="290" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SUPPORTS_LOWERCASE_KEYS Type="CHAR" Length="2" Offset="292" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HAS_COMPOUNDMENT Type="CHAR" Length="2" Offset="294" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <COMPOUNDMENT_KEY_OFFSET Type="INT" Length="4" Offset="296" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HAS_CONV_EXIT Type="CHAR" Length="2" Offset="300" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <INTTP Type="CHAR" Length="2" Offset="302" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DEFAULT_MEMBER_ACCESS_MODE Type="CHAR" Length="2" Offset="304" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DEFAULT_MEMBER_ACCESS_MODE_DT Type="CHAR" Length="2" Offset="306" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <IS_DOCUMENT_RELEVANT Type="CHAR" Length="2" Offset="308" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BASE_CHARACTERISTIC Type="CHAR" Length="80" Offset="310" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BASE_CHARACTERISTIC_ID Type="INT" Length="4" Offset="392" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DEFAULT_SELECTOR_PRSNT Type="CHAR" Length="2" Offset="396" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SELECTION_MODE Type="CHAR" Length="2" Offset="398" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BO_NAME Type="STRING" Length="8" Offset="400" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BO_NAMESPACE Type="STRING" Length="8" Offset="408" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BON_NAME Type="STRING" Length="8" Offset="416" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BON_NAMESPACE Type="STRING" Length="8" Offset="424" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BON_CCTS_NAME Type="STRING" Length="8" Offset="432" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BON_CCTS_NAMESPACE Type="STRING" Length="8" Offset="440" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <OBN_SYSTEM_ALIAS Type="CHAR" Length="20" Offset="448" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DEFAULT_VISUALIZATION_LEVEL Type="CHAR" Length="2" Offset="468" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SUPPORTED_MEMBER_ACCESS_MODES Type="ITAB" Length="8" Offset="472" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="124" ABAPStructureName="RSMD_RS_S_READ_MODE">
+                    <READ_MODE Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <TEXT Type="CHAR" Length="120" Offset="2" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <FUZZY_SEARCH Type="CHAR" Length="2" Offset="122" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </SUPPORTED_MEMBER_ACCESS_MODES>
+                <SUPPORTED_MEMBER_ACC_MODES_DT Type="ITAB" Length="8" Offset="480" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="124" ABAPStructureName="RSMD_RS_S_READ_MODE">
+                    <READ_MODE Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <TEXT Type="CHAR" Length="120" Offset="2" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <FUZZY_SEARCH Type="CHAR" Length="2" Offset="122" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </SUPPORTED_MEMBER_ACC_MODES_DT>
+                <USED_FOR_NAVIGATION Type="CHAR" Length="2" Offset="488" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <USED_FOR_SELECTION_SPACE Type="CHAR" Length="2" Offset="490" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <USED_FOR_DATA_CELL_DEFINITION Type="CHAR" Length="2" Offset="492" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <CONTAINS_KEYFIGURES Type="CHAR" Length="2" Offset="494" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SUPPORTS_AGGREGATION Type="CHAR" Length="2" Offset="496" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SUPPORTS_SELECTION Type="CHAR" Length="2" Offset="498" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <GIS_TYPE Type="NUM" Length="2" Offset="500" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <GIS_ATTRIBUTE_NAME Type="CHAR" Length="60" Offset="502" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BOR_OBJTYP Type="CHAR" Length="20" Offset="562" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SUPPORTS_HIERARCHIES Type="CHAR" Length="2" Offset="582" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SUPPORTS_SORT_BY_SELECT_SPACE Type="CHAR" Length="2" Offset="584" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ATTRIBUTES Type="ITAB" Length="8" Offset="592" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="496" ABAPStructureName="BICS_PROV_META_ATTRIBUTE">
+                    <NAME Type="CHAR" Length="80" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ALTERNATIVE_NAME Type="CHAR" Length="80" Offset="80" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ID Type="INT" Length="4" Offset="160" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <TEXT Type="CHAR" Length="120" Offset="164" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HAS_SHORT_TEXT Type="CHAR" Length="2" Offset="284" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HAS_MEDIUM_TEXT Type="CHAR" Length="2" Offset="286" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HAS_LONG_TEXT Type="CHAR" Length="2" Offset="288" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HAS_TEXT Type="CHAR" Length="2" Offset="290" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <SUPPORTS_LOWERCASE_KEYS Type="CHAR" Length="2" Offset="292" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HAS_COMPOUNDMENT Type="CHAR" Length="2" Offset="294" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <COMPOUNDMENT_KEY_OFFSET Type="INT" Length="4" Offset="296" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HAS_CONV_EXIT Type="CHAR" Length="2" Offset="300" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <INTTP Type="CHAR" Length="2" Offset="302" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DEFAULT_MEMBER_ACCESS_MODE Type="CHAR" Length="2" Offset="304" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DEFAULT_MEMBER_ACCESS_MODE_DT Type="CHAR" Length="2" Offset="306" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <IS_DOCUMENT_RELEVANT Type="CHAR" Length="2" Offset="308" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <BASE_CHARACTERISTIC Type="CHAR" Length="80" Offset="310" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <BASE_CHARACTERISTIC_ID Type="INT" Length="4" Offset="392" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DEFAULT_SELECTOR_PRSNT Type="CHAR" Length="2" Offset="396" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <SELECTION_MODE Type="CHAR" Length="2" Offset="398" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <BO_NAME Type="STRING" Length="8" Offset="400" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <BO_NAMESPACE Type="STRING" Length="8" Offset="408" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <BON_NAME Type="STRING" Length="8" Offset="416" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <BON_NAMESPACE Type="STRING" Length="8" Offset="424" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <BON_CCTS_NAME Type="STRING" Length="8" Offset="432" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <BON_CCTS_NAMESPACE Type="STRING" Length="8" Offset="440" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <OBN_SYSTEM_ALIAS Type="CHAR" Length="20" Offset="448" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DEFAULT_VISUALIZATION_LEVEL Type="CHAR" Length="2" Offset="468" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <SUPPORTED_MEMBER_ACCESS_MODES Type="ITAB" Length="8" Offset="472" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="124" ABAPStructureName="RSMD_RS_S_READ_MODE">
+                        <READ_MODE Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <TEXT Type="CHAR" Length="120" Offset="2" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <FUZZY_SEARCH Type="CHAR" Length="2" Offset="122" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                      </Structure>
+                    </SUPPORTED_MEMBER_ACCESS_MODES>
+                    <SUPPORTED_MEMBER_ACC_MODES_DT Type="ITAB" Length="8" Offset="480" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="124" ABAPStructureName="RSMD_RS_S_READ_MODE">
+                        <READ_MODE Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <TEXT Type="CHAR" Length="120" Offset="2" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <FUZZY_SEARCH Type="CHAR" Length="2" Offset="122" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                      </Structure>
+                    </SUPPORTED_MEMBER_ACC_MODES_DT>
+                    <SUPPORTS_MEMBER_ACCESS Type="CHAR" Length="2" Offset="488" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </ATTRIBUTES>
+                <IS_STRUCTURE Type="CHAR" Length="2" Offset="600" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <STRUCTURE_MEMBERS Type="ITAB" Length="8" Offset="608" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="632" ABAPStructureName="BICS_PROV_META_STRUC_MEMBER">
+                    <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <NAME Type="CHAR" Length="80" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ALTERNATIVE_NAME Type="CHAR" Length="80" Offset="84" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <TEXT Type="CHAR" Length="120" Offset="164" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <STATIC Type="CHAR" Length="2" Offset="284" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <PARENT_ID Type="INT" Length="4" Offset="288" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <INITIAL_DRILLSTATE Type="INT1" Length="1" Offset="292" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <LEVEL Type="INT2" Length="2" Offset="294" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_POSITION Type="INT" Length="4" Offset="296" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <BASED_ON_TLOGO Type="CHAR" Length="8" Offset="300" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <BASED_ON_NAME Type="CHAR" Length="80" Offset="308" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <BASED_ON_TEXT Type="CHAR" Length="120" Offset="388" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <STRUCTURE_ID Type="INT" Length="4" Offset="508" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ELTSID Type="INT" Length="4" Offset="512" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ELTUID Type="CHAR" Length="50" Offset="516" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ALLOWED_CHANM_ID Type="ITAB" Length="8" Offset="568" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="4" ABAPStructureName="RRSI_TS_SID">
+                        <RSSID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                      </Structure>
+                    </ALLOWED_CHANM_ID>
+                    <ELTUID_ORG Type="CHAR" Length="50" Offset="576" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </STRUCTURE_MEMBERS>
+                <RS_ACCESS_MODES Type="ITAB" Length="8" Offset="616" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="122" ABAPStructureName="BICS_PROV_META_RS_ACCESS_MODE">
+                    <MODE Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <TEXT Type="CHAR" Length="120" Offset="2" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </RS_ACCESS_MODES>
+                <DEFAULT_RS_ACCESS_MODE Type="CHAR" Length="2" Offset="624" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <IS_SUMMABLE Type="CHAR" Length="2" Offset="626" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DIMENSION Type="CHAR" Length="60" Offset="628" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ARTIFICIAL_INFOOBJECT Type="CHAR" Length="2" Offset="688" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <NO_MASTER_DATA Type="CHAR" Length="2" Offset="690" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DEFAULT_NEW_LINE_ACCESS_MODE Type="CHAR" Length="2" Offset="692" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <NEW_LINE_ACCESS_MODES Type="ITAB" Length="8" Offset="696" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="124" ABAPStructureName="RSMD_RS_S_READ_MODE">
+                    <READ_MODE Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <TEXT Type="CHAR" Length="120" Offset="2" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <FUZZY_SEARCH Type="CHAR" Length="2" Offset="122" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </NEW_LINE_ACCESS_MODES>
+                <INIVIEW_PRIO Type="CHAR" Length="2" Offset="704" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DEFAULT_SORTING Type="STRUCTURE" Length="32" Offset="712" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="32" ABAPStructureName="BICS_PROV_STATE_SORTING">
+                    <TYPE Type="CHAR" Length="2" Offset="712" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DIRECTION Type="CHAR" Length="2" Offset="714" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ATTRIBUTE_ID Type="INT" Length="4" Offset="716" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DATA_CELL_ID Type="INT" Length="4" Offset="720" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <PREDEFINED_MEMBERS_ORDER Type="ITAB" Length="8" Offset="728" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                        <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                      </Structure>
+                    </PREDEFINED_MEMBERS_ORDER>
+                    <PREDEFINED_MEMBERS_BOTTOM Type="ITAB" Length="8" Offset="736" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                        <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                      </Structure>
+                    </PREDEFINED_MEMBERS_BOTTOM>
+                  </Structure>
+                </DEFAULT_SORTING>
+                <DISPHIER_FROM_FILTERHIER Type="CHAR" Length="2" Offset="744" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </VARIABLE_CHARACTERISTICS_META>
+            <VARIABLE_CHARACTERISTICS_STATE Type="ITAB" Length="8" Offset="2320" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="384" ABAPStructureName="BICS_PROV_STATE_CHARACTERISTIC">
+                <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <RESULT_SET_PRESENTATION Type="INT" Length="4" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <MEMBER_ACCESS_INDIV_SETTINGS Type="CHAR" Length="2" Offset="8" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <MEMBER_ACCESS_PRESENTATION Type="INT" Length="4" Offset="12" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <MEMBER_ACCESS_MODE Type="CHAR" Length="2" Offset="16" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ATTRIBUTES Type="ITAB" Length="8" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="56" ABAPStructureName="BICS_PROV_STATE_ATTRIBUTE">
+                    <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <RESULT_SET_PRESENTATION Type="INT" Length="4" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_ACCESS_INDIV_SETTINGS Type="CHAR" Length="2" Offset="8" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_ACCESS_PRESENTATION Type="INT" Length="4" Offset="12" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_ACCESS_MODE Type="CHAR" Length="2" Offset="16" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_ACCESS_SORTING Type="STRUCTURE" Length="32" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="32" ABAPStructureName="BICS_PROV_STATE_SORTING">
+                        <TYPE Type="CHAR" Length="2" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <DIRECTION Type="CHAR" Length="2" Offset="26" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <ATTRIBUTE_ID Type="INT" Length="4" Offset="28" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <DATA_CELL_ID Type="INT" Length="4" Offset="32" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <PREDEFINED_MEMBERS_ORDER Type="ITAB" Length="8" Offset="40" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                            <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                          </Structure>
+                        </PREDEFINED_MEMBERS_ORDER>
+                        <PREDEFINED_MEMBERS_BOTTOM Type="ITAB" Length="8" Offset="48" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                            <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                          </Structure>
+                        </PREDEFINED_MEMBERS_BOTTOM>
+                      </Structure>
+                    </MEMBER_ACCESS_SORTING>
+                  </Structure>
+                </ATTRIBUTES>
+                <RESULT_SET_ATTRIBUTES Type="ITAB" Length="8" Offset="32" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="4" ABAPStructureName="BICS_PROV_T_OBJECT_ID">
+                    <BICS_PROV_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                  </Structure>
+                </RESULT_SET_ATTRIBUTES>
+                <RESULT_SET_SORTING Type="STRUCTURE" Length="32" Offset="40" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="32" ABAPStructureName="BICS_PROV_STATE_SORTING">
+                    <TYPE Type="CHAR" Length="2" Offset="40" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DIRECTION Type="CHAR" Length="2" Offset="42" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ATTRIBUTE_ID Type="INT" Length="4" Offset="44" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DATA_CELL_ID Type="INT" Length="4" Offset="48" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <PREDEFINED_MEMBERS_ORDER Type="ITAB" Length="8" Offset="56" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                        <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                      </Structure>
+                    </PREDEFINED_MEMBERS_ORDER>
+                    <PREDEFINED_MEMBERS_BOTTOM Type="ITAB" Length="8" Offset="64" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                        <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                      </Structure>
+                    </PREDEFINED_MEMBERS_BOTTOM>
+                  </Structure>
+                </RESULT_SET_SORTING>
+                <RESULT_VISIBILITY Type="CHAR" Length="2" Offset="72" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <MEMBER_ACCESS_ATTRIBUTES Type="ITAB" Length="8" Offset="80" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="4" ABAPStructureName="BICS_PROV_T_OBJECT_ID">
+                    <BICS_PROV_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                  </Structure>
+                </MEMBER_ACCESS_ATTRIBUTES>
+                <MEMBER_ACCESS_SORTING Type="STRUCTURE" Length="32" Offset="88" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="32" ABAPStructureName="BICS_PROV_STATE_SORTING">
+                    <TYPE Type="CHAR" Length="2" Offset="88" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DIRECTION Type="CHAR" Length="2" Offset="90" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ATTRIBUTE_ID Type="INT" Length="4" Offset="92" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DATA_CELL_ID Type="INT" Length="4" Offset="96" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <PREDEFINED_MEMBERS_ORDER Type="ITAB" Length="8" Offset="104" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                        <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                      </Structure>
+                    </PREDEFINED_MEMBERS_ORDER>
+                    <PREDEFINED_MEMBERS_BOTTOM Type="ITAB" Length="8" Offset="112" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                        <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                      </Structure>
+                    </PREDEFINED_MEMBERS_BOTTOM>
+                  </Structure>
+                </MEMBER_ACCESS_SORTING>
+                <STRUCTURE_HRY_DRILL_LEVEL Type="INT2" Length="2" Offset="120" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <STRUCTURE_HRY_NODE_ALIGNMENT Type="CHAR" Length="2" Offset="122" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <STRUCTURE_GROUPS_TUPLES Type="CHAR" Length="2" Offset="124" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <RESULT_ACCESS_MODE Type="CHAR" Length="2" Offset="126" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <RESULT_FULFILL_COND_VISIBLE Type="CHAR" Length="2" Offset="128" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <RESULT_VIOLATE_COND_VISIBLE Type="CHAR" Length="2" Offset="130" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <STRUCTURE_MEMBERS Type="ITAB" Length="8" Offset="136" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="176" ABAPStructureName="BICS_PROV_STATE_STRUC_MEMBER">
+                    <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <IN_SELECTION Type="CHAR" Length="2" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <START_LIST_DRILL_STATE Type="INT1" Length="1" Offset="6" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DISPLAY_LEVEL Type="INT2" Length="2" Offset="8" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HAS_ACTIVE_CHILDREN Type="CHAR" Length="2" Offset="10" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <LOCAL_FORMULA Type="ITAB" Length="8" Offset="16" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="120" ABAPStructureName="BICS_PROV_STATE_LOCAL_FORMULA">
+                        <STEPNR Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <OPERATOR Type="INT1" Length="1" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <OPERAND_TYPE1 Type="INT1" Length="1" Offset="5" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <OPERAND1 Type="INT" Length="4" Offset="8" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <CONSTANT1 Type="FLOAT" Length="8" Offset="16" Decimals="16" Tag="" IsNonStructureLineType="False"/>
+                        <OPERAND_TYPE2 Type="INT1" Length="1" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <OPERAND2 Type="INT" Length="4" Offset="28" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <CONSTANT2 Type="FLOAT" Length="8" Offset="32" Decimals="16" Tag="" IsNonStructureLineType="False"/>
+                        <FORMULA_DEP_ON Type="CHAR" Length="80" Offset="40" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                      </Structure>
+                    </LOCAL_FORMULA>
+                    <STRUCTURE_ID Type="INT" Length="4" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ELTSID Type="INT" Length="4" Offset="28" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ELTUID Type="CHAR" Length="50" Offset="32" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ALLOWED_CHANM_ID Type="ITAB" Length="8" Offset="88" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="4" ABAPStructureName="RRSI_TS_SID">
+                        <RSSID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                      </Structure>
+                    </ALLOWED_CHANM_ID>
+                    <RESTRICTED_KF_ID Type="CHAR" Length="80" Offset="96" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </STRUCTURE_MEMBERS>
+                <HIERARCHY_NAME Type="CHAR" Length="80" Offset="144" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HIERARCHY_VERSION Type="CHAR" Length="6" Offset="224" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HIERARCHY_DUEDATE Type="DATE" Length="16" Offset="230" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HIERARCHY_STATE Type="STRUCTURE" Length="104" Offset="248" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="104" ABAPStructureName="BICS_PROV_STATE_HIERARCHY">
+                    <ID Type="INT" Length="4" Offset="248" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ACTIVE Type="CHAR" Length="2" Offset="252" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <START_DRILL_LEVEL Type="INT2" Length="2" Offset="254" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <NODE_ALIGNMENT Type="CHAR" Length="2" Offset="256" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <NODE_VISIBILITY Type="CHAR" Length="2" Offset="258" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_ACCESS_MODE Type="CHAR" Length="2" Offset="260" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_ACCESS_MODES Type="ITAB" Length="8" Offset="264" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="124" ABAPStructureName="RSMD_RS_S_READ_MODE">
+                        <READ_MODE Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <TEXT Type="CHAR" Length="120" Offset="2" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <FUZZY_SEARCH Type="CHAR" Length="2" Offset="122" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                      </Structure>
+                    </MEMBER_ACCESS_MODES>
+                    <ALEAFNODSP Type="CHAR" Length="2" Offset="272" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <RESULT_SET_SORTING Type="STRUCTURE" Length="32" Offset="280" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="32" ABAPStructureName="BICS_PROV_STATE_SORTING">
+                        <TYPE Type="CHAR" Length="2" Offset="280" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <DIRECTION Type="CHAR" Length="2" Offset="282" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <ATTRIBUTE_ID Type="INT" Length="4" Offset="284" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <DATA_CELL_ID Type="INT" Length="4" Offset="288" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <PREDEFINED_MEMBERS_ORDER Type="ITAB" Length="8" Offset="296" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                            <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                          </Structure>
+                        </PREDEFINED_MEMBERS_ORDER>
+                        <PREDEFINED_MEMBERS_BOTTOM Type="ITAB" Length="8" Offset="304" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                            <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                          </Structure>
+                        </PREDEFINED_MEMBERS_BOTTOM>
+                      </Structure>
+                    </RESULT_SET_SORTING>
+                    <MEMBER_ACCESS_SORTING Type="STRUCTURE" Length="32" Offset="312" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="32" ABAPStructureName="BICS_PROV_STATE_SORTING">
+                        <TYPE Type="CHAR" Length="2" Offset="312" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <DIRECTION Type="CHAR" Length="2" Offset="314" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <ATTRIBUTE_ID Type="INT" Length="4" Offset="316" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <DATA_CELL_ID Type="INT" Length="4" Offset="320" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <PREDEFINED_MEMBERS_ORDER Type="ITAB" Length="8" Offset="328" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                            <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                          </Structure>
+                        </PREDEFINED_MEMBERS_ORDER>
+                        <PREDEFINED_MEMBERS_BOTTOM Type="ITAB" Length="8" Offset="336" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                            <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                          </Structure>
+                        </PREDEFINED_MEMBERS_BOTTOM>
+                      </Structure>
+                    </MEMBER_ACCESS_SORTING>
+                    <NODE_TYPES Type="ITAB" Length="8" Offset="344" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="80" ABAPStructureName="BICS_PROV_STATE_NODE_TYPE">
+                        <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <RESULT_SET_PRESENTATION Type="INT" Length="4" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <MEMBER_ACCESS_INDIV_SETTINGS Type="CHAR" Length="2" Offset="8" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <MEMBER_ACCESS_PRESENTATION Type="INT" Length="4" Offset="12" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <MEMBER_ACCESS_MODE Type="CHAR" Length="2" Offset="16" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <ATTRIBUTES Type="ITAB" Length="8" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="56" ABAPStructureName="BICS_PROV_STATE_ATTRIBUTE">
+                            <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <RESULT_SET_PRESENTATION Type="INT" Length="4" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <MEMBER_ACCESS_INDIV_SETTINGS Type="CHAR" Length="2" Offset="8" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <MEMBER_ACCESS_PRESENTATION Type="INT" Length="4" Offset="12" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <MEMBER_ACCESS_MODE Type="CHAR" Length="2" Offset="16" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <MEMBER_ACCESS_SORTING Type="STRUCTURE" Length="32" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False">
+                              <Structure FixedLength="32" ABAPStructureName="BICS_PROV_STATE_SORTING">
+                                <TYPE Type="CHAR" Length="2" Offset="24" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                                <DIRECTION Type="CHAR" Length="2" Offset="26" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                                <ATTRIBUTE_ID Type="INT" Length="4" Offset="28" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                                <DATA_CELL_ID Type="INT" Length="4" Offset="32" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                                <PREDEFINED_MEMBERS_ORDER Type="ITAB" Length="8" Offset="40" Decimals="0" Tag="" IsNonStructureLineType="False">
+                                  <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                                    <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                                  </Structure>
+                                </PREDEFINED_MEMBERS_ORDER>
+                                <PREDEFINED_MEMBERS_BOTTOM Type="ITAB" Length="8" Offset="48" Decimals="0" Tag="" IsNonStructureLineType="False">
+                                  <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                                    <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                                  </Structure>
+                                </PREDEFINED_MEMBERS_BOTTOM>
+                              </Structure>
+                            </MEMBER_ACCESS_SORTING>
+                          </Structure>
+                        </ATTRIBUTES>
+                        <RESULT_SET_ATTRIBUTES Type="ITAB" Length="8" Offset="32" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="4" ABAPStructureName="BICS_PROV_T_OBJECT_ID">
+                            <BICS_PROV_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                          </Structure>
+                        </RESULT_SET_ATTRIBUTES>
+                        <MEMBER_ACCESS_ATTRIBUTES Type="ITAB" Length="8" Offset="40" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="4" ABAPStructureName="BICS_PROV_T_OBJECT_ID">
+                            <BICS_PROV_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                          </Structure>
+                        </MEMBER_ACCESS_ATTRIBUTES>
+                        <MEMBER_ACCESS_SORTING Type="STRUCTURE" Length="32" Offset="48" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="32" ABAPStructureName="BICS_PROV_STATE_SORTING">
+                            <TYPE Type="CHAR" Length="2" Offset="48" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <DIRECTION Type="CHAR" Length="2" Offset="50" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <ATTRIBUTE_ID Type="INT" Length="4" Offset="52" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <DATA_CELL_ID Type="INT" Length="4" Offset="56" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                            <PREDEFINED_MEMBERS_ORDER Type="ITAB" Length="8" Offset="64" Decimals="0" Tag="" IsNonStructureLineType="False">
+                              <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                                <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                              </Structure>
+                            </PREDEFINED_MEMBERS_ORDER>
+                            <PREDEFINED_MEMBERS_BOTTOM Type="ITAB" Length="8" Offset="72" Decimals="0" Tag="" IsNonStructureLineType="False">
+                              <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                                <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                              </Structure>
+                            </PREDEFINED_MEMBERS_BOTTOM>
+                          </Structure>
+                        </MEMBER_ACCESS_SORTING>
+                      </Structure>
+                    </NODE_TYPES>
+                  </Structure>
+                </HIERARCHY_STATE>
+                <CUMULATION Type="CHAR" Length="2" Offset="352" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <GEO_PARAMETERS Type="STRUCTURE" Length="28" Offset="356" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="28" ABAPStructureName="RSMD_GEO_S_PARAMETERS">
+                    <TEXTTRANSFORMATION Type="CHAR" Length="24" Offset="356" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <SRID Type="INT" Length="4" Offset="380" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </GEO_PARAMETERS>
+              </Structure>
+            </VARIABLE_CHARACTERISTICS_STATE>
+            <KEY_FIGURES Type="ITAB" Length="8" Offset="2328" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="476" ABAPStructureName="RSBOLAP_DT_S_KEY_FIGURE">
+                <NAME Type="CHAR" Length="80" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <TEXT Type="CHAR" Length="120" Offset="80" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DATA_TYPE Type="CHAR" Length="8" Offset="200" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <INTLEN Type="NUM" Length="12" Offset="208" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <OUTPUTLEN Type="NUM" Length="12" Offset="220" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DECIMALS Type="NUM" Length="12" Offset="232" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <KYFTP Type="CHAR" Length="6" Offset="244" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <NCUMFL Type="CHAR" Length="2" Offset="250" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <FIXCUKY Type="CHAR" Length="10" Offset="252" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <FIXUNIT Type="CHAR" Length="6" Offset="262" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <AGGRGEN Type="CHAR" Length="6" Offset="268" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <AGGREXC Type="CHAR" Length="6" Offset="274" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <AGGRCHA Type="CHAR" Length="60" Offset="280" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <KYFDECIM Type="CHAR" Length="2" Offset="340" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <KYFPRSNT Type="CHAR" Length="2" Offset="342" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <KYFNAV Type="CHAR" Length="2" Offset="344" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <UNINM Type="CHAR" Length="60" Offset="346" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DOMANM Type="CHAR" Length="60" Offset="406" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <PACKFL Type="CHAR" Length="2" Offset="466" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <KYFSEMANTIC Type="CHAR" Length="2" Offset="468" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <STOCK_COVER_CALCTYPE Type="CHAR" Length="2" Offset="470" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <STOCK_COVER_PERIODS Type="INT" Length="4" Offset="472" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </KEY_FIGURES>
+            <NODE_TYPES Type="ITAB" Length="8" Offset="2336" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="552" ABAPStructureName="RSBOLAP_DT_NODE_TYPE">
+                <NAME Type="CHAR" Length="80" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ALTERNATIVE_NAME Type="CHAR" Length="80" Offset="80" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ID Type="INT" Length="4" Offset="160" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <TEXT Type="CHAR" Length="120" Offset="164" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HAS_SHORT_TEXT Type="CHAR" Length="2" Offset="284" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HAS_MEDIUM_TEXT Type="CHAR" Length="2" Offset="286" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HAS_LONG_TEXT Type="CHAR" Length="2" Offset="288" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HAS_TEXT Type="CHAR" Length="2" Offset="290" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SUPPORTS_LOWERCASE_KEYS Type="CHAR" Length="2" Offset="292" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HAS_COMPOUNDMENT Type="CHAR" Length="2" Offset="294" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <COMPOUNDMENT_KEY_OFFSET Type="INT" Length="4" Offset="296" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HAS_CONV_EXIT Type="CHAR" Length="2" Offset="300" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <INTTP Type="CHAR" Length="2" Offset="302" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DEFAULT_MEMBER_ACCESS_MODE Type="CHAR" Length="2" Offset="304" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DEFAULT_MEMBER_ACCESS_MODE_DT Type="CHAR" Length="2" Offset="306" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <IS_DOCUMENT_RELEVANT Type="CHAR" Length="2" Offset="308" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BASE_CHARACTERISTIC Type="CHAR" Length="80" Offset="310" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BASE_CHARACTERISTIC_ID Type="INT" Length="4" Offset="392" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DEFAULT_SELECTOR_PRSNT Type="CHAR" Length="2" Offset="396" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SELECTION_MODE Type="CHAR" Length="2" Offset="398" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BO_NAME Type="STRING" Length="8" Offset="400" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BO_NAMESPACE Type="STRING" Length="8" Offset="408" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BON_NAME Type="STRING" Length="8" Offset="416" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BON_NAMESPACE Type="STRING" Length="8" Offset="424" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BON_CCTS_NAME Type="STRING" Length="8" Offset="432" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <BON_CCTS_NAMESPACE Type="STRING" Length="8" Offset="440" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <OBN_SYSTEM_ALIAS Type="CHAR" Length="20" Offset="448" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DEFAULT_VISUALIZATION_LEVEL Type="CHAR" Length="2" Offset="468" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SUPPORTED_MEMBER_ACCESS_MODES Type="ITAB" Length="8" Offset="472" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="124" ABAPStructureName="RSMD_RS_S_READ_MODE">
+                    <READ_MODE Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <TEXT Type="CHAR" Length="120" Offset="2" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <FUZZY_SEARCH Type="CHAR" Length="2" Offset="122" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </SUPPORTED_MEMBER_ACCESS_MODES>
+                <SUPPORTED_MEMBER_ACC_MODES_DT Type="ITAB" Length="8" Offset="480" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="124" ABAPStructureName="RSMD_RS_S_READ_MODE">
+                    <READ_MODE Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <TEXT Type="CHAR" Length="120" Offset="2" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <FUZZY_SEARCH Type="CHAR" Length="2" Offset="122" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </SUPPORTED_MEMBER_ACC_MODES_DT>
+                <ATTRIBUTES Type="ITAB" Length="8" Offset="488" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="512" ABAPStructureName="RSBOLAP_DT_S_ATTRIBUTE">
+                    <NAME Type="CHAR" Length="80" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ALTERNATIVE_NAME Type="CHAR" Length="80" Offset="80" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ID Type="INT" Length="4" Offset="160" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <TEXT Type="CHAR" Length="120" Offset="164" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HAS_SHORT_TEXT Type="CHAR" Length="2" Offset="284" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HAS_MEDIUM_TEXT Type="CHAR" Length="2" Offset="286" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HAS_LONG_TEXT Type="CHAR" Length="2" Offset="288" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HAS_TEXT Type="CHAR" Length="2" Offset="290" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <SUPPORTS_LOWERCASE_KEYS Type="CHAR" Length="2" Offset="292" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HAS_COMPOUNDMENT Type="CHAR" Length="2" Offset="294" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <COMPOUNDMENT_KEY_OFFSET Type="INT" Length="4" Offset="296" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <HAS_CONV_EXIT Type="CHAR" Length="2" Offset="300" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <INTTP Type="CHAR" Length="2" Offset="302" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DEFAULT_MEMBER_ACCESS_MODE Type="CHAR" Length="2" Offset="304" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <IS_DOCUMENT_RELEVANT Type="CHAR" Length="2" Offset="306" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <BASE_CHARACTERISTIC Type="CHAR" Length="80" Offset="308" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <BASE_CHARACTERISTIC_ID Type="INT" Length="4" Offset="388" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DEFAULT_SELECTOR_PRSNT Type="CHAR" Length="2" Offset="392" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <SELECTION_MODE Type="CHAR" Length="2" Offset="394" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <BO_NAME Type="STRING" Length="8" Offset="396" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <BO_NAMESPACE Type="STRING" Length="8" Offset="404" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <BON_NAME Type="STRING" Length="8" Offset="412" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <BON_NAMESPACE Type="STRING" Length="8" Offset="420" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <BON_CCTS_NAME Type="STRING" Length="8" Offset="428" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <BON_CCTS_NAMESPACE Type="STRING" Length="8" Offset="436" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <OBN_SYSTEM_ALIAS Type="CHAR" Length="20" Offset="444" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <RESULT_SET_PRESENTATION Type="INT" Length="4" Offset="464" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_ACCESS_PRESENTATION Type="INT" Length="4" Offset="468" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_ACCESS_MODE Type="CHAR" Length="2" Offset="472" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <MEMBER_ACCESS_SORTING Type="STRUCTURE" Length="32" Offset="480" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="32" ABAPStructureName="BICS_PROV_STATE_SORTING">
+                        <TYPE Type="CHAR" Length="2" Offset="480" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <DIRECTION Type="CHAR" Length="2" Offset="482" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <ATTRIBUTE_ID Type="INT" Length="4" Offset="484" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <DATA_CELL_ID Type="INT" Length="4" Offset="488" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                        <PREDEFINED_MEMBERS_ORDER Type="ITAB" Length="8" Offset="496" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                            <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                          </Structure>
+                        </PREDEFINED_MEMBERS_ORDER>
+                        <PREDEFINED_MEMBERS_BOTTOM Type="ITAB" Length="8" Offset="504" Decimals="0" Tag="" IsNonStructureLineType="False">
+                          <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                            <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                          </Structure>
+                        </PREDEFINED_MEMBERS_BOTTOM>
+                      </Structure>
+                    </MEMBER_ACCESS_SORTING>
+                  </Structure>
+                </ATTRIBUTES>
+                <RESULT_SET_PRESENTATION Type="INT" Length="4" Offset="496" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <MEMBER_ACCESS_PRESENTATION Type="INT" Length="4" Offset="500" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <RESULT_SET_ATTRIBUTES Type="ITAB" Length="8" Offset="504" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="4" ABAPStructureName="BICS_PROV_T_OBJECT_ID">
+                    <BICS_PROV_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                  </Structure>
+                </RESULT_SET_ATTRIBUTES>
+                <MEMBER_ACCESS_ATTRIBUTES Type="ITAB" Length="8" Offset="512" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="4" ABAPStructureName="BICS_PROV_T_OBJECT_ID">
+                    <BICS_PROV_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                  </Structure>
+                </MEMBER_ACCESS_ATTRIBUTES>
+                <MEMBER_ACCESS_SORTING Type="STRUCTURE" Length="32" Offset="520" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="32" ABAPStructureName="BICS_PROV_STATE_SORTING">
+                    <TYPE Type="CHAR" Length="2" Offset="520" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DIRECTION Type="CHAR" Length="2" Offset="522" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ATTRIBUTE_ID Type="INT" Length="4" Offset="524" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DATA_CELL_ID Type="INT" Length="4" Offset="528" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <PREDEFINED_MEMBERS_ORDER Type="ITAB" Length="8" Offset="536" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                        <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                      </Structure>
+                    </PREDEFINED_MEMBERS_ORDER>
+                    <PREDEFINED_MEMBERS_BOTTOM Type="ITAB" Length="8" Offset="544" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                        <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                      </Structure>
+                    </PREDEFINED_MEMBERS_BOTTOM>
+                  </Structure>
+                </MEMBER_ACCESS_SORTING>
+              </Structure>
+            </NODE_TYPES>
+            <HIERARCHIES Type="ITAB" Length="8" Offset="2344" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="360" ABAPStructureName="RSBOLAP_DT_S_HIERARCHY">
+                <INFO_OBJECT_NAME Type="CHAR" Length="80" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ID Type="INT" Length="4" Offset="80" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <NAME Type="CHAR" Length="80" Offset="84" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <TEXT Type="CHAR" Length="120" Offset="164" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <VERSION Type="CHAR" Length="6" Offset="284" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DATE_FROM Type="DATE" Length="16" Offset="290" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DATE_TO Type="DATE" Length="16" Offset="306" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SUPPORTS_NONE_UNIQUE_LEAVES Type="CHAR" Length="2" Offset="322" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <START_DRILL_LEVEL Type="INT2" Length="2" Offset="324" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DEFAULT_ALEAFNODSP Type="CHAR" Length="2" Offset="326" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DEFAULT_NODE_ALIGNMENT Type="CHAR" Length="2" Offset="328" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <ALEAFNODCH Type="CHAR" Length="2" Offset="330" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <SUPPORTS_AD_HOC_MEMBER_ACCESS Type="CHAR" Length="2" Offset="332" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <MAX_LEVEL Type="INT2" Length="2" Offset="334" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <LEVELS Type="ITAB" Length="8" Offset="336" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="122" ABAPStructureName="BICS_PROV_META_HIERARCHY_LEVEL">
+                    <LEVEL Type="INT2" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <TEXT Type="CHAR" Length="120" Offset="2" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                  </Structure>
+                </LEVELS>
+                <NODE_TYPES Type="ITAB" Length="8" Offset="344" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="4" ABAPStructureName="RSBOLAP_TH_OBJECT_ID">
+                    <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                  </Structure>
+                </NODE_TYPES>
+                <HIENMFLAG Type="NUM" Length="2" Offset="352" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <VERSIONFLAG Type="NUM" Length="2" Offset="354" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DATETOFLAG Type="NUM" Length="2" Offset="356" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </HIERARCHIES>
+            <CHARACTERISTICS Type="ITAB" Length="8" Offset="2352" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="392" ABAPStructureName="RSBOLAP_DT_CHARACTERISTIC">
+                <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <MEMBER_ACCESS_MODE Type="CHAR" Length="2" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DIMENSION Type="CHAR" Length="60" Offset="6" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HIENM Type="CHAR" Length="60" Offset="66" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <VERSION Type="CHAR" Length="60" Offset="126" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DATETO Type="CHAR" Length="60" Offset="186" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <STRT_LVL Type="NUM" Length="4" Offset="246" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HRY_ACTIVE Type="CHAR" Length="2" Offset="250" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HIENMFLAG Type="NUM" Length="2" Offset="252" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <VERSIONFLAG Type="NUM" Length="2" Offset="254" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <DATETOFLAG Type="NUM" Length="2" Offset="256" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <VERSION_VARIABLE Type="CHAR" Length="80" Offset="258" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HIERARCHY_SORTING Type="STRUCTURE" Length="32" Offset="344" Decimals="0" Tag="" IsNonStructureLineType="False">
+                  <Structure FixedLength="32" ABAPStructureName="BICS_PROV_STATE_SORTING">
+                    <TYPE Type="CHAR" Length="2" Offset="344" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DIRECTION Type="CHAR" Length="2" Offset="346" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <ATTRIBUTE_ID Type="INT" Length="4" Offset="348" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <DATA_CELL_ID Type="INT" Length="4" Offset="352" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                    <PREDEFINED_MEMBERS_ORDER Type="ITAB" Length="8" Offset="360" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                        <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                      </Structure>
+                    </PREDEFINED_MEMBERS_ORDER>
+                    <PREDEFINED_MEMBERS_BOTTOM Type="ITAB" Length="8" Offset="368" Decimals="0" Tag="" IsNonStructureLineType="False">
+                      <Structure FixedLength="4" ABAPStructureName="RSBOLAP_T_OBJECT_ID">
+                        <RSBOLAP_OBJECT_ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+                      </Structure>
+                    </PREDEFINED_MEMBERS_BOTTOM>
+                  </Structure>
+                </HIERARCHY_SORTING>
+                <ALEAFNODSP Type="CHAR" Length="2" Offset="376" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <NODE_VISIBILITY Type="CHAR" Length="2" Offset="378" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <HRY_NODE_ALIGNMENT Type="CHAR" Length="2" Offset="380" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <MAXDRILLLEVEL Type="NUM" Length="4" Offset="382" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </CHARACTERISTICS>
+            <SELECTION_STATE_SORTING Type="ITAB" Length="8" Offset="2360" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="80" ABAPStructureName="RSBOLAP_T_OBJECT_NAME">
+                <RSBOLAP_OBJECT_NAME Type="CHAR" Length="80" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="True"/>
+              </Structure>
+            </SELECTION_STATE_SORTING>
+            <DATACELL_DETAILS Type="ITAB" Length="8" Offset="2368" Decimals="0" Tag="" IsNonStructureLineType="False">
+              <Structure FixedLength="204" ABAPStructureName="BICS_PROV_DT_S_DATACELL_DETAIL">
+                <ID Type="INT" Length="4" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <KEYFIGURE_NAME Type="CHAR" Length="80" Offset="4" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+                <KEYFIGURE_TEXT Type="CHAR" Length="120" Offset="84" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+              </Structure>
+            </DATACELL_DETAILS>
+          </Structure>
+        </DESIGNTIME_INFO>
+        <DIMENSIONS Type="ITAB" Length="8" Offset="2376" Decimals="0" Tag="" IsNonStructureLineType="False">
+          <Structure FixedLength="200" ABAPStructureName="BICS_PROV_META_DIMENSION">
+            <NAME Type="CHAR" Length="80" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+            <TEXT Type="CHAR" Length="120" Offset="80" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+          </Structure>
+        </DIMENSIONS>
+      </Structure>
+      <item>
+        <CHARACTERISTICS/>
+        <STRUCTURE_INFO>
+          <item>
+            <STRUCTURE_COUNT> </STRUCTURE_COUNT>
+            <NAME_1> </NAME_1>
+            <ID_1> </ID_1>
+            <NAME_2> </NAME_2>
+            <ID_2> </ID_2>
+          </item>
+        </STRUCTURE_INFO>
+        <SELECTION_SPACE/>
+        <VARIABLE_VALUES/>
+        <QUERY_STATE>
+          <item>
+            <CHARACTERISTICS/>
+            <SELECTION_STATE/>
+            <FREE_AXIS>
+              <item>
+                <RESULT_ALIGNMENT> </RESULT_ALIGNMENT>
+                <HIERARCHICAL> </HIERARCHICAL>
+                <INITIAL_LOAD_LEVEL>0</INITIAL_LOAD_LEVEL>
+                <ZERO_SUPPRESSION> </ZERO_SUPPRESSION>
+                <CHARACTERISTICS/>
+                <ZERO_SUPPRESSION_MODE> </ZERO_SUPPRESSION_MODE>
+              </item>
+            </FREE_AXIS>
+            <COLUMNS_AXIS>
+              <item>
+                <RESULT_ALIGNMENT> </RESULT_ALIGNMENT>
+                <HIERARCHICAL> </HIERARCHICAL>
+                <INITIAL_LOAD_LEVEL>0</INITIAL_LOAD_LEVEL>
+                <ZERO_SUPPRESSION> </ZERO_SUPPRESSION>
+                <CHARACTERISTICS/>
+                <ZERO_SUPPRESSION_MODE> </ZERO_SUPPRESSION_MODE>
+              </item>
+            </COLUMNS_AXIS>
+            <ROWS_AXIS>
+              <item>
+                <RESULT_ALIGNMENT> </RESULT_ALIGNMENT>
+                <HIERARCHICAL> </HIERARCHICAL>
+                <INITIAL_LOAD_LEVEL>0</INITIAL_LOAD_LEVEL>
+                <ZERO_SUPPRESSION> </ZERO_SUPPRESSION>
+                <CHARACTERISTICS/>
+                <ZERO_SUPPRESSION_MODE> </ZERO_SUPPRESSION_MODE>
+              </item>
+            </ROWS_AXIS>
+            <CONDITIONS/>
+            <QUERY_PROPERTIES>
+              <item>
+                <SRDATE>0000-00-00</SRDATE>
+                <CTART>00</CTART>
+                <TCUR> </TCUR>
+                <CTTNM> </CTTNM>
+                <INPUT_ENABLED> </INPUT_ENABLED>
+                <DRAG_RELATE_URLS> </DRAG_RELATE_URLS>
+                <ZERO_PRESENTATION> </ZERO_PRESENTATION>
+                <ZERO_PRESENTATION_CUST_STRING/>
+                <SIGN_PRESENTATION> </SIGN_PRESENTATION>
+                <CURRENCY_UNIT_PRESENTATION> </CURRENCY_UNIT_PRESENTATION>
+                <RESULT_SET_SIZE_LIMIT>0</RESULT_SET_SIZE_LIMIT>
+                <READ_CHILD_KIDS> </READ_CHILD_KIDS>
+              </item>
+            </QUERY_PROPERTIES>
+            <DATA_CELLS/>
+            <CONDITIONS_CONS/>
+            <EXCEPTIONS_CONS/>
+            <DOC_APP>
+              <item>
+                <COMPID> </COMPID>
+                <APPL_ID> </APPL_ID>
+                <TAG> </TAG>
+                <IS_USED> </IS_USED>
+                <TXTSH> </TXTSH>
+                <TXTLG> </TXTLG>
+                <WRITE_AUTHORIZED> </WRITE_AUTHORIZED>
+              </item>
+            </DOC_APP>
+            <DRILL_GROUPS/>
+            <SELECTION_STATE_NON_CART>
+              <item>
+                <TUPLES/>
+              </item>
+            </SELECTION_STATE_NON_CART>
+          </item>
+        </QUERY_STATE>
+        <QUERY_PROPERTIES>
+          <item>
+            <COMPUID> </COMPUID>
+            <OBJVERS> </OBJVERS>
+            <INFOCUBE> </INFOCUBE>
+            <GENUNIID> </GENUNIID>
+            <COMPTYPE> </COMPTYPE>
+            <COMPID> </COMPID>
+            <CURKZ> </CURKZ>
+            <PERIV> </PERIV>
+            <DUEDATE>0000-00-00</DUEDATE>
+            <INPUT_MODE>00</INPUT_MODE>
+            <INFOPROVIDER_NAME> </INFOPROVIDER_NAME>
+            <INFOPROVIDER_TEXT> </INFOPROVIDER_TEXT>
+            <BASE_INFOPROVIDER_NAME> </BASE_INFOPROVIDER_NAME>
+            <BASE_INFOPROVIDER_TEXT> </BASE_INFOPROVIDER_TEXT>
+            <QUERY_NAME> </QUERY_NAME>
+            <QUERY_TEXT> </QUERY_TEXT>
+            <QUERY_TRANSIENT> </QUERY_TRANSIENT>
+            <QUERY_CREATED_BY> </QUERY_CREATED_BY>
+            <QUERY_CREATION_DATE>0000-00-00</QUERY_CREATION_DATE>
+            <QUERY_CREATION_TIME>00:00:00</QUERY_CREATION_TIME>
+            <QUERY_CHANGED_BY> </QUERY_CHANGED_BY>
+            <QUERY_CHANGE_DATE>0000-00-00</QUERY_CHANGE_DATE>
+            <QUERY_CHANGE_TIME>00:00:00</QUERY_CHANGE_TIME>
+            <DATA_REFRESH_DATE>0000-00-00</DATA_REFRESH_DATE>
+            <DATA_REFRESH_TIME>00:00:00</DATA_REFRESH_TIME>
+            <DATA_ROLLUP_DATE>0000-00-00</DATA_ROLLUP_DATE>
+            <DATA_ROLLUP_TIME>00:00:00</DATA_ROLLUP_TIME>
+            <DATA_ROLLUP_DATE_MAX>0000-00-00</DATA_ROLLUP_DATE_MAX>
+            <DATA_ROLLUP_TIME_MAX>00:00:00</DATA_ROLLUP_TIME_MAX>
+            <MDX_ENABLED> </MDX_ENABLED>
+            <HIDE_REPEATED_KEY_VALUES> </HIDE_REPEATED_KEY_VALUES>
+            <NEW_LINES_ON_ANY_LEVEL> </NEW_LINES_ON_ANY_LEVEL>
+            <DISAGGREGATE_WITHOUT_DATA> </DISAGGREGATE_WITHOUT_DATA>
+            <DOCUMENT_SUPPORT> </DOCUMENT_SUPPORT>
+            <DEFAULT_DOC_APPL_ID> </DEFAULT_DOC_APPL_ID>
+          </item>
+        </QUERY_PROPERTIES>
+        <DATA_CELLS/>
+        <DEFAULT_VIEW_DEFINITION/>
+        <DESIGNTIME_INFO>
+          <item>
+            <QUERY_NAME> </QUERY_NAME>
+            <SELECTION_SPACE/>
+            <SELECTION_STATE/>
+            <VARIABLES/>
+            <VARIABLE_CHARACTERISTICS_META/>
+            <VARIABLE_CHARACTERISTICS_STATE/>
+            <KEY_FIGURES/>
+            <NODE_TYPES/>
+            <HIERARCHIES/>
+            <CHARACTERISTICS/>
+            <SELECTION_STATE_SORTING/>
+            <DATACELL_DETAILS/>
+          </item>
+        </DESIGNTIME_INFO>
+        <DIMENSIONS/>
+      </item>
+    </E_SX_META_DATA>
+  </Imports>
+  <Exports>
+    <I_DATA_PROVIDER_HANDLE Type="NUM" Length="8" Tag="" Decimals="0" IsSupplied="True">0003</I_DATA_PROVIDER_HANDLE>
+  </Exports>
+  <Changings/>
+  <Tables/>
+</RfcFunction>

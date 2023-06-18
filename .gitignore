@@ -51,4 +51,5 @@ Thumbs.db
 # SAP Trace files
 dev_rfc.log
 rfc*.trc
+cpic*.trc
 
