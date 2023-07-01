@@ -50,7 +50,10 @@ namespace duckdb
             result_len = i+1;
         }
 
-        return std::string(utf8, result_len);
+        auto ret = std::string(utf8, result_len);
+        free(utf8);
+        
+        return ret;
     }
 
     /**
