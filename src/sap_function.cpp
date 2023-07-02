@@ -551,6 +551,29 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                 free(string_value);
                 return result_value;
             }
+            case RFCTYPE_XSTRING:
+            {
+                unsigned int result_len = 0, str_len = 0;
+                rc = RfcGetStringLength(function_handle, rfc_name.get(), &str_len, &error_info);
+                if (rc != RFC_OK)
+                {
+                    throw std::runtime_error(StringUtil::Format("Failed to get xstring %s length: %s: %s", field_name, 
+                                                                rfcrc2std(error_info.code), uc2std(error_info.message)));
+                }
+
+                SAP_RAW *xstring_value = (SAP_RAW *)malloc(str_len + 1);
+                xstring_value[str_len] = '\0'; // null terminate the string
+                rc = RfcGetXString(function_handle, rfc_name.get(), xstring_value, str_len, &result_len, &error_info);
+                if (rc != RFC_OK)
+                {
+                    free(xstring_value);
+                    throw std::runtime_error(StringUtil::Format("Failed to get xstring %s: %s: %s", field_name, 
+                                                                rfcrc2std(error_info.code), uc2std(error_info.message)));
+                }
+                auto result_value = rfc2duck(xstring_value, str_len);
+                free(xstring_value);
+                return result_value;
+            }
             case RFCTYPE_NUM:
             {
                 RFC_NUM *num_value = (RFC_CHAR *)mallocU(GetLength());
@@ -659,6 +682,12 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                                                         rfcrc2std(error_info.code), uc2std(error_info.message)));
         }
 
+        auto child_type = CreateDuckDbTypeForRfcTable();
+        if (row_count == 0)
+        {
+            return Value::LIST(child_type, {});
+        }
+
         vector <Value> row_values;
         for (unsigned int i = 0; i < row_count; i++)
         {
@@ -675,7 +704,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             row_values.emplace_back(std::move(struct_value));
         }
 
-        return Value::LIST(row_values);
+        return Value::LIST(child_type, row_values);
     }
 
     std::string RfcType::ToSqlLiteral() 
@@ -1002,6 +1031,12 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         return std::make_shared<RfcInvocation>(shared_from_this(), arguments);
     }
 
+    std::shared_ptr<RfcInvocation> RfcFunction::BeginInvocation() 
+    {
+        std::vector<Value> func_args;
+        return std::make_shared<RfcInvocation>(shared_from_this(), func_args);
+    }
+
     // RfcFunction --------------------------------------------------------
 
     RfcInvocationAdapter::RfcInvocationAdapter(RfcInvocation &invocation) 
@@ -1019,6 +1054,10 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
 
     void RfcInvocationPositionalAdapter::Adapt(std::vector<RfcFunctionParameterDesc> parameter_infos, std::vector<Value> &arguments) 
     {
+        if (arguments.size() == 0) {
+            return;
+        }
+
         throw std::logic_error("Positional adapter not implemented");
     }
 
@@ -1369,7 +1408,8 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         return ret;
     }
 
-    unsigned int RfcResultSet::FetchNextResult(DataChunk &output) {
+    unsigned int RfcResultSet::FetchNextResult(DataChunk &output) 
+    {
         auto row_count = 0;
         for (auto i = 0; i < _result_data.size(); i++) {
             if (IsTabularResult())
@@ -1397,7 +1437,71 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         return _current_row_idx;
     }
 
-    bool RfcResultSet::HasMoreResults() {
+    Value RfcResultSet::GetResultValue(unsigned int col_idx) 
+    {
+        return _result_data[col_idx];
+    }
+
+    Value RfcResultSet::GetResultValue(std::string col_path) 
+    {
+        auto tokens = ParseJsonPointer(col_path);
+        auto tokens_it = tokens.begin();
+
+        auto it = std::find(_result_names.begin(), _result_names.end(), *tokens_it);
+        if (it == _result_names.end()) {
+            throw std::runtime_error("Column name not found.");
+        }
+        auto col_idx = std::distance(_result_names.begin(), it);
+        auto result = GetResultValue(col_idx);
+
+        auto remaining_tokens = std::vector<string>(tokens_it + 1, tokens.end());
+        return GetValueForPath(result, remaining_tokens);
+    }
+
+    Value RfcResultSet::GetValueForPath(Value &value, std::vector<string> &tokens) 
+    {
+        if (tokens.size() == 0) {
+            return value;
+        }
+
+        auto token_it = tokens.begin();
+        auto remaining_tokens = std::vector<string>(token_it + 1, tokens.end());
+        
+        auto value_type = value.type();
+        switch(value_type.id()) 
+        {
+            case LogicalTypeId::STRUCT:
+            {
+                auto child_values = StructValue::GetChildren(value);
+                for (auto i = 0; i < child_values.size(); i++) {
+                    auto child_name = StructType::GetChildName(value_type, i);
+                    if (child_name == *token_it) {
+                        auto child_value = child_values[i];
+                        
+                        return GetValueForPath(child_value, remaining_tokens);
+                    }
+                }
+                throw std::runtime_error(StringUtil::Format("Field '%s' not found in struct", *token_it));
+            }
+            case LogicalTypeId::LIST:
+            {
+                auto child_values = ListValue::GetChildren(value);
+                auto child_index = std::stoi(*token_it);
+                if (child_index >= child_values.size()) {
+                    throw std::runtime_error(StringUtil::Format("Index '%s' out of bounds for list", *token_it));
+                }
+                auto child_value = child_values[child_index];
+                return GetValueForPath(child_value, remaining_tokens);
+            }
+                
+            default:
+                throw std::runtime_error(StringUtil::Format("Field '%s' is not a container type", *token_it));
+        };
+    }
+
+
+    bool RfcResultSet::HasMoreResults() 
+    {
         return _current_row_idx < _total_rows;
     }
 
@@ -1453,6 +1557,37 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             return v.type().id() == LogicalTypeId::LIST;
         });
         return all_lists;
+    }
+
+
+    std::shared_ptr<RfcResultSet> RfcResultSet::InvokeFunction(std::shared_ptr<RfcConnection> connection,
+                                                               std::string function_name,
+                                                               std::vector<Value> &function_arguments,
+                                                               std::string result_path)
+    {
+        auto func = make_shared<RfcFunction>(connection, function_name);
+        auto invocation = function_arguments.size() > 0 
+                            ? func->BeginInvocation(function_arguments) 
+                            : func->BeginInvocation();
+    
+        auto result_set = result_path.empty() == false 
+                            ? invocation->Invoke(result_path)
+                            : invocation->Invoke();
+        return result_set;
+    }
+
+    std::shared_ptr<RfcResultSet> RfcResultSet::InvokeFunction(std::shared_ptr<RfcConnection> connection,
+                                                               std::string function_name,
+                                                               std::vector<Value> &function_arguments)
+    {
+        return InvokeFunction(connection, function_name, function_arguments, "");
+    }
+
+    std::shared_ptr<RfcResultSet> RfcResultSet::InvokeFunction(std::shared_ptr<RfcConnection> connection,
+                                                               std::string function_name)
+    {
+        std::vector<Value> empty_args;
+        return InvokeFunction(connection, function_name, empty_args, "");
     }
 
     // RfcResultSet ------------------------------------------------------------

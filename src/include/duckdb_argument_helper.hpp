@@ -11,6 +11,7 @@ namespace duckdb {
         ArgBuilder& Add(const std::string& name, Value& value);
         ArgBuilder& Add(const std::string& name, const ArgBuilder& builder);
         Value Build() const;
+        std::vector<Value> BuildArgList() const;
     private:
         child_list_t<Value> _args;
     };

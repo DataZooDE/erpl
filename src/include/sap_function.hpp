@@ -139,6 +139,7 @@ namespace duckdb {
 
             std::shared_ptr<RfcConnection> GetConnection() const;
             std::shared_ptr<RfcInvocation> BeginInvocation(std::vector<Value> &arguments);
+             std::shared_ptr<RfcInvocation> BeginInvocation();
 
         private:
             std::string _function_name;
@@ -218,8 +219,29 @@ namespace duckdb {
 
             unsigned int FetchNextResult(DataChunk &output);
             bool HasMoreResults();
+            Value GetResultValue(unsigned int col_idx);
+            Value GetResultValue(std::string col_name);
 
             static std::vector<std::string> ParseJsonPointer(std::string path);
+            static Value GetValueForPath(Value &value, std::vector<std::string> &tokens);
+            
+            static std::shared_ptr<RfcResultSet> InvokeFunction(
+                std::shared_ptr<RfcConnection> connection,
+                std::string function_name,
+                std::vector<Value> &function_arguments,
+                std::string result_path
+            );
+
+            static std::shared_ptr<RfcResultSet> InvokeFunction(
+                std::shared_ptr<RfcConnection> connection,
+                std::string function_name,
+                std::vector<Value> &function_arguments
+            );
+
+            static std::shared_ptr<RfcResultSet> InvokeFunction(
+                std::shared_ptr<RfcConnection> connection,
+                std::string function_name
+            );
 
         private:
             std::shared_ptr<RfcInvocation> _invocation;

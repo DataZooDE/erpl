@@ -23,6 +23,10 @@ namespace duckdb
         return Value::STRUCT(_args);
     }
 
+    std::vector<Value> ArgBuilder::BuildArgList() const {
+        return std::vector<Value>({ Build() });
+    }
+
     bool HasParam(named_parameter_map_t& named_params, const std::string& name) {
         return named_params.find(name) != named_params.end();
     };
