@@ -19,10 +19,14 @@ namespace duckdb
         auto func_args = ArgBuilder().Add("I_DATA_PROVIDER_HANDLE", session->GetDataProviderHandle())
                                      .BuildArgList();
         auto result_set = RfcResultSet::InvokeFunction(connection, "BICS_PROV_GET_DESIGN_TIME_INFO", func_args);
-        auto characteristics_tbl = result_set->GetResultValue("E_SX_META_DATA/CHARACTERISTICS");
-        auto query_state_struct = result_set->GetResultValue("E_SX_META_DATA/QUERY_STATE");
-        auto query_props_struct = result_set->GetResultValue("E_SX_META_DATA/QUERY_PROPERTIES");
-        auto dimensions_tbl = result_set->GetResultValue("E_SX_META_DATA/DIMENSIONS");
+        
+        auto meta = result_set->GetResultValue("E_SX_META_DATA");
+        auto meta_helper = ValueHelper(meta);
+
+        auto characteristics_tbl = meta_helper["/CHARACTERISTICS"];
+        auto query_state_struct = meta_helper["/QUERY_STATE"];
+        auto query_props_struct = meta_helper["/QUERY_PROPERTIES"];
+        auto dimensions_tbl = meta_helper["/DIMENSIONS"];
 
         printf("Metadata elements:\n");
     }                                         

@@ -1,6 +1,7 @@
 #include <stdexcept>
 
 #include "duckdb.hpp"
+#include "duckdb_argument_helper.hpp"
 #include "sap_function.hpp"
 
 namespace duckdb {
@@ -1241,7 +1242,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
    
     std::pair<std::vector<std::string>, std::vector<LogicalType>> RfcResultSet::InferResultSchema(std::string path) 
     {
-        auto tokens = ParseJsonPointer(path);
+        auto tokens = ValueHelper::ParseJsonPointer(path);
         auto param_infos = _invocation->GetFunction()->GetResultInfos();
 
         if (tokens.empty()) {
@@ -1310,7 +1311,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
 
     std::vector<Value> RfcResultSet::ConvertValuesAndSelectPath(std::string path) 
     {
-        auto tokens = ParseJsonPointer(path);
+        auto tokens = ValueHelper::ParseJsonPointer(path);
         auto param_infos = _invocation->GetFunction()->GetResultInfos();
 
         auto token_it = tokens.begin();
@@ -1444,7 +1445,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
 
     Value RfcResultSet::GetResultValue(std::string col_path) 
     {
-        auto tokens = ParseJsonPointer(col_path);
+        auto tokens = ValueHelper::ParseJsonPointer(col_path);
         auto tokens_it = tokens.begin();
 
         auto it = std::find(_result_names.begin(), _result_names.end(), *tokens_it);
@@ -1455,101 +1456,12 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         auto result = GetResultValue(col_idx);
 
         auto remaining_tokens = std::vector<string>(tokens_it + 1, tokens.end());
-        return GetValueForPath(result, remaining_tokens);
+        return ValueHelper::GetValueForPath(result, remaining_tokens);
     }
-
-    Value RfcResultSet::GetValueForPath(Value &value, std::vector<string> &tokens) 
-    {
-        if (tokens.size() == 0) {
-            return value;
-        }
-
-        auto token_it = tokens.begin();
-        auto remaining_tokens = std::vector<string>(token_it + 1, tokens.end());
-        
-        auto value_type = value.type();
-        switch(value_type.id()) 
-        {
-            case LogicalTypeId::STRUCT:
-            {
-                auto child_values = StructValue::GetChildren(value);
-                for (auto i = 0; i < child_values.size(); i++) {
-                    auto child_name = StructType::GetChildName(value_type, i);
-                    if (child_name == *token_it) {
-                        auto child_value = child_values[i];
-                        
-                        return GetValueForPath(child_value, remaining_tokens);
-                    }
-                }
-                throw std::runtime_error(StringUtil::Format("Field '%s' not found in struct", *token_it));
-            }
-            case LogicalTypeId::LIST:
-            {
-                auto child_values = ListValue::GetChildren(value);
-                auto child_index = std::stoi(*token_it);
-                if (child_index >= child_values.size()) {
-                    throw std::runtime_error(StringUtil::Format("Index '%s' out of bounds for list", *token_it));
-                }
-                auto child_value = child_values[child_index];
-                return GetValueForPath(child_value, remaining_tokens);
-            }
-                
-            default:
-                throw std::runtime_error(StringUtil::Format("Field '%s' is not a container type", *token_it));
-        };
-    }
-
 
     bool RfcResultSet::HasMoreResults() 
     {
         return _current_row_idx < _total_rows;
-    }
-
-    /**
-     * Parses a JSON Pointer string into a vector of string tokens.
-     *
-     * A JSON Pointer is a string syntax for identifying a specific value within a JSON document.
-     * This function takes a JSON Pointer string and returns a vector of string tokens, where each token
-     * represents a key or index in the JSON document.
-     *
-     * @param path The JSON Pointer string to parse.
-     * @return A vector of string tokens representing the keys or indices in the JSON document.
-     *
-     * @example
-     * std::string path = "/foo/0/bar";
-     * std::vector<std::string> tokens = ParseJsonPointer(path);
-     * // tokens = {"foo", "0", "bar"}
-     *
-     * @example
-     * std::string path = "/a~1b/c~0d";
-     * std::vector<std::string> tokens = ParseJsonPointer(path);
-     * // tokens = {"a/b", "c~d"}
-     */
-    std::vector<std::string> RfcResultSet::ParseJsonPointer(std::string path) 
-    {
-        std::vector<std::string> tokens;
-        std::string token;
-        std::istringstream token_stream(path);
-
-        while (std::getline(token_stream, token, '/')) {
-            // Unescape ~1 and ~0 sequences.
-            size_t pos = 0;
-            while ((pos = token.find("~1", pos)) != std::string::npos) {
-                token.replace(pos, 2, "/");
-                pos += 1;
-            }
-            pos = 0;
-            while ((pos = token.find("~0", pos)) != std::string::npos) {
-                token.replace(pos, 2, "~");
-                pos += 1;
-            }
-
-            if (! token.empty()) {
-                tokens.push_back(token);
-            }
-        }
-
-        return tokens;
     }
 
     bool RfcResultSet::IsTabularResult() {

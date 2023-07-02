@@ -222,9 +222,6 @@ namespace duckdb {
             Value GetResultValue(unsigned int col_idx);
             Value GetResultValue(std::string col_name);
 
-            static std::vector<std::string> ParseJsonPointer(std::string path);
-            static Value GetValueForPath(Value &value, std::vector<std::string> &tokens);
-            
             static std::shared_ptr<RfcResultSet> InvokeFunction(
                 std::shared_ptr<RfcConnection> connection,
                 std::string function_name,
