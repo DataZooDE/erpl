@@ -1,6 +1,7 @@
 #include "duckdb.hpp"
 #include "scanner_search_infoprovider.hpp"
 
+#include "sap_function.hpp"
 #include "duckdb_argument_helper.hpp"
 
 namespace duckdb 
@@ -37,7 +38,7 @@ namespace duckdb
                 .Add("SEARCH_IN_TEXT", ConvertBoolArgument(named_params, "SEARCH_IN_TEXT", true))
             );
 
-        return std::vector<Value>({ args.Build() });
+        return args.BuildArgList();
     }
 
 
@@ -49,16 +50,14 @@ namespace duckdb
         // Connect to the SAP system
         auto connection = RfcAuthParams::FromContext(context).Connect();
 
-        // Create the function
-        auto func = make_shared<RfcFunction>(connection, "RSOBJS_GET_NODES");
+        // Create the function        
         auto func_args = CreateFunctionArguments(input);
-        auto invocation = func->BeginInvocation(func_args);
-        auto result_set = invocation->Invoke("/E_T_NODES");
+        auto result_set = RfcResultSet::InvokeFunction(connection, "RSOBJS_GET_NODES", func_args, "/E_T_NODES");
+
         names = result_set->GetResultNames();
         return_types = result_set->GetResultTypes();
 
         auto bind_data = make_uniq<RfcFunctionBindData>();
-        bind_data->invocation = invocation;
         bind_data->result_set = result_set;
 
         return std::move(bind_data);

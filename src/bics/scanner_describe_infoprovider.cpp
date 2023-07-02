@@ -2,6 +2,7 @@
 #include "scanner_search_infoprovider.hpp"
 
 #include "duckdb_argument_helper.hpp"
+#include "bics.hpp"
 
 namespace duckdb 
 {
@@ -12,61 +13,45 @@ namespace duckdb
         return StringUtil::Format("Unclear what to do here");
     }
 
-    static string ConvertObjectType(TableFunctionBindInput &input) 
+    static void FetchAndCreateInfoProviderDefinition(std::shared_ptr<RfcConnection> connection,
+                                                     std::shared_ptr<BicsSession> session) 
     {
-        auto &named_params = input.named_parameters;
-        if (HasParam(named_params, "OBJ_TYPE") && named_params["OBJ_TYPE"].ToString() == "CUBE") {
-            return "IPRO";
-        }
+        auto func_args = ArgBuilder().Add("I_DATA_PROVIDER_HANDLE", session->GetDataProviderHandle())
+                                     .BuildArgList();
+        auto result_set = RfcResultSet::InvokeFunction(connection, "BICS_PROV_GET_DESIGN_TIME_INFO", func_args);
+        auto characteristics_tbl = result_set->GetResultValue("E_SX_META_DATA/CHARACTERISTICS");
+        auto query_state_struct = result_set->GetResultValue("E_SX_META_DATA/QUERY_STATE");
+        auto query_props_struct = result_set->GetResultValue("E_SX_META_DATA/QUERY_PROPERTIES");
+        auto dimensions_tbl = result_set->GetResultValue("E_SX_META_DATA/DIMENSIONS");
 
-        return "QU";
-    }
+        printf("Metadata elements:\n");
+    }                                         
 
-    static std::vector<Value> CreateFunctionArguments(TableFunctionBindInput &input) 
+    static unique_ptr<FunctionData> BicsDescribeCubeBind(ClientContext &context, 
+                                                        TableFunctionBindInput &input, 
+                                                        vector<LogicalType> &return_types, 
+                                                        vector<string> &names) 
     {
-        auto &named_params = input.named_parameters;
-        auto args = ArgBuilder()
-            .Add("I_S_PARAMS", ArgBuilder()
-                .Add("OBJ_TYPE", Value::CreateValue(ConvertObjectType(input)))
-                .Add("OBJ_VIEW", Value::CreateValue("SE"))
-                .Add("DISP_MODE", Value::CreateValue("0"))
-            )
-            .Add("I_S_SEARCH_PARAMS", ArgBuilder()
-                .Add("SEARCH_STRING", HasParam(named_params, "SEARCH") ? named_params["SEARCH"] : Value::CreateValue("*"))
-                .Add("SEARCH_IN_KEY", ConvertBoolArgument(named_params, "SEARCH_IN_KEY", true))
-                .Add("SEARCH_IN_TEXT", ConvertBoolArgument(named_params, "SEARCH_IN_TEXT", true))
-            );
+        auto &inputs = input.inputs;
 
-        return std::vector<Value>({ args.Build() });
-    }
-
-
-    static unique_ptr<FunctionData> BicsDescribeInfoProviderBind(ClientContext &context, 
-                                                               TableFunctionBindInput &input, 
-                                                               vector<LogicalType> &return_types, 
-                                                               vector<string> &names) 
-    {
         // Connect to the SAP system
         auto connection = RfcAuthParams::FromContext(context).Connect();
 
-        // Create the function
-        auto func = make_shared<RfcFunction>(connection, "RSOBJS_GET_NODES");
-        auto func_args = CreateFunctionArguments(input);
-        auto invocation = func->BeginInvocation(func_args);
-        auto result_set = invocation->Invoke("/E_T_NODES");
-        names = result_set->GetResultNames();
-        return_types = result_set->GetResultTypes();
+        // Create the bics session
+        auto cube_name = inputs[0].GetValue<string>();
+        auto session = make_shared<BicsSession>(connection, cube_name); // will be closed when the session goes out of scope
+
+        // Create the infoprovider defintion
+        FetchAndCreateInfoProviderDefinition(connection, session);
 
         auto bind_data = make_uniq<RfcFunctionBindData>();
-        bind_data->invocation = invocation;
-        bind_data->result_set = result_set;
-
+        
         return std::move(bind_data);
     }
 
-    static void BicsDescribeInfoProviderScan(ClientContext &context, 
-                                           TableFunctionInput &data, 
-                                           DataChunk &output) 
+    static void BicsDescribeCubeScan(ClientContext &context, 
+                                     TableFunctionInput &data, 
+                                     DataChunk &output) 
     {
         auto &bind_data = data.bind_data->Cast<RfcFunctionBindData>();
         auto result_set = bind_data.result_set;
@@ -80,16 +65,8 @@ namespace duckdb
 
     CreateTableFunctionInfo CreateBicsDescribeInfoProviderScanFunction() 
     {
-        auto fun = TableFunction("sap_bics_describe_infoprovider", {LogicalType::VARCHAR}, BicsDescribeInfoProviderScan, BicsDescribeInfoProviderBind);
+        auto fun = TableFunction("sap_bics_describe_cube", {LogicalType::VARCHAR}, BicsDescribeCubeScan, BicsDescribeCubeBind);
         fun.to_string = BicsDescribeInfoProviderToString;
-        
-        auto obj_type_enum = Vector(LogicalType::VARCHAR, 2);
-        obj_type_enum.SetValue(0, Value("QUERY"));
-        obj_type_enum.SetValue(1, Value("CUBE"));
-        fun.named_parameters["OBJ_TYPE"] = LogicalType::ENUM("OBJ_TYPE", obj_type_enum, 2);
-        fun.named_parameters["SEARCH"] = LogicalType::VARCHAR;
-        fun.named_parameters["SEARCH_IN_KEY"] = LogicalType::BOOLEAN;
-        fun.named_parameters["SEARCH_IN_TEXT"] = LogicalType::BOOLEAN;
         fun.projection_pushdown = false;
 
         return CreateTableFunctionInfo(fun);
