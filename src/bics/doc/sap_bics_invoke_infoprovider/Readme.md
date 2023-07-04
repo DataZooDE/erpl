@@ -1,1 +1,0 @@
-https://evosight.com/sap-bw-bics-interface

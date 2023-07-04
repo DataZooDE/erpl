@@ -25,6 +25,7 @@ API for querying SAP BW cubes and queries for data analysis and data science.
     (1 row)
     ```
 
+
 3. Add dimensions and measures to the query handle using
     ```sql
      CALL bics_select_cube(1, 'ZADEMO_CUBE');
