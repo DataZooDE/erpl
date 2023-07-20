@@ -3,9 +3,12 @@
 # Learn more about .gitignore:
 #     https://www.atlassian.com/git/tutorials/saving-changes/gitignore
 
-# Node artifact files
 node_modules/
 dist/
+build/
+duckdb_unittest_tempdir/
+
+.ipynb_checkpoints/
 
 # Compiled Java class files
 *.class
