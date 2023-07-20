@@ -17,7 +17,9 @@ project(${TARGET_NAME})
 include_directories(src/include
                     ${SAPNWRFC_HOME}/include)
 
-
+add_subdirectory(duckdb/extension/json)
+include_directories(duckdb/extension/json/include)
+include_directories(duckdb/extension/json/yyjson/include)
 
 if(${BUILD_UNITTESTS})
       add_subdirectory(test)
@@ -43,6 +45,7 @@ set(EXTENSION_SOURCES
       src/sap_type_conversion.cpp
       src/sap_rfc.cpp
       src/duckdb_argument_helper.cpp
+      src/duckdb_json_helper.cpp
       src/scanner_invoke.cpp
       src/scanner_search_group.cpp
       src/scanner_search_function.cpp
@@ -51,19 +54,20 @@ set(EXTENSION_SOURCES
       ${ODP_SOURCES}
 )
 
-message(STATUS "EXTENSION_SOURCES: ${EXTENSION_SOURCES}")
-
 add_library(${EXTENSION_NAME} STATIC ${EXTENSION_SOURCES})
 add_definitions(-DSAPonUNIX -DSAPwithUNICODE -DSAPwithTHREADS -DSAPonLIN)
+add_definitions(-DBUILD_PYTHON=1 -DBUILD_JSON=1 -DENABLE_SANITIZER=0 
+                -DENABLE_UBSAN=0 -DENABLE_THREAD_SANITIZER=0 -DFORCE_SANITIZER=0)
 
 set(PARAMETERS "-warnings")
 
 build_loadable_extension(${TARGET_NAME} ${PARAMETERS} ${ALL_OBJECT_FILES} ${EXTENSION_SOURCES})
 
 target_link_directories(${EXTENSION_NAME} PRIVATE ${SAPNWRFC_HOME}/lib)
-target_link_libraries(${EXTENSION_NAME} PRIVATE ${SAPNWRFC_LIB_FILES})
+target_link_libraries(${EXTENSION_NAME} PRIVATE ${SAPNWRFC_LIB_FILES} json_extension)
 
 message(STATUS "SAPNWRFC_HOME: ${SAPNWRFC_HOME}")
+message(STATUS "EXTENSION_SOURCES: ${EXTENSION_SOURCES}")
 
 install(
   TARGETS ${EXTENSION_NAME}
