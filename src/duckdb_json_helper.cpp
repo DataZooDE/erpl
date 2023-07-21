@@ -241,7 +241,16 @@ namespace duckdb
         else if (type_str == "VARCHAR") {
             ret = DeserializeString(type_str, value);
         }
+        else if (type_str == "TINYINT") {
+            ret =  DeserializeInteger(type_str, value);
+        }
+        else if (type_str == "SMALLINT") {
+            ret =  DeserializeInteger(type_str, value);
+        }
         else if (type_str == "INTEGER") {
+            ret =  DeserializeInteger(type_str, value);
+        }
+        else if (type_str == "BIGINT") {
             ret =  DeserializeInteger(type_str, value);
         }
         else if (type_str == "DOUBLE") {
@@ -351,6 +360,11 @@ namespace duckdb
         vector<Value> child_values;
         yyjson_arr_iter iter;
         yyjson_arr_iter_init(val, &iter);
+
+        auto size = yyjson_arr_size(val);
+        if (size == 0) {
+            return Value();
+        }
 
         for(yyjson_val *val; (val = yyjson_arr_iter_next(&iter));) 
         {

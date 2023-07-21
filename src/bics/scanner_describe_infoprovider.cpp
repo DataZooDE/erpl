@@ -2,6 +2,7 @@
 #include "scanner_search_infoprovider.hpp"
 
 #include "duckdb_argument_helper.hpp"
+#include "duckdb_json_helper.hpp"
 #include "bics.hpp"
 
 namespace duckdb 
@@ -23,12 +24,52 @@ namespace duckdb
         auto meta = result_set->GetResultValue("E_SX_META_DATA");
         auto meta_helper = ValueHelper(meta);
 
-        auto characteristics_tbl = meta_helper["/CHARACTERISTICS"];
-        auto query_state_struct = meta_helper["/QUERY_STATE"];
-        auto query_props_struct = meta_helper["/QUERY_PROPERTIES"];
+        auto characteristics_tbl = meta_helper["/CHARACTERISTICS"];     // BICS_PROV_META_TH_CHARACTERIST
+        auto query_state_struct = meta_helper["/QUERY_STATE"];          // BICS_PROV_META_STRUCTURE_INFO
+        auto query_props_struct = meta_helper["/QUERY_PROPERTIES"];     // BICS_PROV_META_QUERY
         auto dimensions_tbl = meta_helper["/DIMENSIONS"];
 
         printf("Metadata elements:\n");
+
+        auto json = ErpelSerializer::Serialize(meta, true);
+        auto restored_val = ErpelSerializer::Deserialize(json);
+        printf("%s\n", json.c_str());
+        /*
+        Columns:
+            - Dimensions <- /DIMENSIONS
+                - DataPackage <- ???
+                - Time (0D_NW_T01T) <- /DIMENSIONS/TEXT (/DIMENSIONS/NAME)
+                    - CalendarYear (0CALYEAR) <- /CHARACTERISTICS/TEXT (/CHARACTERISTICS/NAME)
+                        - 15 <- /CHARACTERISTICS/ID
+                        - Reference to dimension <- /CHARACTERISTICS/DIMENSION
+                    - 0CALMONTH ...
+                - Product
+                    - Product (0D_NW_PROD) <- /DIMENSIONS/TEXT (/DIMENSIONS/NAME)
+                        - 502 <- /CHARACTERISTICS/ID
+                        - 0D_NW_T013 <- /CHARACTERISTICS/DIMENSION
+                        - Reference to dimension <- /CHARACTERISTICS/DIMENSION
+                        - InfoObject <- 20230715T165529.571Z_39_000009BC_BAPI_IOBJ_GETDETAIL_cr.xml
+                            Type: CHAR <- DATATP
+                            Length: 60 <- OUTPUTLEN
+                        - Attributes <- /CHARACTERISTICS/ATTRIBUTES
+                            - Product Category (0D_NW_PRDCT) <- /CHARACTERISTICS/ATTRIBUTES/TEXT (/CHARACTERISTICS/ATTRIBUTES/NAME)
+                                - 0D_NW_PROD__0D_NW_PRDCT
+                                    - Reference via Base Characteristic <- /CHARACTERISTICS/BASE_CHARACTERISTIC_ID
+                            - Product Group (0D_NW_PRDGP) <- /CHARACTERISTICS/ATTRIBUTES/TEXT (/CHARACTERISTICS/ATTRIBUTES/NAME)
+
+        
+        */
+
+        /*
+        auto func_args = ArgBuilder().Add("I_DATA_PROVIDER_HANDLE", session->GetDataProviderHandle())
+                                     .Add("I_VARIABLE_CONTAINER_HANDLE", session->GetVariableContainerHandle())
+                                     .BuildArgList();
+
+        auto result_set = RfcResultSet::InvokeFunction(connection, "BICS_PROV_VAR_GET_VARIABLES", func_args);
+        auto meta = result_set->GetResultValue("E_TH_META_CHARACTERISTIC");
+        auto chars = result_set->GetResultValue("E_TH_STATE_CHARACTERISTIC");
+
+        */
     }                                         
 
     static unique_ptr<FunctionData> BicsDescribeCubeBind(ClientContext &context, 
