@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<RfcFunction Name="/SAPDS/RFC_STREAM_READ_TABLE">
+  <Imports/>
+  <Exports>
+    <QUERY_TABLE Type="CHAR" Length="60" Tag="" Decimals="0" IsSupplied="True">SMEAL</QUERY_TABLE>
+    <CALLBACK_FM Type="CHAR" Length="60" Tag="" Decimals="0" IsSupplied="True">PROCESS_PACKAGE</CALLBACK_FM>
+    <DELIMITER Type="CHAR" Length="2" Tag="" Decimals="0" IsSupplied="True"/>
+    <BATCH_SIZE Type="INT" Length="4" Tag="" Decimals="0" IsSupplied="True">1000</BATCH_SIZE>
+    <NUMB_OF_LINES Type="INT" Length="4" Tag="" Decimals="0" IsSupplied="True">1000</NUMB_OF_LINES>
+  </Exports>
+  <Changings/>
+  <Tables>
+    <PROJECTIONS>
+      <Structure FixedLength="144" ABAPStructureName="">
+        <TEXT Type="CHAR" Length="144" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+      </Structure>
+      <item>
+        <TEXT>MANDANT</TEXT>
+      </item>
+      <item>
+        <TEXT>CARRID</TEXT>
+      </item>
+      <item>
+        <TEXT>MEALNUMBER</TEXT>
+      </item>
+      <item>
+        <TEXT>MEALTYPE</TEXT>
+      </item>
+    </PROJECTIONS>
+    <SELECTIONS>
+      <Structure FixedLength="510" ABAPStructureName="">
+        <TEXT Type="CHAR" Length="510" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+      </Structure>
+      <item>
+        <TEXT>SMEAL~MEALTYPE EQ 'VE'</TEXT>
+      </item>
+    </SELECTIONS>
+  </Tables>
+</RfcFunction>

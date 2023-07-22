@@ -1,0 +1,113 @@
+<?xml version="1.0"?>
+<RfcFunction Name="DDIF_FIELDINFO_GET">
+  <Imports/>
+  <Exports>
+    <TABNAME Type="CHAR" Length="60" Tag="" Decimals="0" IsSupplied="True">SMEAL</TABNAME>
+    <LANGU Type="CHAR" Length="2" Tag="" Decimals="0" IsSupplied="True">E</LANGU>
+  </Exports>
+  <Changings/>
+  <Tables>
+    <DFIES_TAB>
+      <Structure FixedLength="1054" ABAPStructureName="">
+        <FIELDNAME Type="CHAR" Length="60" Offset="60" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <ROLLNAME Type="CHAR" Length="60" Offset="202" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <CHECKTABLE Type="CHAR" Length="60" Offset="262" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <LENG Type="NUM" Length="12" Offset="322" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <INTLEN Type="NUM" Length="12" Offset="334" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <OUTPUTLEN Type="NUM" Length="12" Offset="346" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <DECIMALS Type="CHAR" Length="12" Offset="358" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <DATATYPE Type="CHAR" Length="8" Offset="370" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <INTTYPE Type="CHAR" Length="2" Offset="378" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <REFTABLE Type="CHAR" Length="60" Offset="380" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <REFFIELD Type="CHAR" Length="60" Offset="440" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <CONVEXIT Type="CHAR" Length="10" Offset="656" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <FIELDTEXT Type="CHAR" Length="120" Offset="682" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <REPTEXT Type="CHAR" Length="110" Offset="802" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <SCRTEXT_S Type="CHAR" Length="20" Offset="912" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <SCRTEXT_M Type="CHAR" Length="40" Offset="932" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <SCRTEXT_L Type="CHAR" Length="80" Offset="972" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <KEYFLAG Type="CHAR" Length="2" Offset="1052" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+      </Structure>
+      <item>
+        <FIELDNAME>MANDANT</FIELDNAME>
+        <ROLLNAME>MANDT</ROLLNAME>
+        <CHECKTABLE>T000</CHECKTABLE>
+        <LENG>000003</LENG>
+        <INTLEN>000006</INTLEN>
+        <OUTPUTLEN>000003</OUTPUTLEN>
+        <DECIMALS>000000</DECIMALS>
+        <DATATYPE>CLNT</DATATYPE>
+        <INTTYPE>C</INTTYPE>
+        <REFTABLE/>
+        <REFFIELD/>
+        <CONVEXIT/>
+        <FIELDTEXT>Client</FIELDTEXT>
+        <REPTEXT>Cl.</REPTEXT>
+        <SCRTEXT_S>Client</SCRTEXT_S>
+        <SCRTEXT_M>Client</SCRTEXT_M>
+        <SCRTEXT_L>Client</SCRTEXT_L>
+        <KEYFLAG>X</KEYFLAG>
+      </item>
+      <item>
+        <FIELDNAME>CARRID</FIELDNAME>
+        <ROLLNAME>S_CARR_ID</ROLLNAME>
+        <CHECKTABLE>SCARR</CHECKTABLE>
+        <LENG>000003</LENG>
+        <INTLEN>000006</INTLEN>
+        <OUTPUTLEN>000003</OUTPUTLEN>
+        <DECIMALS>000000</DECIMALS>
+        <DATATYPE>CHAR</DATATYPE>
+        <INTTYPE>C</INTTYPE>
+        <REFTABLE/>
+        <REFFIELD/>
+        <CONVEXIT/>
+        <FIELDTEXT>Airline Code</FIELDTEXT>
+        <REPTEXT>ID</REPTEXT>
+        <SCRTEXT_S>Carrier</SCRTEXT_S>
+        <SCRTEXT_M>Airline</SCRTEXT_M>
+        <SCRTEXT_L>Airline</SCRTEXT_L>
+        <KEYFLAG>X</KEYFLAG>
+      </item>
+      <item>
+        <FIELDNAME>MEALNUMBER</FIELDNAME>
+        <ROLLNAME>S_MEALNUM</ROLLNAME>
+        <CHECKTABLE/>
+        <LENG>000008</LENG>
+        <INTLEN>000016</INTLEN>
+        <OUTPUTLEN>000008</OUTPUTLEN>
+        <DECIMALS>000000</DECIMALS>
+        <DATATYPE>NUMC</DATATYPE>
+        <INTTYPE>N</INTTYPE>
+        <REFTABLE/>
+        <REFFIELD/>
+        <CONVEXIT/>
+        <FIELDTEXT>Number of inflight meals</FIELDTEXT>
+        <REPTEXT>Flight Meal</REPTEXT>
+        <SCRTEXT_S>Meal</SCRTEXT_S>
+        <SCRTEXT_M>Inflight Meal</SCRTEXT_M>
+        <SCRTEXT_L>Inflight meal number</SCRTEXT_L>
+        <KEYFLAG>X</KEYFLAG>
+      </item>
+      <item>
+        <FIELDNAME>MEALTYPE</FIELDNAME>
+        <ROLLNAME>S_MEALTYPE</ROLLNAME>
+        <CHECKTABLE/>
+        <LENG>000002</LENG>
+        <INTLEN>000004</INTLEN>
+        <OUTPUTLEN>000002</OUTPUTLEN>
+        <DECIMALS>000000</DECIMALS>
+        <DATATYPE>CHAR</DATATYPE>
+        <INTTYPE>C</INTTYPE>
+        <REFTABLE/>
+        <REFFIELD/>
+        <CONVEXIT/>
+        <FIELDTEXT>Type of dish, for example vegetarian</FIELDTEXT>
+        <REPTEXT>Type of dish</REPTEXT>
+        <SCRTEXT_S>Dish type</SCRTEXT_S>
+        <SCRTEXT_M>Type of dish</SCRTEXT_M>
+        <SCRTEXT_L>Type of dish/course</SCRTEXT_L>
+        <KEYFLAG/>
+      </item>
+    </DFIES_TAB>
+  </Tables>
+</RfcFunction>

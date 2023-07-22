@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<RfcFunction Name="RFC_GET_NAMETAB">
+  <Imports>
+    <HEADER Type="STRUCTURE" Length="236" Tag="" Decimals="0" IsSupplied="True">
+      <Structure FixedLength="236" ABAPStructureName="">
+        <FLDCNT Type="BYTE" Length="2" Offset="162" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <TABLEN Type="BYTE" Length="4" Offset="164" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <TABTYPE Type="CHAR" Length="2" Offset="172" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <REFNAME Type="CHAR" Length="60" Offset="176" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+      </Structure>
+      <item>
+        <FLDCNT>AAA=</FLDCNT>
+        <TABLEN>AAAAAA==</TABLEN>
+        <TABTYPE>  </TABTYPE>
+        <REFNAME>                                                            </REFNAME>
+      </item>
+    </HEADER>
+  </Imports>
+  <Exports>
+    <TABNAME Type="CHAR" Length="60" Tag="" Decimals="0" IsSupplied="True">EXP_TABLROWS</TABNAME>
+  </Exports>
+  <Changings/>
+  <Tables>
+    <NAMETAB>
+      <Structure FixedLength="216" ABAPStructureName="">
+        <TABNAME Type="CHAR" Length="60" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <OFFSET Type="BYTE" Length="4" Offset="69" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <DBLENGTH Type="BYTE" Length="2" Offset="73" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <DBLENGTH2 Type="BYTE" Length="4" Offset="75" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <EXLENGTH Type="BYTE" Length="2" Offset="79" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <DECIMALS Type="BYTE" Length="1" Offset="81" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <FIELDNAME Type="CHAR" Length="60" Offset="84" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <ROLLNAME Type="CHAR" Length="60" Offset="144" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <EXID Type="CHAR" Length="2" Offset="214" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+      </Structure>
+    </NAMETAB>
+  </Tables>
+</RfcFunction>

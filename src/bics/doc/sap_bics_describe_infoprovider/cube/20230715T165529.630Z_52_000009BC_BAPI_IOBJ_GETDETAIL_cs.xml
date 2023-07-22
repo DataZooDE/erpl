@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<RfcFunction Name="BAPI_IOBJ_GETDETAIL">
+  <Imports>
+    <RETURN Type="STRUCTURE" Length="488" Tag="" Decimals="0" IsSupplied="True">
+      <Structure FixedLength="488" ABAPStructureName="">
+        <TYPE Type="CHAR" Length="2" Offset="0" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <ID Type="CHAR" Length="40" Offset="2" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <MESSAGE Type="CHAR" Length="440" Offset="48" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+      </Structure>
+      <item>
+        <TYPE/>
+        <ID/>
+        <MESSAGE/>
+      </item>
+    </RETURN>
+    <DETAILS Type="STRUCTURE" Length="1768" Tag="" Decimals="0" IsSupplied="True">
+      <Structure FixedLength="1768" ABAPStructureName="">
+        <DATATP Type="CHAR" Length="8" Offset="650" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <CONVEXIT Type="CHAR" Length="10" Offset="670" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <OUTPUTLEN Type="NUM" Length="12" Offset="1268" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <LENG Type="NUM" Length="12" Offset="1744" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+        <DECIMALS Type="NUM" Length="12" Offset="1756" Decimals="0" Tag="" IsNonStructureLineType="False"/>
+      </Structure>
+      <item>
+        <DATATP>CHAR</DATATP>
+        <CONVEXIT/>
+        <OUTPUTLEN>000003</OUTPUTLEN>
+        <LENG>000003</LENG>
+        <DECIMALS>000000</DECIMALS>
+      </item>
+    </DETAILS>
+  </Imports>
+  <Exports>
+    <INFOOBJECT Type="CHAR" Length="60" Tag="" Decimals="0" IsSupplied="True">0D_NW_CHANN</INFOOBJECT>
+  </Exports>
+  <Changings/>
+  <Tables/>
+</RfcFunction>
