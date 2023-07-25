@@ -102,7 +102,7 @@ namespace duckdb
         auto connection_handle = RfcOpenConnection(params, 6, &error_info);
 
         if (connection_handle == NULL) {
-            throw IOException(StringUtil::Format("Error during SAP RFC logon: %d: %s", error_info.code, error_info.message));
+            throw IOException(StringUtil::Format("Error during SAP RFC logon: %s: %s",rfcrc2std(error_info.code), uc2std(error_info.message)));
         }
         return std::make_shared<RfcConnection>(connection_handle);
     }
