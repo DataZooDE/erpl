@@ -30,7 +30,8 @@ namespace duckdb
     // ArgBuilder ---------------------------------------------------------------
 
     ValueHelper::ValueHelper(Value &value) : _value(value) 
-    {}
+    {
+    }
 
     Value ValueHelper::operator[](const std::string& name) {
         auto tokens = ParseJsonPointer(name);
@@ -123,6 +124,28 @@ namespace duckdb
         }
 
         return tokens;
+    }
+
+    bool ValueHelper::IsX(Value &value) {
+        return value.ToString() == "X";
+    }
+
+    bool ValueHelper::IsX(const Value &value) {
+        return value.ToString() == "X";
+    }
+
+    Value &ValueHelper::Get() const {
+        return _value;
+    }
+
+    void ValueHelper::Print() const {
+        _value.Print();
+    }
+
+    void ValueHelper::Print(std::string path) const {
+        auto tokens = ParseJsonPointer(path);
+        auto val = GetValueForPath(_value, tokens);
+        val.Print();
     }
 
     // ValueHelper ---------------------------------------------------------------

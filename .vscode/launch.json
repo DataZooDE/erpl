@@ -87,6 +87,10 @@
                     "value": "detect_leaks=0"
                 },
                 {
+                    "name": "ASAN_OPTIONS",
+                    "value": "detect_odr_violation=0"
+                },
+                {
                     "name": "LD_LIBRARY_PATH",
                     "value": "${env:LD_LIBRARY_PATH}:${workspaceFolder}/nwrfcsdk/lib"
                 }

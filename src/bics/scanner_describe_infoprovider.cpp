@@ -1,8 +1,9 @@
+#include <fstream>
 #include "duckdb.hpp"
 #include "scanner_search_infoprovider.hpp"
 
 #include "duckdb_argument_helper.hpp"
-#include "duckdb_json_helper.hpp"
+#include "duckdb_serialization_helper.hpp"
 #include "bics.hpp"
 
 namespace duckdb 
@@ -14,7 +15,8 @@ namespace duckdb
         return StringUtil::Format("Unclear what to do here");
     }
 
-    static void FetchAndCreateInfoProviderDefinition(std::shared_ptr<RfcConnection> connection,
+    static void FetchAndCreateInfoProviderDefinition(ClientContext &context,
+                                                     std::shared_ptr<RfcConnection> connection,
                                                      std::shared_ptr<BicsSession> session) 
     {
         auto func_args = ArgBuilder().Add("I_DATA_PROVIDER_HANDLE", session->GetDataProviderHandle())
@@ -29,13 +31,23 @@ namespace duckdb
         auto query_props_struct = meta_helper["/QUERY_PROPERTIES"];     // BICS_PROV_META_QUERY
         auto dimensions_tbl = meta_helper["/DIMENSIONS"];
 
-        printf("Metadata elements:\n");
+        
+        /*
+        auto sql_str = StringUtil::Format("SELECT %s as X;", ErpelSerializer::SerializeSQL(meta));
 
-        auto json = ErpelSerializer::Serialize(meta, true);
-        auto restored_val = ErpelSerializer::Deserialize(json);
-        printf("%s\n", json.c_str());
+        auto fs = std::ofstream("/tmp/meta.sql", std::ios::out | std::ios::trunc);
+        fs << sql_str;
+        fs.close();
+
+        auto con = Connection(*context.db);
+
+        auto res = con.Query(sql_str);
+        res->Print();
+        */
+        
         /*
         Columns:
+            - Technical Name (0D_NW_T013) <- /DIMENSIONS/ID
             - Dimensions <- /DIMENSIONS
                 - DataPackage <- ???
                 - Time (0D_NW_T01T) <- /DIMENSIONS/TEXT (/DIMENSIONS/NAME)
@@ -73,9 +85,9 @@ namespace duckdb
     }                                         
 
     static unique_ptr<FunctionData> BicsDescribeCubeBind(ClientContext &context, 
-                                                        TableFunctionBindInput &input, 
-                                                        vector<LogicalType> &return_types, 
-                                                        vector<string> &names) 
+                                                         TableFunctionBindInput &input, 
+                                                         vector<LogicalType> &return_types, 
+                                                         vector<string> &names) 
     {
         auto &inputs = input.inputs;
 
@@ -87,7 +99,7 @@ namespace duckdb
         auto session = make_shared<BicsSession>(connection, cube_name); // will be closed when the session goes out of scope
 
         // Create the infoprovider defintion
-        FetchAndCreateInfoProviderDefinition(connection, session);
+        FetchAndCreateInfoProviderDefinition(context, connection, session);
 
         auto bind_data = make_uniq<RfcFunctionBindData>();
         

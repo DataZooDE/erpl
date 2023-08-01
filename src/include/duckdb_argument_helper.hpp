@@ -22,10 +22,17 @@ namespace duckdb
     {
         public:
             ValueHelper(Value &value);
+            ValueHelper(const ValueHelper &h) = default;
             Value operator[](const std::string& name);
 
             static std::vector<std::string> ParseJsonPointer(std::string path);
             static Value GetValueForPath(Value &value, std::vector<std::string> &tokens);
+            static bool IsX(Value &value);
+            static bool IsX(const Value &value);
+
+            Value &Get() const;
+            void Print() const;
+            void Print(std::string path) const;
         private:
             Value &_value;
     };

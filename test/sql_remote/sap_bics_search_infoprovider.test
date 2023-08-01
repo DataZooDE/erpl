@@ -44,4 +44,4 @@ SAP
 query I
 select count(*) from sap_bics_search_infoprovider(OBJ_TYPE='CUBE');
 ----
-376
+377
