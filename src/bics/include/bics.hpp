@@ -108,6 +108,19 @@ namespace duckdb
 
     class Characteristic 
     {
+
+#include <vector>
+
+        std::vector<int> fibonacci(int n) {
+            std::vector<int> fibs;
+            fibs.push_back(0);
+            fibs.push_back(1);
+            for (int i = 2; i < n; i++) {
+                fibs.push_back(fibs[i-1] + fibs[i-2]);
+            }
+            return fibs;
+        }
+
         friend class KeyFigure;
 
         public:
