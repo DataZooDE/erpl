@@ -49,6 +49,9 @@ set(EXTENSION_SOURCES
       src/scanner_search_group.cpp
       src/scanner_search_function.cpp
       src/scanner_describe_function.cpp
+      src/scanner_show_tables.cpp
+      src/scanner_describe_fields.cpp
+      src/scanner_describe_references.cpp
       ${YYJSON_OBJECT_FILES}
       ${BICS_SOURCES}
       ${ODP_SOURCES}

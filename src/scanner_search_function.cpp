@@ -33,7 +33,7 @@ namespace duckdb
     /**
      * @brief (Step 1) Binds the input arguments to the function.
     */
-    static unique_ptr<FunctionData> RfcSearchFunctionBind(ClientContext &context, 
+    static unique_ptr<FunctionData> RfcShowTablesBind(ClientContext &context, 
                                                           TableFunctionBindInput &input, 
                                                           vector<LogicalType> &return_types, 
                                                           vector<string> &names) 
@@ -59,7 +59,7 @@ namespace duckdb
     /**
      * @brief (Step 2) Initializes the global state of the function.
     */
-    static void RfcSearchFunctionScan(ClientContext &context, 
+    static void RfcShowTablesScan(ClientContext &context, 
                                       TableFunctionInput &data, 
                                       DataChunk &output) 
     {
@@ -75,7 +75,7 @@ namespace duckdb
 
     CreateTableFunctionInfo CreateRfcSearchFunctionScanFunction() 
     {
-        auto fun = TableFunction("sap_rfc_search_function", {}, RfcSearchFunctionScan, RfcSearchFunctionBind);
+        auto fun = TableFunction("sap_rfc_search_function", {}, RfcShowTablesScan, RfcShowTablesBind);
         fun.named_parameters["FUNCNAME"] = LogicalType::VARCHAR;
         fun.named_parameters["GROUPNAME"] = LogicalType::VARCHAR;
         fun.named_parameters["LANGUAGE"] = LogicalType::VARCHAR;
