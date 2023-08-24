@@ -4,19 +4,34 @@ namespace duckdb
 {   
     ArgBuilder::ArgBuilder() {}
 
-    ArgBuilder& ArgBuilder::Add(const std::string& name, const Value &value) {
+    ArgBuilder& ArgBuilder::Add(const std::string& name, const Value &value) 
+    {
         _args.push_back(std::make_pair(name, value));
         return *this;
     }
 
-    ArgBuilder& ArgBuilder::Add(const std::string& name, Value &value) {
+    ArgBuilder& ArgBuilder::Add(const std::string& name, Value &value) 
+    {
         _args.push_back(std::make_pair(name, value));
         return *this;
     }
 
-    ArgBuilder& ArgBuilder::Add(const std::string& name, const ArgBuilder& builder) {
+    ArgBuilder& ArgBuilder::Add(const std::string& name, const ArgBuilder& builder) 
+    {
         _args.push_back(std::make_pair(name, builder.Build()));
         return *this;
+    }
+
+    ArgBuilder& ArgBuilder::Add(const std::string& name, duckdb::vector<Value> &values) 
+    {
+        auto list_value = Value::LIST(values);
+        return Add(name, list_value);
+    }
+
+    ArgBuilder& ArgBuilder::Add(const std::string& name, const std::initializer_list<Value> &values) 
+    {
+        auto list_value = Value::LIST(values);
+        return Add(name, list_value);
     }
 
     Value ArgBuilder::Build() const {
