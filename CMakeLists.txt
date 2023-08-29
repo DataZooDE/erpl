@@ -61,6 +61,7 @@ add_library(${EXTENSION_NAME} STATIC ${EXTENSION_SOURCES})
 add_definitions(-DSAPonUNIX -DSAPwithUNICODE -DSAPwithTHREADS -DSAPonLIN)
 add_definitions(-DBUILD_PYTHON=1 -DBUILD_JSON=1 -DENABLE_SANITIZER=0 
                 -DENABLE_UBSAN=0 -DENABLE_THREAD_SANITIZER=0 -DFORCE_SANITIZER=0)
+add_definitions(-DCMAKE_CXX_FLAGS="-fuse-ld=mold")
 
 set(PARAMETERS "-warnings")
 

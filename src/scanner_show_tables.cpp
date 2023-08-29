@@ -1,5 +1,6 @@
 #include "scanner_show_tables.hpp"
 #include "duckdb_argument_helper.hpp"
+#include "sap_rfc.hpp"
 
 namespace duckdb 
 {
@@ -10,76 +11,81 @@ namespace duckdb
         return StringUtil::Format("Unclear what to do here");
     }
 
-    static std::vector<Value> CreateFunctionArguments(TableFunctionBindInput &input) 
-    {
-        auto &named_params = input.named_parameters;
-        auto table_name = named_params.find("TABLENAME") != named_params.end() 
-                            ? named_params["TABLENAME"].ToString() : "%";
-    
-        auto pred1 = StringUtil::Format("TABNAME LIKE '%s' AND ( TABCLASS = 'VIEW' OR TABCLASS = 'TRANSP' OR", table_name);
-        auto pred2 = StringUtil::Format("TABCLASS = 'POOL' OR TABCLASS = 'CLUSTER' ) AND DDTEXT LIKE '%s'", table_name);
-
-        
-
-        auto args = ArgBuilder()
-            .Add("QUERY_TABLE", Value("DD02V"))
-            .Add("ROWSKIPS", Value::CreateValue(0))
-            .Add("ROWCOUNT", Value::CreateValue(1000))
-            .Add("OPTIONS", {
-                ArgBuilder().Add("TEXT", Value(pred1)).Build(),
-                ArgBuilder().Add("TEXT", Value(pred2)).Build()
-            })
-            .Add("FIELDS", {
-                ArgBuilder().Add("FIELDNAME", Value("TABNAME")).Build(),
-                ArgBuilder().Add("FIELDNAME", Value("DDTEXT")).Build(),
-                ArgBuilder().Add("FIELDNAME", Value("DDLANGUAGE")).Build(),
-                ArgBuilder().Add("FIELDNAME", Value("TABCLASS")).Build(),
-            });
-
-        return args.BuildArgList();
-    }
-
     static unique_ptr<FunctionData> RfcShowTablesBind(ClientContext &context, 
                                                       TableFunctionBindInput &input, 
                                                       vector<LogicalType> &return_types, 
                                                       vector<string> &names) 
     {
-        // Connect to the SAP system
+        auto &named_params = input.named_parameters;
+        auto search_str = named_params.find("TABLENAME") != named_params.end() 
+                            ? named_params["TABLENAME"].ToString() : "%";
+
+        auto where_clause = StringUtil::Format(
+            "TABNAME LIKE '%s' AND ( TABCLASS = 'VIEW' OR TABCLASS = 'TRANSP' OR "
+            "TABCLASS = 'POOL' OR TABCLASS = 'CLUSTER' ) AND DDTEXT LIKE '%s'", 
+            search_str, search_str
+        );
+
         auto connection = RfcAuthParams::FromContext(context).Connect();
 
-        // Create the function
-        auto func = make_shared<RfcFunction>(connection, "RFC_READ_TABLE");
-        auto func_args = CreateFunctionArguments(input);
-        auto func_args_debug = func_args.front().ToSQLString();
-        auto invocation = func->BeginInvocation(func_args);
-        auto result_set = invocation->Invoke("/DATA");
-        names = result_set->GetResultNames();
-        return_types = result_set->GetResultTypes();
+        auto fields =  std::vector<std::string>({ "TABNAME", "DDTEXT", "DDLANGUAGE", "TABCLASS" });
+        auto result = make_uniq<RfcReadTableBindData>("DD02V");
+        result->SetOptionsFromWhereClause(where_clause);
+        result->SetAndVerifyFields(connection, fields);
 
-        auto bind_data = make_uniq<RfcFunctionBindData>();
-        bind_data->invocation = invocation;
-        bind_data->result_set = result_set;
+        names = result->GetColumnNames();
+        return_types = result->GetReturnTypes();
 
-        return std::move(bind_data);
+        return std::move(result);
+    }
+
+    static unique_ptr<GlobalTableFunctionState> RfcShowTablesInitGlobalState(ClientContext &context,
+                                                                             TableFunctionInitInput &input) 
+    {
+        auto bind_data = input.bind_data->Cast<RfcReadTableBindData>();
+        auto result = bind_data.InitializeGlobalState(context);
+        return result;
+    }
+
+    static unique_ptr<LocalTableFunctionState> RfcShowTablesInitLocalState(ExecutionContext &context, 
+                                                                           TableFunctionInitInput &input, 
+                                                                           GlobalTableFunctionState *global_state) 
+    {
+        auto &g_state = global_state->Cast<RfcReadTableGlobalState>();
+        auto result = g_state.InitializeLocalState();
+
+        printf("RfcShowTablesInitLocalState for column: %d\n", result->column_idx);
+
+        return result;
     }
 
     static void RfcShowTablesScan(ClientContext &context, 
                                   TableFunctionInput &data, 
                                   DataChunk &output) 
     {
-        auto &bind_data = data.bind_data->Cast<RfcFunctionBindData>();
-        auto result_set = bind_data.result_set;
-        
-        if (! result_set->HasMoreResults()) {
+        auto bind_data = data.bind_data->Cast<RfcReadTableBindData>();
+        //auto &gstate = data.global_state->Cast<RfcReadTableGlobalState>();
+	    auto state = data.local_state->Cast<RfcReadTableLocalState>();
+
+        printf("RfcShowTablesScan for column: %d\n", state.column_idx);
+
+        if (state.Finished()) {
             return;
         }
 
-        result_set->FetchNextResult(output);
+        auto connection = RfcAuthParams::FromContext(context).Connect();
+        state.Step(bind_data, connection, output);
+
+        output.SetCardinality(0);
     }
 
     CreateTableFunctionInfo CreateRfcShowTablesScanFunction() 
     {
-        auto fun = TableFunction("sap_show_tables", { }, RfcShowTablesScan, RfcShowTablesBind);
+        auto fun = TableFunction("sap_show_tables", { }, 
+                                 RfcShowTablesScan, 
+                                 RfcShowTablesBind, 
+                                 RfcShowTablesInitGlobalState, 
+                                 RfcShowTablesInitLocalState);
         fun.named_parameters["TABLENAME"] = LogicalType::VARCHAR;
         fun.to_string = RfcShowTablesToString;
 

@@ -65,6 +65,7 @@ namespace duckdb {
             void AdaptValue(DATA_CONTAINER_HANDLE &container_handle, string &arg_name, Value &arg_value);
             Value ConvertRfcValue(RfcInvocation &invocation, string &field_name);
             Value ConvertRfcValue(shared_ptr<RfcInvocation> invocation, string &field_name);
+            Value ConvertCsvValue(Value &csv_value);
             
             virtual std::string ToSqlLiteral();
 
@@ -84,6 +85,10 @@ namespace duckdb {
             Value ConvertRfcValue(RFC_FUNCTION_HANDLE &function_handle, string &field_name);
             Value ConvertRfcStruct(RFC_STRUCTURE_HANDLE &struct_handle);
             Value ConvertRfcTable(RFC_TABLE_HANDLE &table_handle);
+
+        public:
+            static RfcType FromTypeName(const std::string &type_name);
+            static RfcType FromTypeName(const std::string &type_name, const unsigned int length, const unsigned int decimals);
     };
 
 
@@ -221,6 +226,8 @@ namespace duckdb {
             bool HasMoreResults();
             Value GetResultValue(unsigned int col_idx);
             Value GetResultValue(std::string col_name);
+
+            unsigned int TotalRows();
 
             static std::shared_ptr<RfcResultSet> InvokeFunction(
                 std::shared_ptr<RfcConnection> connection,

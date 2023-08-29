@@ -708,6 +708,11 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         return Value::LIST(child_type, row_values);
     }
 
+    Value RfcType::ConvertCsvValue(Value &csv_value)
+    {
+        return Value(csv_value);
+    }
+
     std::string RfcType::ToSqlLiteral() 
     {
         std::stringstream ss;
@@ -732,6 +737,46 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         ss << "}";
 
         return ss.str();
+    }
+
+    RfcType RfcType::FromTypeName(const std::string &type_name, const unsigned int length, const unsigned int decimals) 
+    {
+        // https://learn.microsoft.com/en-us/biztalk/adapters-and-accelerators/adapter-sap/basic-sap-data-types
+
+        static const std::map<std::string, RFCTYPE> type_map = {
+            {"ACCP",    RFCTYPE_NUM},
+            {"CHAR",    RFCTYPE_CHAR},
+            {"CLNT",    RFCTYPE_CHAR},
+            {"CUKY",    RFCTYPE_CHAR},
+            {"DATS",    RFCTYPE_DATE},
+            {"DEC",     RFCTYPE_BCD},
+            {"FLTP",    RFCTYPE_FLOAT},
+            {"INT1",    RFCTYPE_INT1},
+            {"INT2",    RFCTYPE_INT2},
+            {"INT",     RFCTYPE_INT},
+            {"LANG",    RFCTYPE_CHAR},
+            {"LCHR",    RFCTYPE_STRING},
+            {"LRAW",    RFCTYPE_BYTE},
+            {"NUMC",    RFCTYPE_NUM},
+            {"PREC",    RFCTYPE_INT2},
+            {"QUAN",    RFCTYPE_BCD},
+            {"RAW",     RFCTYPE_BYTE},
+            {"RAWSTRING", RFCTYPE_BYTE},
+            {"STRING",  RFCTYPE_STRING},
+            {"TIMS",    RFCTYPE_TIME},
+            {"UNIT",    RFCTYPE_CHAR}
+        };
+
+        auto it = type_map.find(type_name);
+        if (it != type_map.end()) {
+            return RfcType(it->second, nullptr, length, decimals);
+        } else {
+            throw std::runtime_error(StringUtil::Format("Unsupported SAP table type name: %s", type_name));
+        }
+    }
+
+    RfcType RfcType::FromTypeName(const std::string &type_name) {
+        return FromTypeName(type_name, 0, 0);
     }
 
     // RfcType ------------------------------------------------------
@@ -1457,6 +1502,10 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
 
         auto remaining_tokens = std::vector<string>(tokens_it + 1, tokens.end());
         return ValueHelper::GetValueForPath(result, remaining_tokens);
+    }
+
+    unsigned int RfcResultSet::TotalRows() {
+        return _total_rows;
     }
 
     bool RfcResultSet::HasMoreResults() 
