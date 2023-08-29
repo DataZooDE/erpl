@@ -205,7 +205,8 @@ namespace duckdb
 
     std::unique_ptr<RfcReadTableGlobalState> RfcReadTableBindData::InitializeGlobalState(ClientContext &context)
     {
-        idx_t max_threads = UINT_MAX;
+        //idx_t max_threads = UINT_MAX;
+        idx_t max_threads = 1;
         return InitializeGlobalState(context, max_threads);
     }
 
@@ -243,7 +244,6 @@ namespace duckdb
         {
             case ReadTableStates::INIT: {
                 current_state = ReadTableStates::EXTRACT_FROM_SAP;
-                break;
             }
             case ReadTableStates::EXTRACT_FROM_SAP: {
                 auto extracted_from_sap = ExecuteNextTableReadForColumn(bind_data, connection);

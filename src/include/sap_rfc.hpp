@@ -34,6 +34,7 @@ namespace duckdb
 		std::string table_name;
 		std::vector<std::string> fields;
 		std::vector<std::string> options;
+		unsigned int max_threads;
 
 		private:
 			std::vector<std::string> column_names;

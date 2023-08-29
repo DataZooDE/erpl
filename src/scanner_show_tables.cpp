@@ -42,6 +42,7 @@ namespace duckdb
     static unique_ptr<GlobalTableFunctionState> RfcShowTablesInitGlobalState(ClientContext &context,
                                                                              TableFunctionInitInput &input) 
     {
+
         auto bind_data = input.bind_data->Cast<RfcReadTableBindData>();
         auto result = bind_data.InitializeGlobalState(context);
         return result;
@@ -67,7 +68,7 @@ namespace duckdb
         //auto &gstate = data.global_state->Cast<RfcReadTableGlobalState>();
 	    auto state = data.local_state->Cast<RfcReadTableLocalState>();
 
-        printf("RfcShowTablesScan for column: %d\n", state.column_idx);
+        printf("RfcShowTablesScan for column: %d, state %d\n", state.column_idx, state.current_state);
 
         if (state.Finished()) {
             return;
@@ -75,8 +76,6 @@ namespace duckdb
 
         auto connection = RfcAuthParams::FromContext(context).Connect();
         state.Step(bind_data, connection, output);
-
-        output.SetCardinality(0);
     }
 
     CreateTableFunctionInfo CreateRfcShowTablesScanFunction() 
