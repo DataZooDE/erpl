@@ -1,5 +1,6 @@
 #include "duckdb.hpp"
 #include <numeric>
+#include <thread>  
 
 #include <stdint.h>
 #include "duckdb/parser/parser.hpp"
@@ -53,14 +54,24 @@ namespace duckdb
 
     // --------------------------------------------------------------------------------------------
 
-    RfcReadTableBindData::RfcReadTableBindData(std::string table_name)
-        : table_name(table_name)
+    RfcReadTableBindData::RfcReadTableBindData(std::string table_name, RfcConnectionFactory_t connection_factory, ClientContext &client_context)
+        : table_name(table_name), connection_factory(connection_factory), client_context(client_context)
     { }
-
 
     std::vector<std::string> RfcReadTableBindData::GetColumnNames()
     {
         return column_names;
+    }
+
+    duckdb::vector<Value> RfcReadTableBindData::GetColumnName(unsigned int column_idx) 
+    {
+        if (column_idx >= column_names.size()) {
+            throw std::runtime_error(StringUtil::Format("Column index %d out of bounds", column_idx));
+        }
+        auto arg_builder = ArgBuilder().Add("FIELDNAME", Value(column_names[column_idx]));
+        auto ret = duckdb::vector<Value>();
+        ret.push_back(arg_builder.Build());
+        return ret;
     }
 
     std::vector<LogicalType> RfcReadTableBindData::GetReturnTypes()
@@ -81,30 +92,19 @@ namespace duckdb
     {
         auto ret = duckdb::vector<Value>();
         for (auto &o : options) {
-            ret.push_back(Value(o));
+            auto arg_builder = ArgBuilder().Add("TEXT", Value(o));
+            ret.push_back(arg_builder.Build());
         }
 
         return ret;
     }
 
-    duckdb::vector<Value> RfcReadTableBindData::GetFields()
+    std::shared_ptr<RfcConnection> RfcReadTableBindData::OpenNewConnection()
     {
-        auto ret = duckdb::vector<Value>();
-        for (auto &f : fields) {
-            ret.push_back(Value(f));
-        }
-
-        return ret;
+        return connection_factory(client_context);
     }
 
-    duckdb::vector<Value> RfcReadTableBindData::GetField(unsigned int column_idx) 
-    {
-        auto ret = duckdb::vector<Value>();
-        ret.push_back(Value(fields[column_idx]));
-        return ret;
-    }
-
-    void RfcReadTableBindData::SetOptionsFromWhereClause(std::string &where_clause)
+    void RfcReadTableBindData::InitOptionsFromWhereClause(std::string &where_clause)
     {
         options.clear();
         auto opt_start = where_clause.begin();
@@ -134,11 +134,12 @@ namespace duckdb
         }
     }
 
-    void RfcReadTableBindData::SetAndVerifyFields(std::shared_ptr<RfcConnection> connection, std::vector<std::string> &fields)
+    void RfcReadTableBindData::InitAndVerifyFields(std::vector<std::string> &fields)
     {
         auto req_fields = std::vector<std::string>(fields);
         auto req_field_metas = std::map<std::string, Value>();
 
+        auto connection = OpenNewConnection();
         for (auto &fm :  GetTableFieldMetas(connection, table_name)) {
             auto fm_helper = ValueHelper(fm);
             auto field_name = fm_helper["FIELDNAME"].ToString();
@@ -163,7 +164,7 @@ namespace duckdb
             v.push_back(tpl);
             return v;
         };
- 
+        
         auto x = std::accumulate(req_field_metas.begin(), req_field_metas.end(), 
                                  std::vector<std::tuple<std::string, RfcType>>(), 
                                  extract_name_and_type);
@@ -173,6 +174,17 @@ namespace duckdb
 
         column_types.clear();
         std::transform(x.begin(), x.end(), std::back_inserter(column_types), [](auto &t) { return std::get<1>(t); });
+
+        column_state_machines = CreateReadColumnStateMachines();
+    }
+
+    std::vector<RfcReadColumnStateMachine> RfcReadTableBindData::CreateReadColumnStateMachines() 
+    {
+        auto ret = std::vector<RfcReadColumnStateMachine>();
+        for (idx_t i = 0; i < column_names.size(); i++) {
+            ret.push_back(RfcReadColumnStateMachine(this, i));
+        }
+        return ret;
     }
 
     std::vector<Value> RfcReadTableBindData::GetTableFieldMetas(std::shared_ptr<RfcConnection> connection, std::string table_name)
@@ -197,145 +209,246 @@ namespace duckdb
         return RfcType::FromTypeName(type_name, length, decimals);
     }
 
-    std::unique_ptr<RfcReadTableGlobalState> RfcReadTableBindData::InitializeGlobalState(ClientContext &context, idx_t max_threads)
+    bool RfcReadTableBindData::Finished() 
     {
-        idx_t actual_threads = std::min(max_threads, column_names.size());
-        return make_uniq<RfcReadTableGlobalState>(actual_threads);
+        return std::all_of(column_state_machines.begin(), column_state_machines.end(), 
+                           [](auto &s) { return s.Finished(); });
     }
 
-    std::unique_ptr<RfcReadTableGlobalState> RfcReadTableBindData::InitializeGlobalState(ClientContext &context)
+    void RfcReadTableBindData::Step(ClientContext &context, DataChunk &output) 
     {
-        //idx_t max_threads = UINT_MAX;
-        idx_t max_threads = 1;
-        return InitializeGlobalState(context, max_threads);
-    }
-
-    // --------------------------------------------------------------------------------------------
-
-    bool RfcReadTableGlobalState::AllFinished() 
-    {
-        if (finished_threads.empty()) {
-            return true;
+        auto &scheduler = TaskScheduler::GetScheduler(context);
+        //scheduler.SetThreads(2);
+        //auto &executor = Executor::Get(context);
+        auto producer_token = scheduler.CreateProducer();
+        
+        for (auto &sm : column_state_machines) {
+            auto task = sm.CreateTaskForNextStep(context, output.data[sm.GetColumnIndex()]);
+            scheduler.ScheduleTask(*producer_token, task);
         }
-            
-        return std::all_of(finished_threads.begin(), finished_threads.end(), [](bool x) { return x; });
+
+        scheduler.ExecuteTasks(column_state_machines.size());
+        
+        if (column_state_machines.size() > 1 ) {
+            bool same_cardinality = std::all_of(column_state_machines.begin() + 1, column_state_machines.end(), 
+                            [&] (auto &sm) {return sm.GetCardinality() == column_state_machines[0].GetCardinality();});
+
+            if (!same_cardinality) {
+                throw std::runtime_error("Cardinality of column state machines is not the same. This should not happen.");
+            }
+        }
+        
+        output.SetCardinality(column_state_machines[0].GetCardinality());
     }
 
-    std::unique_ptr<RfcReadTableLocalState> RfcReadTableGlobalState::InitializeLocalState() 
+    std::string RfcReadTableBindData::ToString() 
     {
-        auto ret = make_uniq<RfcReadTableLocalState>();
-        lock.lock();
-        ret->column_idx = finished_threads.size();
-        finished_threads.push_back(false);
-        lock.unlock();
-
-        return ret;
+        return StringUtil::Format("BindData(\n\ttable_name=%s, \n\toptions=%s, \n\tcolumn_names=%s, \n\tcolumn_types=%s\n)\n", 
+                                    table_name, StringUtil::Join(options, options.size(), ", ", [](auto &o) { return o; }),
+                                    StringUtil::Join(column_names, column_names.size(), ", ", [](auto &o) { return o; }),
+                                    StringUtil::Join(column_types, column_types.size(), ", ", [](auto &o) { return o.GetName(); }));
     }
 
     // --------------------------------------------------------------------------------------------
-    bool RfcReadTableLocalState::Finished() 
+
+    RfcReadColumnStateMachine::RfcReadColumnStateMachine(RfcReadTableBindData* bind_data, idx_t column_idx)
+        : column_idx(column_idx), bind_data(bind_data)
+    {}
+
+    RfcReadColumnStateMachine::RfcReadColumnStateMachine(const RfcReadColumnStateMachine& other)
+        : desired_batch_size(other.desired_batch_size),
+          pending_records(other.pending_records),
+          cardinality(other.cardinality),
+          batch_count(other.batch_count),
+          duck_count(other.duck_count),
+          column_idx(other.column_idx),
+          bind_data(other.bind_data),
+          current_state(other.current_state)
+    {}
+
+    RfcReadColumnStateMachine::~RfcReadColumnStateMachine() 
+    {}
+
+    bool RfcReadColumnStateMachine::Finished() 
     {
+        std::lock_guard<mutex> t(thread_lock);
         return current_state == ReadTableStates::FINISHED;
     }
 
-    void RfcReadTableLocalState::Step(RfcReadTableBindData &bind_data, std::shared_ptr<RfcConnection> connection, DataChunk &output) 
+    std::shared_ptr<RfcReadColumnTask> RfcReadColumnStateMachine::CreateTaskForNextStep(ClientContext &client_context, duckdb::Vector &column_output) 
     {
-        switch(current_state) 
-        {
-            case ReadTableStates::INIT: {
-                current_state = ReadTableStates::EXTRACT_FROM_SAP;
-            }
-            case ReadTableStates::EXTRACT_FROM_SAP: {
-                auto extracted_from_sap = ExecuteNextTableReadForColumn(bind_data, connection);
-                batch_count += 1;
-                duck_count = 0;
-                pending_records += extracted_from_sap;
+        std::lock_guard<mutex> t(thread_lock);
+        auto task = std::make_shared<RfcReadColumnTask>(this, client_context, column_output);
+        return task;
+    }
 
-                current_state = (extracted_from_sap < desired_batch_size) 
-                                    ? ReadTableStates::FINAL_LOAD_TO_DUCKDB 
-                                    : ReadTableStates::LOAD_TO_DUCKDB;
+    unsigned int RfcReadColumnStateMachine::GetColumnIndex() 
+    {
+        std::lock_guard<mutex> t(thread_lock);
+        return column_idx;
+    }
 
-                current_state = ReadTableStates::LOAD_TO_DUCKDB;
-                break;
-            }
-            case ReadTableStates::LOAD_TO_DUCKDB: {
-                auto loaded_to_duckdb = LoadNextBatchToDuckDBColumn(bind_data, output);
-                duck_count += 1;
-                pending_records -= loaded_to_duckdb;
-                
-                current_state = (pending_records > 0) 
-                                    ? ReadTableStates::LOAD_TO_DUCKDB 
-                                    : ReadTableStates::EXTRACT_FROM_SAP;
+    unsigned int RfcReadColumnStateMachine::GetCardinality() 
+    {
+        std::lock_guard<mutex> t(thread_lock);
+        return cardinality;
+    }
+
+    std::string RfcReadColumnStateMachine::ToString() 
+    {
+        return StringUtil::Format("ReadColumn(\n\tcolumn_idx=%d, \n\tcurrent_state=%s, \n\tdesired_batch_size=%d, \n\tpending_records=%d, \n\tcardinality=%d, \n\tbatch_count=%d, \n\tduck_count=%d\n)\n", 
+                                    column_idx, 
+                                    ReadTableStatesToString(current_state).c_str(), 
+                                    desired_batch_size, 
+                                    pending_records,
+                                    cardinality, 
+                                    batch_count, 
+                                    duck_count);
+    }
+
+    // --------------------------------------------------------------------------------------------
+
+    RfcReadColumnTask::RfcReadColumnTask(RfcReadColumnStateMachine *owning_state_machine, ClientContext &client_context, duckdb::Vector &current_column_output)
+        :  ExecutorTask(client_context), owning_state_machine(owning_state_machine), current_column_output(current_column_output)
+    { }
+
+    TaskExecutionResult RfcReadColumnTask::ExecuteTask(TaskExecutionMode mode) 
+    {
+        std::lock_guard<mutex> t(owning_state_machine->thread_lock);
+
+        auto &current_state = owning_state_machine->current_state;
+        auto &desired_batch_size = owning_state_machine->desired_batch_size;
+        auto &pending_records = owning_state_machine->pending_records;
+        auto &cardinality = owning_state_machine->cardinality;
+        auto &batch_count = owning_state_machine->batch_count;
+        auto &duck_count = owning_state_machine->duck_count;
+
+        cardinality = 0;
+        bool return_control_to_duck = false;
+        while (return_control_to_duck == false) {
+            switch(current_state) 
+            {
+                case ReadTableStates::INIT: {
+                    current_state = ReadTableStates::EXTRACT_FROM_SAP;
+                    break;
+                }
+                case ReadTableStates::EXTRACT_FROM_SAP: {
+                    auto extracted_from_sap = ExecuteNextTableReadForColumn();
+                    batch_count += 1;
+                    duck_count = 0;
+                    pending_records += extracted_from_sap;
+            
+                    current_state = (extracted_from_sap < desired_batch_size) 
+                                        ? ReadTableStates::FINAL_LOAD_TO_DUCKDB 
+                                        : ReadTableStates::LOAD_TO_DUCKDB;
+
+                    break;
+                }
+                case ReadTableStates::LOAD_TO_DUCKDB: {
+                    cardinality = LoadNextBatchToDuckDBColumn();
+                    duck_count += 1;
+                    pending_records -= cardinality;
                     
-                break;
-            }
-            case ReadTableStates::FINAL_LOAD_TO_DUCKDB: {
-                auto loaded_to_duckdb = LoadNextBatchToDuckDBColumn(bind_data, output);
-                duck_count += 1;
-                pending_records -= loaded_to_duckdb;
+                    current_state = (pending_records > 0) 
+                                        ? ReadTableStates::LOAD_TO_DUCKDB 
+                                        : ReadTableStates::EXTRACT_FROM_SAP;
+                    
+                    return_control_to_duck = true;
+                    break;
+                }
+                case ReadTableStates::FINAL_LOAD_TO_DUCKDB: {
+                    cardinality = LoadNextBatchToDuckDBColumn();
+                    duck_count += 1;
+                    pending_records -= cardinality;
 
-                current_state = (pending_records > 0)
-                                    ? ReadTableStates::FINAL_LOAD_TO_DUCKDB
-                                    : ReadTableStates::FINISHED;
+                    current_state = (pending_records > 0)
+                                        ? ReadTableStates::FINAL_LOAD_TO_DUCKDB
+                                        : ReadTableStates::FINISHED;
 
-                break;
-            }
-            case ReadTableStates::FINISHED: {
-                // Never actually reached / called, 
-                // as the Finished() method will return true;
-                break;
+                    return_control_to_duck = true;
+                    break;
+                }
+                case ReadTableStates::FINISHED: {
+                    // Never actually reached / called, 
+                    // as the Finished() method will return true;
+                    break;
+                }
             }
         }
-    }
-
-    std::vector<Value> RfcReadTableLocalState::CreateFunctionArguments(RfcReadTableBindData &bind_data) 
-    {
-        auto table_name = bind_data.table_name;
-        auto options = bind_data.GetOptions();
-        auto fields = bind_data.GetField(column_idx);
         
-        auto args = ArgBuilder()
-            .Add("QUERY_TABLE", Value(table_name))
-            .Add("ROWSKIPS", Value::CreateValue(batch_count * desired_batch_size))
-            .Add("ROWCOUNT", Value::CreateValue(desired_batch_size))
-            .Add("OPTIONS", options)
-            .Add("FIELDS", fields);
-
-        return args.BuildArgList();
+        printf("[%lu] %s\n", owning_state_machine->column_idx, owning_state_machine->ToString().c_str());
+        return TaskExecutionResult::TASK_FINISHED;   
     }
 
-    unsigned int RfcReadTableLocalState::ExecuteNextTableReadForColumn(RfcReadTableBindData &bind_data, std::shared_ptr<RfcConnection> connection) 
+    
+    unsigned int RfcReadColumnTask::ExecuteNextTableReadForColumn() 
     {
+        auto bind_data = owning_state_machine->bind_data;
+        auto &current_result_data = owning_state_machine->current_result_data;
+        auto connection = bind_data->OpenNewConnection();
         auto func = std::make_shared<RfcFunction>(connection, "RFC_READ_TABLE");
-        auto func_args = CreateFunctionArguments(bind_data);
-        auto func_args_debug = func_args.front().ToSQLString();
+        auto func_args = CreateFunctionArguments();
         auto invocation = func->BeginInvocation(func_args);
         current_result_data = invocation->Invoke("/DATA");
 
         return current_result_data->TotalRows();
     }
 
-    unsigned int RfcReadTableLocalState::LoadNextBatchToDuckDBColumn(RfcReadTableBindData &bind_data, DataChunk &output) 
+    std::vector<Value> RfcReadColumnTask::CreateFunctionArguments() 
     {
-        auto result_vec = ListValue::GetChildren(current_result_data->GetResultValue("/"));
+        auto bind_data = owning_state_machine->bind_data;
+        auto table_name = bind_data->table_name;
+        auto options = bind_data->GetOptions();
+        auto fields = bind_data->GetColumnName(owning_state_machine->column_idx);
+
+        auto &desired_batch_size = owning_state_machine->desired_batch_size;
+        auto &batch_count = owning_state_machine->batch_count;
+
+        auto args = ArgBuilder()
+            .Add("QUERY_TABLE", Value(table_name))
+            .Add("ROWSKIPS", Value::CreateValue<int32_t>(batch_count * desired_batch_size))
+            .Add("ROWCOUNT", Value::CreateValue<int32_t>(desired_batch_size))
+            .Add("OPTIONS", options)
+            .Add("FIELDS", fields);
+
+        return args.BuildArgList();
+    }
+
+    unsigned int RfcReadColumnTask::LoadNextBatchToDuckDBColumn() 
+    {
+        auto &current_result_data = owning_state_machine->current_result_data;
+        auto &duck_count = owning_state_machine->duck_count;
+
+        auto result_vec = ListValue::GetChildren(current_result_data->GetResultValue(0));
         auto batch_start = result_vec.begin() + duck_count * STANDARD_VECTOR_SIZE;
         auto batch_end = batch_start + STANDARD_VECTOR_SIZE > result_vec.end() 
                             ? result_vec.end() 
                             : batch_start + STANDARD_VECTOR_SIZE;
         auto batch = duckdb::vector<Value>(batch_start, batch_end);
-
-        for (idx_t i = 0; i < batch.size(); i++) {
-            output.SetValue(column_idx, i, ParseCsvValue(bind_data, batch[i]));
-        }
         
-        output.SetCardinality(batch.size());
+        for (idx_t row_idx = 0; row_idx < batch.size(); row_idx++) {
+            current_column_output.SetValue(row_idx, ParseCsvValue(batch[row_idx]));
+        }
         return batch.size();
     }
 
-    Value RfcReadTableLocalState::ParseCsvValue(RfcReadTableBindData &bind_data, Value &orig)
+    Value RfcReadColumnTask::ParseCsvValue(Value &orig)
     {
-        auto rfc_type = bind_data.GetColumnType(column_idx);
+        auto bind_data = owning_state_machine->bind_data;
+        auto rfc_type = bind_data->GetColumnType(owning_state_machine->column_idx);
         return rfc_type.ConvertCsvValue(orig);
+    }
+    
+    // --------------------------------------------------------------------------------------------
+    std::string ReadTableStatesToString(ReadTableStates &state) 
+    {
+        switch (state) {
+            case ReadTableStates::INIT: return "INIT";
+            case ReadTableStates::EXTRACT_FROM_SAP: return "EXTRACT_FROM_SAP";
+            case ReadTableStates::LOAD_TO_DUCKDB: return "LOAD_TO_DUCKDB";
+            case ReadTableStates::FINAL_LOAD_TO_DUCKDB: return "FINAL_LOAD_TO_DUCKDB";
+            case ReadTableStates::FINISHED: return "FINISHED";
+        }
     }
 
 } // namespace duckdb

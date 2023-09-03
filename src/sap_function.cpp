@@ -76,6 +76,10 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
 
     std::string RfcType::GetName() const
     {
+        if (_handle == NULL) {
+            return rfctype2std(_rfc_type);
+        }
+
         RFC_ERROR_INFO error_info;
         const unsigned int name_len = 256;
         SAP_UC name_buffer[name_len];
@@ -1145,7 +1149,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             auto param_type = parameter_info.GetRfcType();
 
             if (! param_type->IsCompatibleType(child_type)) {
-                throw std::runtime_error(StringUtil::Format("Parameter '%s' is of type '%s' but argument is of type '%s'", 
+                throw std::runtime_error(StringUtil::Format("Parameter '%s' is of type '%s' (RFC) but argument is of type '%s' (DuckDB)", 
                                                             child_name, param_type->GetName(), child_value.type().ToString()));
             }
 

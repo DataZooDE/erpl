@@ -1,3 +1,6 @@
+#include "duckdb/parallel/pipeline.hpp"
+#include "duckdb/parallel/event.hpp"
+
 #include "scanner_show_tables.hpp"
 #include "duckdb_argument_helper.hpp"
 #include "sap_rfc.hpp"
@@ -26,12 +29,14 @@ namespace duckdb
             search_str, search_str
         );
 
-        auto connection = RfcAuthParams::FromContext(context).Connect();
+        RfcConnectionFactory_t connection_factory { [](ClientContext &context) { 
+            return RfcAuthParams::FromContext(context).Connect(); 
+        }};
 
         auto fields =  std::vector<std::string>({ "TABNAME", "DDTEXT", "DDLANGUAGE", "TABCLASS" });
-        auto result = make_uniq<RfcReadTableBindData>("DD02V");
-        result->SetOptionsFromWhereClause(where_clause);
-        result->SetAndVerifyFields(connection, fields);
+        auto result = make_uniq<RfcReadTableBindData>("DD02V", connection_factory, context);
+        result->InitOptionsFromWhereClause(where_clause);
+        result->InitAndVerifyFields(fields);
 
         names = result->GetColumnNames();
         return_types = result->GetReturnTypes();
@@ -39,52 +44,27 @@ namespace duckdb
         return std::move(result);
     }
 
-    static unique_ptr<GlobalTableFunctionState> RfcShowTablesInitGlobalState(ClientContext &context,
-                                                                             TableFunctionInitInput &input) 
-    {
-
-        auto bind_data = input.bind_data->Cast<RfcReadTableBindData>();
-        auto result = bind_data.InitializeGlobalState(context);
-        return result;
-    }
-
-    static unique_ptr<LocalTableFunctionState> RfcShowTablesInitLocalState(ExecutionContext &context, 
-                                                                           TableFunctionInitInput &input, 
-                                                                           GlobalTableFunctionState *global_state) 
-    {
-        auto &g_state = global_state->Cast<RfcReadTableGlobalState>();
-        auto result = g_state.InitializeLocalState();
-
-        printf("RfcShowTablesInitLocalState for column: %d\n", result->column_idx);
-
-        return result;
-    }
-
     static void RfcShowTablesScan(ClientContext &context, 
                                   TableFunctionInput &data, 
                                   DataChunk &output) 
     {
-        auto bind_data = data.bind_data->Cast<RfcReadTableBindData>();
-        //auto &gstate = data.global_state->Cast<RfcReadTableGlobalState>();
-	    auto state = data.local_state->Cast<RfcReadTableLocalState>();
+        auto &bind_data = data.bind_data->CastNoConst<RfcReadTableBindData>();
 
-        printf("RfcShowTablesScan for column: %d, state %d\n", state.column_idx, state.current_state);
+        printf("\n>>> Scan\n");
 
-        if (state.Finished()) {
+        if (bind_data.Finished()) {
             return;
         }
 
-        auto connection = RfcAuthParams::FromContext(context).Connect();
-        state.Step(bind_data, connection, output);
+        bind_data.Step(context, output);
+        printf("<<< Scan\n");
     }
 
     CreateTableFunctionInfo CreateRfcShowTablesScanFunction() 
     {
         auto fun = TableFunction("sap_show_tables", { }, 
                                  RfcShowTablesScan, 
-                                 RfcShowTablesBind, 
-                                 RfcShowTablesInitGlobalState, 
-                                 RfcShowTablesInitLocalState);
+                                 RfcShowTablesBind);
         fun.named_parameters["TABLENAME"] = LogicalType::VARCHAR;
         fun.to_string = RfcShowTablesToString;
 
