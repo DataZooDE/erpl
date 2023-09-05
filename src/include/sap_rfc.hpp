@@ -24,7 +24,7 @@ namespace duckdb
 		public: 
 			static const idx_t MAX_OPTION_LEN = 70;
 
-			RfcReadTableBindData(std::string table_name, RfcConnectionFactory_t connection_factory, ClientContext &context);
+			RfcReadTableBindData(std::string table_name, int max_read_threads, RfcConnectionFactory_t connection_factory, ClientContext &context);
 
 			void InitOptionsFromWhereClause(std::string &where_clause);
 			void InitAndVerifyFields(std::vector<std::string> &fields);
@@ -59,26 +59,6 @@ namespace duckdb
 			static RfcType GetRfcTypeForFieldMeta(Value &DFIES_entry);
     };
 
-	/*
-	struct RfcReadTableGlobalState : public GlobalTableFunctionState {
-		RfcReadTableGlobalState(idx_t max_threads) : max_threads(max_threads) 
-		{ }
-
-		mutex lock;
-		idx_t max_threads;
-		std::vector<bool> finished_threads;
-
-		idx_t MaxThreads() const override {
-			return max_threads;
-		}
-
-		void FinishThread(idx_t thread_id);
-
-		bool AllFinished();
-		std::unique_ptr<RfcReadTableLocalState> InitializeLocalState();
-	};
-	*/
-
 	enum class ReadTableStates {
 		INIT,
 		EXTRACT_FROM_SAP,
@@ -103,13 +83,6 @@ namespace duckdb
 			unsigned int GetColumnIndex();
 			unsigned int GetCardinality();
 			std::string ToString();
-
-		public:
-			
-
-			
-
-			
 
 		private:
 			unsigned int desired_batch_size = 50000;

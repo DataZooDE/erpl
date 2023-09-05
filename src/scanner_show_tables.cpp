@@ -1,3 +1,5 @@
+#include <regex>
+
 #include "duckdb/parallel/pipeline.hpp"
 #include "duckdb/parallel/event.hpp"
 
@@ -14,19 +16,32 @@ namespace duckdb
         return StringUtil::Format("Unclear what to do here");
     }
 
+    static std::string GetSearchString(const std::string param_name, 
+                                       const TableFunctionBindInput &input) 
+    {
+        auto &named_params = input.named_parameters;
+        auto search_string =  named_params.find(param_name) != named_params.end() 
+            ? named_params[param_name].ToString() : "%";
+        search_string = std::regex_replace(search_string, std::regex("\\*"), "%");
+        return search_string;
+    }
+
     static unique_ptr<FunctionData> RfcShowTablesBind(ClientContext &context, 
                                                       TableFunctionBindInput &input, 
                                                       vector<LogicalType> &return_types, 
                                                       vector<string> &names) 
     {
         auto &named_params = input.named_parameters;
-        auto search_str = named_params.find("TABLENAME") != named_params.end() 
-                            ? named_params["TABLENAME"].ToString() : "%";
+        auto table_search_str = GetSearchString("TABLENAME", input);
+        auto text_search_str = GetSearchString("TEXT", input);
+        auto max_read_threads = named_params.find("THREADS") != named_params.end() 
+                                    ? named_params["THREADS"].GetValue<u_int32_t>()
+                                    : 0;
 
         auto where_clause = StringUtil::Format(
             "TABNAME LIKE '%s' AND ( TABCLASS = 'VIEW' OR TABCLASS = 'TRANSP' OR "
             "TABCLASS = 'POOL' OR TABCLASS = 'CLUSTER' ) AND DDTEXT LIKE '%s'", 
-            search_str, search_str
+            table_search_str, text_search_str
         );
 
         RfcConnectionFactory_t connection_factory { [](ClientContext &context) { 
@@ -34,11 +49,11 @@ namespace duckdb
         }};
 
         auto fields =  std::vector<std::string>({ "TABNAME", "DDTEXT", "DDLANGUAGE", "TABCLASS" });
-        auto result = make_uniq<RfcReadTableBindData>("DD02V", connection_factory, context);
+        auto result = make_uniq<RfcReadTableBindData>("DD02V", max_read_threads, connection_factory, context);
         result->InitOptionsFromWhereClause(where_clause);
         result->InitAndVerifyFields(fields);
 
-        names = result->GetColumnNames();
+        names = { "TABLE_NAME", "TABLE_TEXT", "TABLE_LANGUAGE", "TABLE_CLASS" };
         return_types = result->GetReturnTypes();
 
         return std::move(result);
@@ -50,14 +65,11 @@ namespace duckdb
     {
         auto &bind_data = data.bind_data->CastNoConst<RfcReadTableBindData>();
 
-        printf("\n>>> Scan\n");
-
         if (bind_data.Finished()) {
             return;
         }
 
         bind_data.Step(context, output);
-        printf("<<< Scan\n");
     }
 
     CreateTableFunctionInfo CreateRfcShowTablesScanFunction() 
@@ -66,6 +78,8 @@ namespace duckdb
                                  RfcShowTablesScan, 
                                  RfcShowTablesBind);
         fun.named_parameters["TABLENAME"] = LogicalType::VARCHAR;
+        fun.named_parameters["TEXT"] = LogicalType::VARCHAR;
+        fun.named_parameters["THREADS"] = LogicalType::UINTEGER;
         fun.to_string = RfcShowTablesToString;
 
         return CreateTableFunctionInfo(fun);

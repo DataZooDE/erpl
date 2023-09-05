@@ -47,15 +47,14 @@ namespace duckdb
             }
         }
 
-        // auto pragma_query = StringUtil::Format("SELECT '%s' as msg", func_name);
         auto pragma_query = ss.str();
         return pragma_query;
     }
 
     // --------------------------------------------------------------------------------------------
 
-    RfcReadTableBindData::RfcReadTableBindData(std::string table_name, RfcConnectionFactory_t connection_factory, ClientContext &client_context)
-        : table_name(table_name), connection_factory(connection_factory), client_context(client_context)
+    RfcReadTableBindData::RfcReadTableBindData(std::string table_name, int max_read_threads, RfcConnectionFactory_t connection_factory, ClientContext &client_context)
+        : table_name(table_name), max_threads(max_read_threads), connection_factory(connection_factory), client_context(client_context)
     { }
 
     std::vector<std::string> RfcReadTableBindData::GetColumnNames()
@@ -137,43 +136,34 @@ namespace duckdb
     void RfcReadTableBindData::InitAndVerifyFields(std::vector<std::string> &fields)
     {
         auto req_fields = std::vector<std::string>(fields);
+        auto connection = OpenNewConnection();
+        auto available_fields = GetTableFieldMetas(connection, table_name);
         auto req_field_metas = std::map<std::string, Value>();
 
-        auto connection = OpenNewConnection();
-        for (auto &fm :  GetTableFieldMetas(connection, table_name)) {
-            auto fm_helper = ValueHelper(fm);
-            auto field_name = fm_helper["FIELDNAME"].ToString();
-            auto req_field_it = std::find(req_fields.begin(), req_fields.end(), field_name);
-            if (req_field_it == req_fields.end()) {
-                continue;
+        for (auto &req_field : req_fields) 
+        {
+            auto req_field_it = std::find_if(available_fields.begin(), available_fields.end(), 
+                                             [&req_field](auto &fm) { 
+                                                 auto fm_helper = ValueHelper(fm);
+                                                 auto field_name = fm_helper["FIELDNAME"].ToString();
+                                                 return field_name == req_field;
+                                             });
+            if (req_field_it == available_fields.end()) {
+                throw std::runtime_error(StringUtil::Format("Could not find field %s in table %s", req_field, table_name));
             }
 
-            req_field_metas[field_name] = fm;
-            req_fields.erase(req_field_it);
+            req_field_metas[req_field] = *req_field_it;
         }
-
-        if (! req_fields.empty()) {
-            auto fields_str = StringUtil::Join(req_fields, req_fields.size(), ", ", [](auto &f) { return f; });
-            throw std::runtime_error(StringUtil::Format("Could not find the following fields in table %s: %s", table_name, fields_str));
-        }
-        
-        auto extract_name_and_type = [](auto &v, auto &fm) {
-            auto field_name = fm.first;
-            auto rfc_type = GetRfcTypeForFieldMeta(fm.second);
-            auto tpl = std::make_tuple(field_name, rfc_type);
-            v.push_back(tpl);
-            return v;
-        };
-        
-        auto x = std::accumulate(req_field_metas.begin(), req_field_metas.end(), 
-                                 std::vector<std::tuple<std::string, RfcType>>(), 
-                                 extract_name_and_type);
 
         column_names.clear();
-        std::transform(x.begin(), x.end(), std::back_inserter(column_names), [](auto &t) { return std::get<0>(t); });
-
+        column_names = req_fields;
+        
         column_types.clear();
-        std::transform(x.begin(), x.end(), std::back_inserter(column_types), [](auto &t) { return std::get<1>(t); });
+        for (auto &req_field : req_fields) {
+            auto fm = req_field_metas[req_field];
+            auto rfc_type = GetRfcTypeForFieldMeta(fm);
+            column_types.push_back(rfc_type);
+        }
 
         column_state_machines = CreateReadColumnStateMachines();
     }
@@ -218,8 +208,9 @@ namespace duckdb
     void RfcReadTableBindData::Step(ClientContext &context, DataChunk &output) 
     {
         auto &scheduler = TaskScheduler::GetScheduler(context);
-        //scheduler.SetThreads(2);
-        //auto &executor = Executor::Get(context);
+        if (max_threads > 0) {
+            scheduler.SetThreads(max_threads);
+        }
         auto producer_token = scheduler.CreateProducer();
         
         for (auto &sm : column_state_machines) {
@@ -376,7 +367,7 @@ namespace duckdb
             }
         }
         
-        printf("[%lu] %s\n", owning_state_machine->column_idx, owning_state_machine->ToString().c_str());
+        //printf("[%lu] %s\n", owning_state_machine->column_idx, owning_state_machine->ToString().c_str());
         return TaskExecutionResult::TASK_FINISHED;   
     }
 
@@ -418,6 +409,10 @@ namespace duckdb
     {
         auto &current_result_data = owning_state_machine->current_result_data;
         auto &duck_count = owning_state_machine->duck_count;
+
+        if (current_result_data->TotalRows() == 0) {
+            return 0;
+        }
 
         auto result_vec = ListValue::GetChildren(current_result_data->GetResultValue(0));
         auto batch_start = result_vec.begin() + duck_count * STANDARD_VECTOR_SIZE;
