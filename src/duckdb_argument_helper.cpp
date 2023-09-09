@@ -178,5 +178,5 @@ namespace duckdb
             return Value::CreateValue("");
         }
     }
-
+    
 } // namespace duckdb

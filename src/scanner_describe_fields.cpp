@@ -1,5 +1,5 @@
 #include "duckdb.hpp"
-#include "scanner_show_tables.hpp"
+#include "scanner_describe_fields.hpp"
 
 namespace duckdb 
 {
@@ -44,7 +44,7 @@ namespace duckdb
             {"POSITION",    "pos"},
             {"KEYFLAG",     "is_key"},
             {"FIELDNAME",   "field"}, 
-            {"FIELDTEXT",   "description"}, 
+            {"FIELDTEXT",   "text"}, 
             {"DATATYPE",    "sap_type"}, 
             {"LENG",        "length"}, 
             {"DECIMALS",    "decimals"},

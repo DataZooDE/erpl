@@ -714,6 +714,20 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
 
     Value RfcType::ConvertCsvValue(Value &csv_value)
     {
+        auto str_value = csv_value.GetValue<std::string>();
+        switch(_rfc_type)
+        {
+            case RFCTYPE_DATE:
+            {
+                return dats2duck(str_value);
+            }
+            default:
+            {
+                return Value(str_value);
+            }
+        }
+
+
         return Value(csv_value);
     }
 
@@ -751,13 +765,14 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             {"ACCP",    RFCTYPE_NUM},
             {"CHAR",    RFCTYPE_CHAR},
             {"CLNT",    RFCTYPE_CHAR},
+            {"CURR",    RFCTYPE_BCD},
             {"CUKY",    RFCTYPE_CHAR},
             {"DATS",    RFCTYPE_DATE},
             {"DEC",     RFCTYPE_BCD},
             {"FLTP",    RFCTYPE_FLOAT},
             {"INT1",    RFCTYPE_INT1},
             {"INT2",    RFCTYPE_INT2},
-            {"INT",     RFCTYPE_INT},
+            {"INT4",    RFCTYPE_INT},
             {"LANG",    RFCTYPE_CHAR},
             {"LCHR",    RFCTYPE_STRING},
             {"LRAW",    RFCTYPE_BYTE},

@@ -15,6 +15,7 @@
 #include "scanner_search_function.hpp"
 #include "scanner_show_tables.hpp"
 #include "scanner_describe_fields.hpp"
+#include "scanner_read_table.hpp"
 
 #ifdef WITH_BICS
     #include "bics/include/scanner_search_infoprovider.hpp"
@@ -72,6 +73,9 @@ namespace duckdb {
 
         auto rfc_describe_fields_info = CreateRfcDescribeFieldsScanFunction();
         catalog.CreateTableFunction(context, &rfc_describe_fields_info);
+
+        auto rfc_read_table_info = CreateRfcReadTableScanFunction();
+        catalog.CreateTableFunction(context, &rfc_read_table_info);
 
         auto rfc_ping_pragma = PragmaFunction::PragmaStatement("sap_rfc_ping", RfcPing);
         CreatePragmaFunctionInfo rfc_ping_info(rfc_ping_pragma);

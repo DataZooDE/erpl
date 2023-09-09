@@ -270,11 +270,24 @@ namespace duckdb
     Value rfc2duck(RFC_DATE &rfc_date) 
     {
         auto date_str = uc2std(rfc_date, SAP_DATE_LN);
+        return dats2duck(date_str);
+    }
+
+    /** 
+     * @brief Converts a SAP date '20230901' to a DuckDB date.
+     * 
+     * @param dats_str The SAP date to convert.
+     * @return The SAP date as a DuckDB DATETIME.
+     * @note The SAP date is expected to be in the format YYYYMMDD.
+     * @note If the date is invalid a default DuckDB date is returned.
+    */
+    Value dats2duck(std::string &dats_str) 
+    {
         int32_t year, month, day;
 
-        std::istringstream(date_str.substr(0, 4)) >> year;
-        std::istringstream(date_str.substr(4, 2)) >> month;
-        std::istringstream(date_str.substr(6, 2)) >> day;
+        std::istringstream(dats_str.substr(0, 4)) >> year;
+        std::istringstream(dats_str.substr(4, 2)) >> month;
+        std::istringstream(dats_str.substr(6, 2)) >> day;
 
         date_t duck_date;
         Date::TryFromDate(year, month, day, duck_date);

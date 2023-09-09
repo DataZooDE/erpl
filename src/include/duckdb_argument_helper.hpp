@@ -44,5 +44,13 @@ namespace duckdb
 
     bool HasParam(named_parameter_map_t &named_params, const std::string &name);
     Value ConvertBoolArgument(named_parameter_map_t &named_params, const std::string &name, const bool default_value);
-
+    
+    template<typename T>
+    std::vector<T> ConvertListValueToVector(Value &value) {
+        std::vector<T> result;
+        for (auto &v: ListValue::GetChildren(value)) {
+            result.push_back(v.GetValue<T>());
+        }
+        return result;
+    }
 } // namespace duckdb

@@ -133,12 +133,18 @@ namespace duckdb
         }
     }
 
-    void RfcReadTableBindData::InitAndVerifyFields(std::vector<std::string> &fields)
+    void RfcReadTableBindData::InitAndVerifyFields(std::vector<std::string> req_fields)
     {
-        auto req_fields = std::vector<std::string>(fields);
         auto connection = OpenNewConnection();
         auto available_fields = GetTableFieldMetas(connection, table_name);
         auto req_field_metas = std::map<std::string, Value>();
+
+        if (req_fields.empty()) {
+            req_fields = std::vector<std::string>();
+            
+            std::transform(available_fields.begin(), available_fields.end(), std::back_inserter(req_fields),
+                           [](auto& fm) { return ValueHelper(fm)["FIELDNAME"].ToString(); });
+        }
 
         for (auto &req_field : req_fields) 
         {
@@ -172,7 +178,7 @@ namespace duckdb
     {
         auto ret = std::vector<RfcReadColumnStateMachine>();
         for (idx_t i = 0; i < column_names.size(); i++) {
-            ret.push_back(RfcReadColumnStateMachine(this, i));
+            ret.push_back(RfcReadColumnStateMachine(this, i, limit));
         }
         return ret;
     }
@@ -199,7 +205,7 @@ namespace duckdb
         return RfcType::FromTypeName(type_name, length, decimals);
     }
 
-    bool RfcReadTableBindData::Finished() 
+    bool RfcReadTableBindData::HasMoreResults() 
     {
         return std::all_of(column_state_machines.begin(), column_state_machines.end(), 
                            [](auto &s) { return s.Finished(); });
@@ -242,9 +248,13 @@ namespace duckdb
 
     // --------------------------------------------------------------------------------------------
 
-    RfcReadColumnStateMachine::RfcReadColumnStateMachine(RfcReadTableBindData* bind_data, idx_t column_idx)
-        : column_idx(column_idx), bind_data(bind_data)
-    {}
+    RfcReadColumnStateMachine::RfcReadColumnStateMachine(RfcReadTableBindData* bind_data, idx_t column_idx, unsigned int limit)
+        : limit(limit), column_idx(column_idx), bind_data(bind_data)
+    {
+        if (limit > 0 && limit < desired_batch_size) {
+            desired_batch_size = limit;
+        }
+    }
 
     RfcReadColumnStateMachine::RfcReadColumnStateMachine(const RfcReadColumnStateMachine& other)
         : desired_batch_size(other.desired_batch_size),
@@ -313,6 +323,8 @@ namespace duckdb
         auto &cardinality = owning_state_machine->cardinality;
         auto &batch_count = owning_state_machine->batch_count;
         auto &duck_count = owning_state_machine->duck_count;
+        auto &limit = owning_state_machine->limit;
+        auto &total_rows = owning_state_machine->total_rows;
 
         cardinality = 0;
         bool return_control_to_duck = false;
@@ -329,7 +341,7 @@ namespace duckdb
                     duck_count = 0;
                     pending_records += extracted_from_sap;
             
-                    current_state = (extracted_from_sap < desired_batch_size) 
+                    current_state = (extracted_from_sap < desired_batch_size) || (limit > 0 && (total_rows + extracted_from_sap) == limit)
                                         ? ReadTableStates::FINAL_LOAD_TO_DUCKDB 
                                         : ReadTableStates::LOAD_TO_DUCKDB;
 
@@ -339,6 +351,7 @@ namespace duckdb
                     cardinality = LoadNextBatchToDuckDBColumn();
                     duck_count += 1;
                     pending_records -= cardinality;
+                    total_rows += cardinality;
                     
                     current_state = (pending_records > 0) 
                                         ? ReadTableStates::LOAD_TO_DUCKDB 
@@ -351,6 +364,7 @@ namespace duckdb
                     cardinality = LoadNextBatchToDuckDBColumn();
                     duck_count += 1;
                     pending_records -= cardinality;
+                    total_rows += cardinality;
 
                     current_state = (pending_records > 0)
                                         ? ReadTableStates::FINAL_LOAD_TO_DUCKDB
@@ -394,13 +408,22 @@ namespace duckdb
 
         auto &desired_batch_size = owning_state_machine->desired_batch_size;
         auto &batch_count = owning_state_machine->batch_count;
+        auto &total_rows = owning_state_machine->total_rows;
+        auto &limit = owning_state_machine->limit;
+
+        auto actual_batch_size = limit > 0 && total_rows + desired_batch_size > limit 
+                                    ? limit - total_rows 
+                                    : desired_batch_size;
 
         auto args = ArgBuilder()
             .Add("QUERY_TABLE", Value(table_name))
             .Add("ROWSKIPS", Value::CreateValue<int32_t>(batch_count * desired_batch_size))
-            .Add("ROWCOUNT", Value::CreateValue<int32_t>(desired_batch_size))
-            .Add("OPTIONS", options)
+            .Add("ROWCOUNT", Value::CreateValue<int32_t>(actual_batch_size))
             .Add("FIELDS", fields);
+
+        if (! options.empty()) {
+            args.Add("OPTIONS", options);
+        }
 
         return args.BuildArgList();
     }
@@ -409,6 +432,8 @@ namespace duckdb
     {
         auto &current_result_data = owning_state_machine->current_result_data;
         auto &duck_count = owning_state_machine->duck_count;
+        auto &total_rows = owning_state_machine->total_rows;
+        auto &limit = owning_state_machine->limit;
 
         if (current_result_data->TotalRows() == 0) {
             return 0;
@@ -419,6 +444,10 @@ namespace duckdb
         auto batch_end = batch_start + STANDARD_VECTOR_SIZE > result_vec.end() 
                             ? result_vec.end() 
                             : batch_start + STANDARD_VECTOR_SIZE;
+        if (limit > 0 && total_rows + batch_end - batch_start > limit) {
+            batch_end = batch_start + (limit - total_rows);
+        }
+
         auto batch = duckdb::vector<Value>(batch_start, batch_end);
         
         for (idx_t row_idx = 0; row_idx < batch.size(); row_idx++) {

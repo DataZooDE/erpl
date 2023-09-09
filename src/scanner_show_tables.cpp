@@ -53,7 +53,7 @@ namespace duckdb
         result->InitOptionsFromWhereClause(where_clause);
         result->InitAndVerifyFields(fields);
 
-        names = { "TABLE_NAME", "TABLE_TEXT", "TABLE_LANGUAGE", "TABLE_CLASS" };
+        names = { "table_name", "text", "language", "class" };
         return_types = result->GetReturnTypes();
 
         return std::move(result);
@@ -65,7 +65,7 @@ namespace duckdb
     {
         auto &bind_data = data.bind_data->CastNoConst<RfcReadTableBindData>();
 
-        if (bind_data.Finished()) {
+        if (bind_data.HasMoreResults()) {
             return;
         }
 

@@ -21,6 +21,7 @@ namespace duckdb
     unique_ptr<SAP_UC, void (*)(void*)> std2uc(string &std_str);
     unique_ptr<SAP_UC, void (*)(void*)> std2uc(const string &std_str);
     unique_ptr<SAP_UC, void (*)(void*)> duck2uc(Value &value);
+    Value dats2duck(std::string &dats_str);
 
     Value rfc2duck(RFC_DATE &rfc_date);
     Value rfc2duck(const RFC_DATE &rfc_date);

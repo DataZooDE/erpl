@@ -31,7 +31,7 @@ SELECT count(*) FROM sap_show_tables();
 
 # Confirm I retrieve correct data for a table
 query IIII
-SELECT TABLE_NAME, TABLE_TEXT, TABLE_LANGUAGE, TABLE_CLASS FROM sap_show_tables() ORDER BY 1 LIMIT 1;
+SELECT table_name, text, language, class FROM sap_show_tables() ORDER BY 1 LIMIT 1;
 ----
 /1BS/SADL_CDS
 Generated Table for View
