@@ -1248,7 +1248,8 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
 
         rc = RfcInvoke(connection->handle, _handle, &error_info);
         if (rc != RFC_OK) {
-            throw std::runtime_error(StringUtil::Format("Failed to invoke function: %d: %s", error_info.code, error_info.message));
+            throw std::runtime_error(StringUtil::Format("Failed to invoke function: %d: %s", 
+                                                        rfcrc2std(error_info.code), uc2std(error_info.message)));
         }
 
         return make_shared<RfcResultSet>(shared_from_this(), path);
@@ -1257,6 +1258,89 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
     std::shared_ptr<RfcResultSet> RfcInvocation::Invoke() 
     {
         return Invoke("");
+    }
+
+    void RfcInvocation::DeactivateResult(std::string &param_name)
+    {
+        RFC_ERROR_INFO error_info;
+        RFC_RC rc = RFC_OK;
+
+        auto function = GetFunction();
+        int is_active = 0;
+        rc = RfcSetParameterActive(_handle, std2uc(param_name).get(), is_active, &error_info);
+        if (rc != RFC_OK) {
+            throw std::runtime_error(StringUtil::Format("Failed to deactivate result parameter %s: %s: %s", 
+                                                        param_name, rfcrc2std(error_info.code), uc2std(error_info.message)));
+        }
+    }
+
+    void RfcInvocation::DeactivateResult(RfcFunctionParameterDesc &param_info)
+    {
+        auto param_name = param_info.GetName();
+        DeactivateResult(param_name);
+    }
+
+    void RfcInvocation::DeactivateResult(unsigned int col_idx)
+    {
+        auto result_info = GetFunction()->GetResultInfo(col_idx);
+        DeactivateResult(result_info);
+    }
+
+    void RfcInvocation::DeactivateResult(std::vector<std::string> &parameter_names)
+    {
+        for (auto &param_name : parameter_names) {
+            DeactivateResult(param_name);
+        }
+    }
+
+    void RfcInvocation::DeactivateResult(std::vector<unsigned int> &col_idxs)
+    {
+        for (auto &idx : col_idxs) {
+            DeactivateResult(idx);
+        }
+    }
+
+    
+    void RfcInvocation::SelectResultAndDeactivateOthers(std::vector<std::string> &param_names)
+    {
+        auto function = GetFunction();
+        auto result_infos = function->GetResultInfos();
+        
+        for (auto &result_info : result_infos) {
+            auto param_name = result_info.GetName();
+            if (std::find(param_names.begin(), param_names.end(), param_name) != param_names.end()) {
+                continue;
+            }
+            DeactivateResult(result_info);
+        }
+    }
+
+    void RfcInvocation::SelectResultAndDeactivateOthers(std::vector<unsigned int> &col_idxs)
+    {
+        auto param_names = std::vector<std::string>{};
+        for (auto &idx : col_idxs) {
+            auto result_info = GetFunction()->GetResultInfo(idx);
+            param_names.push_back(result_info.GetName());
+        }
+        SelectResultAndDeactivateOthers(param_names);
+    }
+
+    void RfcInvocation::SelectResultAndDeactivateOthers(std::string &param_name)
+    {
+        auto params = std::vector<std::string>{param_name};
+        SelectResultAndDeactivateOthers(params);
+    }
+    
+    void RfcInvocation::SelectResultAndDeactivateOthers(RfcFunctionParameterDesc &param_desc)
+    {
+        auto param_name = param_desc.GetName();
+        SelectResultAndDeactivateOthers(param_name);
+    }
+
+    void RfcInvocation::SelectResultAndDeactivateOthers(unsigned int col_idx)
+    {
+        auto result_info = GetFunction()->GetResultInfo(col_idx);
+        SelectResultAndDeactivateOthers(result_info);
     }
 
     RFC_FUNCTION_HANDLE RfcInvocation::GetFunctionHandle() const
@@ -1458,33 +1542,64 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         return ret;
     }
 
-    unsigned int RfcResultSet::FetchNextResult(DataChunk &output) 
+    unsigned int RfcResultSet::FetchNextResult(DataChunk &output, std::vector<std::string> selected_fields) 
     {
         auto row_count = 0;
-        for (auto i = 0; i < _result_data.size(); i++) {
-            if (IsTabularResult())
-            {
-                auto result_vec = ListValue::GetChildren(_result_data[i]);
-                auto res_start = result_vec.begin() + _current_row_idx;
-                auto res_end = res_start + STANDARD_VECTOR_SIZE > result_vec.end() 
-                                    ? result_vec.end() : res_start + STANDARD_VECTOR_SIZE;
-                auto res_chunk = std::vector<Value>(res_start, res_end);
-                for (auto j = 0; j < res_chunk.size(); j++) {
-                    auto cell_value = res_chunk[j];
-                    output.SetValue(i, j, cell_value);
+
+        for (auto src_col_idx = 0; src_col_idx < _result_data.size(); src_col_idx++) {
+            if (IsTabularResult()) {
+                unsigned int tgt_col_idx = 0;
+                if (MapColumnsByFieldSelection(selected_fields, src_col_idx, tgt_col_idx)) {
+                    row_count = FetchNextTabularResult(output, src_col_idx, tgt_col_idx);
                 }
-                output.SetCardinality(res_chunk.size());
-                row_count = res_chunk.size();
             }
             else {
-                auto &out_vec = output.data[i];
-                out_vec.SetValue(0, _result_data[i]);
+                if (! selected_fields.empty()) {
+                    throw std::runtime_error("Selected fields not supported for non-tabular results");
+                }
+
+                auto &out_vec = output.data[src_col_idx];
+                out_vec.SetValue(0, _result_data[src_col_idx]);
                 output.SetCardinality(1);
                 row_count++;
             }
         }
         _current_row_idx += row_count;
         return _current_row_idx;
+    }
+
+    unsigned int RfcResultSet::FetchNextResult(DataChunk &output) 
+    {
+        return FetchNextResult(output, _result_names);
+    }
+
+    bool RfcResultSet::MapColumnsByFieldSelection(std::vector<std::string> &selected_fields, unsigned int src_col_idx, unsigned int &tgt_col_idx) 
+    {
+        auto src_col_name = _result_names[src_col_idx];
+        auto it = std::find(selected_fields.begin(), selected_fields.end(), src_col_name);
+        if (it == selected_fields.end()) {
+            return false;
+        }
+        tgt_col_idx = std::distance(selected_fields.begin(), it);
+        return true;
+    }
+
+    unsigned int RfcResultSet::FetchNextTabularResult(DataChunk &output, unsigned int src_col_idx, unsigned int tgt_col_idx) 
+    {
+        unsigned int row_count = 0;
+        auto result_vec = ListValue::GetChildren(_result_data[src_col_idx]);
+        auto res_start = result_vec.begin() + _current_row_idx;
+        auto res_end = res_start + STANDARD_VECTOR_SIZE > result_vec.end() 
+                            ? result_vec.end() : res_start + STANDARD_VECTOR_SIZE;
+        auto res_chunk = std::vector<Value>(res_start, res_end);
+        for (auto j = 0; j < res_chunk.size(); j++) {
+            auto cell_value = res_chunk[j];
+            output.SetValue(tgt_col_idx, j, cell_value);
+        }
+        output.SetCardinality(res_chunk.size());
+        row_count = res_chunk.size();
+
+        return row_count;
     }
 
     Value RfcResultSet::GetResultValue(unsigned int col_idx) 
@@ -1556,4 +1671,86 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
     }
 
     // RfcResultSet ------------------------------------------------------------
+
+    RfcFunctionBindData::RfcFunctionBindData() 
+        : _selected_fields_with_alias({})
+    { }
+
+    RfcFunctionBindData::RfcFunctionBindData(std::vector<std::string> selected_fields)
+        : _selected_fields_with_alias(WithDefaultAlias(selected_fields))
+    { }
+
+    RfcFunctionBindData::RfcFunctionBindData(std::vector<std::tuple<std::string, std::string>> selected_fields_with_alias)
+        : _selected_fields_with_alias(selected_fields_with_alias)
+    { }
+
+    std::vector<std::tuple<std::string, std::string>> RfcFunctionBindData::WithDefaultAlias(std::vector<std::string> &selected_fields)
+    {
+        std::vector<std::tuple<std::string, std::string>> selected_fields_with_alias;
+        for (auto field : selected_fields) {
+            selected_fields_with_alias.push_back(std::make_tuple(field, field));
+        }
+        return selected_fields_with_alias;
+    }
+
+    std::vector<std::string> RfcFunctionBindData::GetFieldNames()
+    {
+        std::vector<std::string> selected_fields;
+        std::transform(_selected_fields_with_alias.begin(), _selected_fields_with_alias.end(), std::back_inserter(selected_fields), [&](auto &f) {
+            return std::get<0>(f);
+        });
+        return selected_fields;
+    }
+
+    std::vector<std::string> RfcFunctionBindData::GetResultNames()
+    {
+        if (_selected_fields_with_alias.empty()) {
+            result_set->GetResultNames();
+        }
+
+        std::vector<std::string> selected_fields;
+        std::transform(_selected_fields_with_alias.begin(), _selected_fields_with_alias.end(), std::back_inserter(selected_fields), [&](auto &f) {
+            return std::get<1>(f);
+        });
+        return selected_fields;
+    }
+
+    std::vector<LogicalType> RfcFunctionBindData::GetResultTypes()
+    {
+        auto result_types = result_set->GetResultTypes();
+        if (_selected_fields_with_alias.empty()) {
+            return result_types;
+        }
+
+        auto result_names = result_set->GetResultNames();
+        D_ASSERT(result_names.size() == result_types.size());
+
+        std::vector<LogicalType> selected_types;
+        for (idx_t i = 0; i < result_types.size(); i++) {
+            auto it = std::find_if(_selected_fields_with_alias.begin(), _selected_fields_with_alias.end(), [&](auto &f) {
+                return std::get<0>(f) == result_names[i];
+            });
+            if (it == _selected_fields_with_alias.end()) {
+                continue;
+            }
+
+            selected_types.push_back(result_types[i]);
+        }
+        return selected_types;
+    }
+
+    bool RfcFunctionBindData::HasMoreResults()
+    {
+        return result_set->HasMoreResults();
+    }
+
+    unsigned int RfcFunctionBindData::FetchNextResult(DataChunk &output)
+    {
+        if (_selected_fields_with_alias.empty()) {
+            return result_set->FetchNextResult(output);
+        }
+        
+        return result_set->FetchNextResult(output, GetFieldNames());
+    }
+
 } // namespace duckdb

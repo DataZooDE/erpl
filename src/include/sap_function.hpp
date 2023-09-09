@@ -144,7 +144,7 @@ namespace duckdb {
 
             std::shared_ptr<RfcConnection> GetConnection() const;
             std::shared_ptr<RfcInvocation> BeginInvocation(std::vector<Value> &arguments);
-             std::shared_ptr<RfcInvocation> BeginInvocation();
+            std::shared_ptr<RfcInvocation> BeginInvocation();
 
         private:
             std::string _function_name;
@@ -195,6 +195,17 @@ namespace duckdb {
             std::shared_ptr<RfcResultSet> Invoke(std::string path);
             std::shared_ptr<RfcResultSet> Invoke();
 
+            void DeactivateResult(std::string &param_name);
+            void DeactivateResult(unsigned int col_idx);
+            void DeactivateResult(RfcFunctionParameterDesc &param_desc);
+            void DeactivateResult(std::vector<std::string> &param_names);
+            void DeactivateResult(std::vector<unsigned int> &col_idxs);
+            void SelectResultAndDeactivateOthers(std::string &param_name);
+            void SelectResultAndDeactivateOthers(unsigned int col_idx);
+            void SelectResultAndDeactivateOthers(RfcFunctionParameterDesc &param_desc);
+            void SelectResultAndDeactivateOthers(std::vector<std::string> &param_names);
+            void SelectResultAndDeactivateOthers(std::vector<unsigned int> &col_idxs);
+
             RFC_FUNCTION_HANDLE GetFunctionHandle() const;
             DATA_CONTAINER_HANDLE GetDataContainerHandle() const;
 
@@ -223,11 +234,13 @@ namespace duckdb {
             std::vector<string> GetResultNames();
 
             unsigned int FetchNextResult(DataChunk &output);
+            unsigned int FetchNextResult(DataChunk &output, std::vector<std::string> selected_fields);
             bool HasMoreResults();
             Value GetResultValue(unsigned int col_idx);
             Value GetResultValue(std::string col_name);
 
             unsigned int TotalRows();
+            bool IsTabularResult();
 
             static std::shared_ptr<RfcResultSet> InvokeFunction(
                 std::shared_ptr<RfcConnection> connection,
@@ -268,17 +281,30 @@ namespace duckdb {
             std::vector<Value> ConvertValuesFromStruct(Value &container_value, std::vector<std::string> tokens);
             std::vector<Value> ConvertValuesFromList(Value &container_value, std::vector<std::string> tokens);
 
-            bool IsTabularResult();
-
+            bool MapColumnsByFieldSelection(std::vector<std::string> &selected_fields, unsigned src_col_idx, unsigned int &tgt_col_idx);
+            unsigned int FetchNextTabularResult(DataChunk &output, unsigned int src_col_idx, unsigned int tgt_col_idx);
     };
 
     struct RfcFunctionBindData : public TableFunctionData
     {
+        RfcFunctionBindData();
+        RfcFunctionBindData(std::vector<std::string> selected_fields);
+        RfcFunctionBindData(std::vector<std::tuple<std::string, std::string>> selected_fields);
+
         std::shared_ptr<RfcInvocation> invocation;
         std::shared_ptr<RfcResultSet> result_set;
 
+        std::vector<std::string> GetFieldNames();
         std::vector<std::string> GetResultNames();
         std::vector<LogicalType> GetResultTypes();
+
+        bool HasMoreResults();
+        unsigned int FetchNextResult(DataChunk &output);
+
+        private:
+            std::vector<std::tuple<std::string, std::string>> _selected_fields_with_alias;
+
+            static std::vector<std::tuple<std::string, std::string>> WithDefaultAlias(std::vector<std::string> &selected_fields);
     };
 
 

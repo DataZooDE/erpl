@@ -38,12 +38,26 @@ namespace duckdb
         auto func_args = CreateFunctionArguments(input);
         auto invocation = func->BeginInvocation(func_args);
         auto result_set = invocation->Invoke("/DFIES_TAB");
-        names = result_set->GetResultNames();
-        return_types = result_set->GetResultTypes();
-
-        auto bind_data = make_uniq<RfcFunctionBindData>();
+        
+        // Create the bind data
+        std::vector<std::tuple<std::string, std::string>> selected_fields = {
+            {"POSITION",    "pos"},
+            {"KEYFLAG",     "is_key"},
+            {"FIELDNAME",   "field"}, 
+            {"FIELDTEXT",   "description"}, 
+            {"DATATYPE",    "sap_type"}, 
+            {"LENG",        "length"}, 
+            {"DECIMALS",    "decimals"},
+            {"CHECKTABLE",  "check_table"}, 
+            {"REFTABLE",    "ref_table"}, 
+            {"REFFIELD",    "ref_field"},
+            {"LANGU",       "language"}
+        };
+        auto bind_data = make_uniq<RfcFunctionBindData>(selected_fields);
         bind_data->invocation = invocation;
         bind_data->result_set = result_set;
+        names = bind_data->GetResultNames();
+        return_types = bind_data->GetResultTypes();
 
         return std::move(bind_data);
     }
@@ -52,19 +66,17 @@ namespace duckdb
                                       TableFunctionInput &data, 
                                       DataChunk &output) 
     {
-        auto &bind_data = data.bind_data->Cast<RfcFunctionBindData>();
-        auto result_set = bind_data.result_set;
-        
-        if (! result_set->HasMoreResults()) {
+        auto &bind_data = data.bind_data->CastNoConst<RfcFunctionBindData>();
+        if (! bind_data.HasMoreResults()) {
             return;
         }
 
-        result_set->FetchNextResult(output);
+        bind_data.FetchNextResult(output);
     }
 
     CreateTableFunctionInfo CreateRfcDescribeFieldsScanFunction() 
     {
-        auto fun = TableFunction("sap_describe_fields", {}, RfcDescribeFieldsScan, RfcDescribeFieldsBind);
+        auto fun = TableFunction("sap_describe_fields", {LogicalType::VARCHAR}, RfcDescribeFieldsScan, RfcDescribeFieldsBind);
         fun.to_string = RfcDescribeFieldsToString;
         fun.projection_pushdown = false;
 
