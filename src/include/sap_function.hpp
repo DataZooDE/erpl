@@ -276,6 +276,9 @@ namespace duckdb {
     {
         std::shared_ptr<RfcInvocation> invocation;
         std::shared_ptr<RfcResultSet> result_set;
+
+        std::vector<std::string> GetResultNames();
+        std::vector<LogicalType> GetResultTypes();
     };
 
 
