@@ -53,8 +53,17 @@ namespace duckdb
 
     // --------------------------------------------------------------------------------------------
 
-    RfcReadTableBindData::RfcReadTableBindData(std::string table_name, int max_read_threads, RfcConnectionFactory_t connection_factory, ClientContext &client_context)
-        : table_name(table_name), max_threads(max_read_threads), connection_factory(connection_factory), client_context(client_context)
+    std::shared_ptr<RfcConnection> DefaultRfcConnectionFactory(ClientContext &context)
+    {
+        return RfcAuthParams::FromContext(context).Connect();
+    }
+
+    RfcReadTableBindData::RfcReadTableBindData(std::string table_name, 
+                                               int max_read_threads, 
+                                               unsigned int limit,
+                                               RfcConnectionFactory_t connection_factory, 
+                                               ClientContext &client_context)
+        : table_name(table_name), limit(limit), max_threads(max_read_threads), connection_factory(connection_factory), client_context(client_context)
     { }
 
     std::vector<std::string> RfcReadTableBindData::GetColumnNames()
@@ -262,6 +271,8 @@ namespace duckdb
           cardinality(other.cardinality),
           batch_count(other.batch_count),
           duck_count(other.duck_count),
+          total_rows(other.total_rows),
+          limit(other.limit),
           column_idx(other.column_idx),
           bind_data(other.bind_data),
           current_state(other.current_state)

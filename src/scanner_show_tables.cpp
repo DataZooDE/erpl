@@ -44,12 +44,8 @@ namespace duckdb
             table_search_str, text_search_str
         );
 
-        RfcConnectionFactory_t connection_factory { [](ClientContext &context) { 
-            return RfcAuthParams::FromContext(context).Connect(); 
-        }};
-
         auto fields =  std::vector<std::string>({ "TABNAME", "DDTEXT", "DDLANGUAGE", "TABCLASS" });
-        auto result = make_uniq<RfcReadTableBindData>("DD02V", max_read_threads, connection_factory, context);
+        auto result = make_uniq<RfcReadTableBindData>("DD02V", max_read_threads, 0, &DefaultRfcConnectionFactory, context);
         result->InitOptionsFromWhereClause(where_clause);
         result->InitAndVerifyFields(fields);
 

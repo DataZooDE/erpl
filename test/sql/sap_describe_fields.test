@@ -23,6 +23,7 @@ SET sap_client = '001'
 statement ok
 SET sap_lang = 'EN'
 
+# -------------------------------------------------------------------
 # Confirm I retrieve the correct field names
 query II
 SELECT field, is_key FROM sap_describe_fields('/DMO/FLIGHT');

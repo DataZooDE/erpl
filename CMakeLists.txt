@@ -52,6 +52,7 @@ set(EXTENSION_SOURCES
       src/scanner_show_tables.cpp
       src/scanner_describe_fields.cpp
       src/scanner_describe_references.cpp
+      src/scanner_read_table.cpp
       ${YYJSON_OBJECT_FILES}
       ${BICS_SOURCES}
       ${ODP_SOURCES}

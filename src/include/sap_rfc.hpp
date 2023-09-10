@@ -18,13 +18,18 @@ namespace duckdb
 	class RfcReadColumnTask; // forward declaration
 
 	typedef std::shared_ptr<RfcConnection> (* RfcConnectionFactory_t)(ClientContext &context);
+	std::shared_ptr<RfcConnection> DefaultRfcConnectionFactory(ClientContext &context);
 
 	class RfcReadTableBindData : public TableFunctionData
     {
 		public: 
 			static const idx_t MAX_OPTION_LEN = 70;
 
-			RfcReadTableBindData(std::string table_name, int max_read_threads, RfcConnectionFactory_t connection_factory, ClientContext &context);
+			RfcReadTableBindData(std::string table_name, 
+								 int max_read_threads,
+								 unsigned int limit, 
+								 RfcConnectionFactory_t connection_factory, 
+								 ClientContext &context);
 
 			void InitOptionsFromWhereClause(std::string &where_clause);
 			void InitAndVerifyFields(std::vector<std::string> req_fields);
@@ -92,7 +97,7 @@ namespace duckdb
 			unsigned int batch_count = 0;
 			unsigned int duck_count = 0;
 			unsigned int total_rows = 0;
-			unsigned int limit = 0;
+			unsigned int limit;
 
 			idx_t column_idx;
 
