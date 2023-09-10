@@ -47,12 +47,23 @@ namespace duckdb
         return std::move(bind_data);
     }
 
+    static unique_ptr<GlobalTableFunctionState> RfcReadTableInitGlobalState(ClientContext &context,
+                                                                            TableFunctionInitInput &input) 
+    {
+        auto &bind_data = input.bind_data->CastNoConst<RfcReadTableBindData>();
+        auto column_ids = input.column_ids;
+
+        bind_data.ActivateColumns(column_ids);
+
+        return make_uniq<GlobalTableFunctionState>();
+    }
+
     static void RfcReadTableScan(ClientContext &context, 
                                  TableFunctionInput &data, 
                                  DataChunk &output) 
     {
         auto &bind_data = data.bind_data->CastNoConst<RfcReadTableBindData>();
-        if (bind_data.HasMoreResults()) {
+        if (! bind_data.HasMoreResults()) {
             return;
         }
 
@@ -61,12 +72,16 @@ namespace duckdb
 
     CreateTableFunctionInfo CreateRfcReadTableScanFunction() 
     {
-        auto fun = TableFunction("sap_read_table", { LogicalType::VARCHAR }, RfcReadTableScan, RfcReadTableBind);
+        auto fun = TableFunction("sap_read_table", { LogicalType::VARCHAR }, 
+                                 RfcReadTableScan, 
+                                 RfcReadTableBind, 
+                                 RfcReadTableInitGlobalState);
         fun.named_parameters["THREADS"] = LogicalType::UINTEGER;
         fun.named_parameters["COLUMNS"] = LogicalType::LIST(LogicalType::VARCHAR);
         fun.named_parameters["FILTER"] = LogicalType::VARCHAR;
         fun.named_parameters["MAX_ROWS"] = LogicalType::UINTEGER;
         fun.to_string = RfcReadTableToString;
+        fun.projection_pushdown = true;
 
         return CreateTableFunctionInfo(fun);
     }

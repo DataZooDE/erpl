@@ -192,6 +192,22 @@ namespace duckdb
         return ret;
     }
 
+    void RfcReadTableBindData::ActivateColumns(vector<column_t> &column_ids) 
+    {
+        for (auto &sm : column_state_machines) {
+            sm.SetInactive();
+        }
+
+        for (idx_t i = 0; i < column_ids.size(); i++) {
+            auto is_row_id = IsRowIdColumnId(column_ids[i]);
+            auto column_id = is_row_id ? 0 : column_ids[i];
+            column_state_machines[column_id].SetActive(i);
+            if (is_row_id) {
+                column_state_machines[column_id].SetRowIdColumnId();
+            }
+        }
+    }
+
     std::vector<Value> RfcReadTableBindData::GetTableFieldMetas(std::shared_ptr<RfcConnection> connection, std::string table_name)
     {
         auto args = ArgBuilder().Add("TABNAME", Value(table_name));
@@ -216,8 +232,13 @@ namespace duckdb
 
     bool RfcReadTableBindData::HasMoreResults() 
     {
-        return std::all_of(column_state_machines.begin(), column_state_machines.end(), 
-                           [](auto &s) { return s.Finished(); });
+        for (auto &sm : column_state_machines) {
+            if (sm.Active() && !sm.Finished()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     void RfcReadTableBindData::Step(ClientContext &context, DataChunk &output) 
@@ -229,23 +250,66 @@ namespace duckdb
         auto producer_token = scheduler.CreateProducer();
         
         for (auto &sm : column_state_machines) {
-            auto task = sm.CreateTaskForNextStep(context, output.data[sm.GetColumnIndex()]);
+            if (! sm.Active()) {
+                continue;
+            }
+            auto task = sm.CreateTaskForNextStep(context, output.data[sm.GetProjectedColumnIndex()]);
             scheduler.ScheduleTask(*producer_token, task);
         }
 
-        scheduler.ExecuteTasks(column_state_machines.size());
+        auto n_active = NActiveStateMachines();
+        scheduler.ExecuteTasks(n_active);
         
-        if (column_state_machines.size() > 1 ) {
-            bool same_cardinality = std::all_of(column_state_machines.begin() + 1, column_state_machines.end(), 
-                            [&] (auto &sm) {return sm.GetCardinality() == column_state_machines[0].GetCardinality();});
-
-            if (!same_cardinality) {
-                throw std::runtime_error("Cardinality of column state machines is not the same. This should not happen.");
-            }
+        if (! AreActiveStateMachineCaridnalitiesEqual()) {
+            throw std::runtime_error("Cardinality of column state machines is not the same. This should not happen.");
         }
         
-        output.SetCardinality(column_state_machines[0].GetCardinality());
+        auto cardinality = FirstActiveStateMachineCardinality();
+        output.SetCardinality(cardinality);
     }
+
+    unsigned int RfcReadTableBindData::NActiveStateMachines() 
+    {
+        return std::count_if(column_state_machines.begin(), column_state_machines.end(), 
+                             [](auto &sm) { return sm.Active(); });
+    }
+
+
+    unsigned int RfcReadTableBindData::FirstActiveStateMachineCardinality() 
+    {
+        for (auto &sm : column_state_machines) {
+            if (sm.Active()) {
+                return sm.GetCardinality();
+            }
+        }
+        throw std::runtime_error("No active state machine found. This should not happen.");
+    }
+
+    
+    bool RfcReadTableBindData::AreActiveStateMachineCaridnalitiesEqual() 
+    {
+        if (column_state_machines.empty()) {
+            return false;
+        }
+
+        auto ref_state_machine = std::find_if(column_state_machines.begin(), column_state_machines.end(), 
+                                                       [](auto &sm) { return sm.Active(); });
+        if (ref_state_machine == column_state_machines.end()) {
+            throw std::runtime_error("No active state machine found. This should not happen.");
+        }
+
+        for (auto &sm : column_state_machines) {
+            if (! sm.Active()) {
+                continue;
+            }
+            if (sm.GetCardinality() != ref_state_machine->GetCardinality()) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+    
 
     std::string RfcReadTableBindData::ToString() 
     {
@@ -266,7 +330,9 @@ namespace duckdb
     }
 
     RfcReadColumnStateMachine::RfcReadColumnStateMachine(const RfcReadColumnStateMachine& other)
-        : desired_batch_size(other.desired_batch_size),
+        : active(other.active),
+          row_id_column_id(other.row_id_column_id),
+          desired_batch_size(other.desired_batch_size),
           pending_records(other.pending_records),
           cardinality(other.cardinality),
           batch_count(other.batch_count),
@@ -274,12 +340,32 @@ namespace duckdb
           total_rows(other.total_rows),
           limit(other.limit),
           column_idx(other.column_idx),
+          projected_column_idx(other.projected_column_idx),
           bind_data(other.bind_data),
           current_state(other.current_state)
     {}
 
     RfcReadColumnStateMachine::~RfcReadColumnStateMachine() 
     {}
+
+    bool RfcReadColumnStateMachine::Active() 
+    {
+        std::lock_guard<mutex> t(thread_lock);
+        return active;
+    }
+
+    void RfcReadColumnStateMachine::SetInactive() 
+    {
+        std::lock_guard<mutex> t(thread_lock);
+        active = false;
+    }
+
+    void RfcReadColumnStateMachine::SetActive(idx_t col_idx) 
+    {
+        std::lock_guard<mutex> t(thread_lock);
+        active = true;
+        projected_column_idx = col_idx;
+    }
 
     bool RfcReadColumnStateMachine::Finished() 
     {
@@ -294,10 +380,28 @@ namespace duckdb
         return task;
     }
 
-    unsigned int RfcReadColumnStateMachine::GetColumnIndex() 
+    unsigned int RfcReadColumnStateMachine::GetRfcColumnIndex() 
     {
         std::lock_guard<mutex> t(thread_lock);
         return column_idx;
+    }
+
+    unsigned int RfcReadColumnStateMachine::GetProjectedColumnIndex() 
+    {
+        std::lock_guard<mutex> t(thread_lock);
+        return projected_column_idx;
+    }
+
+    bool RfcReadColumnStateMachine::IsRowIdColumnId() 
+    {
+        std::lock_guard<mutex> t(thread_lock);
+        return row_id_column_id;
+    }
+
+    void RfcReadColumnStateMachine::SetRowIdColumnId() 
+    {
+        std::lock_guard<mutex> t(thread_lock);
+        row_id_column_id = true;
     }
 
     unsigned int RfcReadColumnStateMachine::GetCardinality() 
@@ -462,13 +566,18 @@ namespace duckdb
         auto batch = duckdb::vector<Value>(batch_start, batch_end);
         
         for (idx_t row_idx = 0; row_idx < batch.size(); row_idx++) {
-            current_column_output.SetValue(row_idx, ParseCsvValue(batch[row_idx]));
+            auto val = ParseCsvValue(batch[row_idx]);
+            current_column_output.SetValue(row_idx, val);
         }
         return batch.size();
     }
 
     Value RfcReadColumnTask::ParseCsvValue(Value &orig)
     {
+        if (owning_state_machine->row_id_column_id) {
+            return Value::BIGINT(42);
+        }
+
         auto bind_data = owning_state_machine->bind_data;
         auto rfc_type = bind_data->GetColumnType(owning_state_machine->column_idx);
         return rfc_type.ConvertCsvValue(orig);

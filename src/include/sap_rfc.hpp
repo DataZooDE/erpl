@@ -34,6 +34,8 @@ namespace duckdb
 			void InitOptionsFromWhereClause(std::string &where_clause);
 			void InitAndVerifyFields(std::vector<std::string> req_fields);
 			
+			void ActivateColumns(vector<column_t> &column_ids);
+
 			std::vector<std::string> GetColumnNames();
 			duckdb::vector<Value> GetColumnName(unsigned int column_idx);
 			std::vector<LogicalType> GetReturnTypes();
@@ -60,9 +62,13 @@ namespace duckdb
 			std::vector<RfcReadColumnStateMachine> column_state_machines;
 
 			std::vector<RfcReadColumnStateMachine> CreateReadColumnStateMachines();
+			unsigned int NActiveStateMachines();
+			unsigned int FirstActiveStateMachineCardinality();
+			bool AreActiveStateMachineCaridnalitiesEqual();
 		public:
 			static std::vector<Value> GetTableFieldMetas(std::shared_ptr<RfcConnection> connection, std::string table_name);
 			static RfcType GetRfcTypeForFieldMeta(Value &DFIES_entry);
+
     };
 
 	enum class ReadTableStates {
@@ -84,13 +90,21 @@ namespace duckdb
 			RfcReadColumnStateMachine(const RfcReadColumnStateMachine& other);
 			~RfcReadColumnStateMachine();
 
+			bool Active();
+			void SetInactive();
+			void SetActive(idx_t projected_column_idx);
 			bool Finished();
 			std::shared_ptr<RfcReadColumnTask> CreateTaskForNextStep(ClientContext &client_context, duckdb::Vector &column_output);
-			unsigned int GetColumnIndex();
+			unsigned int GetRfcColumnIndex();
+			unsigned int GetProjectedColumnIndex();
+			bool IsRowIdColumnId();
+			void SetRowIdColumnId();
 			unsigned int GetCardinality();
 			std::string ToString();
 
 		private:
+			bool active = true;
+			bool row_id_column_id = false;
 			unsigned int desired_batch_size = 50000;
 			unsigned int pending_records = 0;
 			unsigned int cardinality = 0;
@@ -100,6 +114,7 @@ namespace duckdb
 			unsigned int limit;
 
 			idx_t column_idx;
+			idx_t projected_column_idx;
 
 			RfcReadTableBindData *bind_data;
 			ReadTableStates current_state = ReadTableStates::INIT;

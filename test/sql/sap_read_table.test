@@ -26,7 +26,7 @@ SET sap_lang = 'EN'
 # ------------------------------------------------------------
 # Confirm I retrieve the correct row count
 query I
-SELECT count(*) FROM sap_read_table('/DMO/FLIGHT');
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT');
 ----
 40
 
@@ -57,11 +57,18 @@ AA
 2678
 
 # ------------------------------------------------------------
-# Confirm where as named param works
+# If we limit the number we should get this value exactly as count
 query I
-SELECT count(*) FROM sap_read_table('/DMO/FLIGHT', FILTER='CARRIER_ID = ''SQ'' AND CONNECTION_ID = ''0001''');
+SELECT CARRIER_ID FROM sap_read_table('/DMO/FLIGHT', columns=['CARRIER_ID'], threads=1, max_rows=8);
 ----
-2
+SQ
+SQ
+SQ
+SQ
+SQ
+SQ
+SQ
+SQ
 
 # ------------------------------------------------------------
 # If we select a column that we don't have in the columns list, we should get a bind error
@@ -69,11 +76,9 @@ statement error
 SELECT PRICE FROM sap_read_table('/DMO/FLIGHT', columns=['CARRIER_ID', 'CONNECTION_ID']);
 
 # ------------------------------------------------------------
-# If we limit the number we should get this value exactly as count
+# Confirm where as named param works
 query I
-SELECT count(*) FROM sap_read_table('/DMO/FLIGHT', columns=['CARRIER_ID'], threads=1, max_rows=10);
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', FILTER='CARRIER_ID = ''SQ'' AND CONNECTION_ID = ''0001''');
 ----
-10
-
-
+2
 

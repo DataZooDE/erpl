@@ -55,13 +55,24 @@ namespace duckdb
         return std::move(result);
     }
 
+    static unique_ptr<GlobalTableFunctionState> RfcShowTablesInitGlobalState(ClientContext &context,
+                                                                             TableFunctionInitInput &input) 
+    {
+        auto &bind_data = input.bind_data->CastNoConst<RfcReadTableBindData>();
+        auto column_ids = input.column_ids;
+
+        bind_data.ActivateColumns(column_ids);
+
+        return make_uniq<GlobalTableFunctionState>();
+    }
+
     static void RfcShowTablesScan(ClientContext &context, 
                                   TableFunctionInput &data, 
                                   DataChunk &output) 
     {
         auto &bind_data = data.bind_data->CastNoConst<RfcReadTableBindData>();
 
-        if (bind_data.HasMoreResults()) {
+        if (! bind_data.HasMoreResults()) {
             return;
         }
 
@@ -72,11 +83,13 @@ namespace duckdb
     {
         auto fun = TableFunction("sap_show_tables", { }, 
                                  RfcShowTablesScan, 
-                                 RfcShowTablesBind);
+                                 RfcShowTablesBind,
+                                 RfcShowTablesInitGlobalState);
         fun.named_parameters["TABLENAME"] = LogicalType::VARCHAR;
         fun.named_parameters["TEXT"] = LogicalType::VARCHAR;
         fun.named_parameters["THREADS"] = LogicalType::UINTEGER;
         fun.to_string = RfcShowTablesToString;
+        fun.projection_pushdown = true;
 
         return CreateTableFunctionInfo(fun);
     }
