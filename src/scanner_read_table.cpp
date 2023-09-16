@@ -41,7 +41,7 @@ namespace duckdb
         bind_data->InitOptionsFromWhereClause(where_clause);
         bind_data->InitAndVerifyFields(fields);
 
-        names = bind_data->GetColumnNames();
+        names = bind_data->GetRfcColumnNames();
         return_types = bind_data->GetReturnTypes();
 
         return std::move(bind_data);
@@ -54,35 +54,7 @@ namespace duckdb
         auto column_ids = input.column_ids;
 
         bind_data.ActivateColumns(column_ids);
-
-        auto filter_set = input.filters;
-        if (filter_set != nullptr) {
-            for (auto &filter : filter_set->filters) {
-                switch(filter.filter_type)
-                {
-                    case TableFilterType::CONJUNCTION_AND: {
-                        break;
-                    }
-                    case TableFilterType::CONJUNCTION_OR: {
-                        break;
-                    }
-                    case TableFilterType::CONSTANT_COMPARISON: {
-                        break;
-                    }
-                    case TableFilterType::IS_NOT_NULL: {
-                        break;
-                    }
-                    case TableFilterType::IS_NULL: {
-                        break;
-                    }
-                    default: {
-		                D_ASSERT(0);
-		                break;
-                    }
-                }
-                printf("filter:");
-            }
-        }
+        bind_data.AddOptionsFromFilters(input.filters);
 
         return make_uniq<GlobalTableFunctionState>();
     }

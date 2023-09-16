@@ -32,12 +32,15 @@ namespace duckdb
 								 ClientContext &context);
 
 			void InitOptionsFromWhereClause(std::string &where_clause);
+			void AddOptionsFromWhereClause(std::string &where_clause);
 			void InitAndVerifyFields(std::vector<std::string> req_fields);
 			
 			void ActivateColumns(vector<column_t> &column_ids);
+			void AddOptionsFromFilters(duckdb::optional_ptr<duckdb::TableFilterSet> filters);
 
-			std::vector<std::string> GetColumnNames();
-			duckdb::vector<Value> GetColumnName(unsigned int column_idx);
+			std::vector<std::string> GetRfcColumnNames();
+			duckdb::vector<Value> GetRfcColumnName(unsigned int column_idx);
+			std::string GetProjectedColumnName(unsigned int projected_column_idx);
 			std::vector<LogicalType> GetReturnTypes();
 			RfcType GetColumnType(unsigned int column_idx);
 			duckdb::vector<Value> GetOptions();
@@ -68,7 +71,10 @@ namespace duckdb
 		public:
 			static std::vector<Value> GetTableFieldMetas(std::shared_ptr<RfcConnection> connection, std::string table_name);
 			static RfcType GetRfcTypeForFieldMeta(Value &DFIES_entry);
-
+	
+			static std::string TransformFilter(std::string &column_name, TableFilter &filter);
+			static std::string CreateExpression(string &column_name, vector<unique_ptr<TableFilter>> &filters, string op);
+			static std::string TransformComparision(ExpressionType type);
     };
 
 	enum class ReadTableStates {
@@ -114,13 +120,15 @@ namespace duckdb
 			unsigned int limit;
 
 			idx_t column_idx;
-			idx_t projected_column_idx;
+			idx_t projected_column_idx = DConstants::INVALID_INDEX;
 
 			RfcReadTableBindData *bind_data;
 			ReadTableStates current_state = ReadTableStates::INIT;
 			std::shared_ptr<RfcResultSet> current_result_data = nullptr;
 
 			std::mutex thread_lock;
+
+		
 	};
 
 	class RfcReadColumnTask : public ExecutorTask 

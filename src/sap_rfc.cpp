@@ -11,6 +11,8 @@
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/main/config.hpp"
 #include "duckdb/storage/storage_extension.hpp"
+#include "duckdb/planner/filter/conjunction_filter.hpp"
+#include "duckdb/planner/filter/constant_filter.hpp"
 
 #include "sap_rfc.hpp"
 #include "sap_function.hpp"
@@ -66,12 +68,12 @@ namespace duckdb
         : table_name(table_name), limit(limit), max_threads(max_read_threads), connection_factory(connection_factory), client_context(client_context)
     { }
 
-    std::vector<std::string> RfcReadTableBindData::GetColumnNames()
+    std::vector<std::string> RfcReadTableBindData::GetRfcColumnNames()
     {
         return column_names;
     }
 
-    duckdb::vector<Value> RfcReadTableBindData::GetColumnName(unsigned int column_idx) 
+    duckdb::vector<Value> RfcReadTableBindData::GetRfcColumnName(unsigned int column_idx) 
     {
         if (column_idx >= column_names.size()) {
             throw std::runtime_error(StringUtil::Format("Column index %d out of bounds", column_idx));
@@ -80,6 +82,23 @@ namespace duckdb
         auto ret = duckdb::vector<Value>();
         ret.push_back(arg_builder.Build());
         return ret;
+    }
+
+    std::string RfcReadTableBindData::GetProjectedColumnName(unsigned int projected_column_idx) 
+    {
+        auto rfc_column_idx = DConstants::INVALID_INDEX;
+        for (auto &sm : column_state_machines) {
+            if (sm.GetProjectedColumnIndex() == projected_column_idx) {
+                rfc_column_idx = sm.GetRfcColumnIndex();
+                break;
+            }
+        }
+
+        if (rfc_column_idx == DConstants::INVALID_INDEX) {
+            throw std::runtime_error(StringUtil::Format("Could not find column with projected index %d", projected_column_idx));
+        }
+
+        return column_names[rfc_column_idx];
     }
 
     std::vector<LogicalType> RfcReadTableBindData::GetReturnTypes()
@@ -115,6 +134,12 @@ namespace duckdb
     void RfcReadTableBindData::InitOptionsFromWhereClause(std::string &where_clause)
     {
         options.clear();
+        AddOptionsFromWhereClause(where_clause);
+    }
+
+    void RfcReadTableBindData::AddOptionsFromWhereClause(std::string &where_clause)
+    {
+        
         auto opt_start = where_clause.begin();
         
         while (opt_start != where_clause.end()) {
@@ -205,6 +230,88 @@ namespace duckdb
             if (is_row_id) {
                 column_state_machines[column_id].SetRowIdColumnId();
             }
+        }
+    }
+
+    void RfcReadTableBindData::AddOptionsFromFilters(duckdb::optional_ptr<duckdb::TableFilterSet> filter_set) 
+    {
+        if (filter_set == nullptr || filter_set->filters.empty()) {
+            return;
+        }
+
+        vector<std::string> filter_entries;
+        for (auto &[projected_column_idx, filter] : filter_set->filters) 
+        {
+            auto column_name = GetProjectedColumnName(projected_column_idx);
+            filter_entries.push_back(TransformFilter(column_name, *filter));
+        }
+
+        auto filter_string = StringUtil::Join(filter_entries, " AND ");
+
+        if (! options.empty()) {
+            filter_string = " AND " + filter_string;
+        }   
+
+        AddOptionsFromWhereClause(filter_string);
+    }
+
+    std::string RfcReadTableBindData::TransformFilter(std::string &column_name, TableFilter &filter) 
+    {
+        switch(filter.filter_type)
+        {
+            case TableFilterType::CONJUNCTION_AND: {
+                auto &and_filter = filter.Cast<ConjunctionAndFilter>();
+                return CreateExpression(column_name, and_filter.child_filters, " AND ");
+            }
+            case TableFilterType::CONJUNCTION_OR: {
+                auto &or_filter = filter.Cast<ConjunctionAndFilter>();
+                return CreateExpression(column_name, or_filter.child_filters, " OR ");
+            }
+            case TableFilterType::CONSTANT_COMPARISON: {
+                auto &const_filter = filter.Cast<ConstantFilter>();
+
+                auto constant_string = StringUtil::Format("'%s'", const_filter.constant.ToString());
+		        auto operator_string = TransformComparision(const_filter.comparison_type);
+		        return StringUtil::Format("%s %s %s", column_name, operator_string, constant_string);
+            }
+            case TableFilterType::IS_NOT_NULL: {
+                return StringUtil::Format("%s IS NOT NULL", column_name);
+            }
+            case TableFilterType::IS_NULL: {
+                return StringUtil::Format("%s IS NULL", column_name);
+            }
+            default: {
+                throw InternalException("Unsupported table filter type");
+            }
+        }
+    }
+
+    std::string RfcReadTableBindData::CreateExpression(string &column_name, vector<unique_ptr<TableFilter>> &filters, string op) 
+    {
+        auto filter_strings = std::vector<std::string>();
+        for (auto &filter : filters) {
+            filter_strings.push_back(RfcReadTableBindData::TransformFilter(column_name, *filter));
+        }
+
+        return StringUtil::Join(filter_strings, filter_strings.size(), op, [](auto &s) { return s; });
+    }
+
+    std::string RfcReadTableBindData::TransformComparision(ExpressionType type) {
+        switch (type) {
+            case ExpressionType::COMPARE_EQUAL:
+                return "=";
+            case ExpressionType::COMPARE_NOTEQUAL:
+                return "!=";
+            case ExpressionType::COMPARE_LESSTHAN:
+                return "<";
+            case ExpressionType::COMPARE_GREATERTHAN:
+                return ">";
+            case ExpressionType::COMPARE_LESSTHANOREQUALTO:
+                return "<=";
+            case ExpressionType::COMPARE_GREATERTHANOREQUALTO:
+                return ">=";
+            default:
+                throw NotImplementedException("Unsupported expression type");
         }
     }
 
@@ -519,7 +626,7 @@ namespace duckdb
         auto bind_data = owning_state_machine->bind_data;
         auto table_name = bind_data->table_name;
         auto options = bind_data->GetOptions();
-        auto fields = bind_data->GetColumnName(owning_state_machine->column_idx);
+        auto fields = bind_data->GetRfcColumnName(owning_state_machine->column_idx);
 
         auto &desired_batch_size = owning_state_machine->desired_batch_size;
         auto &batch_count = owning_state_machine->batch_count;

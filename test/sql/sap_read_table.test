@@ -82,3 +82,17 @@ SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', FILTER='CARRIER_ID = ''SQ'' A
 ----
 2
 
+# ------------------------------------------------------------
+# Confirm that filter pushdown works (for the simply type of expressions DuckDB supports)
+query I
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT') WHERE CARRIER_ID = 'SQ' AND CONNECTION_ID = '0001';
+----
+2
+
+# ------------------------------------------------------------
+# Confirm that a combination of filter pushdown and named param works
+query I
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', FILTER='CARRIER_ID = ''SQ''') WHERE CONNECTION_ID = '0001';
+----
+2
+
