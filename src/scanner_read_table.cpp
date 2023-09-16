@@ -55,6 +55,35 @@ namespace duckdb
 
         bind_data.ActivateColumns(column_ids);
 
+        auto filter_set = input.filters;
+        if (filter_set != nullptr) {
+            for (auto &filter : filter_set->filters) {
+                switch(filter.filter_type)
+                {
+                    case TableFilterType::CONJUNCTION_AND: {
+                        break;
+                    }
+                    case TableFilterType::CONJUNCTION_OR: {
+                        break;
+                    }
+                    case TableFilterType::CONSTANT_COMPARISON: {
+                        break;
+                    }
+                    case TableFilterType::IS_NOT_NULL: {
+                        break;
+                    }
+                    case TableFilterType::IS_NULL: {
+                        break;
+                    }
+                    default: {
+		                D_ASSERT(0);
+		                break;
+                    }
+                }
+                printf("filter:");
+            }
+        }
+
         return make_uniq<GlobalTableFunctionState>();
     }
 
@@ -82,6 +111,7 @@ namespace duckdb
         fun.named_parameters["MAX_ROWS"] = LogicalType::UINTEGER;
         fun.to_string = RfcReadTableToString;
         fun.projection_pushdown = true;
+        fun.filter_pushdown = true;
 
         return CreateTableFunctionInfo(fun);
     }
