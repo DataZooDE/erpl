@@ -1,0 +1,17 @@
+[project]
+name = "erpl"
+version = "0.1.0"
+description = "A DuckDB extesion to connect to SAP data ecosystem"
+authors = ["DataZoo GmbH <hello@data-zoo.de>"]
+channels = ["conda-forge"]
+platforms = ["win-64", "linux-64", "osx-64", "osx-arm64"]
+
+[tasks]
+pull = "make pull"
+build = "make release"
+release_python = {cmd="not done yet", depends_on = ["build"]}
+
+[dependencies]
+cmake = "3.26.4.*"
+clang = "16.*"
+ninja = "1.11.1.*"

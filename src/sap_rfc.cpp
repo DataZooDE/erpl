@@ -699,6 +699,7 @@ namespace duckdb
             case ReadTableStates::LOAD_TO_DUCKDB: return "LOAD_TO_DUCKDB";
             case ReadTableStates::FINAL_LOAD_TO_DUCKDB: return "FINAL_LOAD_TO_DUCKDB";
             case ReadTableStates::FINISHED: return "FINISHED";
+            default: return "UNKNOWN";
         }
     }
 

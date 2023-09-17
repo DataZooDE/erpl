@@ -8,6 +8,9 @@ dist/
 build/
 duckdb_unittest_tempdir/
 .cache/
+*.egg-info/
+*.whl
+packages/python-erpl/erpl/
 
 .ipynb_checkpoints/
 
@@ -57,3 +60,5 @@ dev_rfc.log
 rfc*.trc
 cpic*.trc
 
+# Pixi
+.pixi
