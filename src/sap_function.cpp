@@ -1,5 +1,6 @@
 #include <stdexcept>
 
+#include "sapnwrfc.h"
 #include "duckdb.hpp"
 #include "duckdb_argument_helper.hpp"
 #include "sap_function.hpp"

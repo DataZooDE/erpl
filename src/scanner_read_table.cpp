@@ -24,10 +24,10 @@ namespace duckdb
         auto table_name = input.inputs[0].ToString();
         auto &named_params = input.named_parameters;
         auto max_read_threads = named_params.find("THREADS") != named_params.end() 
-                                    ? named_params["THREADS"].GetValue<u_int32_t>()
+                                    ? named_params["THREADS"].GetValue<unsigned int>()
                                     : 0;
         auto limit = named_params.find("MAX_ROWS") != named_params.end() 
-                                    ? named_params["MAX_ROWS"].GetValue<u_int32_t>()
+                                    ? named_params["MAX_ROWS"].GetValue<unsigned int>()
                                     : 0;
         auto where_clause = named_params.find("FILTER") != named_params.end() 
                                 ? named_params["FILTER"].ToString()

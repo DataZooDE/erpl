@@ -35,7 +35,7 @@ namespace duckdb
         auto table_search_str = GetSearchString("TABLENAME", input);
         auto text_search_str = GetSearchString("TEXT", input);
         auto max_read_threads = named_params.find("THREADS") != named_params.end() 
-                                    ? named_params["THREADS"].GetValue<u_int32_t>()
+                                    ? named_params["THREADS"].GetValue<unsigned int>()
                                     : 0;
 
         auto where_clause = StringUtil::Format(

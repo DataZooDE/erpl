@@ -8,7 +8,7 @@ option(BUILD_ODP "Build ODP functionality in ERPEL." TRUE)
 set(TARGET_NAME erpel)
 set(EXTENSION_NAME ${TARGET_NAME}_extension)
 set(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/nwrfcsdk)
-set(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME}/lib/libsapnwrfc.so ${SAPNWRFC_HOME}/lib/libsapucum.so)
+
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -19,6 +19,20 @@ include_directories(src/include
 
 add_subdirectory(src/yyjson)
 include_directories(src/yyjson/include)
+
+if(APPLE)
+      add_definitions(-DSAPonDARW -DSAPwithUNICODE -DSAPwithTHREADS -DSAP_PLATFORM_MAKENAME=ntintel)
+endif()
+if(WIN32)
+      add_definitions(-DSAPonNT -D_AFXDLL -DWIN32 -D_WIN32_WINNT=0x0502 -DWIN64 -D_AMD64_ -DSAPwithUNICODE -DUNICODE -D_UNICODE -DSAPwithTHREADS -DSAP_PLATFORM_MAKENAME=ntintel)
+      add_definitions(-DSAP_API=)
+      set(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME}/lib/sapnwrfc.lib ${SAPNWRFC_HOME}/lib/libsapucum.lib)
+      set(BUILD_UNITTESTS FALSE)
+endif()
+if(UNIX AND NOT APPLE)
+      add_definitions(-DSAPonUNIX -DSAPonLIN -DSAPwithUNICODE -DSAPwithTHREADS)
+      set(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME}/lib/libsapnwrfc.so ${SAPNWRFC_HOME}/lib/libsapucum.so)
+endif()
 
 if(${BUILD_UNITTESTS})
       add_subdirectory(test)
@@ -59,10 +73,6 @@ set(EXTENSION_SOURCES
 )
 
 add_library(${EXTENSION_NAME} STATIC ${EXTENSION_SOURCES})
-add_definitions(-DSAPonUNIX -DSAPwithUNICODE -DSAPwithTHREADS -DSAPonLIN)
-add_definitions(-DBUILD_PYTHON=1 -DBUILD_JSON=1 -DENABLE_SANITIZER=0 
-                -DENABLE_UBSAN=0 -DENABLE_THREAD_SANITIZER=0 -DFORCE_SANITIZER=0)
-add_definitions(-DCMAKE_CXX_FLAGS="-fuse-ld=mold")
 
 set(PARAMETERS "-warnings")
 
