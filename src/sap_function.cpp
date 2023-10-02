@@ -1141,7 +1141,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         auto &child_types = duckdb::StructType::GetChildTypes(arguments[0].type());
 		auto &child_values = duckdb::StructValue::GetChildren(arguments[0]);
 
-        for (auto child_idx = 0; child_idx < child_values.size(); child_idx++) {
+        for (std::size_t child_idx = 0; child_idx < child_values.size(); child_idx++) {
             auto child_value = child_values.at(child_idx);
 			auto child_name = child_types.at(child_idx).first;
             
@@ -1506,7 +1506,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         auto child_values = StructValue::GetChildren(container_value);
 
         if (token_it != tokens.end()) {
-            for (auto i = 0; i < StructType::GetChildCount(container_value.type()); i++) {
+            for (std::size_t i = 0; i < StructType::GetChildCount(container_value.type()); i++) {
                 auto child_name = StructType::GetChildName(container_value.type(), i);
                 if (child_name == *token_it) {
                     auto child_value = child_values[i];
@@ -1541,13 +1541,13 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         vector<vector<Value>> pivot(column_count);
         for (Value &row : rows) {
             auto column_values = StructValue::GetChildren(row);
-            for (auto i = 0; i < column_count; i++) {
+            for (std::size_t i = 0; i < column_count; i++) {
                 pivot[i].push_back(column_values[i]);
             }
         }
 
         std::vector<Value> ret;
-        for (auto i = 0; i < column_count; i++) {
+        for (std::size_t i = 0; i < column_count; i++) {
             auto column_type = StructType::GetChildType(row_type, i);
             auto column_values = pivot[i];
             auto column_list = Value::LIST(column_type, column_values);
@@ -1562,7 +1562,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
     {
         auto row_count = 0;
 
-        for (auto src_col_idx = 0; src_col_idx < _result_data.size(); src_col_idx++) {
+        for (std::size_t src_col_idx = 0; src_col_idx < _result_data.size(); src_col_idx++) {
             if (IsTabularResult()) {
                 unsigned int tgt_col_idx = 0;
                 if (MapColumnsByFieldSelection(selected_fields, src_col_idx, tgt_col_idx)) {
@@ -1608,7 +1608,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         auto res_end = res_start + STANDARD_VECTOR_SIZE > result_vec.end() 
                             ? result_vec.end() : res_start + STANDARD_VECTOR_SIZE;
         auto res_chunk = std::vector<Value>(res_start, res_end);
-        for (auto j = 0; j < res_chunk.size(); j++) {
+        for (std::size_t j = 0; j < res_chunk.size(); j++) {
             auto cell_value = res_chunk[j];
             output.SetValue(tgt_col_idx, j, cell_value);
         }

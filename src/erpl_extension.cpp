@@ -7,7 +7,7 @@
 #include "duckdb/parser/parsed_data/create_table_function_info.hpp"
 #include "duckdb/parser/parsed_data/create_pragma_function_info.hpp"
 
-#include "erpel_extension.hpp"
+#include "erpl_extension.hpp"
 #include "pragma_ping.hpp"
 #include "scanner_invoke.hpp"
 #include "scanner_search_group.hpp"
@@ -23,16 +23,6 @@
 #endif
 
 namespace duckdb {
-
-    inline void QuackScalarFun(DataChunk &args, ExpressionState &state, Vector &result) 
-    {
-        auto &name_vector = args.data[0];
-        UnaryExecutor::Execute<string_t, string_t>(
-            name_vector, result, args.size(),
-            [&](string_t name) { 
-                return StringVector::AddString(result, "Quack "+name.GetString()+" 🐥");;
-            });
-    }
 
     static void RegisterConfiguration(DatabaseInstance &instance)
     {
@@ -116,22 +106,22 @@ namespace duckdb {
         RegisterBicsFunctions(instance);
     }
 
-    void ErpelExtension::Load(DuckDB &db) {
+    void ErplExtension::Load(DuckDB &db) {
         LoadInternal(*db.instance);
     }
 
-    std::string ErpelExtension::Name() {
-        return "erpel";
+    std::string ErplExtension::Name() {
+        return "erpl";
     }
 
 } // namespace duckdb
 
 extern "C" {
-    DUCKDB_EXTENSION_API void erpel_init(duckdb::DatabaseInstance &db) {
+    DUCKDB_EXTENSION_API void erpl_init(duckdb::DatabaseInstance &db) {
         LoadInternal(db);
     }
 
-    DUCKDB_EXTENSION_API const char *erpel_version() {
+    DUCKDB_EXTENSION_API const char *erpl_version() {
         return duckdb::DuckDB::LibraryVersion();
     }
 }

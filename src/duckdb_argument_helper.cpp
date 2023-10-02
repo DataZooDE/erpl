@@ -68,7 +68,7 @@ namespace duckdb
             case LogicalTypeId::STRUCT:
             {
                 auto child_values = StructValue::GetChildren(value);
-                for (auto i = 0; i < child_values.size(); i++) {
+                for (std::size_t i = 0; i < child_values.size(); i++) {
                     auto child_name = StructType::GetChildName(value_type, i);
                     if (child_name == *token_it) {
                         auto child_value = child_values[i];
@@ -81,7 +81,7 @@ namespace duckdb
             case LogicalTypeId::LIST:
             {
                 auto child_values = ListValue::GetChildren(value);
-                auto child_index = std::stoi(*token_it);
+                std::size_t child_index = std::stoi(*token_it);
                 if (child_index >= child_values.size()) {
                     throw std::runtime_error(StringUtil::Format("Index '%s' out of bounds for list", *token_it));
                 }

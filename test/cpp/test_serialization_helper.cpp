@@ -22,21 +22,21 @@ TEST_CASE("Test serialize primitive types", "[duckdb_serialization_helper]")
     auto dt_val = Value::CreateValue(dtime_t(123456));
     auto ts_val = Value::CreateValue(Timestamp::FromString("2020-01-01 00:00:00"));
     
-    auto json = ErpelSerializer::SerializeJson(str_val);    
+    auto json = ErplSerializer::SerializeJson(str_val);    
     REQUIRE(json == "\"TEST\"");
-    json = ErpelSerializer::SerializeJson(int_val);
+    json = ErplSerializer::SerializeJson(int_val);
     REQUIRE(json == "123");
-    json = ErpelSerializer::SerializeJson(double_val);
+    json = ErplSerializer::SerializeJson(double_val);
     REQUIRE(json == "123.456");
-    json = ErpelSerializer::SerializeJson(bool_val);
+    json = ErplSerializer::SerializeJson(bool_val);
     REQUIRE(json == "true");
-    json = ErpelSerializer::SerializeJson(null_val);
+    json = ErplSerializer::SerializeJson(null_val);
     REQUIRE(json == "null");
-    json = ErpelSerializer::SerializeJson(date_val);
+    json = ErplSerializer::SerializeJson(date_val);
     REQUIRE(json == "\"2020-01-01\"");
-    json = ErpelSerializer::SerializeJson(dt_val);
+    json = ErplSerializer::SerializeJson(dt_val);
     REQUIRE(json == "123456");
-    json = ErpelSerializer::SerializeJson(ts_val);
+    json = ErplSerializer::SerializeJson(ts_val);
     REQUIRE(json == "\"2020-01-01 00:00:00\"");
 }
 
@@ -49,24 +49,24 @@ TEST_CASE("Test serialize primitive types with type information", "[duckdb_seria
     auto null_val = Value();
     auto date_val = Value::CreateValue(Date::FromString("2020-01-01"));
 
-    auto json = ErpelSerializer::SerializeJson(str_val, true);
+    auto json = ErplSerializer::SerializeJson(str_val, true);
     REQUIRE(remove_whitespace(json) == "{\"$type\":\"VARCHAR\",\"$value\":\"TEST\"}");
-    json = ErpelSerializer::SerializeJson(int_val, true);
+    json = ErplSerializer::SerializeJson(int_val, true);
     REQUIRE(remove_whitespace(json) == "{\"$type\":\"INTEGER\",\"$value\":123}");
-    json = ErpelSerializer::SerializeJson(double_val, true);
+    json = ErplSerializer::SerializeJson(double_val, true);
     REQUIRE(remove_whitespace(json) == "{\"$type\":\"DOUBLE\",\"$value\":123.456}");
-    json = ErpelSerializer::SerializeJson(bool_val, true);
+    json = ErplSerializer::SerializeJson(bool_val, true);
     REQUIRE(remove_whitespace(json) == "{\"$type\":\"BOOLEAN\",\"$value\":true}");
-    json = ErpelSerializer::SerializeJson(null_val, true);
+    json = ErplSerializer::SerializeJson(null_val, true);
     REQUIRE(remove_whitespace(json) == "{\"$type\":\"NULL\",\"$value\":null}");
-    json = ErpelSerializer::SerializeJson(date_val, true);
+    json = ErplSerializer::SerializeJson(date_val, true);
     REQUIRE(remove_whitespace(json) == "{\"$type\":\"DATE\",\"$value\":\"2020-01-01\"}");
 }
 
 TEST_CASE("Test serialize blob type", "[duckdb_serialization_helper]") 
 {
     auto blob_val = Value::BLOB("TEST");
-    auto json = ErpelSerializer::SerializeJson(blob_val);
+    auto json = ErplSerializer::SerializeJson(blob_val);
     // Base64 encoded "TEST" is "VEVTVA=="
     REQUIRE(json == "\"VEVTVA==\"");
 }
@@ -74,7 +74,7 @@ TEST_CASE("Test serialize blob type", "[duckdb_serialization_helper]")
 TEST_CASE("Test serialize blog type with type information", "[duckdb_serialization_helper]") 
 {
     auto blob_val = Value::BLOB("TEST");
-    auto json = ErpelSerializer::SerializeJson(blob_val, true);
+    auto json = ErplSerializer::SerializeJson(blob_val, true);
     // Base64 encoded "TEST" is "VEVTVA=="
     REQUIRE(remove_whitespace(json) == "{\"$type\":\"BLOB\",\"$value\":\"VEVTVA==\"}");
 }
@@ -85,7 +85,7 @@ TEST_CASE("Test serialize struct type", "[duckdb_serialization_helper]")
                                      {"b", Value::CreateValue("TEST")},
                                      {"c", Value::CreateValue(true)},
                                      {"d", Value::STRUCT({{"e", Value::CreateValue(456)}})}});
-    auto json = ErpelSerializer::SerializeJson(struct_val);
+    auto json = ErplSerializer::SerializeJson(struct_val);
     REQUIRE(remove_whitespace(json) == "{\"a\":123,\"b\":\"TEST\",\"c\":true,\"d\":{\"e\":456}}");
 }
 
@@ -93,7 +93,7 @@ TEST_CASE("Test serialize struct type with type information", "[duckdb_serializa
 {
     auto struct_val = Value::STRUCT({{"a", Value::CreateValue(123)}, 
                                      {"b", Value::CreateValue("TEST")}});
-    auto json = ErpelSerializer::SerializeJson(struct_val, true);
+    auto json = ErplSerializer::SerializeJson(struct_val, true);
     REQUIRE(remove_whitespace(json) == "{\"$type\":\"STRUCT\",\"$value\":{\"a\":{\"$type\":\"INTEGER\",\"$value\":123},\"b\":{\"$type\":\"VARCHAR\",\"$value\":\"TEST\"}}}");
 }
 
@@ -102,7 +102,7 @@ TEST_CASE("Test serialize list type", "[duckdb_serialization_helper]")
     auto list_val = Value::LIST({Value::STRUCT({{"a", Value::CreateValue(123)}, {"b", Value::CreateValue("TEST")}}),
                                  Value::STRUCT({{"a", Value::CreateValue(456)}, {"b", Value::CreateValue("TEST2")}}),
                                  Value::STRUCT({{"a", Value::CreateValue(789)}, {"b", Value::CreateValue("TEST3")}})});
-    auto json = ErpelSerializer::SerializeJson(list_val);
+    auto json = ErplSerializer::SerializeJson(list_val);
     REQUIRE(remove_whitespace(json) == "[{\"a\":123,\"b\":\"TEST\"},{\"a\":456,\"b\":\"TEST2\"},{\"a\":789,\"b\":\"TEST3\"}]");
 }
 
@@ -111,7 +111,7 @@ TEST_CASE("Test serialize list type with type information", "[duckdb_serializati
     auto list_val = Value::LIST({Value::STRUCT({{"a", Value::CreateValue(123)}, {"b", Value::CreateValue("TEST")}}),
                                  Value::STRUCT({{"a", Value::CreateValue(456)}, {"b", Value::CreateValue("TEST2")}}),
                                  Value::STRUCT({{"a", Value::CreateValue(789)}, {"b", Value::CreateValue("TEST3")}})});
-    auto json = ErpelSerializer::SerializeJson(list_val, true);
+    auto json = ErplSerializer::SerializeJson(list_val, true);
     REQUIRE(remove_whitespace(json) == "{\"$type\":\"LIST\",\"$value\":[{\"$type\":\"STRUCT\",\"$value\":{\"a\":{\"$type\":\"INTEGER\",\"$value\":123},\"b\":{\"$type\":\"VARCHAR\",\"$value\":\"TEST\"}}},{\"$type\":\"STRUCT\",\"$value\":{\"a\":{\"$type\":\"INTEGER\",\"$value\":456},\"b\":{\"$type\":\"VARCHAR\",\"$value\":\"TEST2\"}}},{\"$type\":\"STRUCT\",\"$value\":{\"a\":{\"$type\":\"INTEGER\",\"$value\":789},\"b\":{\"$type\":\"VARCHAR\",\"$value\":\"TEST3\"}}}]}");
 }
 
@@ -128,35 +128,35 @@ TEST_CASE("DeserializeJson primitive types", "[duckdb_serialization_helper]")
     auto dt_str = string("{\"$type\":\"TIME\",\"$value\":123456}");
     auto ts_str = string("{\"$type\":\"TIMESTAMP\",\"$value\":\"2020-01-01 00:00:00\"}");
 
-    auto val = ErpelSerializer::DeserializeJson(str);
+    auto val = ErplSerializer::DeserializeJson(str);
     REQUIRE(val.type().id() == LogicalTypeId::VARCHAR);
     REQUIRE(val.GetValue<string>() == "TEST");
 
-    val = ErpelSerializer::DeserializeJson(int_str);
+    val = ErplSerializer::DeserializeJson(int_str);
     REQUIRE(val.type().id() == LogicalTypeId::INTEGER);
     REQUIRE(val.GetValue<int>() == 123);
 
-    val = ErpelSerializer::DeserializeJson(double_str);
+    val = ErplSerializer::DeserializeJson(double_str);
     REQUIRE(val.type().id() == LogicalTypeId::DOUBLE);
     REQUIRE(val.GetValue<double>() == 123.456);
 
-    val = ErpelSerializer::DeserializeJson(bool_str);
+    val = ErplSerializer::DeserializeJson(bool_str);
     REQUIRE(val.type().id() == LogicalTypeId::BOOLEAN);
     REQUIRE(val.GetValue<bool>() == true);
 
-    val = ErpelSerializer::DeserializeJson(null_str);
+    val = ErplSerializer::DeserializeJson(null_str);
     REQUIRE(val.type().id() == LogicalTypeId::SQLNULL);
     REQUIRE(val.IsNull() == true);
 
-    val = ErpelSerializer::DeserializeJson(date_str);
+    val = ErplSerializer::DeserializeJson(date_str);
     REQUIRE(val.type().id() == LogicalTypeId::DATE);
     REQUIRE(val.GetValue<date_t>() == Date::FromString("2020-01-01"));
 
-    val = ErpelSerializer::DeserializeJson(dt_str);
+    val = ErplSerializer::DeserializeJson(dt_str);
     REQUIRE(val.type().id() == LogicalTypeId::TIME);
     REQUIRE(val.GetValue<dtime_t>() == dtime_t(123456));
 
-    val = ErpelSerializer::DeserializeJson(ts_str);
+    val = ErplSerializer::DeserializeJson(ts_str);
     REQUIRE(val.type().id() == LogicalTypeId::TIMESTAMP);
     REQUIRE(val.GetValue<timestamp_t>() == Timestamp::FromString("2020-01-01 00:00:00"));
 }
@@ -164,7 +164,7 @@ TEST_CASE("DeserializeJson primitive types", "[duckdb_serialization_helper]")
 TEST_CASE("DeserializeJson blob type", "[duckdb_serialization_helper]") 
 {
     auto blob_str = string("{\"$type\":\"BLOB\",\"$value\":\"VEVTVA==\"}");
-    auto val = ErpelSerializer::DeserializeJson(blob_str);
+    auto val = ErplSerializer::DeserializeJson(blob_str);
     REQUIRE(val.type().id() == LogicalTypeId::BLOB);
     REQUIRE(val.GetValue<string>() == "TEST");
 }
@@ -172,7 +172,7 @@ TEST_CASE("DeserializeJson blob type", "[duckdb_serialization_helper]")
 TEST_CASE("DeserializeJson struct type", "[duckdb_serialization_helper]") 
 {
     auto struct_str = string("{\"$type\":\"STRUCT\",\"$value\":{\"a\":{\"$type\":\"INTEGER\",\"$value\":123},\"b\":{\"$type\":\"VARCHAR\",\"$value\":\"TEST\"}}}");
-    auto val = ErpelSerializer::DeserializeJson(struct_str);
+    auto val = ErplSerializer::DeserializeJson(struct_str);
     REQUIRE(val.type().id() == LogicalTypeId::STRUCT);
 
     auto child_values = StructValue::GetChildren(val);
@@ -187,7 +187,7 @@ TEST_CASE("DeserializeJson struct type", "[duckdb_serialization_helper]")
 TEST_CASE("DeserializeJson list type", "[duckdb_serialization_helper]")
 {
     auto list_str = string("{\"$type\":\"LIST\",\"$value\":[{\"$type\":\"STRUCT\",\"$value\":{\"a\":{\"$type\":\"INTEGER\",\"$value\":123},\"b\":{\"$type\":\"VARCHAR\",\"$value\":\"TEST\"}}},{\"$type\":\"STRUCT\",\"$value\":{\"a\":{\"$type\":\"INTEGER\",\"$value\":456},\"b\":{\"$type\":\"VARCHAR\",\"$value\":\"TEST2\"}}},{\"$type\":\"STRUCT\",\"$value\":{\"a\":{\"$type\":\"INTEGER\",\"$value\":789},\"b\":{\"$type\":\"VARCHAR\",\"$value\":\"TEST3\"}}}]}");
-    auto val = ErpelSerializer::DeserializeJson(list_str);
+    auto val = ErplSerializer::DeserializeJson(list_str);
 
     REQUIRE(val.type().id() == LogicalTypeId::LIST);
 
@@ -198,7 +198,7 @@ TEST_CASE("DeserializeJson list type", "[duckdb_serialization_helper]")
 TEST_CASE("DeserializeJson empty list type", "[duckdb_serialization_helper]")
 {
     auto list_str = string("{\"$type\":\"LIST\",\"$value\":[]}");
-    auto val = ErpelSerializer::DeserializeJson(list_str);
+    auto val = ErplSerializer::DeserializeJson(list_str);
 
     REQUIRE(val.type().id() == LogicalTypeId::LIST);
 
@@ -219,28 +219,28 @@ TEST_CASE("Serialize SQL of primitive types" "[duckdb_serialization_helper]")
     auto dt_val = Value::CreateValue(dtime_t(123456));
     auto ts_val = Value::CreateValue(Timestamp::FromString("2020-01-01 00:00:00"));
 
-    auto sql = ErpelSerializer::SerializeSQL(str_val);
+    auto sql = ErplSerializer::SerializeSQL(str_val);
     REQUIRE(sql == "'TEST'");
-    sql = ErpelSerializer::SerializeSQL(int_val);
+    sql = ErplSerializer::SerializeSQL(int_val);
     REQUIRE(sql == "123");
-    sql = ErpelSerializer::SerializeSQL(double_val);
+    sql = ErplSerializer::SerializeSQL(double_val);
     REQUIRE(sql == "123.456");
-    sql = ErpelSerializer::SerializeSQL(bool_val);
+    sql = ErplSerializer::SerializeSQL(bool_val);
     REQUIRE(sql == "true");
-    sql = ErpelSerializer::SerializeSQL(null_val);
+    sql = ErplSerializer::SerializeSQL(null_val);
     REQUIRE(sql == "NULL");
-    sql = ErpelSerializer::SerializeSQL(date_val);
+    sql = ErplSerializer::SerializeSQL(date_val);
     REQUIRE(sql == "'2020-01-01'::DATE");
-    sql = ErpelSerializer::SerializeSQL(dt_val);
+    sql = ErplSerializer::SerializeSQL(dt_val);
     REQUIRE(sql == "'00:00:00.123456'::TIME");
-    sql = ErpelSerializer::SerializeSQL(ts_val);
+    sql = ErplSerializer::SerializeSQL(ts_val);
     REQUIRE(sql == "'2020-01-01 00:00:00'::TIMESTAMP");
 }
 
 TEST_CASE("Serialize SQL of blob type", "[duckdb_serialization_helper]") 
 {
     auto blob_val = Value::BLOB("TEST");
-    auto json = ErpelSerializer::SerializeSQL(blob_val);
+    auto json = ErplSerializer::SerializeSQL(blob_val);
     // Base64 encoded "TEST" is "VEVTVA=="
     REQUIRE(json == "'TEST'::BLOB");
 }
@@ -251,7 +251,7 @@ TEST_CASE("Serialize SQL of struct type", "[duckdb_serialization_helper]")
                                      {"b", Value::CreateValue("TEST")},
                                      {"c", Value::CreateValue(true)},
                                      {"d", Value::STRUCT({{"e", Value::CreateValue(456)}})}});
-    auto sql = ErpelSerializer::SerializeSQL(struct_val);
+    auto sql = ErplSerializer::SerializeSQL(struct_val);
     REQUIRE(sql == "STRUCT_PACK(a := 123, b := 'TEST', c := true, d := STRUCT_PACK(e := 456))");
 }
 
@@ -260,6 +260,6 @@ TEST_CASE("Serialize SQL of list type", "[duckdb_serialization_helper]")
     auto list_val = Value::LIST({Value::STRUCT({{"a", Value::CreateValue(123)}, {"b", Value::CreateValue("TEST")}}),
                                  Value::STRUCT({{"a", Value::CreateValue(456)}, {"b", Value::CreateValue("TEST2")}}),
                                  Value::STRUCT({{"a", Value::CreateValue(789)}, {"b", Value::CreateValue("TEST3")}})});
-    auto sql = ErpelSerializer::SerializeSQL(list_val);
+    auto sql = ErplSerializer::SerializeSQL(list_val);
     REQUIRE(sql == "LIST_VALUE(STRUCT_PACK(a := 123, b := 'TEST'), STRUCT_PACK(a := 456, b := 'TEST2'), STRUCT_PACK(a := 789, b := 'TEST3'))");
 }

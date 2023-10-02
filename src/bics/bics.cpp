@@ -211,6 +211,8 @@ T InfoProvider::GetFieldFromQueryProperties(QueryPropertyField field) const
             return MetaHelper()["/QUERY_PROPERTIES/QUERY_TEXT"].GetValue<T>();
         case QueryPropertyField::INFOCUBE:
             return MetaHelper()["/QUERY_PROPERTIES/INFOCUBE"].GetValue<T>();
+        default:
+            throw std::runtime_error("Unknown QueryPropertyField");
     }
 }
 

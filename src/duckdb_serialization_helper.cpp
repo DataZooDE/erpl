@@ -5,12 +5,12 @@
 
 namespace duckdb 
 {
-    std::string ErpelSerializer::SerializeJson(const Value &value) 
+    std::string ErplSerializer::SerializeJson(const Value &value) 
     {
         return SerializeJson(value, false);
     } 
 
-    std::string ErpelSerializer::SerializeJson(const Value &value, bool include_type) 
+    std::string ErplSerializer::SerializeJson(const Value &value, bool include_type) 
     {
         auto doc = yyjson_mut_doc_new(NULL);
         
@@ -25,7 +25,7 @@ namespace duckdb
         return result;
     }
 
-    yyjson_mut_val *ErpelSerializer::SerializeJson(yyjson_mut_doc *doc, const Value &value, bool include_type)
+    yyjson_mut_val *ErplSerializer::SerializeJson(yyjson_mut_doc *doc, const Value &value, bool include_type)
     {
         auto type = value.type().id();
         yyjson_mut_val *ret = nullptr;
@@ -85,84 +85,84 @@ namespace duckdb
         }
     }
 
-    yyjson_mut_val *ErpelSerializer::SerializeJson(yyjson_mut_doc *doc, const std::string &value) 
+    yyjson_mut_val *ErplSerializer::SerializeJson(yyjson_mut_doc *doc, const std::string &value) 
     {
         return yyjson_mut_strcpy(doc, value.c_str());
     }
 
-    yyjson_mut_val *ErpelSerializer::SerializeJson(yyjson_mut_doc *doc, const int8_t &value) 
+    yyjson_mut_val *ErplSerializer::SerializeJson(yyjson_mut_doc *doc, const int8_t &value) 
     {
         return yyjson_mut_sint(doc, value);
     }
 
-    yyjson_mut_val *ErpelSerializer::SerializeJson(yyjson_mut_doc *doc, const int16_t &value) 
+    yyjson_mut_val *ErplSerializer::SerializeJson(yyjson_mut_doc *doc, const int16_t &value) 
     {
         return yyjson_mut_sint(doc, value);
     }
 
-    yyjson_mut_val *ErpelSerializer::SerializeJson(yyjson_mut_doc *doc, const int32_t &value) 
+    yyjson_mut_val *ErplSerializer::SerializeJson(yyjson_mut_doc *doc, const int32_t &value) 
     {
         return yyjson_mut_int(doc, value);
     }
 
-    yyjson_mut_val *ErpelSerializer::SerializeJson(yyjson_mut_doc *doc, const int64_t &value) 
+    yyjson_mut_val *ErplSerializer::SerializeJson(yyjson_mut_doc *doc, const int64_t &value) 
     {
         return yyjson_mut_int(doc, value);
     }
 
-    yyjson_mut_val *ErpelSerializer::SerializeJson(yyjson_mut_doc *doc, const uint8_t &value) 
+    yyjson_mut_val *ErplSerializer::SerializeJson(yyjson_mut_doc *doc, const uint8_t &value) 
     {
         return yyjson_mut_uint(doc, value);
     }
 
-    yyjson_mut_val *ErpelSerializer::SerializeJson(yyjson_mut_doc *doc, const uint16_t &value) 
+    yyjson_mut_val *ErplSerializer::SerializeJson(yyjson_mut_doc *doc, const uint16_t &value) 
     {
         return yyjson_mut_uint(doc, value);
     }
 
-    yyjson_mut_val *ErpelSerializer::SerializeJson(yyjson_mut_doc *doc, const uint32_t &value) 
+    yyjson_mut_val *ErplSerializer::SerializeJson(yyjson_mut_doc *doc, const uint32_t &value) 
     {
         return yyjson_mut_uint(doc, value);
     }
 
-    yyjson_mut_val *ErpelSerializer::SerializeJson(yyjson_mut_doc *doc, const uint64_t &value) 
+    yyjson_mut_val *ErplSerializer::SerializeJson(yyjson_mut_doc *doc, const uint64_t &value) 
     {
         return yyjson_mut_uint(doc, value);
     }
 
-    yyjson_mut_val *ErpelSerializer::SerializeJson(yyjson_mut_doc *doc, const float &value) 
+    yyjson_mut_val *ErplSerializer::SerializeJson(yyjson_mut_doc *doc, const float &value) 
     {
         return yyjson_mut_real(doc, value);
     }   
 
-    yyjson_mut_val *ErpelSerializer::SerializeJson(yyjson_mut_doc *doc, const double &value) 
+    yyjson_mut_val *ErplSerializer::SerializeJson(yyjson_mut_doc *doc, const double &value) 
     {
         return yyjson_mut_real(doc, value);
     }
 
-    yyjson_mut_val *ErpelSerializer::SerializeJson(yyjson_mut_doc *doc, const bool &value) 
+    yyjson_mut_val *ErplSerializer::SerializeJson(yyjson_mut_doc *doc, const bool &value) 
     {
         return yyjson_mut_bool(doc, value);
     }
 
-    yyjson_mut_val *ErpelSerializer::SerializeJson(yyjson_mut_doc *doc, const date_t &value) 
+    yyjson_mut_val *ErplSerializer::SerializeJson(yyjson_mut_doc *doc, const date_t &value) 
     {
         auto str = Date::ToString(value);
         return yyjson_mut_strcpy(doc, str.c_str());
     }
 
-    yyjson_mut_val *ErpelSerializer::SerializeJson(yyjson_mut_doc *doc, const dtime_t &value) 
+    yyjson_mut_val *ErplSerializer::SerializeJson(yyjson_mut_doc *doc, const dtime_t &value) 
     {
         return SerializeJson(doc, value.micros);
     }
 
-    yyjson_mut_val *ErpelSerializer::SerializeJson(yyjson_mut_doc *doc, const timestamp_t &value) 
+    yyjson_mut_val *ErplSerializer::SerializeJson(yyjson_mut_doc *doc, const timestamp_t &value) 
     {
         auto str = Timestamp::ToString(value);
         return yyjson_mut_strcpy(doc, str.c_str());
     }
 
-    yyjson_mut_val *ErpelSerializer::SerializeBlobJson(yyjson_mut_doc *doc, const Value &blob_value) 
+    yyjson_mut_val *ErplSerializer::SerializeBlobJson(yyjson_mut_doc *doc, const Value &blob_value) 
     {
         auto result_size = Blob::ToBase64Size(blob_value.ToString());
         auto result_str = std::string(result_size, ' ');
@@ -171,13 +171,13 @@ namespace duckdb
         return SerializeJson(doc, result_str);
     }
 
-    yyjson_mut_val *ErpelSerializer::SerializeStructJson(yyjson_mut_doc *doc, const Value &struct_value, bool include_type) 
+    yyjson_mut_val *ErplSerializer::SerializeStructJson(yyjson_mut_doc *doc, const Value &struct_value, bool include_type) 
     {
         auto child_values = StructValue::GetChildren(struct_value);
         auto struct_type = struct_value.type();
 
         auto ret = yyjson_mut_obj(doc);
-        for (auto i = 0; i < child_values.size(); i++) {
+        for (std::size_t i = 0; i < child_values.size(); i++) {
             auto child_name = SerializeJson(doc, StructType::GetChildName(struct_type, i));
             auto child_value = SerializeJson(doc, child_values[i], include_type);
 
@@ -187,12 +187,12 @@ namespace duckdb
         return ret;
     }
 
-    yyjson_mut_val *ErpelSerializer::SerializeListJson(yyjson_mut_doc *doc, const Value &list_value, bool include_type) 
+    yyjson_mut_val *ErplSerializer::SerializeListJson(yyjson_mut_doc *doc, const Value &list_value, bool include_type) 
     {
         auto child_values = ListValue::GetChildren(list_value);
         auto ret = yyjson_mut_arr(doc);
 
-        for (auto i = 0; i < child_values.size(); i++) {
+        for (std::size_t i = 0; i < child_values.size(); i++) {
             auto child_value = SerializeJson(doc, child_values[i], include_type);
             yyjson_mut_arr_append(ret, child_value);
         }
@@ -200,7 +200,7 @@ namespace duckdb
         return ret;
     }
 
-    yyjson_mut_val *ErpelSerializer::WrapType(yyjson_mut_doc *doc, const LogicalTypeId &type, yyjson_mut_val *value) 
+    yyjson_mut_val *ErplSerializer::WrapType(yyjson_mut_doc *doc, const LogicalTypeId &type, yyjson_mut_val *value) 
     {
         auto type_str = LogicalType(type).ToString();
         auto wrapper = yyjson_mut_obj(doc);
@@ -213,7 +213,7 @@ namespace duckdb
 
     // ----------------------------------------------------------------------------------
 
-    Value ErpelSerializer::DeserializeJson(const std::string &json) 
+    Value ErplSerializer::DeserializeJson(const std::string &json) 
     {
         yyjson_doc *doc = yyjson_read(json.c_str(), json.size(), 0);
         yyjson_val *root = yyjson_doc_get_root(doc);
@@ -224,7 +224,7 @@ namespace duckdb
         return ret;
     }
 
-    Value ErpelSerializer::DeserializeJson(yyjson_val *val) 
+    Value ErplSerializer::DeserializeJson(yyjson_val *val) 
     {
         auto type_obj = yyjson_obj_get(val, "$type");
         auto value = yyjson_obj_get(val, "$value");
@@ -287,49 +287,49 @@ namespace duckdb
         return ret;
     }
 
-    Value ErpelSerializer::DeserializeJsonString(std::string &typ, yyjson_val *val) 
+    Value ErplSerializer::DeserializeJsonString(std::string &typ, yyjson_val *val) 
     {
         auto str = std::string(yyjson_get_str(val));
         return Value(str);
     }
 
-    Value ErpelSerializer::DeserializeJsonInteger(std::string &typ, yyjson_val *val) 
+    Value ErplSerializer::DeserializeJsonInteger(std::string &typ, yyjson_val *val) 
     {
         auto int_val = yyjson_get_int(val);
         return Value::CreateValue(int_val);
     }
 
-    Value ErpelSerializer::DeserializeJsonReal(std::string &typ, yyjson_val *val) 
+    Value ErplSerializer::DeserializeJsonReal(std::string &typ, yyjson_val *val) 
     {
         auto real_val = yyjson_get_real(val);
         return Value::CreateValue(real_val);
     }
 
-    Value ErpelSerializer::DeserializeJsonBoolean(std::string &typ, yyjson_val *val) 
+    Value ErplSerializer::DeserializeJsonBoolean(std::string &typ, yyjson_val *val) 
     {
         auto bool_val = yyjson_get_bool(val);
         return Value::CreateValue(bool_val);
     }
 
-    Value ErpelSerializer::DeserializeJsonDate(std::string &typ, yyjson_val *val) 
+    Value ErplSerializer::DeserializeJsonDate(std::string &typ, yyjson_val *val) 
     {
         auto str = std::string(yyjson_get_str(val));
         return Value::CreateValue(Date::FromString(str));
     }
 
-    Value ErpelSerializer::DeserializeJsonTime(std::string &typ, yyjson_val *val) 
+    Value ErplSerializer::DeserializeJsonTime(std::string &typ, yyjson_val *val) 
     {
         auto int_val = yyjson_get_int(val);
         return Value::CreateValue(dtime_t(int_val));
     }
 
-    Value ErpelSerializer::DeserializeJsonTimestamp(std::string &typ, yyjson_val *val) 
+    Value ErplSerializer::DeserializeJsonTimestamp(std::string &typ, yyjson_val *val) 
     {
         auto str = std::string(yyjson_get_str(val));
         return Value::CreateValue(Timestamp::FromString(str));
     }
 
-    Value ErpelSerializer::DeserializeJsonBlob(std::string &typ, yyjson_val *val) 
+    Value ErplSerializer::DeserializeJsonBlob(std::string &typ, yyjson_val *val) 
     {
         auto base64 = std::string(yyjson_get_str(val));
         auto size = Blob::FromBase64Size(base64);
@@ -339,7 +339,7 @@ namespace duckdb
         return Value::BLOB(data);
     }
 
-    Value ErpelSerializer::DeserializeJsonStruct(std::string &typ, yyjson_val *val) 
+    Value ErplSerializer::DeserializeJsonStruct(std::string &typ, yyjson_val *val) 
     {
         child_list_t<Value> child_values;
         
@@ -355,7 +355,7 @@ namespace duckdb
         return Value::STRUCT(child_values);
     }
 
-    Value ErpelSerializer::DeserializeJsonList(std::string &typ, yyjson_val *val) 
+    Value ErplSerializer::DeserializeJsonList(std::string &typ, yyjson_val *val) 
     {
         vector<Value> child_values;
         yyjson_arr_iter iter;
@@ -379,7 +379,7 @@ namespace duckdb
         return Value::LIST(child_type, child_values);
     }
 
-    std::string ErpelSerializer::SerializeSQL(const Value &value) 
+    std::string ErplSerializer::SerializeSQL(const Value &value) 
     {
         auto type = value.type().id();
         switch(type) {
@@ -392,7 +392,7 @@ namespace duckdb
         }
     }
 
-    std::string ErpelSerializer::SerializeStructSQL(const Value &value)
+    std::string ErplSerializer::SerializeStructSQL(const Value &value)
     {
         auto typ = value.type();
 		auto &child_types = StructType::GetChildTypes(typ);
@@ -415,7 +415,7 @@ namespace duckdb
 		return ret;
     }
 
-    std::string ErpelSerializer::SerializeListSQL(const Value &value)
+    std::string ErplSerializer::SerializeListSQL(const Value &value)
     {
         string ret = "LIST_VALUE(";
 		auto &list_values = ListValue::GetChildren(value);

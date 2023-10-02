@@ -1,4 +1,4 @@
-# ★ Erpel Extension
+# ★ Erpl Extension
 The main goal of this [DuckDB](https://duckdb.org) extension is to provide easy access to SAP data ecosystem. This should be done with 
 *minimal dependencies* and as *easy and natural* as possible from the perspective of the DuckDB User.
 
@@ -35,8 +35,8 @@ The main binaries that will be built are:
 We spent some time to make the extension buildable from VSCode IDE. The main challenge was to get the build system to work, attach the debugger and run the tests.
 However there are now two launch configurations that allow to do this:
 
-- "Debug ERPEL SQL Unit tests" will build the extension and run the SQL unit tests. (For details on this tests see below).
-- "Debug ERPEL CPP Unit tests" will build and debug the extension unit tests. (For details on this tests see below).
+- "Debug ERPL SQL Unit tests" will build the extension and run the SQL unit tests. (For details on this tests see below).
+- "Debug ERPL CPP Unit tests" will build and debug the extension unit tests. (For details on this tests see below).
 
 
 ## ➜ Running the extension

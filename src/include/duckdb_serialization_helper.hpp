@@ -5,7 +5,7 @@
 
 namespace duckdb 
 {
-    class ErpelSerializer 
+    class ErplSerializer 
     {
         public:
             static std::string SerializeJson(const Value &value);
@@ -15,7 +15,7 @@ namespace duckdb
             static std::string SerializeSQL(const Value &value);
         
         private:
-            ErpelSerializer() = delete;
+            ErplSerializer() = delete;
 
             static yyjson_mut_val *SerializeJson(yyjson_mut_doc *doc, const Value &value, bool include_type);
             static yyjson_mut_val *SerializeJson(yyjson_mut_doc *doc, const std::string &value);

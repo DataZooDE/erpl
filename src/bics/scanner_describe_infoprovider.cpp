@@ -33,7 +33,7 @@ namespace duckdb
 
         
         /*
-        auto sql_str = StringUtil::Format("SELECT %s as X;", ErpelSerializer::SerializeSQL(meta));
+        auto sql_str = StringUtil::Format("SELECT %s as X;", ErplSerializer::SerializeSQL(meta));
 
         auto fs = std::ofstream("/tmp/meta.sql", std::ios::out | std::ios::trunc);
         fs << sql_str;

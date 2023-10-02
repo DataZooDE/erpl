@@ -27,7 +27,7 @@ def copy_binaries_for_platform(platform_name):
     # Set the correct binary path
     if platform_name == "linux":
         copy_binaries(join_current_dir("../../nwrfcsdk/lib/*.so*"),
-                    join_current_dir("../../build/release/extension/erpel/erpel.duckdb_extension"))
+                    join_current_dir("../../build/release/extension/erpl/erpl.duckdb_extension"))
     elif platform_name == "win32":
         raise Exception("Windows is not supported yet")
     elif platform_name == "darwin":  # macOS
