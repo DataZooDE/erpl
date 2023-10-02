@@ -6,4 +6,5 @@
 
 namespace duckdb {
     string RfcPing(ClientContext &context, const FunctionParameters &parameters);
+    CreatePragmaFunctionInfo CreateRfcPingPragma();
 }

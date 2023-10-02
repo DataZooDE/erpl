@@ -4,11 +4,12 @@
 #include "duckdb.hpp"
 
 #include "duckdb/catalog/catalog.hpp"
-#include "duckdb/parser/parsed_data/create_table_function_info.hpp"
 #include "duckdb/parser/parsed_data/create_pragma_function_info.hpp"
 
 #include "erpl_extension.hpp"
 #include "pragma_ping.hpp"
+#include "pragma_set_trace.hpp"
+#include "pragma_ini.hpp"
 #include "scanner_invoke.hpp"
 #include "scanner_search_group.hpp"
 #include "scanner_describe_function.hpp"
@@ -67,13 +68,30 @@ namespace duckdb {
         auto rfc_read_table_info = CreateRfcReadTableScanFunction();
         catalog.CreateTableFunction(context, &rfc_read_table_info);
 
-        auto rfc_ping_pragma = PragmaFunction::PragmaStatement("sap_rfc_ping", RfcPing);
-        CreatePragmaFunctionInfo rfc_ping_info(rfc_ping_pragma);
+        auto rfc_ping_info = CreateRfcPingPragma();
         catalog.CreatePragmaFunction(context, rfc_ping_info);
 
         auto rfc_function_desc_pragma = PragmaFunction::PragmaCall("sap_rfc_function_desc", RfcFunctionDesc, {LogicalType::VARCHAR});
         CreatePragmaFunctionInfo rfc_foo_info(rfc_function_desc_pragma);
         catalog.CreatePragmaFunction(context, rfc_foo_info);
+
+        auto rfc_set_trace_level_info = CreateRfcSetTraceLevelPragma();
+        catalog.CreatePragmaFunction(context, rfc_set_trace_level_info);
+
+        auto rfc_set_trace_dir_info = CreateRfcSetTraceDirPragma();
+        catalog.CreatePragmaFunction(context, rfc_set_trace_dir_info);
+
+        auto rfc_set_maximum_trace_file_size_info = CreateRfcSetMaximumTraceFileSizePragma();
+        catalog.CreatePragmaFunction(context, rfc_set_maximum_trace_file_size_info);
+
+        auto rfc_set_maximum_stored_trace_files_info = CreateRfcSetMaximumStoredTraceFilesPragma();
+        catalog.CreatePragmaFunction(context, rfc_set_maximum_stored_trace_files_info);
+
+        auto rfc_set_ini_path_info = CreateRfcSetIniPathPragma();
+        catalog.CreatePragmaFunction(context, rfc_set_ini_path_info);
+
+        auto rfc_reload_ini_file_info = CreateRfcReloadIniFilePragma();
+        catalog.CreatePragmaFunction(context, rfc_reload_ini_file_info);
 
         con.Commit();
     }
