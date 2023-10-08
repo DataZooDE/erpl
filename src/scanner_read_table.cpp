@@ -68,7 +68,18 @@ namespace duckdb
             return;
         }
 
+        //printf(">> RfcReadTableScan\n");
         bind_data.Step(context, output);
+    }
+
+    double RfcReadTableProgress(ClientContext &, const FunctionData *func_data, const GlobalTableFunctionState *)
+    {
+        
+        auto &bind_data = func_data->CastNoConst<RfcReadTableBindData>();
+        auto progress = bind_data.GetProgress();
+
+        //printf(">> RfcReadTableProgress %f\n", progress);
+        return progress;
     }
 
     CreateTableFunctionInfo CreateRfcReadTableScanFunction() 
@@ -81,6 +92,7 @@ namespace duckdb
         fun.named_parameters["COLUMNS"] = LogicalType::LIST(LogicalType::VARCHAR);
         fun.named_parameters["FILTER"] = LogicalType::VARCHAR;
         fun.named_parameters["MAX_ROWS"] = LogicalType::UINTEGER;
+        fun.table_scan_progress = RfcReadTableProgress;
         fun.to_string = RfcReadTableToString;
         fun.projection_pushdown = true;
         fun.filter_pushdown = true;

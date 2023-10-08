@@ -50,7 +50,8 @@ namespace duckdb
 			void Step(ClientContext &context, DataChunk &output);
 
 			std::string ToString();
-		
+			double GetProgress();
+
 		public: 
 			std::string table_name;
 			std::vector<std::string> options;
@@ -103,15 +104,17 @@ namespace duckdb
 			std::shared_ptr<RfcReadColumnTask> CreateTaskForNextStep(ClientContext &client_context, duckdb::Vector &column_output);
 			unsigned int GetRfcColumnIndex();
 			unsigned int GetProjectedColumnIndex();
+			std::shared_ptr<RfcConnection> GetConnection();
 			bool IsRowIdColumnId();
 			void SetRowIdColumnId();
 			unsigned int GetCardinality();
+			unsigned int GetBatchCount();
 			std::string ToString();
 
 		private:
 			bool active = true;
 			bool row_id_column_id = false;
-			unsigned int desired_batch_size = 50000;
+			unsigned int desired_batch_size = 20*STANDARD_VECTOR_SIZE;
 			unsigned int pending_records = 0;
 			unsigned int cardinality = 0;
 			unsigned int batch_count = 0;
@@ -125,10 +128,9 @@ namespace duckdb
 			RfcReadTableBindData *bind_data;
 			ReadTableStates current_state = ReadTableStates::INIT;
 			std::shared_ptr<RfcResultSet> current_result_data = nullptr;
+			std::shared_ptr<RfcConnection> current_connection = nullptr;
 
 			std::mutex thread_lock;
-
-		
 	};
 
 	class RfcReadColumnTask : public ExecutorTask 

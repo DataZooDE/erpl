@@ -7,7 +7,15 @@ namespace duckdb
     std::tuple<unsigned int, std::string> GetTraceLevelFromEnum(const Value &trace_level_enum) 
     {
         auto trace_level = trace_level_enum.GetValue<unsigned int>();
-        auto trace_level_str = trace_level_enum.ToString();
+
+        auto trace_level_vals = Vector(LogicalType::VARCHAR, 5);
+        trace_level_vals.SetValue(0, Value("Off"));
+        trace_level_vals.SetValue(1, Value("Brief"));
+        trace_level_vals.SetValue(2, Value("Verbose"));
+        trace_level_vals.SetValue(3, Value("Detailed"));
+        trace_level_vals.SetValue(4, Value("Full"));
+
+        auto trace_level_str = trace_level_vals.GetValue(trace_level).ToString();
         return std::make_tuple(trace_level, trace_level_str);
     }
 
@@ -77,16 +85,9 @@ namespace duckdb
 
     CreatePragmaFunctionInfo CreateRfcSetTraceLevelPragma() 
     {
-        auto trace_level_enum = Vector(LogicalType::VARCHAR, 2);
-        trace_level_enum.SetValue(0, Value("Off"));
-        trace_level_enum.SetValue(1, Value("Brief"));
-        trace_level_enum.SetValue(2, Value("Verbose"));
-        trace_level_enum.SetValue(3, Value("Detailed"));
-        trace_level_enum.SetValue(4, Value("Full"));
-
         auto rfc_set_trace_level = PragmaFunction::PragmaCall("sap_rfc_set_trace_level", 
                                                               PragmaSetTraceLevel, 
-                                                              { LogicalType::ENUM("TRACE_LEVEL", trace_level_enum, 5) });
+                                                              { LogicalType::INTEGER });
 
         CreatePragmaFunctionInfo rfc_set_trace_level_info(rfc_set_trace_level);
         return rfc_set_trace_level_info;

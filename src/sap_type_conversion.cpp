@@ -294,6 +294,18 @@ namespace duckdb
         return Value::CreateValue(duck_date);
     }
 
+    Value tims2duck(std::string &tims_str)
+    {
+        int32_t hour, minute, second;
+
+        std::istringstream(tims_str.substr(0, 2)) >> hour;
+        std::istringstream(tims_str.substr(2, 2)) >> minute;
+        std::istringstream(tims_str.substr(4, 2)) >> second;
+
+        dtime_t duck_time = Time::FromTime(hour, minute, second, 0);
+        return Value::CreateValue(duck_time);
+    }
+
     /**
      * @brief Converts a SAP date to a DuckDB date.
      * 

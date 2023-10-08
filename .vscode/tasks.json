@@ -10,7 +10,12 @@
 			],
 			"group": "build",
 			"problemMatcher": [],
-			"detail": "CMake template build task"
+			"detail": "CMake template build task",
+			"options": {
+				"env": {
+					"GEN": "ninja"
+				}
+			}
 		}
 	]
 }

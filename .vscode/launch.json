@@ -21,6 +21,10 @@
                 {
                     "name": "LD_LIBRARY_PATH",
                     "value": "${env:LD_LIBRARY_PATH}:${workspaceFolder}/nwrfcsdk/lib"
+                },
+                {
+                    "name": "LSAN_OPTIONS",
+                    "value": "suppressions=${workspaceFolder}/scripts/lsan_suppress.txt"
                 }
             ],
             "externalConsole": false,
@@ -55,6 +59,10 @@
                 {
                     "name": "LD_LIBRARY_PATH",
                     "value": "${env:LD_LIBRARY_PATH}:${workspaceFolder}/nwrfcsdk/lib"
+                },
+                {
+                    "name": "LSAN_OPTIONS",
+                    "value": "suppressions=${workspaceFolder}/scripts/lsan_suppress.txt"
                 }
             ],
             "externalConsole": false,
@@ -84,7 +92,7 @@
                 },
                 {
                     "name": "LSAN_OPTIONS",
-                    "value": "detect_leaks=0"
+                    "value": "suppressions=${workspaceFolder}/scripts/lsan_suppress.txt"
                 },
                 {
                     "name": "ASAN_OPTIONS",

@@ -722,6 +722,10 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             {
                 return dats2duck(str_value);
             }
+            case RFCTYPE_TIME:
+            {
+                return tims2duck(str_value);
+            }
             default:
             {
                 return Value(str_value);
@@ -1264,7 +1268,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
 
         rc = RfcInvoke(connection->handle, _handle, &error_info);
         if (rc != RFC_OK) {
-            throw std::runtime_error(StringUtil::Format("Failed to invoke function: %d: %s", 
+            throw std::runtime_error(StringUtil::Format("Failed to invoke function: %s: %s", 
                                                         rfcrc2std(error_info.code), uc2std(error_info.message)));
         }
 

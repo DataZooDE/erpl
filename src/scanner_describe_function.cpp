@@ -1,4 +1,3 @@
-#include "duckdb.hpp"
 #include "scanner_describe_function.hpp"
 
 namespace duckdb 

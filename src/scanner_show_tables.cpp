@@ -39,17 +39,18 @@ namespace duckdb
                                     : 0;
 
         auto where_clause = StringUtil::Format(
+            "DDLANGUAGE = 'E' AND "
             "TABNAME LIKE '%s' AND ( TABCLASS = 'VIEW' OR TABCLASS = 'TRANSP' OR "
             "TABCLASS = 'POOL' OR TABCLASS = 'CLUSTER' ) AND DDTEXT LIKE '%s'", 
             table_search_str, text_search_str
         );
 
-        auto fields =  std::vector<std::string>({ "TABNAME", "DDTEXT", "DDLANGUAGE", "TABCLASS" });
+        auto fields =  std::vector<std::string>({ "TABNAME", "DDTEXT", "TABCLASS" });
         auto result = make_uniq<RfcReadTableBindData>("DD02V", max_read_threads, 0, &DefaultRfcConnectionFactory, context);
         result->InitOptionsFromWhereClause(where_clause);
         result->InitAndVerifyFields(fields);
 
-        names = { "table_name", "text", "language", "class" };
+        names = { "table_name", "text", "class" };
         return_types = result->GetReturnTypes();
 
         return std::move(result);

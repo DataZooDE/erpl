@@ -12,7 +12,7 @@
 #include "pragma_ini.hpp"
 #include "scanner_invoke.hpp"
 #include "scanner_search_group.hpp"
-#include "scanner_describe_function.hpp"
+//#include "scanner_describe_function.hpp"
 #include "scanner_search_function.hpp"
 #include "scanner_show_tables.hpp"
 #include "scanner_describe_fields.hpp"
@@ -28,6 +28,7 @@ namespace duckdb {
     static void RegisterConfiguration(DatabaseInstance &instance)
     {
         auto &config = DBConfig::GetConfig(instance);
+
         config.AddExtensionOption("sap_ashost", "The hostname SAP application server", LogicalType::VARCHAR);
         config.AddExtensionOption("sap_sysnr", "System number on the application server", LogicalType::VARCHAR);
         config.AddExtensionOption("sap_user", "Username to login", LogicalType::VARCHAR);
@@ -47,7 +48,10 @@ namespace duckdb {
         auto &context = *con.context;
         auto &catalog = Catalog::GetSystemCatalog(context);
 
-	    auto rfc_invoke_info = CreateRfcInvokeScanFunction();
+        auto rfc_ping_info = CreateRfcPingPragma();
+        catalog.CreatePragmaFunction(context, rfc_ping_info);
+
+        auto rfc_invoke_info = CreateRfcInvokeScanFunction();
 	    catalog.CreateTableFunction(context, &rfc_invoke_info);
 
         auto rfc_search_group_info = CreateRfcSearchGroupScanFunction();
@@ -56,8 +60,8 @@ namespace duckdb {
         auto rfc_search_function_info = CreateRfcSearchFunctionScanFunction();
         catalog.CreateTableFunction(context, &rfc_search_function_info);
 
-        auto rfc_describe_function_info = CreateRfcDescribeFunctionScanFunction();
-        catalog.CreateTableFunction(context, &rfc_describe_function_info);
+        //auto rfc_describe_function_info = CreateRfcDescribeFunctionScanFunction();
+        //catalog.CreateTableFunction(context, &rfc_describe_function_info);
 
         auto rfc_show_tables_info = CreateRfcShowTablesScanFunction();
         catalog.CreateTableFunction(context, &rfc_show_tables_info);
@@ -67,9 +71,6 @@ namespace duckdb {
 
         auto rfc_read_table_info = CreateRfcReadTableScanFunction();
         catalog.CreateTableFunction(context, &rfc_read_table_info);
-
-        auto rfc_ping_info = CreateRfcPingPragma();
-        catalog.CreatePragmaFunction(context, rfc_ping_info);
 
         auto rfc_function_desc_pragma = PragmaFunction::PragmaCall("sap_rfc_function_desc", RfcFunctionDesc, {LogicalType::VARCHAR});
         CreatePragmaFunctionInfo rfc_foo_info(rfc_function_desc_pragma);
@@ -92,10 +93,11 @@ namespace duckdb {
 
         auto rfc_reload_ini_file_info = CreateRfcReloadIniFilePragma();
         catalog.CreatePragmaFunction(context, rfc_reload_ini_file_info);
-
+        
         con.Commit();
     }
 
+    /*
     static void RegisterBicsFunctions(DatabaseInstance &instance)
     {
         #ifndef WITH_BICS
@@ -116,16 +118,13 @@ namespace duckdb {
 
         con.Commit();
     }
+    */
 
-    static void LoadInternal(DatabaseInstance &instance) 
-    {  
-        RegisterConfiguration(instance);
-        RegisterFunctions(instance);
-        RegisterBicsFunctions(instance);
-    }
-
-    void ErplExtension::Load(DuckDB &db) {
-        LoadInternal(*db.instance);
+    void ErplExtension::Load(DuckDB &db) 
+    {
+        RegisterConfiguration(*db.instance);
+        RegisterFunctions(*db.instance);
+        //RegisterBicsFunctions(instance);
     }
 
     std::string ErplExtension::Name() {
@@ -135,11 +134,14 @@ namespace duckdb {
 } // namespace duckdb
 
 extern "C" {
-    DUCKDB_EXTENSION_API void erpl_init(duckdb::DatabaseInstance &db) {
-        LoadInternal(db);
+    DUCKDB_EXTENSION_API void erpl_init(duckdb::DatabaseInstance &db) 
+    {
+        duckdb::DuckDB db_wrapper(db);
+	    db_wrapper.LoadExtension<duckdb::ErplExtension>();
     }
 
-    DUCKDB_EXTENSION_API const char *erpl_version() {
+    DUCKDB_EXTENSION_API const char *erpl_version() 
+    {
         return duckdb::DuckDB::LibraryVersion();
     }
 }

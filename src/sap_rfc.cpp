@@ -354,6 +354,7 @@ namespace duckdb
         if (max_threads > 0) {
             scheduler.SetThreads(max_threads);
         }
+        //scheduler.SetThreads(5);
         auto producer_token = scheduler.CreateProducer();
         
         for (auto &sm : column_state_machines) {
@@ -417,13 +418,20 @@ namespace duckdb
         return true;
     }
     
-
     std::string RfcReadTableBindData::ToString() 
     {
         return StringUtil::Format("BindData(\n\ttable_name=%s, \n\toptions=%s, \n\tcolumn_names=%s, \n\tcolumn_types=%s\n)\n", 
                                     table_name, StringUtil::Join(options, options.size(), ", ", [](auto &o) { return o; }),
                                     StringUtil::Join(column_names, column_names.size(), ", ", [](auto &o) { return o; }),
                                     StringUtil::Join(column_types, column_types.size(), ", ", [](auto &o) { return o.GetName(); }));
+    }
+
+    double RfcReadTableBindData::GetProgress()
+    {
+        auto batch_sum = std::accumulate(column_state_machines.begin(), column_state_machines.end(), 0, 
+                                         [](auto &acc, auto &sm) { return acc + sm.GetBatchCount(); });
+        auto progress = (int)(batch_sum / column_state_machines.size()) % 100;
+        return progress * 1.0; 
     }
 
     // --------------------------------------------------------------------------------------------
@@ -499,6 +507,14 @@ namespace duckdb
         return projected_column_idx;
     }
 
+    std::shared_ptr<RfcConnection> RfcReadColumnStateMachine::GetConnection() 
+    {
+        if (current_connection == nullptr) {
+            current_connection = bind_data->OpenNewConnection();
+        }
+        return current_connection;
+    }
+
     bool RfcReadColumnStateMachine::IsRowIdColumnId() 
     {
         std::lock_guard<mutex> t(thread_lock);
@@ -515,6 +531,12 @@ namespace duckdb
     {
         std::lock_guard<mutex> t(thread_lock);
         return cardinality;
+    }
+
+    unsigned int RfcReadColumnStateMachine::GetBatchCount()
+    {
+        std::lock_guard<mutex> t(thread_lock);
+        return batch_count;
     }
 
     std::string RfcReadColumnStateMachine::ToString() 
@@ -612,6 +634,7 @@ namespace duckdb
     {
         auto bind_data = owning_state_machine->bind_data;
         auto &current_result_data = owning_state_machine->current_result_data;
+        //auto connection = owning_state_machine->GetConnection();
         auto connection = bind_data->OpenNewConnection();
         auto func = std::make_shared<RfcFunction>(connection, "RFC_READ_TABLE");
         auto func_args = CreateFunctionArguments();
