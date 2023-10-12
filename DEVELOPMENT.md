@@ -3,12 +3,14 @@
 Creating a DuckDB extension on Windows using MinGW on MSYS2 requires several steps, including setting up your environment, obtaining the necessary source code and dependencies, and compiling the extension. Here’s a detailed guide:
 
 1. **Install MSYS2 and MinGW:**
+
    - Download MSYS2 installer from the [official website](https://www.msys2.org/).
    - Run the installer and follow the instructions to install MSYS2 on your machine.
    - Open MSYS2 terminal and update the package database and core system packages with: `pacman -Syu`.
-   - Install MinGW-w64 by running: `pacman -S mingw-w64-x86_64-toolchain`.
+   - Install MinGW-w64 by running: `pacman -S git mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja`.
 
 2. **Setup Environment:**
+
    - Close and reopen MSYS2 terminal.
    - Add MinGW to your system PATH: `export PATH="/mingw64/bin:$PATH"`.
 
