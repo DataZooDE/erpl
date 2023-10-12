@@ -2,6 +2,12 @@
 
 Creating a DuckDB extension on Windows using MinGW on MSYS2 requires several steps, including setting up your environment, obtaining the necessary source code and dependencies, and compiling the extension. Here’s a detailed guide:
 
+Sources
+
+- https://duckdb.org/dev/building.html
+- https://github.com/duckdb/duckdb/blob/v0.8.1/.github/workflows/Windows.yml#L158
+
+
 1. **Install MSYS2 and MinGW:**
 
    - Download MSYS2 installer from the [official website](https://www.msys2.org/).
