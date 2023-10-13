@@ -46,3 +46,16 @@ Sources
    - In the DuckDB shell_
         - First install the erpl-extension with: `INSTALL 'erpl.duckdb_extension';`.
         - And then load the extension with: `LOAD 'erpl';`.
+
+
+
+## Debuging SAP behavior
+
+### Relevant transctions
+
+- [SM04](https://help.sap.com/doc/saphelp_nw74/7.4.16/en-us/02/3b3ad97b0b4526839377f4c2112f33/content.htm?no_cache=true) Login List
+- [SM50](https://help.sap.com/doc/saphelp_nw74/7.4.16/en-us/19/28d51a81c748b399947f3e354d2ffb/content.htm?no_cache=true) Work Process Overview
+- [ST02](https://help.sap.com/docs/ABAP_PLATFORM_BW4HANA/f146e75588924fa4987b6c8f1a7a8c7e/ce7a5224577d4713b1d695bdf9baf656.html) Memory Statistics / Tune Summary
+- [ST03](https://help.sap.com/saphelp_gbt10/helpdata/EN/2d/b8be3befaefc75e10000000a114084/frameset.htm) Workload and Performance Statistics
+- [SM21](https://help.sap.com/doc/saphelp_nw75/7.5.5/de-DE/b1/f4652c0f4d4e8fa04e165d161e386f/content.htm?no_cache=true) System Log
+- [DBACOCKPIT]() DBA Cockpit

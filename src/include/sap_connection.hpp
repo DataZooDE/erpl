@@ -19,6 +19,7 @@ namespace duckdb
         RfcConnection(RFC_CONNECTION_HANDLE handle);
         ~RfcConnection();
 
+		void Close();
         void Ping();
     } RfcConnection;
 

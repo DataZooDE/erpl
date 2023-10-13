@@ -114,13 +114,24 @@ namespace duckdb
 
     RfcConnection::~RfcConnection()
     {
+        Close();
+    }
+    
+    void RfcConnection::Close()
+    {
         if (handle == NULL)
             return;
         
-        RfcCloseConnection(handle, NULL);
+        RFC_RC rc = RFC_OK;
+        RFC_ERROR_INFO error_info;
+
+        rc = RfcCloseConnection(handle, &error_info);
+        if (rc != RFC_OK) {
+            throw IOException(StringUtil::Format("Error during SAP RFC connection closing: %s: %s",rfcrc2std(error_info.code), uc2std(error_info.message)));
+        }
         handle = NULL;
     }
-    
+
     void RfcConnection::Ping()
     {
         RFC_RC rc = RFC_OK;
@@ -128,7 +139,7 @@ namespace duckdb
         
         rc = RfcPing(handle, &error_info);
         if (rc != RFC_OK) {
-            throw IOException(StringUtil::Format("Error during SAP RFC ping: %d: %s", error_info.code, error_info.message));
+            throw IOException(StringUtil::Format("Error during SAP connection ping: %s: %s",rfcrc2std(error_info.code), uc2std(error_info.message)));
         }
     }
 

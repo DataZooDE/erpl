@@ -647,11 +647,12 @@ namespace duckdb
                 auto func_args = CreateFunctionArguments();
                 auto invocation = func->BeginInvocation(func_args);
                 current_result_data = invocation->Invoke("/DATA");
+                connection->Close();
                 return current_result_data->TotalRows();
             }
             catch (std::exception &e) {
                 int delay = initial_delay * std::pow(2, attempt);
-                std::cerr << StringUtil::Format("Exception: %s. Attempt: %d, Delay: %ds. Retrying...\n", e.what(), attempt + 1, (int)(delay / 1000.));
+                std::cerr << StringUtil::Format("Warning during fetching next batch: %s. Attempt: %d, Delay: %ds. Retrying...\n", e.what(), attempt + 1, (int)(delay / 1000.));
                 std::this_thread::sleep_for(std::chrono::milliseconds(delay));
                 attempt++;
             }
