@@ -786,7 +786,9 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             {"QUAN",    RFCTYPE_BCD},
             {"RAW",     RFCTYPE_BYTE},
             {"RAWSTRING", RFCTYPE_BYTE},
+            {"RSTR",    RFCTYPE_BYTE},
             {"STRING",  RFCTYPE_STRING},
+            {"SSTR",    RFCTYPE_STRING},
             {"TIMS",    RFCTYPE_TIME},
             {"UNIT",    RFCTYPE_CHAR}
         };
