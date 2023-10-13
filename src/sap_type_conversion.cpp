@@ -283,6 +283,10 @@ namespace duckdb
     */
     Value dats2duck(std::string &dats_str) 
     {
+        if (dats_str.empty()) {
+            return Value();
+        }
+
         int32_t year, month, day;
 
         std::istringstream(dats_str.substr(0, 4)) >> year;
@@ -296,6 +300,10 @@ namespace duckdb
 
     Value tims2duck(std::string &tims_str)
     {
+        if (tims_str.empty()) {
+            return Value();
+        }
+
         int32_t hour, minute, second;
 
         std::istringstream(tims_str.substr(0, 2)) >> hour;
