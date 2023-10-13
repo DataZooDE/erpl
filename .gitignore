@@ -55,6 +55,9 @@ Thumbs.db
 *.mov
 *.wmv
 
+# Smoke test
+scripts/duckdb
+
 # SAP Trace files
 dev_rfc.log
 rfc*.trc
