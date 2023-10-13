@@ -114,7 +114,7 @@ namespace duckdb
 		private:
 			bool active = true;
 			bool row_id_column_id = false;
-			unsigned int desired_batch_size = 20*STANDARD_VECTOR_SIZE;
+			unsigned int desired_batch_size = 5*STANDARD_VECTOR_SIZE;
 			unsigned int pending_records = 0;
 			unsigned int cardinality = 0;
 			unsigned int batch_count = 0;

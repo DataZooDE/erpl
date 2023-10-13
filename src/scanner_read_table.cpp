@@ -25,7 +25,7 @@ namespace duckdb
         auto &named_params = input.named_parameters;
         auto max_read_threads = named_params.find("THREADS") != named_params.end() 
                                     ? named_params["THREADS"].GetValue<unsigned int>()
-                                    : 0;
+                                    : 1;
         auto limit = named_params.find("MAX_ROWS") != named_params.end() 
                                     ? named_params["MAX_ROWS"].GetValue<unsigned int>()
                                     : 0;

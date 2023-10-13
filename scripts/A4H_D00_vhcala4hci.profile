@@ -243,6 +243,7 @@ Execute_53 = local ln -s -f $(DIR_EXECUTABLE)/igswd_mt $(_IG)
 # Change IGS
 Start_Program_16 = local $(_IG) -mode=profile pf=$(_PF)
 rsdb/dbid = HDB
+#PHYS_MEMSIZE = 65536
 PHYS_MEMSIZE = 16384
 SETENV_05 = SECUDIR=$(DIR_INSTANCE)/sec
 # Change for release 752
@@ -276,7 +277,8 @@ SETENV_19 = DIR_LIBRARY=$(DIR_EXECUTABLE)
 ipc/shm_psize_10 = 124000000
 ipc/shm_psize_40 = 370000000
 #abap/buffersize = (ceil($(em/initial_size_MB)*1024*0.15/4096)*4096)
-em/initial_size_MB = ($(PHYS_MEMSIZE)*0.8)
+em/initial_size_MB = ($(PHYS_MEMSIZE)*0.9)
+#PHYS_MEMSIZE = 65536
 PHYS_MEMSIZE = 16384
 gw/alternative_hostnames = abapci,abapci.dummy.nodomain
 icm/server_port_0 = PROT=HTTP, PORT=50000, PROCTIMEOUT=300, TIMEOUT=300

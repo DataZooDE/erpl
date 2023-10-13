@@ -43,7 +43,7 @@ SELECT * FROM duckdb_settings() WHERE name like 'sap_%';
 SELECT * FROM duckdb_functions() WHERE function_name like 'sap_%';
 SELECT * FROM sap_show_tables(TABLENAME="DD0*") WHERE class = 'TRANSP' ORDER BY 1;
 
-SELECT * FROM sap_read_table('DD03L');
+SELECT * FROM sap_read_table('DD03L', THREADS=1);
 
 EOF
 )

@@ -1,4 +1,6 @@
 #include "duckdb.hpp"
+#include <cmath>
+#include <iostream>
 #include <numeric>
 #include <thread>  
 
@@ -632,16 +634,30 @@ namespace duckdb
     
     unsigned int RfcReadColumnTask::ExecuteNextTableReadForColumn() 
     {
-        auto bind_data = owning_state_machine->bind_data;
-        auto &current_result_data = owning_state_machine->current_result_data;
-        //auto connection = owning_state_machine->GetConnection();
-        auto connection = bind_data->OpenNewConnection();
-        auto func = std::make_shared<RfcFunction>(connection, "RFC_READ_TABLE");
-        auto func_args = CreateFunctionArguments();
-        auto invocation = func->BeginInvocation(func_args);
-        current_result_data = invocation->Invoke("/DATA");
+        int attempt = 0;
+        int max_attempts = 5;
+        int initial_delay = 10000; // milliseconds
+        while (attempt < max_attempts) {
+            try {
+                auto bind_data = owning_state_machine->bind_data;
+                auto &current_result_data = owning_state_machine->current_result_data;
+                //auto connection = owning_state_machine->GetConnection();
+                auto connection = bind_data->OpenNewConnection();
+                auto func = std::make_shared<RfcFunction>(connection, "RFC_READ_TABLE");
+                auto func_args = CreateFunctionArguments();
+                auto invocation = func->BeginInvocation(func_args);
+                current_result_data = invocation->Invoke("/DATA");
+                return current_result_data->TotalRows();
+            }
+            catch (std::exception &e) {
+                int delay = initial_delay * std::pow(2, attempt);
+                std::cerr << StringUtil::Format("Exception: %s. Attempt: %d, Delay: %ds. Retrying...\n", e.what(), attempt + 1, (int)(delay / 1000.));
+                std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+                attempt++;
+            }
+        }
 
-        return current_result_data->TotalRows();
+        throw std::runtime_error(StringUtil::Format("Could not complete read task after %d attempts.", max_attempts));
     }
 
     std::vector<Value> RfcReadColumnTask::CreateFunctionArguments() 
