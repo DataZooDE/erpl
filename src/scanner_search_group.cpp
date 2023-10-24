@@ -1,5 +1,6 @@
 #include "duckdb.hpp"
 #include "scanner_search_function.hpp"
+#include "telemetry.hpp"
 
 namespace duckdb 
 {
@@ -35,6 +36,8 @@ namespace duckdb
                                                           vector<LogicalType> &return_types, 
                                                           vector<string> &names) 
     {
+        PostHogTelemetry::Instance().CaptureFunctionExecution("sap_rfc_search_group");
+
         // Connect to the SAP system
         auto connection = RfcAuthParams::FromContext(context).Connect();
 

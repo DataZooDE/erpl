@@ -14,9 +14,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(${TARGET_NAME})
 
+find_package(OpenSSL REQUIRED)
+
 include_directories(src/include
                     src/yyjson/include
-                    ${SAPNWRFC_HOME}/include)
+                    duckdb/third_party/httplib
+                    ${SAPNWRFC_HOME}/include
+                    ${OPENSSL_INCLUDE_DIR})
 
 add_subdirectory(src/yyjson)
 
@@ -32,7 +36,7 @@ if(WIN32)
 endif()
 
 if(UNIX AND NOT APPLE)
-      add_definitions(-DSAPonUNIX -DSAPonLIN -DSAPwithUNICODE -DSAPwithTHREADS)
+      add_definitions(-DSAPonUNIX -DSAPonLIN -DSAPwithUNICODE -DSAPwithTHREADS -Wno-deprecated-declarations)
       set(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME}/lib/libsapnwrfc.so ${SAPNWRFC_HOME}/lib/libsapucum.so)
 endif()
 
@@ -71,6 +75,7 @@ set(EXTENSION_SOURCES
       src/scanner_describe_fields.cpp
       src/scanner_describe_references.cpp
       src/scanner_read_table.cpp
+      src/telemetry.cpp
       ${YYJSON_OBJECT_FILES}
       ${BICS_SOURCES}
       ${ODP_SOURCES}

@@ -122,6 +122,8 @@ namespace duckdb {
 
     void ErplExtension::Load(DuckDB &db) 
     {
+        PostHogTelemetry::Instance().CaptureExtensionLoad();
+
         RegisterConfiguration(*db.instance);
         RegisterFunctions(*db.instance);
         //RegisterBicsFunctions(instance);

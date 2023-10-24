@@ -6,13 +6,13 @@
 #include "scanner_show_tables.hpp"
 #include "duckdb_argument_helper.hpp"
 #include "sap_rfc.hpp"
+#include "telemetry.hpp"
 
 namespace duckdb 
 {
     static string RfcShowTablesToString(const FunctionData *bind_data_p) 
     {
         D_ASSERT(bind_data_p);
-        //auto bind_data = (const SapRfcCallBindData *)bind_data_p;
         return StringUtil::Format("Unclear what to do here");
     }
 
@@ -31,6 +31,8 @@ namespace duckdb
                                                       vector<LogicalType> &return_types, 
                                                       vector<string> &names) 
     {
+        PostHogTelemetry::Instance().CaptureFunctionExecution("sap_show_tables");
+
         auto &named_params = input.named_parameters;
         auto table_search_str = GetSearchString("TABLENAME", input);
         auto text_search_str = GetSearchString("TEXT", input);

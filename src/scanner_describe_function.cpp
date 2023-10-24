@@ -1,4 +1,5 @@
 #include "scanner_describe_function.hpp"
+#include "telemetry.hpp"
 
 namespace duckdb 
 {
@@ -126,6 +127,8 @@ namespace duckdb
                                                           vector<LogicalType> &return_types, 
                                                           vector<string> &names)
     {
+        PostHogTelemetry::Instance().CaptureFunctionExecution("sap_rfc_describe_function");
+
         auto &inputs = input.inputs;
         
         // Connect to the SAP system
