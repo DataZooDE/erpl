@@ -1,9 +1,12 @@
 #include "pragma_ping.hpp"
 #include "duckdb/parser/parsed_data/create_pragma_function_info.hpp"
+#include "telemetry.hpp"
 
 namespace duckdb {
     string RfcPing(ClientContext &context, const FunctionParameters &parameters) 
     {
+        PostHogTelemetry::Instance().CaptureFunctionExecution("sap_rfc_ping");
+
         auto connection = RfcAuthParams::FromContext(context).Connect();
         connection->Ping();
         

@@ -6,6 +6,7 @@
 #include "scanner_read_table.hpp"
 #include "duckdb_argument_helper.hpp"
 #include "sap_rfc.hpp"
+#include "telemetry.hpp"
 
 namespace duckdb 
 {
@@ -21,6 +22,8 @@ namespace duckdb
                                                      vector<LogicalType> &return_types, 
                                                      vector<string> &names) 
     {
+        PostHogTelemetry::Instance().CaptureFunctionExecution("sap_read_table");
+
         auto table_name = input.inputs[0].ToString();
         auto &named_params = input.named_parameters;
         auto max_read_threads = named_params.find("THREADS") != named_params.end() 

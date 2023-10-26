@@ -1,5 +1,6 @@
 #include "duckdb.hpp"
 #include "scanner_show_tables.hpp"
+#include "telemetry.hpp"
 
 namespace duckdb 
 {
@@ -14,6 +15,8 @@ namespace duckdb
                                                               vector<LogicalType> &return_types, 
                                                               vector<string> &names) 
     {
+        PostHogTelemetry::Instance().CaptureFunctionExecution("sap_describe_references");
+
         auto bind_data = make_uniq<RfcFunctionBindData>();
         return std::move(bind_data);
     }

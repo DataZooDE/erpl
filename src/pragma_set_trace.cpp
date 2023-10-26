@@ -1,6 +1,7 @@
 #include "pragma_set_trace.hpp"
 #include "duckdb/parser/parsed_data/create_pragma_function_info.hpp"
 #include "sapnwrfc.h"
+#include "telemetry.hpp"
 
 namespace duckdb 
 {
@@ -21,6 +22,8 @@ namespace duckdb
 
     string PragmaSetTraceLevel(ClientContext &context, const FunctionParameters &parameters) 
     {
+        PostHogTelemetry::Instance().CaptureFunctionExecution("sap_rfc_set_trace_level");
+
         RFC_RC rc = RFC_OK;
         RFC_ERROR_INFO error_info;
 
@@ -37,6 +40,8 @@ namespace duckdb
 
     string PragmaSetTraceDir(ClientContext &context, const FunctionParameters &parameters) 
     {
+        PostHogTelemetry::Instance().CaptureFunctionExecution("sap_rfc_set_trace_dir");
+
         RFC_RC rc = RFC_OK;
         RFC_ERROR_INFO error_info;
 
@@ -52,6 +57,8 @@ namespace duckdb
 
     string PragmaSetMaximumTraceFileSize(ClientContext &context, const FunctionParameters &parameters) 
     {
+        PostHogTelemetry::Instance().CaptureFunctionExecution("sap_rfc_set_maximum_trace_file_size");
+
         RFC_RC rc = RFC_OK;
         RFC_ERROR_INFO error_info;
 
@@ -69,6 +76,8 @@ namespace duckdb
 
     string PragmaSetMaximumStoredTraceFiles(ClientContext &context, const FunctionParameters &parameters)
     {
+        PostHogTelemetry::Instance().CaptureFunctionExecution("sap_rfc_set_maximum_stored_trace_files");
+
         RFC_RC rc = RFC_OK;
         RFC_ERROR_INFO error_info;
 

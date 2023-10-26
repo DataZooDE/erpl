@@ -14,9 +14,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(${TARGET_NAME})
 
+find_package(OpenSSL REQUIRED)
+
 include_directories(src/include
                     src/yyjson/include
-                    ${SAPNWRFC_HOME}/include)
+                    duckdb/third_party/httplib
+                    ${SAPNWRFC_HOME}/include
+                    ${OPENSSL_INCLUDE_DIR})
 
 add_subdirectory(src/yyjson)
 
@@ -25,14 +29,15 @@ if(APPLE)
 endif()
 
 if(WIN32)
-      add_definitions(-DSAPonNT -D_AFXDLL -DWIN32 -D_WIN32_WINNT=0x0502 -DWIN64 -D_AMD64_ -DSAPwithUNICODE -DUNICODE -D_UNICODE -DSAPwithTHREADS -DSAP_PLATFORM_MAKENAME=ntintel)
+      add_definitions(-DSAPonNT -D_AFXDLL -DWIN32 -D_WIN32_WINNT=0x0502 -DWIN64 -D_AMD64_ -DSAPwithUNICODE -DUNICODE -D_UNICODE -DSAPwithTHREADS -DSAP_PLATFORM_MAKENAME=ntintel -Wno-deprecated-declarations -Wno-attributes)
       add_definitions(-DSAP_API=)
       set(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME}/lib/sapnwrfc.lib ${SAPNWRFC_HOME}/lib/libsapucum.lib)
       set(BUILD_UNITTESTS FALSE)
+      set(OPENSSL_USE_STATIC_LIBS TRUE)
 endif()
 
 if(UNIX AND NOT APPLE)
-      add_definitions(-DSAPonUNIX -DSAPonLIN -DSAPwithUNICODE -DSAPwithTHREADS)
+      add_definitions(-DSAPonUNIX -DSAPonLIN -DSAPwithUNICODE -DSAPwithTHREADS -Wno-deprecated-declarations)
       set(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME}/lib/libsapnwrfc.so ${SAPNWRFC_HOME}/lib/libsapucum.so)
 endif()
 
@@ -71,6 +76,7 @@ set(EXTENSION_SOURCES
       src/scanner_describe_fields.cpp
       src/scanner_describe_references.cpp
       src/scanner_read_table.cpp
+      src/telemetry.cpp
       ${YYJSON_OBJECT_FILES}
       ${BICS_SOURCES}
       ${ODP_SOURCES}
@@ -88,8 +94,14 @@ set(PARAMETERS "-warnings")
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} ${PARAMETERS} ${EXTENSION_SOURCES})
 
-target_link_libraries(${EXTENSION_NAME} ${SAPNWRFC_LIB_FILES})
-target_link_libraries(${LOADABLE_EXTENSION_NAME} ${SAPNWRFC_LIB_FILES})
+target_link_libraries(${EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
+target_link_libraries(${LOADABLE_EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
+
+if(WIN32)
+  find_package(ZLIB)
+  target_link_libraries(${EXTENSION_NAME} ZLIB::ZLIB -lcrypt32 -liphlpapi)
+  target_link_libraries(${LOADABLE_EXTENSION_NAME} ZLIB::ZLIB -lcrypt32 -liphlpapi)
+endif()
 
 install(
   TARGETS ${EXTENSION_NAME}
