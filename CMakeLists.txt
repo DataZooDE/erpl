@@ -25,7 +25,12 @@ include_directories(src/include
 add_subdirectory(src/yyjson)
 
 if(APPLE)
+      set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE INTERNAL "" FORCE)
       add_definitions(-DSAPonDARW -DSAPwithUNICODE -DSAPwithTHREADS -DSAP_PLATFORM_MAKENAME=ntintel)
+      set(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME}/lib/libsapnwrfc.dylib ${SAPNWRFC_HOME}/lib/libsapucum.dylib)
+      set(OSX_BUILD_ARCH x86_64)
+      set(BUILD_UNITTESTS FALSE)
+      set(OPENSSL_USE_STATIC_LIBS TRUE)
 endif()
 
 if(WIN32)
@@ -38,6 +43,7 @@ endif()
 
 if(UNIX AND NOT APPLE)
       add_definitions(-DSAPonUNIX -DSAPonLIN -DSAPwithUNICODE -DSAPwithTHREADS -Wno-deprecated-declarations)
+      set(OSX_BUILD_ARCH x86_64)
       set(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME}/lib/libsapnwrfc.so ${SAPNWRFC_HOME}/lib/libsapucum.so)
 endif()
 
