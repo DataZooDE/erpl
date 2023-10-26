@@ -1,5 +1,6 @@
 #include "telemetry.hpp"
 
+
 namespace duckdb {
 
 std::string PostHogEvent::GetPropertiesJson()
@@ -158,10 +159,38 @@ std::string PostHogTelemetry::FindFirstPhysicalDevice()
 }
 
 #elif _WIN32
+
 std::string PostHogTelemetry::GetMacAddress() 
 {
-    return "";
+    ULONG out_buf_len = sizeof(IP_ADAPTER_INFO);
+    std::vector<BYTE> buffer(out_buf_len);
+
+    auto adapter_info = reinterpret_cast<PIP_ADAPTER_INFO>(buffer.data());
+    if (GetAdaptersInfo(adapter_info, &out_buf_len) == ERROR_BUFFER_OVERFLOW) {
+        buffer.resize(out_buf_len);
+        adapter_info = reinterpret_cast<PIP_ADAPTER_INFO>(buffer.data());
+    }
+
+    DWORD ret = GetAdaptersInfo(adapter_info, &out_buf_len);
+    if (ret != NO_ERROR) {
+        return "";
+    }
+
+    std::vector<std::string> mac_addresses;
+    PIP_ADAPTER_INFO adapter = adapter_info;
+    while (adapter) {
+        std::ostringstream str_buf;
+        for (UINT i = 0; i < adapter->AddressLength; i++) {
+            str_buf << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(adapter->Address[i]);
+            if (i != (adapter->AddressLength - 1)) str_buf << '-';
+        }
+        mac_addresses.push_back(str_buf.str());
+        adapter = adapter->Next;
+    }
+
+    return mac_addresses.empty() ? "" : mac_addresses.front();
 }
+
 #else
 std::string PostHogTelemetry::GetMacAddress() 
 {

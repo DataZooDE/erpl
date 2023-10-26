@@ -29,10 +29,11 @@ if(APPLE)
 endif()
 
 if(WIN32)
-      add_definitions(-DSAPonNT -D_AFXDLL -DWIN32 -D_WIN32_WINNT=0x0502 -DWIN64 -D_AMD64_ -DSAPwithUNICODE -DUNICODE -D_UNICODE -DSAPwithTHREADS -DSAP_PLATFORM_MAKENAME=ntintel)
+      add_definitions(-DSAPonNT -D_AFXDLL -DWIN32 -D_WIN32_WINNT=0x0502 -DWIN64 -D_AMD64_ -DSAPwithUNICODE -DUNICODE -D_UNICODE -DSAPwithTHREADS -DSAP_PLATFORM_MAKENAME=ntintel -Wno-deprecated-declarations -Wno-attributes)
       add_definitions(-DSAP_API=)
       set(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME}/lib/sapnwrfc.lib ${SAPNWRFC_HOME}/lib/libsapucum.lib)
       set(BUILD_UNITTESTS FALSE)
+      set(OPENSSL_USE_STATIC_LIBS TRUE)
 endif()
 
 if(UNIX AND NOT APPLE)
@@ -93,8 +94,14 @@ set(PARAMETERS "-warnings")
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} ${PARAMETERS} ${EXTENSION_SOURCES})
 
-target_link_libraries(${EXTENSION_NAME} ${SAPNWRFC_LIB_FILES})
-target_link_libraries(${LOADABLE_EXTENSION_NAME} ${SAPNWRFC_LIB_FILES})
+target_link_libraries(${EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
+target_link_libraries(${LOADABLE_EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
+
+if(WIN32)
+  find_package(ZLIB)
+  target_link_libraries(${EXTENSION_NAME} ZLIB::ZLIB -lcrypt32 -liphlpapi)
+  target_link_libraries(${LOADABLE_EXTENSION_NAME} ZLIB::ZLIB -lcrypt32 -liphlpapi)
+endif()
 
 install(
   TARGETS ${EXTENSION_NAME}

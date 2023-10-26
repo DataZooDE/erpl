@@ -10,7 +10,12 @@
 #include <dirent.h>
 
 #ifdef _WIN32
+
 #include <windows.h>
+#include <iphlpapi.h>
+
+#pragma comment(lib, "iphlpapi.lib")
+
 #endif 
 
 

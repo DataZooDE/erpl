@@ -17,6 +17,7 @@
 #include "scanner_show_tables.hpp"
 #include "scanner_describe_fields.hpp"
 #include "scanner_read_table.hpp"
+#include "telemetry.hpp"
 
 #ifdef WITH_BICS
     #include "bics/include/scanner_search_infoprovider.hpp"
