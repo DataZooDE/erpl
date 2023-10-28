@@ -1,0 +1,50 @@
+name: Main Extension Distribution Pipeline
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read  # This is required for actions/checkout
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.head_ref || '' }}-${{ github.base_ref || '' }}-${{ github.ref != 'refs/heads/main' || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  duckdb-stable-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git clone the repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::331993160594:role/ErplGithubOicdRole
+          role-session-name: ErplGithubOicdSession
+          aws-region: eu-west-1
+
+      - name: Download SAPNWRFC from S
+        run: |
+          aws s3 cp s3://erpltmp/sapnwrfc/nwrfc750P_11-70002752_linux.zip .
+          aws s3 cp s3://erpltmp/sapnwrfc/nwrfc750P_12-70002755_win.zip .
+          aws s3 cp s3://erpltmp/sapnwrfc/nwrfc750P_12-80002761_osx.zip .
+
+      #- name: Build extension binaries
+      #  uses: duckdb/duckdb/.github/workflows/_extension_distribution.yml@v0.9.1
+      #  with:
+      #    duckdb_version: v0.9.1
+      #    extension_name: erpl
+
+  #duckdb-stable-deploy:
+  #  name: Deploy extension binaries
+  #  needs: duckdb-stable-build
+  #  uses: ./.github/workflows/_extension_deploy.yml
+  #  secrets: inherit
+  #  with:
+  #    duckdb_version: v0.9.1
+  #    extension_name: erpl
+  #    deploy_latest: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' }}
+  #    deploy_versioned: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' }}
