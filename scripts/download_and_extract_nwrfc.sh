@@ -4,8 +4,8 @@
 set -e
 
 # Download and extract the NW RFC SDK
-BUCKET=${1:-'s3://erpl/sapnwrfc'}
-TARGET=${2:-'./nwrfcsdk'}
+SRC=${1:-'s3://erpl/sapnwrfc/nwrfc750P_11-70002752_linux.zip'}
+TARGET=${2:-'./sapnwrfc/linux/'}
 
 function download_extract_move() {
   # Parameters
@@ -21,10 +21,8 @@ function download_extract_move() {
   local zip_file_name=$(basename "$s3_url")
 
   unzip "$tmp_download_dir/$zip_file_name" -d "$tmp_extract_dir"
-  mv "$tmp_extract_dir/nwrfcsdk/"* "$target_dir/"
-  rm -r "$tmp_download_dir" "$tmp_extract_dir"
+  mv -fv "$tmp_extract_dir/nwrfcsdk/"* "$target_dir/"
+  rm -vr "$tmp_download_dir" "$tmp_extract_dir"
 }
 
-download_extract_move "$BUCKET/nwrfc750P_11-70002752_linux.zip" "$TARGET/linux/"
-download_extract_move "$BUCKET/nwrfc750P_12-70002755_win.zip" "$TARGET/win/"
-download_extract_move "$BUCKET/nwrfc750P_12-80002761_osx.zip" "$TARGET/osx/"
+download_extract_move $SRC $TARGET

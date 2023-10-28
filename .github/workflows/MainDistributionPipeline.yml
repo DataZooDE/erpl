@@ -13,27 +13,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  download-nwrfc:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Git clone the repository
-        uses: actions/checkout@v4
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          role-to-assume: arn:aws:iam::331993160594:role/ErplGithubOicdRole
-          role-session-name: ErplGithubOicdSession
-          aws-region: eu-west-1
-
-      - name: Download SAP NWRFC from S3
-        run: |
-          bash ./scripts/download_and_extract_nwrfc.sh s3://erpl/sapnwrfc ./sapnwrfc
-
   duckdb-stable-build:
     name: Build extension binaries
-    needs: download-nwrfc
-    uses: duckdb/duckdb/.github/workflows/_extension_distribution.yml@v0.9.1
+    uses: ./.github/workflows/_extension_distribution.yml
     with:
       duckdb_version: v0.9.1
       extension_name: erpl
