@@ -162,10 +162,6 @@ jobs:
           vcpkgGitCommitId: ${{ inputs.vcpkg_commit }}
 
       - name: Build extension
-        env:
-          GEN: ninja
-          CC: ${{ matrix.duckdb_arch == 'linux_arm64' && 'aarch64-linux-gnu-gcc' || '' }}
-          CXX: ${{ matrix.duckdb_arch == 'linux_arm64' && 'aarch64-linux-gnu-g++' || '' }}
         run: |
           make release
 
