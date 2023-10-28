@@ -30,11 +30,11 @@ jobs:
         run: |
           bash ./scripts/download_and_extract_nwrfc.sh s3://erpl/sapnwrfc ./sapnwrfc
 
-      #- name: Build extension binaries
-      #  uses: duckdb/duckdb/.github/workflows/_extension_distribution.yml@v0.9.1
-      #  with:
-      #    duckdb_version: v0.9.1
-      #    extension_name: erpl
+      - name: Build extension binaries
+        uses: duckdb/duckdb/.github/workflows/_extension_distribution.yml@v0.9.1
+        with:
+          duckdb_version: v0.9.1
+          extension_name: erpl
 
   #duckdb-stable-deploy:
   #  name: Deploy extension binaries
