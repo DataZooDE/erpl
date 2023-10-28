@@ -18,6 +18,9 @@ jobs:
     steps:
       - name: Git clone the repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: 'true'
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
@@ -31,7 +34,7 @@ jobs:
           bash ./scripts/download_and_extract_nwrfc.sh s3://erpl/sapnwrfc ./sapnwrfc
 
       - name: Build extension binaries
-        uses: duckdb/duckdb/.github/workflows/_extension_distribution.yml@v0.9.1
+        uses: ./duckdb/.github/workflows/_extension_distribution.yml
         with:
           duckdb_version: v0.9.1
           extension_name: erpl
