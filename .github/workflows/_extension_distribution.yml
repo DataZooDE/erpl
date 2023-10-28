@@ -160,6 +160,7 @@ jobs:
       - name: Build extension
         env:
           VCPKG_TOOLCHAIN_PATH: ''
+          VCPKG_TARGET_TRIPLET: ''
           GEN: ninja
           CC: ${{ matrix.duckdb_arch == 'linux_arm64' && 'aarch64-linux-gnu-gcc' || '' }}
           CXX: ${{ matrix.duckdb_arch == 'linux_arm64' && 'aarch64-linux-gnu-g++' || '' }}
@@ -167,7 +168,7 @@ jobs:
           pwd
           ls -la
           bash ./scripts/download_and_extract_nwrfc.sh s3://erpl/sapnwrfc/nwrfc750P_11-70002752_linux.zip /__w/erpl/erpl/sapnwrfc/linux/
-          ls -la /__w/erpl/erpl/sapnwrfc/linux/
+          ls -la /__w/erpl/erpl/sapnwrfc/linux/lib/
           make release
 
       - uses: actions/upload-artifact@v2

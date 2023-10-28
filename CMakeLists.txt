@@ -39,7 +39,6 @@ if(UNIX AND NOT APPLE)
       add_definitions(-DSAPonUNIX -DSAPonLIN -DSAPwithUNICODE -DSAPwithTHREADS -Wno-deprecated-declarations)
       set(OSX_BUILD_ARCH x86_64)
       set(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/nwrfcsdk/linux)
-      set(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME}/lib/libsapnwrfc.so ${SAPNWRFC_HOME}/lib/libsapucum.so)
 endif()
 
 if(${BUILD_UNITTESTS})
@@ -93,6 +92,7 @@ set(EXTENSION_SOURCES
 
 find_library(SAPNWRFC_LIB_FILES
       NAMES sapnwrfc sapucum
+      PATHS ${SAPNWRFC_HOME}/lib
 )
 
 message(STATUS "SAPNWRFC_LIB_FILES: ${SAPNWRFC_LIB_FILES}")
