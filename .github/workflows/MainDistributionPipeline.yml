@@ -26,11 +26,9 @@ jobs:
           role-session-name: ErplGithubOicdSession
           aws-region: eu-west-1
 
-      - name: Download SAPNWRFC from S
+      - name: Download SAP NWRFC from S3
         run: |
-          aws s3 cp s3://erpltmp/sapnwrfc/nwrfc750P_11-70002752_linux.zip .
-          aws s3 cp s3://erpltmp/sapnwrfc/nwrfc750P_12-70002755_win.zip .
-          aws s3 cp s3://erpltmp/sapnwrfc/nwrfc750P_12-80002761_osx.zip .
+          bash ./scripts/download_and_extract_nwrfc.sh s3://erpl/sapnwrfc ./sapnwrfc
 
       #- name: Build extension binaries
       #  uses: duckdb/duckdb/.github/workflows/_extension_distribution.yml@v0.9.1
