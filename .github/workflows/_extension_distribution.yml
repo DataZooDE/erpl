@@ -127,18 +127,7 @@ jobs:
           cd duckdb
           git checkout ${{ inputs.duckdb_version }}
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          role-to-assume: arn:aws:iam::331993160594:role/ErplGithubOicdRole
-          role-session-name: ErplGithubOicdSession
-          aws-region: eu-west-1
-
-      - name: Download SAP NWRFC from S3
-        run: |
-          pwd
-          python3 -m pip install pip awscli
-          bash ./scripts/download_and_extract_nwrfc.sh s3://erpl/sapnwrfc/nwrfc750P_11-70002752_linux.zip ./sapnwrfc/linux/
+      
 
       - name: Setup ManyLinux2014
         if: ${{ matrix.duckdb_arch == 'linux_amd64_gcc4' }}
@@ -161,14 +150,21 @@ jobs:
         with:
           vcpkgGitCommitId: ${{ inputs.vcpkg_commit }}
 
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::331993160594:role/ErplGithubOicdRole
+          role-session-name: ErplGithubOicdSession
+          aws-region: eu-west-1
+
       - name: Build extension
         env:
+          VCPKG_TOOLCHAIN_PATH: ''
           GEN: ninja
           CC: ${{ matrix.duckdb_arch == 'linux_arm64' && 'aarch64-linux-gnu-gcc' || '' }}
           CXX: ${{ matrix.duckdb_arch == 'linux_arm64' && 'aarch64-linux-gnu-g++' || '' }}
         run: |
-          pwd
-          ls -la
+          bash ./scripts/download_and_extract_nwrfc.sh s3://erpl/sapnwrfc/nwrfc750P_11-70002752_linux.zip ./sapnwrfc/linux/
           make release
 
       - uses: actions/upload-artifact@v2
