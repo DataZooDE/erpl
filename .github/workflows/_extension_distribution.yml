@@ -166,7 +166,8 @@ jobs:
         run: |
           pwd
           ls -la
-          bash ./scripts/download_and_extract_nwrfc.sh s3://erpl/sapnwrfc/nwrfc750P_11-70002752_linux.zip ${{ github.workspace }}/sapnwrfc/linux/
+          bash ./scripts/download_and_extract_nwrfc.sh s3://erpl/sapnwrfc/nwrfc750P_11-70002752_linux.zip /__w/erpl/erpl/sapnwrfc/linux/
+          ls -la /__w/erpl/erpl/sapnwrfc/linux/
           make release
 
       - uses: actions/upload-artifact@v2
