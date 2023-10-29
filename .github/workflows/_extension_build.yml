@@ -163,8 +163,7 @@ jobs:
           CC: ${{ matrix.duckdb_arch == 'linux_arm64' && 'aarch64-linux-gnu-gcc' || '' }}
           CXX: ${{ matrix.duckdb_arch == 'linux_arm64' && 'aarch64-linux-gnu-g++' || '' }}
         run: |
-          ./scripts/download_and_extract_nwrfc.sh s3://erpl/sapnwrfc/nwrfc750P_11-70002752_linux.zip ./sapnwrfc/linux/
-          ls -la ./sapnwrfc/linux/lib/
+          ./scripts/download_and_extract_nwrfc.sh s3://erpl/sapnwrfc/nwrfc750P_11-70002752_linux.zip ./nwrfcsdk/linux/
           make release
 
       - uses: actions/upload-artifact@v2
