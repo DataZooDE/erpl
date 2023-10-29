@@ -127,8 +127,6 @@ jobs:
           cd duckdb
           git checkout ${{ inputs.duckdb_version }}
 
-      
-
       - name: Setup ManyLinux2014
         if: ${{ matrix.duckdb_arch == 'linux_amd64_gcc4' }}
         run: |
@@ -165,10 +163,8 @@ jobs:
           CC: ${{ matrix.duckdb_arch == 'linux_arm64' && 'aarch64-linux-gnu-gcc' || '' }}
           CXX: ${{ matrix.duckdb_arch == 'linux_arm64' && 'aarch64-linux-gnu-g++' || '' }}
         run: |
-          pwd
-          ls -la
-          bash ./scripts/download_and_extract_nwrfc.sh s3://erpl/sapnwrfc/nwrfc750P_11-70002752_linux.zip /__w/erpl/erpl/sapnwrfc/linux/
-          ls -la /__w/erpl/erpl/sapnwrfc/linux/lib/
+          ./scripts/download_and_extract_nwrfc.sh s3://erpl/sapnwrfc/nwrfc750P_11-70002752_linux.zip ./sapnwrfc/linux/
+          ls -la ./sapnwrfc/linux/lib/
           make release
 
       - uses: actions/upload-artifact@v2
