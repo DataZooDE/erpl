@@ -41,23 +41,23 @@ EXTENSION_FLAGS=\
 -DDUCKDB_EXTENSION_${EXTENSION_NAME}_TEST_PATH="$(PROJ_DIR)test/sql"
 
 #### Add more of the DuckDB in-tree extensions here that you need (also feel free to remove them when not needed)
-EXTRA_EXTENSIONS_FLAG=-DBUILD_EXTENSIONS=""
+EXTRA_EXTENSIONS_FLAG=-DBUILD_EXTENSIONS="erpl"
 
 BUILD_FLAGS=-DEXTENSION_STATIC_BUILD=1 $(EXTENSION_FLAGS) ${EXTRA_EXTENSIONS_FLAG} $(OSX_BUILD_FLAG) $(TOOLCHAIN_FLAGS)
 CLIENT_FLAGS:=
 
 #### Main build
 # For regular CLI build, we link the erpl extension directly into the DuckDB executable
-CLIENT_FLAGS=-DDUCKDB_EXTENSION_${EXTENSION_NAME}_SHOULD_LINK=1
+#CLIENT_FLAGS=-DDUCKDB_EXTENSION_${EXTENSION_NAME}_SHOULD_LINK=1
 
 debug:
-	mkdir -p  build/debug && \
+	mkdir -p build/debug && \
 	cmake $(GENERATOR) $(BUILD_FLAGS) $(CLIENT_FLAGS) -DCMAKE_BUILD_TYPE=Debug -S ./duckdb/ -B build/debug && \
 	cmake --build build/debug --config Debug
 
 release:
 	mkdir -p build/release && \
-	cmake $(GENERATOR) $(BUILD_FLAGS)  $(CLIENT_FLAGS)  -DCMAKE_BUILD_TYPE=Release -S ./duckdb/ -B build/release && \
+	cmake $(GENERATOR) $(BUILD_FLAGS) $(CLIENT_FLAGS) -DCMAKE_BUILD_TYPE=Release -S ./duckdb/ -B build/release && \
 	cmake --build build/release --config Release
 
 ##### Client build

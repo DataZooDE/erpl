@@ -14,8 +14,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(${TARGET_NAME})
 
-find_package(OpenSSL REQUIRED)
-
 if(APPLE)
       set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE INTERNAL "" FORCE)
       add_definitions(-DSAPonDARW -DSAPwithUNICODE -DSAPwithTHREADS -DSAP_PLATFORM_MAKENAME=ntintel)
@@ -36,14 +34,12 @@ if(WIN32)
 endif()
 
 if(UNIX AND NOT APPLE)
-      add_definitions(-DSAPonUNIX -DSAPonLIN -DSAPwithUNICODE -DSAPwithTHREADS -Wno-deprecated-declarations)
-      set(OSX_BUILD_ARCH x86_64)
+      add_definitions(-DSAPonUNIX -DSAPonLIN -DSAPwithUNICODE -DSAPwithTHREADS -D_GLIBCXX_USE_CXX11_ABI=0 -Wno-deprecated-declarations)
       set(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/nwrfcsdk/linux)
 endif()
 
-find_library(SAPNWRFC_LIB_FILES
-      NAMES sapnwrfc sapucum
-      HINTS ${SAPNWRFC_HOME}/lib
+find_package(OpenSSL REQUIRED)
+find_library(SAPNWRFC_LIB_FILES NAMES sapnwrfc sapucum PATHS ${SAPNWRFC_HOME}/lib
 )
 
 #if(${BUILD_UNITTESTS})
@@ -95,10 +91,7 @@ set(EXTENSION_SOURCES
       ${ODP_SOURCES}
 )
 
-find_library(SAPNWRFC_LIB_FILES
-      NAMES sapnwrfc sapucum
-      PATHS ${SAPNWRFC_HOME}/lib
-)
+
 
 message(STATUS "SAPNWRFC_LIB_FILES: ${SAPNWRFC_LIB_FILES}")
 
@@ -106,8 +99,8 @@ message(STATUS "SAPNWRFC_LIB_FILES: ${SAPNWRFC_LIB_FILES}")
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} ${PARAMETERS} ${EXTENSION_SOURCES})
 
-target_link_libraries(${EXTENSION_NAME} ${OPENSSL_LIBRARIES} ${SAPNWRFC_LIB_FILES})
-target_link_libraries(${LOADABLE_EXTENSION_NAME} ${OPENSSL_LIBRARIES} ${SAPNWRFC_LIB_FILES})
+target_link_libraries(${EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
+target_link_libraries(${LOADABLE_EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
 
 if(WIN32)
   find_package(ZLIB)
