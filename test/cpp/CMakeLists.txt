@@ -22,8 +22,5 @@ set(TEST_SOURCES
     test_main.cpp
 )
 
-message(STATUS "SAPNWRFC_LIB_FILES: ${SAPNWRFC_LIB_FILES}")
-message(STATUS "SAPNWRFC_HOME: ${SAPNWRFC_HOME}")
-
 add_executable(erpl_tests ${TEST_SOURCES})
 target_link_libraries(erpl_tests duckdb ${EXTENSION_NAME} test_helpers ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
