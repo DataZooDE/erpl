@@ -114,7 +114,7 @@ message(STATUS "SAPNWRFC_LIB_FILES: ${SAPNWRFC_LIB_FILES}")
 
 # Build loadable extension
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
-build_loadable_extension(${TARGET_NAME} ${PARAMETERS} ${EXTENSION_SOURCES})
+build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
 
 target_link_libraries(${EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
 target_link_libraries(${LOADABLE_EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
