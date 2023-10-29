@@ -39,8 +39,25 @@ if(UNIX AND NOT APPLE)
 endif()
 
 find_package(OpenSSL REQUIRED)
+
+function(find_sap_libraries LIB_LIST_VAR SAPNWRFC_HOME_PATH)
+  find_library(SAPNWRFC_LIB sapnwrfc PATHS ${SAPNWRFC_HOME_PATH}/lib)
+  find_library(SAPUCUM_LIB sapucum PATHS ${SAPNWRFC_HOME_PATH}/lib)
+
+  if(NOT SAPNWRFC_LIB)
+      message(FATAL_ERROR "Could not find sapnwrfc library")
+  endif()
+
+  if(NOT SAPUCUM_LIB)
+      message(FATAL_ERROR "Could not find sapucum library")
+  endif()
+
+  list(APPEND SAP_LIBS ${SAPNWRFC_LIB} ${SAPUCUM_LIB})
+  set(${LIB_LIST_VAR} ${SAP_LIBS} PARENT_SCOPE)
+endfunction()
+
 message(STATUS "SAPNWRFC_HOME: ${SAPNWRFC_HOME}")
-find_library(SAPNWRFC_LIB_FILES NAMES sapnwrfc sapucum PATHS ${SAPNWRFC_HOME}/lib)
+find_sap_libraries(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME})
 
 #if(${BUILD_UNITTESTS})
 #      add_subdirectory(test)
