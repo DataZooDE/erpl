@@ -39,6 +39,7 @@ if(UNIX AND NOT APPLE)
 endif()
 
 find_package(OpenSSL REQUIRED)
+message(STATUS "SAPNWRFC_HOME: ${SAPNWRFC_HOME}")
 find_library(SAPNWRFC_LIB_FILES NAMES sapnwrfc sapucum PATHS ${SAPNWRFC_HOME}/lib
 )
 
