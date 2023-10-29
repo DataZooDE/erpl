@@ -1,6 +1,9 @@
 {
     "cmake.sourceDirectory": "${workspaceFolder}/duckdb",
     "cmake.buildDirectory": "${workspaceFolder}/build/debug",
+    "cmake.configureSettings": {
+        "CMAKE_TOOLCHAIN_FILE": "${workspaceFolder}/../vcpkg/scripts/buildsystems/vcpkg.cmake"
+    },
     "cmake.configureArgs": [
         "-DDUCKDB_EXTENSION_NAMES=erpl",
         "-DDUCKDB_EXTENSION_ERPL_PATH=${workspaceFolder}",

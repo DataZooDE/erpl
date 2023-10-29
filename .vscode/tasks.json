@@ -13,7 +13,8 @@
 			"detail": "CMake template build task",
 			"options": {
 				"env": {
-					"GEN": "ninja"
+					"GEN": "ninja",
+					"VCPKG_TOOLCHAIN_PATH": "${workspaceFolder}/../vcpkg/scripts/buildsystems/vcpkg.cmake"
 				}
 			}
 		}

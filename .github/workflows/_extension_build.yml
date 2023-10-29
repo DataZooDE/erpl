@@ -158,9 +158,7 @@ jobs:
 
       - name: Build extension
         env:
-          VCPKG_TOOLCHAIN_PATH: ''
-          VCPKG_TARGET_TRIPLET: ''
-          GEN: ''
+          GEN: 'ninja'
           CC: ${{ matrix.duckdb_arch == 'linux_arm64' && 'aarch64-linux-gnu-gcc' || '' }}
           CXX: ${{ matrix.duckdb_arch == 'linux_arm64' && 'aarch64-linux-gnu-g++' || '' }}
         run: |
