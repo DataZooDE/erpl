@@ -34,7 +34,7 @@ if(WIN32)
 endif()
 
 if(UNIX AND NOT APPLE)
-      add_definitions(-DSAPonUNIX -DSAPonLIN -DSAPwithUNICODE -DSAPwithTHREADS -D_GLIBCXX_USE_CXX11_ABI=0 -Wno-deprecated-declarations)
+      add_definitions(-DSAPonUNIX -DSAPonLIN -DSAPwithUNICODE -DSAPwithTHREADS -Wno-deprecated-declarations)
       set(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/nwrfcsdk/linux)
 endif()
 
