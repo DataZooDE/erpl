@@ -218,6 +218,7 @@ jobs:
       - name: Build extension
         run: |
           ./scripts/download_and_extract_nwrfc.sh s3://erpl/sapnwrfc/nwrfc750P_12-70002755_win.zip ./nwrfcsdk/win/
+          ls -la ./nwrfcsdk/win/
           make release
 
       - uses: actions/upload-artifact@v2

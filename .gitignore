@@ -56,12 +56,15 @@ Thumbs.db
 *.wmv
 
 # Smoke test
-scripts/duckdb
+smoke/*
 
 # SAP Trace files
 dev_rfc.log
 rfc*.trc
 cpic*.trc
+
+# SAP License files
+A4H*.txt
 
 # Pixi
 .pixi
