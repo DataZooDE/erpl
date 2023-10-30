@@ -7,9 +7,12 @@
 #include <condition_variable>
 #include <iostream>
 #include <fstream>
+
+#ifdef __linux__
+
 #include <dirent.h>
 
-#ifdef _WIN32
+#elif _WIN32
 
 #include <windows.h>
 #include <iphlpapi.h>
