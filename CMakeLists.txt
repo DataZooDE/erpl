@@ -14,6 +14,22 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(${TARGET_NAME})
 
+function(find_sap_libraries LIB_LIST_VAR SAPNWRFC_HOME_PATH SAPNWRFC_LIB_NAME SAPUCUM_LIB_NAME )
+      find_library(SAPNWRFC_LIB ${SAPNWRFC_LIB_NAME} PATHS ${SAPNWRFC_HOME_PATH}/lib)
+      find_library(SAPUCUM_LIB ${SAPUCUM_LIB_NAME} PATHS ${SAPNWRFC_HOME_PATH}/lib)
+
+      if(NOT SAPNWRFC_LIB)
+            message(FATAL_ERROR "Could not find ${SAPNWRFC_LIB_NAME} library")
+      endif()
+
+      if(NOT SAPUCUM_LIB)
+            message(FATAL_ERROR "Could not find ${SAPUCUM_LIB_NAME} library")
+      endif()
+
+      list(APPEND SAP_LIBS ${SAPNWRFC_LIB} ${SAPUCUM_LIB})
+      set(${LIB_LIST_VAR} ${SAP_LIBS} PARENT_SCOPE)
+endfunction()
+
 if(APPLE)
       set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE INTERNAL "" FORCE)
       add_definitions(-DSAPonDARW -DSAPwithUNICODE -DSAPwithTHREADS -DSAP_PLATFORM_MAKENAME=ntintel)
@@ -30,33 +46,20 @@ if(WIN32)
       set(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/nwrfcsdk/win)
       set(BUILD_UNITTESTS FALSE)
       set(OPENSSL_USE_STATIC_LIBS TRUE)
+
+      find_package(OpenSSL REQUIRED)
+      message(STATUS "SAPNWRFC_HOME: ${SAPNWRFC_HOME}")
+      find_sap_libraries(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME} "sapnwrfc" "libsapucum")
 endif()
 
 if(UNIX AND NOT APPLE)
       add_definitions(-DSAPonUNIX -DSAPonLIN -DSAPwithUNICODE -DSAPwithTHREADS -Wno-deprecated-declarations)
       set(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/nwrfcsdk/linux)
+
+      find_package(OpenSSL REQUIRED)
+      message(STATUS "SAPNWRFC_HOME: ${SAPNWRFC_HOME}")
+      find_sap_libraries(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME} "sapnwrfc" "sapucum")
 endif()
-
-find_package(OpenSSL REQUIRED)
-
-function(find_sap_libraries LIB_LIST_VAR SAPNWRFC_HOME_PATH)
-  find_library(SAPNWRFC_LIB sapnwrfc PATHS ${SAPNWRFC_HOME_PATH}/lib)
-  find_library(SAPUCUM_LIB sapucum PATHS ${SAPNWRFC_HOME_PATH}/lib)
-
-  if(NOT SAPNWRFC_LIB)
-      message(FATAL_ERROR "Could not find sapnwrfc library")
-  endif()
-
-  if(NOT SAPUCUM_LIB)
-      message(FATAL_ERROR "Could not find sapucum library")
-  endif()
-
-  list(APPEND SAP_LIBS ${SAPNWRFC_LIB} ${SAPUCUM_LIB})
-  set(${LIB_LIST_VAR} ${SAP_LIBS} PARENT_SCOPE)
-endfunction()
-
-message(STATUS "SAPNWRFC_HOME: ${SAPNWRFC_HOME}")
-find_sap_libraries(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME})
 
 #if(${BUILD_UNITTESTS})
 #      add_subdirectory(test)
