@@ -14,8 +14,9 @@
 
 #elif _WIN32
 
-#include <windows.h>
 #include <iphlpapi.h>
+#include <winsock2.h>
+#include <windows.h>
 
 #pragma comment(lib, "iphlpapi.lib")
 

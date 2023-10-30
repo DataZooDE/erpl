@@ -1,6 +1,5 @@
 #include "telemetry.hpp"
 
-
 namespace duckdb {
 
 std::string PostHogEvent::GetPropertiesJson()
@@ -162,7 +161,6 @@ std::string PostHogTelemetry::FindFirstPhysicalDevice()
 
 std::string PostHogTelemetry::GetMacAddress() 
 {
-    /*
     ULONG out_buf_len = sizeof(IP_ADAPTER_INFO);
     std::vector<BYTE> buffer(out_buf_len);
 
@@ -190,16 +188,15 @@ std::string PostHogTelemetry::GetMacAddress()
     }
 
     return mac_addresses.empty() ? "" : mac_addresses.front();
-    */
-
-   return "";
 }
 
 #else
+
 std::string PostHogTelemetry::GetMacAddress() 
 {
     return "";
 }
+
 #endif
 
 // PostHogTelemetry --------------------------------------------------------
