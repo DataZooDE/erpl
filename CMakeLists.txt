@@ -118,14 +118,8 @@ message(STATUS "OPENSSL_LIBRARIES: ${OPENSSL_LIBRARIES}")
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
 
-target_link_libraries(${EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
-target_link_libraries(${LOADABLE_EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
-
-if(WIN32)
-  find_package(ZLIB)
-  target_link_libraries(${EXTENSION_NAME} ZLIB::ZLIB -lcrypt32 -liphlpapi)
-  target_link_libraries(${LOADABLE_EXTENSION_NAME} ZLIB::ZLIB -lcrypt32 -liphlpapi)
-endif()
+target_link_libraries(${EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} OpenSSL::SSL OpenSSL::Crypto)
+target_link_libraries(${LOADABLE_EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} OpenSSL::SSL OpenSSL::Crypto)
 
 install(
   TARGETS ${EXTENSION_NAME}
