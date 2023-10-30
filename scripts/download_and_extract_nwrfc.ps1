@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$SRC = 's3://erpl/sapnwrfc/nwrfc750P_12-70002755_win.zip',
-    [string]$TARGET = './sapnwrfc/win/'
+    [string]$TARGET = './nwrfcsdk/win/'
 )
 
 function Download-Extract-Move {
