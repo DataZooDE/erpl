@@ -8,24 +8,7 @@
 #include <iostream>
 #include <fstream>
 
-#ifdef __linux__
-
-#include <dirent.h>
-
-#elif _WIN32
-
-#include <iphlpapi.h>
-#include <winsock2.h>
-#include <windows.h>
-
-#pragma comment(lib, "iphlpapi.lib")
-
-#endif 
-
-
 #include "duckdb.hpp"
-#define CPPHTTPLIB_OPENSSL_SUPPORT
-#include "httplib.hpp"
 
 namespace duckdb {
 
@@ -47,8 +30,6 @@ class PostHogWorker
         void Process(PostHogEvent &event);
 
     private:
-        std::unique_ptr<duckdb_httplib_openssl::Client> cli;
-        std::string url;
         std::string api_key;
 };
 

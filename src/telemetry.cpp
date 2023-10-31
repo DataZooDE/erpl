@@ -1,5 +1,25 @@
 #include "telemetry.hpp"
 
+#ifdef __linux__
+
+#include <dirent.h>
+
+#elif _WIN32
+
+#ifndef _MSC_VER
+#define _MSC_VER 1936
+#endif
+
+#define NTDDI_VERSION NTDDI_WIN10
+
+#include <winsock2.h>
+#include <iphlpapi.h>
+
+#endif
+
+#define CPPHTTPLIB_OPENSSL_SUPPORT
+#include "httplib.hpp"
+
 namespace duckdb {
 
 std::string PostHogEvent::GetPropertiesJson()
@@ -30,8 +50,7 @@ std::string PostHogEvent::GetNowISO8601()
 // PostHogEvent -----------------------------------------------------------------
 PostHogWorker::PostHogWorker(std::string api_key) : api_key(api_key)
 { 
-    cli = make_uniq<duckdb_httplib_openssl::Client>("https://eu.posthog.com");
-    url = "/batch/";
+    
 }
 
 void PostHogWorker::Process(PostHogEvent &event) 
@@ -49,7 +68,9 @@ void PostHogWorker::Process(PostHogEvent &event)
     )", api_key, event.event_name, event.distinct_id, 
         event.GetPropertiesJson(), event.GetNowISO8601());
 
-    auto res = cli->Post(url.c_str(), payload, "application/json");
+    auto cli = make_uniq<duckdb_httplib_openssl::Client>("https://eu.posthog.com");
+    auto url = "/batch/";
+    auto res = cli->Post(url, payload, "application/json");
     if (res && res->status != 200) {
         throw new std::runtime_error(StringUtil::Format("Sending posthog event failed: %s", res->body));
     }
