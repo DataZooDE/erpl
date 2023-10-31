@@ -2,7 +2,11 @@
     "cmake.sourceDirectory": "${workspaceFolder}/duckdb",
     "cmake.buildDirectory": "${workspaceFolder}/build/debug",
     "cmake.configureSettings": {
-        "CMAKE_TOOLCHAIN_FILE": "${workspaceFolder}/../vcpkg/scripts/buildsystems/vcpkg.cmake"
+        "CMAKE_TOOLCHAIN_FILE": "${workspaceFolder}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static-md",
+        "VCPKG_MANIFEST_DIR": "${workspaceFolder}",
+        "VCPKG_BUILD": "1"
     },
     "cmake.configureArgs": [
         "-DDUCKDB_EXTENSION_NAMES=erpl",
