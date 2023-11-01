@@ -281,7 +281,7 @@ jobs:
       - name: Build extension
         shell: bash
         env:
-          AWS_REGION: eu-west-1
+          AWS_ROLE_ARN: arn:aws:iam::331993160594:role/ErplGithubOicdRole
           AWS_ACCESS_KEY_ID: ${{ steps.aws_creds.outputs.aws-access-key-id }}
           AWS_SECRET_ACCESS_KEY: ${{ steps.aws_creds.outputs.aws-secret-access-key }}
           AWS_SESSION_TOKEN: ${{ steps.aws_creds.outputs.aws-session-token }}
