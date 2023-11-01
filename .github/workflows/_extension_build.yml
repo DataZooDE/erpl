@@ -270,6 +270,7 @@ jobs:
           vcpkgGitCommitId: ${{ inputs.vcpkg_commit }}
 
       - name: Configure AWS Credentials
+        id: aws_creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::331993160594:role/ErplGithubOicdRole
@@ -281,9 +282,9 @@ jobs:
         shell: bash
         env:
           AWS_REGION: eu-west-1
-          AWS_ACCESS_KEY_ID: ${{ steps.creds.outputs.aws-access-key-id }}
-          AWS_SECRET_ACCESS_KEY: ${{ steps.creds.outputs.aws-secret-access-key }}
-          AWS_SESSION_TOKEN: ${{ steps.creds.outputs.aws-session-token }}
+          AWS_ACCESS_KEY_ID: ${{ steps.aws_creds.outputs.aws-access-key-id }}
+          AWS_SECRET_ACCESS_KEY: ${{ steps.aws_creds.outputs.aws-secret-access-key }}
+          AWS_SESSION_TOKEN: ${{ steps.aws_creds.outputs.aws-session-token }}
         run: |
           aws sts get-caller-identity
           python -m pip install awscli
