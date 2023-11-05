@@ -48,6 +48,10 @@ Sources
         - And then load the extension with: `LOAD 'erpl';`.
 
 
+## 📦 Deploying the extension (TODO)
+To deploy the extension, simply run:
+```sh ./scripts/extension_upload.sh```
+
 
 ## Debuging SAP behavior
 
