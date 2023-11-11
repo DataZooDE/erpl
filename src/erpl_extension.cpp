@@ -1,6 +1,5 @@
 #define DUCKDB_EXTENSION_MAIN
 
-
 #include "duckdb.hpp"
 
 #include "duckdb/catalog/catalog.hpp"
@@ -24,7 +23,22 @@
     #include "bics/include/scanner_describe_infoprovider.hpp"
 #endif
 
+
+
 namespace duckdb {
+
+
+    static void OnTelemetryEnabled(ClientContext &context, SetScope scope, Value &parameter)
+    {
+        auto telemetry_enabled = parameter.GetValue<bool>();
+        PostHogTelemetry::Instance().SetEnabled(telemetry_enabled);
+    }
+
+    static void OnAPIKey(ClientContext &context, SetScope scope, Value &parameter)
+    {
+        auto api_key = parameter.GetValue<std::string>();
+        PostHogTelemetry::Instance().SetAPIKey(api_key);
+    }
 
     static void RegisterConfiguration(DatabaseInstance &instance)
     {
@@ -36,6 +50,10 @@ namespace duckdb {
         config.AddExtensionOption("sap_password", "User password to login", LogicalType::VARCHAR);
         config.AddExtensionOption("sap_client", "Don't know yet", LogicalType::VARCHAR);
         config.AddExtensionOption("sap_lang", "Language of the user to connect with", LogicalType::VARCHAR, Value("EN"));
+        config.AddExtensionOption("erpl_telemetry_enabled", "Enable ERPL telemetry, see https://erpl.io/telemetry for details.", 
+                                  LogicalType::BOOLEAN, Value(true), OnTelemetryEnabled);
+        config.AddExtensionOption("erpl_telemetry_key", "Telemetry key, see https://erpl.io/telemetry for details.", LogicalType::VARCHAR, 
+                                  Value("phc_t3wwRLtpyEmLHYaZCSszG0MqVr74J6wnCrj9D41zk2t"), OnAPIKey);
 
         auto provider = make_uniq<RfcEnvironmentCredentialsProvider>(config);
         provider->SetAll();
@@ -121,10 +139,11 @@ namespace duckdb {
     }
     */
 
+  
     void ErplExtension::Load(DuckDB &db) 
     {
         PostHogTelemetry::Instance().CaptureExtensionLoad();
-
+        
         RegisterConfiguration(*db.instance);
         RegisterFunctions(*db.instance);
         //RegisterBicsFunctions(instance);

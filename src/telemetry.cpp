@@ -80,9 +80,8 @@ void PostHogWorker::Process(PostHogEvent &event)
 
 PostHogTelemetry::PostHogTelemetry()
 { 
-    std::string api_key = "phc_t3wwRLtpyEmLHYaZCSszG0MqVr74J6wnCrj9D41zk2t";
     queue = make_uniq<TelemetryWorkQueue<PostHogWorker, PostHogEvent>>();
-    std::function<std::shared_ptr<PostHogWorker>()> worker_factory = [api_key]() { return make_shared<PostHogWorker>(api_key); };
+    std::function<std::shared_ptr<PostHogWorker>()> worker_factory = [this]() { return make_shared<PostHogWorker>(api_key); };
     queue->InitializeWorkers(worker_factory);
 };
 
@@ -111,22 +110,44 @@ void PostHogTelemetry::CaptureExtensionLoad()
 }
 
 void PostHogTelemetry::CaptureFunctionExecution(std::string function_name) 
+{
+    if (!telemetry_enabled) {
+        return;
+    }
+
+    PostHogEvent event = {
+        "function_execution",
+        GetMacAddress(),
         {
-            if (!telemetry_enabled) {
-                return;
-            }
-
-            PostHogEvent event = {
-                "function_execution",
-                GetMacAddress(),
-                {
-                    {"function_name", function_name},
-                    {"function_version", "0.1.0"}
-                }
-            };
-            queue->Capture(event);
+            {"function_name", function_name},
+            {"function_version", "0.1.0"}
         }
+    };
+    queue->Capture(event);
+}
 
+
+bool PostHogTelemetry::IsEnabled() 
+{
+    return telemetry_enabled;
+}
+
+void PostHogTelemetry::SetEnabled(bool enabled) 
+{
+    std::lock_guard<mutex> t(thread_lock);
+    telemetry_enabled = enabled;
+}
+
+std::string PostHogTelemetry::GetAPIKey() 
+{
+    return api_key;
+}
+
+void PostHogTelemetry::SetAPIKey(std::string new_key) 
+{
+    std::lock_guard<mutex> t(thread_lock);
+    api_key = new_key;
+}
 
 #ifdef __linux__ 
 std::string PostHogTelemetry::GetMacAddress() 

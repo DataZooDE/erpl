@@ -116,14 +116,23 @@ class PostHogTelemetry
         void CaptureExtensionLoad();
         void CaptureFunctionExecution(std::string function_name);
        
+        bool IsEnabled();
+        void SetEnabled(bool enabled);
+
+        std::string GetAPIKey();
+        void SetAPIKey(std::string api_key);
+        
     private:
         PostHogTelemetry(); 
 
         static bool IsPhysicalDevice(const std::string& device);
         static std::string FindFirstPhysicalDevice();
 
-        bool telemetry_enabled = true;
         std::unique_ptr<TelemetryWorkQueue<PostHogWorker, PostHogEvent>> queue;
+
+        bool telemetry_enabled;
+        std::string api_key;
+        std::mutex thread_lock;
 };
 
 } // namespace duckdb

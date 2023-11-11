@@ -53,20 +53,30 @@ if(WIN32)
       find_package(OpenSSL REQUIRED)
       message(STATUS "SAPNWRFC_HOME: ${SAPNWRFC_HOME}")
       find_sap_libraries(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME} "sapnwrfc" "libsapucum")
+
+      foreach(LIB ${SAPNWRFC_LIB_FILES})
+            get_filename_component(RC_NAME ${LIB} NAME_WE)
+            file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/resources.rc" "RC_NAME RCDATA \"${LIB}\"\n")
+      endforeach()
+
+      set(SAPNWRFC_LIB_OBJECTS "resources.rc")
 endif()
 
 if(UNIX AND NOT APPLE)
       add_definitions(-DSAPonUNIX -DSAPonLIN -DSAPwithUNICODE -DSAPwithTHREADS -Wno-deprecated-declarations)
       set(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/nwrfcsdk/linux)
-
+      SET(CMAKE_SKIP_BUILD_RPATH  FALSE)
+      SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+      SET(CMAKE_INSTALL_RPATH "\${ORIGIN}")
       find_package(OpenSSL REQUIRED)
       message(STATUS "SAPNWRFC_HOME: ${SAPNWRFC_HOME}")
-      find_sap_libraries(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME} "sapnwrfc" "sapucum")
+      find_sap_libraries(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME} "sapnwrfc" "sapucum")      
 endif()
 
-#if(${BUILD_UNITTESTS})
-#      add_subdirectory(test)
-#endif()
+
+if(${BUILD_UNITTESTS})
+      add_subdirectory(test)
+endif()
 
 if (${BUILD_BICS})
       add_definitions(-DWITH_BICS)
@@ -111,6 +121,7 @@ set(EXTENSION_SOURCES
       ${YYJSON_OBJECT_FILES}
       ${BICS_SOURCES}
       ${ODP_SOURCES}
+      ${SAPNWRFC_LIB_OBJECTS}
 )
 
 message(STATUS "CMAKE_TOOLCHAIN_FILE: ${CMAKE_TOOLCHAIN_FILE}")
@@ -134,3 +145,7 @@ install(
   EXPORT "${DUCKDB_EXPORT_SET}"
   LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
   ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")
+
+
+
+add_subdirectory(trampoline)
