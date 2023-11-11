@@ -5,7 +5,7 @@
 #include "duckdb/catalog/catalog.hpp"
 #include "duckdb/parser/parsed_data/create_pragma_function_info.hpp"
 
-#include "erpl_extension.hpp"
+#include "erpl_impl_extension.hpp"
 #include "pragma_ping.hpp"
 #include "pragma_set_trace.hpp"
 #include "pragma_ini.hpp"
@@ -140,7 +140,7 @@ namespace duckdb {
     */
 
   
-    void ErplExtension::Load(DuckDB &db) 
+    void ErplImplExtension::Load(DuckDB &db) 
     {
         PostHogTelemetry::Instance().CaptureExtensionLoad();
         
@@ -149,20 +149,20 @@ namespace duckdb {
         //RegisterBicsFunctions(instance);
     }
 
-    std::string ErplExtension::Name() {
+    std::string ErplImplExtension::Name() {
         return "erpl";
     }
 
 } // namespace duckdb
 
 extern "C" {
-    DUCKDB_EXTENSION_API void erpl_init(duckdb::DatabaseInstance &db) 
+    DUCKDB_EXTENSION_API void erpl_impl_init(duckdb::DatabaseInstance &db) 
     {
         duckdb::DuckDB db_wrapper(db);
-	    db_wrapper.LoadExtension<duckdb::ErplExtension>();
+	    db_wrapper.LoadExtension<duckdb::ErplImplExtension>();
     }
 
-    DUCKDB_EXTENSION_API const char *erpl_version() 
+    DUCKDB_EXTENSION_API const char *erpl_impl_version() 
     {
         return "v0.9.1";
         //return duckdb::DuckDB::LibraryVersion();

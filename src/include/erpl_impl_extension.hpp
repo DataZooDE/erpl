@@ -4,7 +4,7 @@
 
 namespace duckdb {
 
-class ErplTrampolineExtension : public Extension {
+class ErplImplExtension : public Extension {
 public:
 	void Load(DuckDB &db) override;
 	std::string Name() override;

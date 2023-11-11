@@ -5,7 +5,7 @@ option(BUILD_BICS "Build BICS functionality in ERPL." TRUE)
 option(BUILD_ODP "Build ODP functionality in ERPL." TRUE)
 
 # Set extension name here
-set(TARGET_NAME erpl)
+set(TARGET_NAME erpl_impl)
 set(EXTENSION_NAME ${TARGET_NAME}_extension)
 set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
 
@@ -99,7 +99,7 @@ include_directories(src/include
 add_subdirectory(src/yyjson)
 
 set(EXTENSION_SOURCES
-      src/erpl_extension.cpp
+      src/erpl_impl_extension.cpp
       src/pragma_ping.cpp
       src/pragma_set_trace.cpp
       src/pragma_ini.cpp
@@ -146,6 +146,6 @@ install(
   LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
   ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")
 
-
-
+# Build trampoline which is used to package extension and its dependencies
+# into a single shared library, and then extract them at runtime.
 add_subdirectory(trampoline)

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-set(TARGET_NAME erpl_trampoline)
+set(TARGET_NAME erpl)
 set(EXTENSION_NAME ${TARGET_NAME}_extension)
 set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
 
@@ -30,20 +30,22 @@ if(UNIX AND NOT APPLE)
         )
     endforeach()
 
-    # Attach the erpl.duckdb_extension file as an object to the trampoline file, such that it can be extracted
-    set(OBJ_PATH "${CMAKE_CURRENT_BINARY_DIR}/erpl.duckdb_extension.o")
-    get_filename_component(ERPL_EXT_PATH "${CMAKE_CURRENT_BINARY_DIR}/../erpl.duckdb_extension" ABSOLUTE)
+    # Attach the erpl_impl.duckdb_extension file as an object to the trampoline file 
+    # (we call this erpl to not confuse the user), 
+    # such that it can be extracted
+    set(OBJ_PATH "${CMAKE_CURRENT_BINARY_DIR}/erpl_impl.duckdb_extension.o")
+    get_filename_component(ERPL_EXT_PATH "${CMAKE_CURRENT_BINARY_DIR}/../erpl_impl.duckdb_extension" ABSOLUTE)
     get_filename_component(ERPL_EXT_NAME "${ERPL_EXT_PATH}" NAME)
     get_filename_component(ERPL_EXT_DIR "${ERPL_EXT_PATH}" DIRECTORY)
     add_custom_command(
         OUTPUT "${OBJ_PATH}"
         COMMAND objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 "${ERPL_EXT_NAME}" "${OBJ_PATH}"
         DEPENDS "${ERPL_EXT_PATH}"
-        COMMENT "Creating object file ${CMAKE_CURRENT_BINARY_DIR}/erpl.duckdb_extension.o"
+        COMMENT "Creating object file ${CMAKE_CURRENT_BINARY_DIR}/erpl_impl.duckdb_extension.o"
         WORKING_DIRECTORY "${ERPL_EXT_DIR}"
     )
 
-    set(ERPL_EXTENSION_OBJECTS "erpl.duckdb_extension.o")
+    set(ERPL_EXTENSION_OBJECTS "erpl_impl.duckdb_extension.o")
 endif()
 
 if(WIN32)
@@ -62,7 +64,7 @@ include_directories(src/include)
 message(STATUS "SAPNWRFC_LIB_OBJECTS: ${SAPNWRFC_LIB_OBJECTS}")
 
 set(EXTENSION_SOURCES
-    src/erpl_trampoline_extension.cpp
+    src/erpl_extension.cpp
     ${SAPNWRFC_LIB_OBJECTS}
     ${ERPL_EXTENSION_OBJECTS}
 )
