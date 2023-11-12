@@ -6,8 +6,17 @@
 #include <fstream>
 #include <filesystem>
 #include <iostream>
+
+#ifdef __linux__
+
 #include <dlfcn.h>
 
+#elif _WIN32
+
+#define UNICODE 1
+#include <windows.h>
+
+#endif
 
 // Symbols created by objcopy
 extern const char _binary_libsapnwrfc_so_start[];
@@ -19,6 +28,7 @@ extern const char _binary_erpl_impl_duckdb_extension_end[];
 
 namespace duckdb 
 {
+#ifdef __linux__
     static std::string GetExtensionDir() 
     {
         Dl_info dl_info;
@@ -55,7 +65,48 @@ namespace duckdb
             std::cerr << "Error: " << e.what() << std::endl;
         }
     }
+#elif _WIN32
+    static std::string GetExtensionDir()
+    {
+        char path[MAX_PATH];
+        GetModuleFileNameA(NULL, path, MAX_PATH);
+        auto ext_path = std::filesystem::path(std::string(path));
+        return ext_path.parent_path().generic_string();
+    }
 
+    static void SaveResourceToFile(LPWSTR resource_name, const std::string& filename)
+    {
+        HMODULE mod = GetModuleHandle(NULL);
+        HRSRC res_info = FindResource(mod, resource_name, RT_RCDATA);
+        HGLOBAL res = LoadResource(mod, res_info);
+        LPVOID data = LockResource(res);
+        DWORD data_size = SizeofResource(mod, res_info);
+
+        std::ofstream ofs(filename, std::ios::binary);
+        ofs.write(reinterpret_cast<const char*>(data), data_size);
+    }
+
+    static void ExtractExtensionAndSapLibs() 
+    {
+        auto ext_path = GetExtensionDir();
+        try 
+        {
+            SaveResourceToFile(TEXT("icudt50"), StringUtil::Format("%s/icudt50.dll", ext_path));
+            SaveResourceToFile(TEXT("icuin50"), StringUtil::Format("%s/icuin50.dll", ext_path));
+            SaveResourceToFile(TEXT("icuuc50"), StringUtil::Format("%s/icuuc50.dll", ext_path));
+            SaveResourceToFile(TEXT("sapnwrfc"), StringUtil::Format("%s/sapnwrfc.dll", ext_path));
+            SaveResourceToFile(TEXT("libsapucum"), StringUtil::Format("%s/libsapucum.dll", ext_path));
+            std::cout << StringUtil::Format("ERPL SAP dependencies extracted and saved to %s.", ext_path) << std::endl;
+            
+            SaveResourceToFile(TEXT("erpl_impl"), StringUtil::Format("%s/erpl_impl.duckdb_extension", ext_path));
+            std::cout << StringUtil::Format("ERPL extension extracted and saved to %s.", ext_path) << std::endl;
+        } 
+        catch (const std::exception& e) {
+            std::cerr << "Error: " << e.what() << std::endl;
+        }
+    }
+
+#endif
     static void LoadMainExtension(DuckDB &db) 
     {
         duckdb::Connection con(db);
@@ -76,8 +127,8 @@ namespace duckdb
     {
        std::cout << "-- Loading ERPL Trampoline Extension. --" << std::endl 
                  << "(The purpose of the extension is to extract dependencies and load the ERPL implementation)" << std::endl;
-       ExtractExtensionAndSapLibs();
-       LoadMainExtension(db);
+       //ExtractExtensionAndSapLibs();
+       //LoadMainExtension(db);
     }
 
     std::string ErplExtension::Name() {

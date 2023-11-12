@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.5)
-
 option(BUILD_UNITTESTS "Build ERPL C++ Unit Tests." TRUE)
 option(BUILD_BICS "Build BICS functionality in ERPL." TRUE)
 option(BUILD_ODP "Build ODP functionality in ERPL." TRUE)
@@ -46,20 +44,13 @@ endif()
 if(WIN32)
       add_definitions(-DSAPonNT -D_AFXDLL -DWIN32 -D_WIN32_WINNT=0x0502 -DWIN64 -D_AMD64_ -DSAPwithUNICODE -DUNICODE -D_UNICODE -DSAPwithTHREADS -DSAP_PLATFORM_MAKENAME=ntintel)
       add_definitions(-DSAP_API=)
-      set(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/nwrfcsdk/win)
+      set(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/win)
       set(BUILD_UNITTESTS FALSE)
       set(OPENSSL_USE_STATIC_LIBS TRUE)
 
       find_package(OpenSSL REQUIRED)
       message(STATUS "SAPNWRFC_HOME: ${SAPNWRFC_HOME}")
       find_sap_libraries(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME} "sapnwrfc" "libsapucum")
-
-      foreach(LIB ${SAPNWRFC_LIB_FILES})
-            get_filename_component(RC_NAME ${LIB} NAME_WE)
-            file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/resources.rc" "RC_NAME RCDATA \"${LIB}\"\n")
-      endforeach()
-
-      set(SAPNWRFC_LIB_OBJECTS "resources.rc")
 endif()
 
 if(UNIX AND NOT APPLE)
@@ -92,7 +83,7 @@ endif()
 
 include_directories(src/include
                     src/yyjson/include
-                    duckdb/third_party/httplib
+                    ../duckdb/third_party/httplib
                     ${SAPNWRFC_HOME}/include
                     ${OPENSSL_INCLUDE_DIR})
 
@@ -129,23 +120,19 @@ message(STATUS "SAPNWRFC_LIB_FILES: ${SAPNWRFC_LIB_FILES}")
 message(STATUS "OPENSSL_LIBRARIES: ${OPENSSL_LIBRARIES}")
 
 # Build loadable extension
-build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
+#build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
 
-target_link_libraries(${EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} OpenSSL::SSL OpenSSL::Crypto)
+#target_link_libraries(${EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} OpenSSL::SSL OpenSSL::Crypto)
 target_link_libraries(${LOADABLE_EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} OpenSSL::SSL OpenSSL::Crypto)
 
 if (WIN32)
-      target_link_libraries(${EXTENSION_NAME} iphlpapi)
+      #target_link_libraries(${EXTENSION_NAME} iphlpapi)
       target_link_libraries(${LOADABLE_EXTENSION_NAME} iphlpapi)
 endif()
 
-install(
-  TARGETS ${EXTENSION_NAME}
-  EXPORT "${DUCKDB_EXPORT_SET}"
-  LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
-  ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")
-
-# Build trampoline which is used to package extension and its dependencies
-# into a single shared library, and then extract them at runtime.
-add_subdirectory(trampoline)
+#install(
+#  TARGETS ${EXTENSION_NAME}
+#  EXPORT "${DUCKDB_EXPORT_SET}"
+#  LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
+#  ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")

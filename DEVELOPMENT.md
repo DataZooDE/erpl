@@ -8,6 +8,8 @@ Sources
 - https://github.com/duckdb/duckdb/blob/v0.8.1/.github/workflows/Windows.yml#L158
 
 
+Set environmet variable
+
 1. **Install MSYS2 and MinGW:**
 
    - Download MSYS2 installer from the [official website](https://www.msys2.org/).
