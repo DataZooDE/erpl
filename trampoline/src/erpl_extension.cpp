@@ -120,15 +120,15 @@ namespace duckdb
         if (result->HasError()) {
             throw std::runtime_error(StringUtil::Format("Failed to load ERPL extension: %s", result->GetError()));
         }
-        std::cout << "ERPL extension loaded." << std::endl;
+        std::cout << "ERPL main extension loaded." << std::endl;
     }
 
     void ErplExtension::Load(DuckDB &db) 
     {
        std::cout << "-- Loading ERPL Trampoline Extension. --" << std::endl 
                  << "(The purpose of the extension is to extract dependencies and load the ERPL implementation)" << std::endl;
-       //ExtractExtensionAndSapLibs();
-       //LoadMainExtension(db);
+       ExtractExtensionAndSapLibs();
+       LoadMainExtension(db);
     }
 
     std::string ErplExtension::Name() {

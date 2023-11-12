@@ -44,7 +44,7 @@ endif()
 if(WIN32)
       add_definitions(-DSAPonNT -D_AFXDLL -DWIN32 -D_WIN32_WINNT=0x0502 -DWIN64 -D_AMD64_ -DSAPwithUNICODE -DUNICODE -D_UNICODE -DSAPwithTHREADS -DSAP_PLATFORM_MAKENAME=ntintel)
       add_definitions(-DSAP_API=)
-      set(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/win)
+      get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/win ABSOLUTE)
       set(BUILD_UNITTESTS FALSE)
       set(OPENSSL_USE_STATIC_LIBS TRUE)
 
@@ -55,7 +55,7 @@ endif()
 
 if(UNIX AND NOT APPLE)
       add_definitions(-DSAPonUNIX -DSAPonLIN -DSAPwithUNICODE -DSAPwithTHREADS -Wno-deprecated-declarations)
-      set(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/nwrfcsdk/linux)
+      get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/linux ABSOLUTE)
       SET(CMAKE_SKIP_BUILD_RPATH  FALSE)
       SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
       SET(CMAKE_INSTALL_RPATH "\${ORIGIN}")
@@ -120,19 +120,19 @@ message(STATUS "SAPNWRFC_LIB_FILES: ${SAPNWRFC_LIB_FILES}")
 message(STATUS "OPENSSL_LIBRARIES: ${OPENSSL_LIBRARIES}")
 
 # Build loadable extension
-#build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
+build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
 
-#target_link_libraries(${EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} OpenSSL::SSL OpenSSL::Crypto)
+target_link_libraries(${EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} OpenSSL::SSL OpenSSL::Crypto)
 target_link_libraries(${LOADABLE_EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} OpenSSL::SSL OpenSSL::Crypto)
 
 if (WIN32)
-      #target_link_libraries(${EXTENSION_NAME} iphlpapi)
+      target_link_libraries(${EXTENSION_NAME} iphlpapi)
       target_link_libraries(${LOADABLE_EXTENSION_NAME} iphlpapi)
 endif()
 
-#install(
-#  TARGETS ${EXTENSION_NAME}
-#  EXPORT "${DUCKDB_EXPORT_SET}"
-#  LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
-#  ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")
+install(
+  TARGETS ${EXTENSION_NAME}
+  EXPORT "${DUCKDB_EXPORT_SET}"
+  LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
+  ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")

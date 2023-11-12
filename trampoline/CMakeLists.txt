@@ -9,7 +9,6 @@ project(${TARGET_NAME})
 
 if(WIN32)
     get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/win ABSOLUTE)
-    message(STATUS "******* SAPNWRFC_HOME: ${SAPNWRFC_HOME}")
     IF(CMAKE_BUILD_TYPE MATCHES DEBUG)
         get_filename_component(ERPL_IMPL_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../build/debug/ERPL_IMPL/extension/erpl_impl ABSOLUTE)
     ELSE()
@@ -35,20 +34,25 @@ endif()
 
 if(UNIX AND NOT APPLE)
     get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/linux ABSOLUTE)
+    IF(CMAKE_BUILD_TYPE MATCHES DEBUG)
+        get_filename_component(ERPL_IMPL_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../build/debug/ERPL_IMPL/extension/erpl_impl ABSOLUTE)
+    ELSE()
+        get_filename_component(ERPL_IMPL_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../build/release/ERPL_IMPL/extension/erpl_impl ABSOLUTE)
+    ENDIF(CMAKE_BUILD_TYPE MATCHES DEBUG)
 
     # Attach the erpl_impl.duckdb_extension file as an object to the trampoline file 
     # (we call this erpl to not confuse the user), 
     # such that it can be extracted
-    set(OBJ_PATH "${CMAKE_CURRENT_BINARY_DIR}/erpl_impl.duckdb_extension.o")
-    get_filename_component(ERPL_EXT_PATH "${CMAKE_CURRENT_BINARY_DIR}/../erpl_impl.duckdb_extension" ABSOLUTE)
-    get_filename_component(ERPL_EXT_NAME "${ERPL_EXT_PATH}" NAME)
-    get_filename_component(ERPL_EXT_DIR "${ERPL_EXT_PATH}" DIRECTORY)
+    get_filename_component(OBJ_PATH "${CMAKE_CURRENT_BINARY_DIR}/erpl_impl.duckdb_extension.o" ABSOLUTE)
+    get_filename_component(ERPL_IMPL_EXT_PATH "${ERPL_IMPL_HOME}/erpl_impl.duckdb_extension" ABSOLUTE)
+    get_filename_component(ERPL_IMPL_EXT_NAME "${ERPL_IMPL_EXT_PATH}" NAME)
+    get_filename_component(ERPL_IMPL_EXT_DIR "${ERPL_IMPL_EXT_PATH}" DIRECTORY)
     add_custom_command(
         OUTPUT "${OBJ_PATH}"
-        COMMAND objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 "${ERPL_EXT_NAME}" "${OBJ_PATH}"
-        DEPENDS "${ERPL_EXT_PATH}"
+        COMMAND objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 "${ERPL_IMPL_EXT_NAME}" "${OBJ_PATH}"
+        DEPENDS "${ERPL_IMPL_EXT_PATH}"
         COMMENT "Creating object file ${CMAKE_CURRENT_BINARY_DIR}/erpl_impl.duckdb_extension.o"
-        WORKING_DIRECTORY "${ERPL_EXT_DIR}"
+        WORKING_DIRECTORY "${ERPL_IMPL_EXT_DIR}"
     )
     set(ERPL_EXTENSION_OBJECTS "erpl_impl.duckdb_extension.o")
 

@@ -1,10 +1,10 @@
 
 include_directories(../../src/include
-                    ../../duckdb/third_party/catch/
-                    ../../duckdb/third_party/httplib/
-                    ../../duckdb/test/include
-                    ../../duckdb/extension/json/include
-                    ../../duckdb/extension/json/yyjson/include
+                    ../../../duckdb/third_party/catch/
+                    ../../../duckdb/third_party/httplib/
+                    ../../../duckdb/test/include
+                    ../../../duckdb/extension/json/include
+                    ../../../duckdb/extension/json/yyjson/include
                     ${SAPNWRFC_HOME}/include
                     ${OPENSSL_INCLUDE_DIR})
 

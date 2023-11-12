@@ -7,9 +7,9 @@ ifeq ($(OS),Windows_NT)
 	powershell.exe -Command "if (Test-Path -Path ./build) { Remove-Item -Recurse -Force ./build }"
 	powershell.exe -Command "if (Test-Path -Path ./duckdb/build) { Remove-Item -Recurse -Force ./duckdb/build }"
 else
-	rm -rf ../build
-	cd ../duckdb && make clean
-	cd ../duckdb && make clean-python
+	rm -rf ./build
+	cd ./duckdb && make clean
+	cd ./duckdb && make clean-python
 endif
 
 debug:
