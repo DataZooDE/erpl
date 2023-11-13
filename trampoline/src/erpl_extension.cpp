@@ -4,12 +4,12 @@
 #include "erpl_extension.hpp"
 
 #include <fstream>
-#include <filesystem>
 #include <iostream>
 
 #ifdef __linux__
 
 #include <dlfcn.h>
+#include <libgen.h> // for dirname
 
 #elif _WIN32
 
@@ -32,12 +32,14 @@ namespace duckdb
     static std::string GetExtensionDir() 
     {
         Dl_info dl_info;
-        if (! dladdr((void*)GetExtensionDir, &dl_info)) {
+        if (!dladdr((void*)GetExtensionDir, &dl_info)) {
             throw std::runtime_error("Failed to get path of ERPL extension");
-        } 
+        }
 
-        std::filesystem::path ext_path(std::string(dl_info.dli_fname));
-        return ext_path.parent_path();
+        std::string full_path(dl_info.dli_fname);
+        std::string dir_path = dirname(const_cast<char*>(full_path.c_str())); 
+
+        return dir_path;
     }
 
     static void SaveToFile(const char* start, const char* end, const std::string& filename) 
