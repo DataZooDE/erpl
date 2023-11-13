@@ -88,4 +88,4 @@ set(EXTENSION_SOURCES
 
 #build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
-target_link_libraries(${LOADABLE_EXTENSION_NAME} duckdb)
+target_link_libraries(${LOADABLE_EXTENSION_NAME})
