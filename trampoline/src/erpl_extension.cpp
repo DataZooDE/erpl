@@ -71,9 +71,18 @@ namespace duckdb
     static std::string GetExtensionDir()
     {
         char path[MAX_PATH];
-        GetModuleFileNameA(NULL, path, MAX_PATH);
-        auto ext_path = std::filesystem::path(std::string(path));
-        return ext_path.parent_path().generic_string();
+        if (GetModuleFileNameA(NULL, path, MAX_PATH) == 0) {
+            throw std::runtime_error("Failed to get module file name");
+        }
+
+        std::string full_path(path);
+        size_t last_slash_pos = full_path.find_last_of("\\/"); // Windows paths use backslashes, but forward slashes are also supported
+
+        if (last_slash_pos == std::string::npos) {
+            throw std::runtime_error("No directory separator found in path");
+        }
+
+        return full_path.substr(0, last_slash_pos);
     }
 
     static void SaveResourceToFile(LPWSTR resource_name, const std::string& filename)
