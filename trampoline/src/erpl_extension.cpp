@@ -3,6 +3,8 @@
 #include "duckdb.hpp"
 #include "erpl_extension.hpp"
 
+#include <codecvt>
+#include <locale>
 #include <fstream>
 #include <iostream>
 
@@ -70,6 +72,22 @@ namespace duckdb
         }
     }
 #elif _WIN32
+    
+
+    static std::string Wide2Str(const std::wstring& wstr)
+    {
+        using convert_typeX = std::codecvt_utf8<wchar_t>;
+        std::wstring_convert<convert_typeX, wchar_t> converterX;
+
+        return converterX.to_bytes(wstr);
+    }
+
+    static std::string Wide2Str(LPWSTR lpwstr)
+    {
+        std::wstring ws(lpwstr);
+        return Wide2Str(ws);
+    }
+
     HMODULE GetExtensionHandle()
     {
         HMODULE h_module = NULL;
@@ -106,6 +124,9 @@ namespace duckdb
     {
         HMODULE mod = GetExtensionHandle();
         HRSRC res_info = FindResource(mod, resource_name, RT_RCDATA);
+        if (!res_info) {
+            throw std::runtime_error(StringUtil::Format("Failed to find resource: %s", Wide2Str(resource_name).c_str()));
+        }
         HGLOBAL res = LoadResource(mod, res_info);
         LPVOID data = LockResource(res);
         DWORD data_size = SizeofResource(mod, res_info);
@@ -119,14 +140,14 @@ namespace duckdb
         auto ext_path = GetExtensionDir();
         try 
         {
-            SaveResourceToFile(TEXT("icudt50"), StringUtil::Format("%s/icudt50.dll", ext_path));
-            SaveResourceToFile(TEXT("icuin50"), StringUtil::Format("%s/icuin50.dll", ext_path));
-            SaveResourceToFile(TEXT("icuuc50"), StringUtil::Format("%s/icuuc50.dll", ext_path));
-            SaveResourceToFile(TEXT("sapnwrfc"), StringUtil::Format("%s/sapnwrfc.dll", ext_path));
-            SaveResourceToFile(TEXT("libsapucum"), StringUtil::Format("%s/libsapucum.dll", ext_path));
+            SaveResourceToFile(TEXT("ICUDT50"), StringUtil::Format("%s/icudt50.dll", ext_path));
+            SaveResourceToFile(TEXT("ICUIN50"), StringUtil::Format("%s/icuin50.dll", ext_path));
+            SaveResourceToFile(TEXT("ICUUC50"), StringUtil::Format("%s/icuuc50.dll", ext_path));
+            SaveResourceToFile(TEXT("SAPNWRFC"), StringUtil::Format("%s/sapnwrfc.dll", ext_path));
+            SaveResourceToFile(TEXT("LIBSAPUCUM"), StringUtil::Format("%s/libsapucum.dll", ext_path));
             std::cout << StringUtil::Format("ERPL SAP dependencies extracted and saved to %s.", ext_path) << std::endl;
             
-            SaveResourceToFile(TEXT("erpl_impl"), StringUtil::Format("%s/erpl_impl.duckdb_extension", ext_path));
+            SaveResourceToFile(TEXT("ERPL_IMPL"), StringUtil::Format("%s/erpl_impl.duckdb_extension", ext_path));
             std::cout << StringUtil::Format("ERPL extension extracted and saved to %s.", ext_path) << std::endl;
         } 
         catch (const std::exception& e) {
