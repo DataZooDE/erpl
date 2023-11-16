@@ -11,13 +11,6 @@
 #include <dlfcn.h>
 #include <libgen.h> // for dirname
 
-#elif _WIN32
-
-#define UNICODE 1
-#include <windows.h>
-
-#endif
-
 // Symbols created by objcopy
 extern const char _binary_libsapnwrfc_so_start[];
 extern const char _binary_libsapnwrfc_so_end[];
@@ -25,6 +18,15 @@ extern const char _binary_libsapucum_so_start[];
 extern const char _binary_libsapucum_so_end[];
 extern const char _binary_erpl_impl_duckdb_extension_start[];
 extern const char _binary_erpl_impl_duckdb_extension_end[];
+
+
+#elif _WIN32
+
+#define UNICODE 1
+#include <windows.h>
+
+#endif
+
 
 namespace duckdb 
 {
@@ -68,10 +70,25 @@ namespace duckdb
         }
     }
 #elif _WIN32
+    HMODULE GetExtensionHandle()
+    {
+        HMODULE h_module = NULL;
+        if (!GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | 
+                            GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                            (LPCTSTR)GetExtensionHandle, 
+                            &h_module)) {
+            throw std::runtime_error("Failed to get module handle");
+        }
+
+        return h_module;
+    }
+
     static std::string GetExtensionDir()
     {
+        auto h_module = GetExtensionHandle();
+
         char path[MAX_PATH];
-        if (GetModuleFileNameA(NULL, path, MAX_PATH) == 0) {
+        if (GetModuleFileNameA(h_module, path, MAX_PATH) == 0) {
             throw std::runtime_error("Failed to get module file name");
         }
 
@@ -87,7 +104,7 @@ namespace duckdb
 
     static void SaveResourceToFile(LPWSTR resource_name, const std::string& filename)
     {
-        HMODULE mod = GetModuleHandle(NULL);
+        HMODULE mod = GetExtensionHandle();
         HRSRC res_info = FindResource(mod, resource_name, RT_RCDATA);
         HGLOBAL res = LoadResource(mod, res_info);
         LPVOID data = LockResource(res);
