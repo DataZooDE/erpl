@@ -88,6 +88,11 @@ namespace duckdb
         return Wide2Str(ws);
     }
 
+    std::wstring Str2Wide(const std::string& str) {
+        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+        return converter.from_bytes(str);
+    }
+
     HMODULE GetExtensionHandle()
     {
         HMODULE h_module = NULL;
@@ -135,6 +140,15 @@ namespace duckdb
         ofs.write(reinterpret_cast<const char*>(data), data_size);
     }
 
+    static void AddDuckDbExtensionPathToDllSearchPath() 
+    {
+        auto ext_path = Str2Wide(GetExtensionDir());
+        auto ret = AddDllDirectory(ext_path.c_str());
+        if (ret == NULL) {
+            throw std::runtime_error("Failed to add DuckDB extension directory to DLL search path");
+        }
+    }
+
     static void ExtractExtensionAndSapLibs() 
     {
         auto ext_path = GetExtensionDir();
@@ -149,6 +163,10 @@ namespace duckdb
             
             SaveResourceToFile(TEXT("ERPL_IMPL"), StringUtil::Format("%s/erpl_impl.duckdb_extension", ext_path));
             std::cout << StringUtil::Format("ERPL extension extracted and saved to %s.", ext_path) << std::endl;
+
+            AddDuckDbExtensionPathToDllSearchPath();
+            std::cout << "Added DuckDB extension directory to the DLL search path." << std::endl;
+
         } 
         catch (const std::exception& e) {
             std::cerr << "Error: " << e.what() << std::endl;
