@@ -24,17 +24,19 @@ if(WIN32)
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/resources.rc" "ERPL_IMPL RCDATA \"${ERPL_EXT_PATH}\"\n")
 
     # Add SSL libraries as resources to the trampoline file, such that it can be extracted
-    file(GLOB ERPL_DLL_DEPENDENCIES "${ERPL_IMPL_HOME}/*.dll")
+    file(GLOB ERPL_DLL_DEPENDENCIES "${ERPL_IMPL_HOME}/../../vcpkg_installed/x64-windows/bin/*.dll")
     foreach(DLL ${ERPL_DLL_DEPENDENCIES})
+        get_filename_component(RC_PATH ${DLL} ABSOLUTE)
         get_filename_component(RC_NAME ${DLL} NAME_WE)
-        file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/resources.rc" "${RC_NAME} RCDATA \"${DLL}\"\n")
+        file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/resources.rc" "${RC_NAME} RCDATA \"${RC_PATH}\"\n")
     endforeach()
 
     # Add the SAP libraries as resources to the trampoline file, such that it can be extracted
     file(GLOB SAPNWRFC_DLL_FILES "${SAPNWRFC_HOME}/lib/*.dll")
     foreach(DLL ${SAPNWRFC_DLL_FILES})
+        get_filename_component(RC_PATH ${DLL} ABSOLUTE)
         get_filename_component(RC_NAME ${DLL} NAME_WE)
-        file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/resources.rc" "${RC_NAME} RCDATA \"${DLL}\"\n")
+        file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/resources.rc" "${RC_NAME} RCDATA \"${RC_PATH}\"\n")
     endforeach()
 
     set(SAPNWRFC_LIB_OBJECTS "resources.rc")
