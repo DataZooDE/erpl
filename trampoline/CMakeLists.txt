@@ -22,6 +22,13 @@ if(WIN32)
     get_filename_component(ERPL_EXT_NAME "${ERPL_EXT_PATH}" NAME)
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/resources.rc" "ERPL_IMPL RCDATA \"${ERPL_EXT_PATH}\"\n")
 
+    # Add SSL libraries as resources to the trampoline file, such that it can be extracted
+    file(GLOB ERPL_DLL_DEPENDENCIES "${ERPL_IMPL_HOME}/*.dll")
+    foreach(DLL ${ERPL_DLL_DEPENDENCIES})
+        get_filename_component(RC_NAME ${DLL} NAME_WE)
+        file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/resources.rc" "${RC_NAME} RCDATA \"${DLL}\"\n")
+    endforeach()
+
     # Add the SAP libraries as resources to the trampoline file, such that it can be extracted
     file(GLOB SAPNWRFC_DLL_FILES "${SAPNWRFC_HOME}/lib/*.dll")
     foreach(DLL ${SAPNWRFC_DLL_FILES})

@@ -149,27 +149,51 @@ namespace duckdb
         }
     }
 
+    static void ModifyPathEnvironmentVariable(const std::wstring& new_dir_to_add) 
+    {
+        const unsigned int max_path_size = 32767;
+        wchar_t current_path[max_path_size];
+
+        if (GetEnvironmentVariableW(L"PATH", current_path, max_path_size) == 0) {
+            throw std::runtime_error("Failed to get PATH variable");
+        }
+
+        std::wstring modified_path = std::wstring(current_path) + L";" + new_dir_to_add;
+        if (SetEnvironmentVariableW(L"PATH", modified_path.c_str()) == 0) {
+            throw std::runtime_error("Failed to set PATH variable");
+        }
+    }
+
+    static void ModifyPathEnvironmentVariable(const std::string& new_dir_to_add) 
+    {
+        ModifyPathEnvironmentVariable(Str2Wide(new_dir_to_add));
+    }
+
     static void ExtractExtensionAndSapLibs() 
     {
         auto ext_path = GetExtensionDir();
         try 
         {
-            SaveResourceToFile(TEXT("ICUDT50"), StringUtil::Format("%s/icudt50.dll", ext_path));
-            SaveResourceToFile(TEXT("ICUIN50"), StringUtil::Format("%s/icuin50.dll", ext_path));
-            SaveResourceToFile(TEXT("ICUUC50"), StringUtil::Format("%s/icuuc50.dll", ext_path));
-            SaveResourceToFile(TEXT("SAPNWRFC"), StringUtil::Format("%s/sapnwrfc.dll", ext_path));
-            SaveResourceToFile(TEXT("LIBSAPUCUM"), StringUtil::Format("%s/libsapucum.dll", ext_path));
-            std::cout << StringUtil::Format("ERPL SAP dependencies extracted and saved to %s.", ext_path) << std::endl;
+            SaveResourceToFile(TEXT("ICUDT50"), StringUtil::Format("%s\\icudt50.dll", ext_path));
+            SaveResourceToFile(TEXT("ICUIN50"), StringUtil::Format("%s\\icuin50.dll", ext_path));
+            SaveResourceToFile(TEXT("ICUUC50"), StringUtil::Format("%s\\icuuc50.dll", ext_path));
+            SaveResourceToFile(TEXT("SAPNWRFC"), StringUtil::Format("%s\\sapnwrfc.dll", ext_path));
+            SaveResourceToFile(TEXT("LIBSAPUCUM"), StringUtil::Format("%s\\libsapucum.dll", ext_path));
+            SaveResourceToFile(TEXT("LIBCRYPTO-3-x64"), StringUtil::Format("%s\\libcrypto-3-x64.dll", ext_path));
+            SaveResourceToFile(TEXT("LIBSSL-3-x64"), StringUtil::Format("%s\\libssl-3-x64.dll", ext_path));
+            std::cout << StringUtil::Format("ERPL dependencies extracted and saved to %s.", ext_path) << std::endl;
             
-            SaveResourceToFile(TEXT("ERPL_IMPL"), StringUtil::Format("%s/erpl_impl.duckdb_extension", ext_path));
+            SaveResourceToFile(TEXT("ERPL_IMPL"), StringUtil::Format("%s\\erpl_impl.duckdb_extension", ext_path));
             std::cout << StringUtil::Format("ERPL extension extracted and saved to %s.", ext_path) << std::endl;
 
-            AddDuckDbExtensionPathToDllSearchPath();
-            std::cout << "Added DuckDB extension directory to the DLL search path." << std::endl;
+            //AddDuckDbExtensionPathToDllSearchPath();
+            //std::cout << "Added DuckDB extension directory to the DLL search path." << std::endl;
 
+            ModifyPathEnvironmentVariable(ext_path);
+            std::cout << "Added DuckDB extension directory to the PATH environment variable." << std::endl;
         } 
         catch (const std::exception& e) {
-            std::cerr << "Error: " << e.what() << std::endl;
+            std::cerr << "Error during extraction: " << e.what() << std::endl;
         }
     }
 
@@ -178,16 +202,17 @@ namespace duckdb
     {
         duckdb::Connection con(db);
         auto ext_path = GetExtensionDir();
-        auto result = con.Query(StringUtil::Format("INSTALL '%s/erpl_impl.duckdb_extension'", ext_path));
+        auto result = con.Query(StringUtil::Format("INSTALL '%s\\erpl_impl.duckdb_extension'", ext_path));
         if (result->HasError()) {
             throw std::runtime_error(StringUtil::Format("Failed to install ERPL extension: %s", result->GetError()));
         }
+        std::cout << StringUtil::Format("ERPL implementation extension installed from %s\\erpl_impl.duckdb_extension.", ext_path) << std::endl;
 
         result = con.Query("LOAD 'erpl_impl'");
         if (result->HasError()) {
             throw std::runtime_error(StringUtil::Format("Failed to load ERPL extension: %s", result->GetError()));
         }
-        std::cout << "ERPL main extension loaded." << std::endl;
+        std::cout << "ERPL implementation extension loaded. For instructions how to use it visit https://erpl.io" << std::endl;
     }
 
     void ErplExtension::Load(DuckDB &db) 
