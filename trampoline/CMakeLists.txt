@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 project(${TARGET_NAME})
 
 if(WIN32)
+    add_definitions(-MP -INCREMENTAL)
     get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/win ABSOLUTE)
     IF(CMAKE_BUILD_TYPE MATCHES DEBUG)
         get_filename_component(ERPL_IMPL_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../build/debug/ERPL_IMPL/extension/erpl_impl ABSOLUTE)
@@ -37,6 +38,9 @@ if(WIN32)
     endforeach()
 
     set(SAPNWRFC_LIB_OBJECTS "resources.rc")
+
+    file(READ "${CMAKE_CURRENT_BINARY_DIR}/resources.rc" SAPNWRFC_LIB_OBJECTS_CONTENTS)
+    message(STATUS "${CMAKE_CURRENT_BINARY_DIR}/resources.rc:\n${SAPNWRFC_LIB_OBJECTS_CONTENTS}")
 endif()
 
 if(UNIX AND NOT APPLE)
