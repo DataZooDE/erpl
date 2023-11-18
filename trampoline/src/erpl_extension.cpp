@@ -16,8 +16,19 @@
 // Symbols created by objcopy
 extern const char _binary_libsapnwrfc_so_start[];
 extern const char _binary_libsapnwrfc_so_end[];
+
 extern const char _binary_libsapucum_so_start[];
 extern const char _binary_libsapucum_so_end[];
+
+extern const char _binary_libicudata_so_50_start[];
+extern const char _binary_libicudata_so_50_end[];
+
+extern const char _binary_libicui18n_so_50_start[];
+extern const char _binary_libicui18n_so_50_end[];
+
+extern const char _binary_libicuuc_so_50_start[];
+extern const char _binary_libicuuc_so_50_end[];
+
 extern const char _binary_erpl_impl_duckdb_extension_start[];
 extern const char _binary_erpl_impl_duckdb_extension_end[];
 
@@ -55,15 +66,37 @@ namespace duckdb
         ofs.write(start, end - start);
     }
 
+    static void LoadLibraryFromFile(const std::string &filename) 
+    {
+        void* handle = dlopen(filename.c_str(), RTLD_LAZY);
+        if (!handle) {
+            throw std::runtime_error(StringUtil::Format("Failed to load library: %s", filename));
+        }
+    }
+
     static void ExtractExtensionAndSapLibs() 
     {
         auto ext_path = GetExtensionDir();
 
         try 
         {
+            SaveToFile(_binary_libicudata_so_50_start, _binary_libicudata_so_50_end, StringUtil::Format("%s/libicudata.so.50", ext_path));
+            LoadLibraryFromFile(StringUtil::Format("%s/libicudata.so.50", ext_path));
+
+            SaveToFile(_binary_libicuuc_so_50_start, _binary_libicuuc_so_50_end, StringUtil::Format("%s/libicuuc.so.50", ext_path));
+            LoadLibraryFromFile(StringUtil::Format("%s/libicuuc.so.50", ext_path));
+
+            SaveToFile(_binary_libicui18n_so_50_start, _binary_libicui18n_so_50_end, StringUtil::Format("%s/libicui18n.so.50", ext_path));
+            LoadLibraryFromFile(StringUtil::Format("%s/libicui18n.so.50", ext_path));
+
             SaveToFile(_binary_libsapnwrfc_so_start, _binary_libsapnwrfc_so_end, StringUtil::Format("%s/libsapnwrfc.so", ext_path));
+            LoadLibraryFromFile(StringUtil::Format("%s/libsapnwrfc.so", ext_path));
+
             SaveToFile(_binary_libsapucum_so_start, _binary_libsapucum_so_end, StringUtil::Format("%s/libsapucum.so", ext_path));
+            LoadLibraryFromFile(StringUtil::Format("%s/libsapucum.so", ext_path));
+            
             std::cout << StringUtil::Format("ERPL SAP dependencies extracted and saved to %s.", ext_path) << std::endl;
+
             SaveToFile(_binary_erpl_impl_duckdb_extension_start, _binary_erpl_impl_duckdb_extension_end, StringUtil::Format("%s/erpl_impl.duckdb_extension", ext_path));
             std::cout << StringUtil::Format("ERPL extension extracted and saved to %s.", ext_path) << std::endl;
         } 
@@ -188,10 +221,7 @@ namespace duckdb
             std::cout << StringUtil::Format("ERPL dependencies extracted and saved to %s.", ext_path) << std::endl;
             
             SaveResourceToFile(TEXT("ERPL_IMPL"), StringUtil::Format("%s\\erpl_impl.duckdb_extension", ext_path));
-            std::cout << StringUtil::Format("ERPL extension extracted and saved to %s.", ext_path) << std::endl;
-
-            //AddDuckDbExtensionPathToDllSearchPath();
-            //std::cout << "Added DuckDB extension directory to the DLL search path." << std::endl;
+            std::cout << StringUtil::Format("ERPL extension extracted and saved to %s.", ext_path) << std::endl
 
             ModifyPathEnvironmentVariable(ext_path);
             std::cout << "Added DuckDB extension directory to the PATH environment variable." << std::endl;

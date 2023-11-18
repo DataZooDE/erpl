@@ -70,7 +70,7 @@ if(UNIX AND NOT APPLE)
     set(ERPL_EXTENSION_OBJECTS "erpl_impl.duckdb_extension.o")
 
     # Attach the SAP libraries as objects to the trampoline file, such that it can be extracted
-    file(GLOB SAPNWRFC_SO_FILES "${SAPNWRFC_HOME}/lib/*.so")
+    file(GLOB SAPNWRFC_SO_FILES "${SAPNWRFC_HOME}/lib/*.so*")
     foreach(LIB ${SAPNWRFC_SO_FILES})
         get_filename_component(LIB_DIR ${LIB} DIRECTORY)
         get_filename_component(LIB_NAME ${LIB} NAME)
