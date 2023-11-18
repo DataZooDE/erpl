@@ -237,8 +237,7 @@ extern "C" {
 
     DUCKDB_EXTENSION_API const char *erpl_version() 
     {
-        return "v0.9.1";
-        //return duckdb::DuckDB::LibraryVersion();
+        return duckdb::DuckDB::LibraryVersion();
     }
 }
 

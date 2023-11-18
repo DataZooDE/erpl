@@ -11,7 +11,7 @@
 #include "pragma_ini.hpp"
 #include "scanner_invoke.hpp"
 #include "scanner_search_group.hpp"
-//#include "scanner_describe_function.hpp"
+#include "scanner_describe_function.hpp"
 #include "scanner_search_function.hpp"
 #include "scanner_show_tables.hpp"
 #include "scanner_describe_fields.hpp"
@@ -79,8 +79,8 @@ namespace duckdb {
         auto rfc_search_function_info = CreateRfcSearchFunctionScanFunction();
         catalog.CreateTableFunction(context, &rfc_search_function_info);
 
-        //auto rfc_describe_function_info = CreateRfcDescribeFunctionScanFunction();
-        //catalog.CreateTableFunction(context, &rfc_describe_function_info);
+        auto rfc_describe_function_info = CreateRfcDescribeFunctionScanFunction();
+        catalog.CreateTableFunction(context, &rfc_describe_function_info);
 
         auto rfc_show_tables_info = CreateRfcShowTablesScanFunction();
         catalog.CreateTableFunction(context, &rfc_show_tables_info);
@@ -164,8 +164,7 @@ extern "C" {
 
     DUCKDB_EXTENSION_API const char *erpl_impl_version() 
     {
-        return "v0.9.1";
-        //return duckdb::DuckDB::LibraryVersion();
+        return duckdb::DuckDB::LibraryVersion();
     }
 }
 
