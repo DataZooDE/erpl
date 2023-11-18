@@ -1,4 +1,4 @@
-name: Main ERPL Extension Distribution Pipeline
+name: Main Extension Distribution Pipeline
 on:
   push:
   pull_request:
@@ -13,24 +13,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  duckdb-stable-build:
-    name: Build ERPL extension binaries for DuckDB ${{ matrix.duckdb_version }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: true
-      matrix:
-        duckdb_version: ['v0.9.1', 'v0.9.2']
-  
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+  duckdb-stable-build-v091:
+    name: Build extension binaries
+    uses: ./.github/workflows/_extension_build.yml
+    with:
+      duckdb_version: v0.9.1
+      extension_name: erpl
+      vcpkg_commit: 9edb1b8e590cc086563301d735cae4b6e732d2d2
 
-      - name: Build Extension
-        uses: ./.github/workflows/_extension_build.yml
-        with:
-          duckdb_version: ${{ matrix.duckdb_version }}
-          extension_name: erpl
-          vcpkg_commit: 9edb1b8e590cc086563301d735cae4b6e732d2d2
+  duckdb-stable-build-v092:
+    name: Build extension binaries
+    uses: ./.github/workflows/_extension_build.yml
+    with:
+      duckdb_version: v0.9.2
+      extension_name: erpl
+      vcpkg_commit: 9edb1b8e590cc086563301d735cae4b6e732d2d2
 
-
-          
