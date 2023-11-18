@@ -14,12 +14,13 @@ concurrency:
 
 jobs:
   duckdb-stable-build:
-    name: Build ERPL extension binaries for DuckDB v${{ matrix.duckdb_version }}
+    name: Build ERPL extension binaries for DuckDB ${{ matrix.duckdb_version }}
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         duckdb_version: ['v0.9.1', 'v0.9.2']
+  
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -30,3 +31,6 @@ jobs:
           duckdb_version: ${{ matrix.duckdb_version }}
           extension_name: erpl
           vcpkg_commit: 9edb1b8e590cc086563301d735cae4b6e732d2d2
+
+
+          
