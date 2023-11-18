@@ -20,6 +20,13 @@ release:
 	cd impl && make release
 	cd trampoline && make release
 
+update:
+	git submodule update --remote --merge
+
+pull:
+	git submodule init
+	git submodule update --recursive --remote
+
 
 
 

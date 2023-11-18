@@ -1,6 +1,6 @@
 {
     "cmake.sourceDirectory": "${workspaceFolder}/duckdb",
-    "cmake.buildDirectory": "${workspaceFolder}/build/debug",
+    "cmake.buildDirectory": "${workspaceFolder}/build/debug/ERPL_IMPL",
     "cmake.configureSettings": {
         "CMAKE_TOOLCHAIN_FILE": "${workspaceFolder}/vcpkg/scripts/buildsystems/vcpkg.cmake",
         "CMAKE_BUILD_TYPE": "Debug",
@@ -8,11 +8,11 @@
         "VCPKG_BUILD": "1"
     },
     "cmake.configureArgs": [
-        "-DDUCKDB_EXTENSION_NAMES=ERPL_IMPL",
-        "-DDUCKDB_EXTENSION_ERPL_PATH=${workspaceFolder}/impl/",
-        "-DDUCKDB_EXTENSION_ERPL_LOAD_TESTS=1",
-        "-DDUCKDB_EXTENSION_ERPL_INCLUDE_PATH=${workspaceFolder}/impl/src/include",
-        "-DDUCKDB_EXTENSION_ERPL_TEST_PATH=${workspaceFolder}/impl/test/sql",
+        "-DDUCKDB_EXTENSION_NAMES=erpl_impl",
+        "-DDUCKDB_EXTENSION_ERPL_IMPL_PATH=${workspaceFolder}/impl/",
+        "-DDUCKDB_EXTENSION_ERPL_IMPL_LOAD_TESTS=1",
+        "-DDUCKDB_EXTENSION_ERPL_IMPL_INCLUDE_PATH=${workspaceFolder}/impl/src/include",
+        "-DDUCKDB_EXTENSION_ERPL_IMPL_TEST_PATH=${workspaceFolder}/impl/test/sql",
         "-DEXTENSION_STATIC_BUILD=1",
         "-DBUILD_TPCH_EXTENSION=1",
         "-DBUILD_PARQUET_EXTENSION=1",
