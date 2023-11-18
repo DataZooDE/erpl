@@ -71,6 +71,10 @@ namespace duckdb
             std::cerr << "Error: " << e.what() << std::endl;
         }
     }
+
+    static std::string Separator() {
+        return "/";
+    }
 #elif _WIN32
     
 
@@ -197,16 +201,20 @@ namespace duckdb
         }
     }
 
+    static std::string Separator() {
+        return "\\";
+    }
+
 #endif
     static void LoadMainExtension(DuckDB &db) 
     {
         duckdb::Connection con(db);
         auto ext_path = GetExtensionDir();
-        auto result = con.Query(StringUtil::Format("INSTALL '%s\\erpl_impl.duckdb_extension'", ext_path));
+        auto result = con.Query(StringUtil::Format("INSTALL '%s%serpl_impl.duckdb_extension'", ext_path, Separator()));
         if (result->HasError()) {
             throw std::runtime_error(StringUtil::Format("Failed to install ERPL extension: %s", result->GetError()));
         }
-        std::cout << StringUtil::Format("ERPL implementation extension installed from %s\\erpl_impl.duckdb_extension.", ext_path) << std::endl;
+        std::cout << StringUtil::Format("ERPL implementation extension installed from %s%serpl_impl.duckdb_extension.", ext_path, Separator()) << std::endl;
 
         result = con.Query("LOAD 'erpl_impl'");
         if (result->HasError()) {
