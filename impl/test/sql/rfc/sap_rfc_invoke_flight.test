@@ -1,0 +1,37 @@
+# name: test/sql/rfc/sap_rfc_invoke_flight.test
+# description: test invocation of sap rfc functions
+# group: [rfc]
+
+# Load the extension
+statement ok
+LOAD '__BUILD_DIRECTORY__/extension/erpl_impl/erpl_impl.duckdb_extension';
+
+statement ok
+SET sap_ashost = 'localhost'
+
+statement ok
+SET sap_sysnr = '00'
+
+statement ok
+SET sap_user = 'DEVELOPER'
+
+statement ok
+SET sap_password = 'Htods70334'
+
+statement ok
+SET sap_client = '001'
+
+statement ok
+SET sap_lang = 'EN'
+
+# Confirm echo rfc call works
+query I
+select COUNT(*) from sap_rfc_invoke('BAPI_FLIGHT_GETLIST', {
+    'AIRLINE' :  'LH',
+    'DESTINATION_FROM' : { 'AIRPORTID': 'FRA'},
+    'DESTINATION_TO' : { 'AIRPORTID': 'JFK' }
+}, path='/FLIGHT_LIST');
+----
+16
+
+

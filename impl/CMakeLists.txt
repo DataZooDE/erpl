@@ -57,9 +57,9 @@ endif()
 if(UNIX AND NOT APPLE)
       add_definitions(-DSAPonUNIX -DSAPonLIN -DSAPwithUNICODE -DSAPwithTHREADS -Wno-deprecated-declarations)
       get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/linux ABSOLUTE)
-      SET(CMAKE_SKIP_BUILD_RPATH  FALSE)
-      SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-      SET(CMAKE_INSTALL_RPATH "\${ORIGIN}")
+      #SET(CMAKE_SKIP_BUILD_RPATH  FALSE)
+      #SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+      #SET(CMAKE_INSTALL_RPATH "\${ORIGIN}")
       find_package(OpenSSL REQUIRED)
       message(STATUS "SAPNWRFC_HOME: ${SAPNWRFC_HOME}")
       find_sap_libraries(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME} "sapnwrfc" "sapucum")      
@@ -116,13 +116,13 @@ set(EXTENSION_SOURCES
       ${SAPNWRFC_LIB_OBJECTS}
 )
 
-message(STATUS "CMAKE_TOOLCHAIN_FILE: ${CMAKE_TOOLCHAIN_FILE}")
 message(STATUS "SAPNWRFC_LIB_FILES: ${SAPNWRFC_LIB_FILES}")
 message(STATUS "OPENSSL_LIBRARIES: ${OPENSSL_LIBRARIES}")
 
 # Build loadable extension
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
-build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
+set(PARAMETERS "-warnings")
+build_loadable_extension(${TARGET_NAME} ${PARAMETERS} ${EXTENSION_SOURCES})
 
 target_link_libraries(${EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} OpenSSL::SSL OpenSSL::Crypto)
 target_link_libraries(${LOADABLE_EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} OpenSSL::SSL OpenSSL::Crypto)
@@ -133,7 +133,9 @@ if (WIN32)
 endif()
 
 install(
-  TARGETS ${EXTENSION_NAME}
+  TARGETS ${EXTENSION_NAME} ${LOADABLE_EXTENSION_NAME}
   EXPORT "${DUCKDB_EXPORT_SET}"
   LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
   ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")
+
+

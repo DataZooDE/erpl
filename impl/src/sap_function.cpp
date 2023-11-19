@@ -526,6 +526,33 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                 }
                 return rfc2duck(int2_value);
             }
+            // Decimal types
+            case RFCTYPE_BCD:
+            {
+                unsigned int result_len = 0, str_len = 2  * GetLength() + 1;
+                SAP_UC *string_value = (RFC_CHAR *)mallocU(str_len + 1);
+                rc = RfcGetString(function_handle, rfc_name.get(), string_value, str_len + 1, &result_len, &error_info);
+
+                if (rc == RFC_BUFFER_TOO_SMALL)  // Buffer too small, we allocate to the returned result_len.
+                {
+                    free(string_value);
+                    str_len = result_len;
+                    string_value = (RFC_CHAR *)mallocU(str_len + 1);
+                    rc = RfcGetString(function_handle, rfc_name.get(), string_value, str_len + 1, &result_len, &error_info);
+                }
+                if (rc != RFC_OK) {
+                    free(string_value);
+                    throw std::runtime_error(StringUtil::Format("Failed to get BCD %s: %s: %s", 
+                                                                field_name, rfcrc2std(error_info.code), uc2std(error_info.message)));
+                }
+
+
+                auto bcd_str = uc2std(string_value, str_len);
+                free(string_value);
+
+                auto result_value = bcd2duck(bcd_str, GetLength(), GetDecimals());
+                return result_value;
+            }
             // String types
             case RFCTYPE_CHAR:
             {
@@ -1577,9 +1604,9 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                 }
             }
             else {
-                if (! selected_fields.empty()) {
-                    throw std::runtime_error("Selected fields not supported for non-tabular results");
-                }
+                //if (! selected_fields.empty()) {
+                //    throw std::runtime_error("Selected fields not supported for non-tabular results");
+                //}
 
                 auto &out_vec = output.data[src_col_idx];
                 out_vec.SetValue(0, _result_data[src_col_idx]);

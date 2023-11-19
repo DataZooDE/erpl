@@ -5,14 +5,14 @@
             "name": "Debug ERPL SQL Unit Tests",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/debug/test/unittest",
+            "program": "${workspaceFolder}/build/debug/ERPL_IMPL/test/unittest",
             "args": [
                 "--test-dir",
-                ".",
-                "[sql]"
+                "./test/sql",
+                "[rfc]"
             ],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/impl/",
             "environment": [
                 {
                     "name": "RFC_TRACE",
@@ -33,7 +33,7 @@
                 {
                     "description": "Enable pretty-printing for gdb",
                     "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
+                    "ignoreFailures": false
                 }
             ],
             "preLaunchTask": "CMake: build",
@@ -54,7 +54,7 @@
             "environment": [
                 {
                     "name": "RFC_TRACE",
-                    "value": "1"
+                    "value": "0"
                 },
                 {
                     "name": "LD_LIBRARY_PATH",
@@ -81,10 +81,10 @@
             "name": "Debug ERPL CPP Unit Tests",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/debug/extension/erpl/test/cpp/erpl_tests",
+            "program": "${workspaceFolder}/build/debug/ERPL_IMPL/extension/erpl_impl/test/cpp/erpl_tests",
             "args": [ ],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/impl/",
             "environment": [
                 {
                     "name": "RFC_TRACE",
@@ -100,7 +100,7 @@
                 },
                 {
                     "name": "LD_LIBRARY_PATH",
-                    "value": "${env:LD_LIBRARY_PATH}:${workspaceFolder}/nwrfcsdk/lib"
+                    "value": "${env:LD_LIBRARY_PATH}:${workspaceFolder}/nwrfcsdk/linux/lib"
                 }
             ],
             "externalConsole": false,

@@ -3,9 +3,9 @@
     "cmake.buildDirectory": "${workspaceFolder}/build/debug/ERPL_IMPL",
     "cmake.configureSettings": {
         "CMAKE_TOOLCHAIN_FILE": "${workspaceFolder}/vcpkg/scripts/buildsystems/vcpkg.cmake",
-        "CMAKE_BUILD_TYPE": "Debug",
         "VCPKG_MANIFEST_DIR": "${workspaceFolder}/impl/",
-        "VCPKG_BUILD": "1"
+        "VCPKG_BUILD": "1",
+        "GEN": "ninja",
     },
     "cmake.configureArgs": [
         "-DDUCKDB_EXTENSION_NAMES=erpl_impl",
@@ -13,8 +13,8 @@
         "-DDUCKDB_EXTENSION_ERPL_IMPL_LOAD_TESTS=1",
         "-DDUCKDB_EXTENSION_ERPL_IMPL_INCLUDE_PATH=${workspaceFolder}/impl/src/include",
         "-DDUCKDB_EXTENSION_ERPL_IMPL_TEST_PATH=${workspaceFolder}/impl/test/sql",
+        "-DDUCKDB_EXTENSION_ERPL_IMPL_SHOULD_LINK=1",
         "-DEXTENSION_STATIC_BUILD=1",
-        "-DBUILD_TPCH_EXTENSION=1",
         "-DBUILD_PARQUET_EXTENSION=1",
         "-DCMAKE_BUILD_TYPE=Debug",
         "-Wno-unused-variable"

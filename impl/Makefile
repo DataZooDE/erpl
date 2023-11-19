@@ -87,3 +87,12 @@ else
 	cd ../duckdb && make clean
 	cd ../duckdb && make clean-python
 endif
+
+# Main tests
+test: test_release
+
+test_release: release
+	../build/release/ERPL_IMPL/test/unittest --test-dir . "[sql]"
+
+test_debug: debug
+	../build/debug/ERPL_IMPL/test/unittest --test-dir . "[sql]"

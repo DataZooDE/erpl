@@ -1,4 +1,5 @@
 #include <codecvt>
+#include <regex>
 #include <sstream>
 
 #include "duckdb.hpp"
@@ -298,6 +299,14 @@ namespace duckdb
         return Value::CreateValue(duck_date);
     }
 
+    /** 
+     * @brief Converts a SAP time '235959' to a DuckDB time.
+     * 
+     * @param tims_str The SAP time to convert.
+     * @return The SAP time as a DuckDB DATETIME.
+     * @note The SAP time is expected to be in the format HHMMSS.
+     * @note If the time is invalid a default DuckDB time is returned.
+    */
     Value tims2duck(std::string &tims_str)
     {
         if (tims_str.empty()) {
@@ -312,6 +321,18 @@ namespace duckdb
 
         dtime_t duck_time = Time::FromTime(hour, minute, second, 0);
         return Value::CreateValue(duck_time);
+    }
+
+    Value bcd2duck(std::string &bcd_str, unsigned int length, unsigned int decimals)
+    {
+        if (bcd_str.empty()) {
+            return Value();
+        }
+
+        auto bcd_str_without_decimal = std::regex_replace(bcd_str, std::regex("\\."), "");
+        auto value = std::stol(bcd_str_without_decimal);
+
+        return Value::DECIMAL(value, length, decimals);
     }
 
     /**
@@ -683,13 +704,6 @@ namespace duckdb
         auto uc_num = std2uc(value.ToString());
         memcpy((char *)rfc_num, (char *)uc_num.get(), rfc_num_len * 2);
     }
-
-
-    /*
-    void duck2rfc(Value &value, RFC_BCD &rfc_bcd) 
-    {
-    }
-    */
 
     void duck2rfc(Value &value, RFC_DECF16 &rfc_dec16) 
     {
