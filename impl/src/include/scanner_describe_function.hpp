@@ -34,6 +34,5 @@ namespace duckdb
         std::shared_ptr<DescribeFunctionResult> result;
     };
 
-
     CreateTableFunctionInfo CreateRfcDescribeFunctionScanFunction();
 } // namespace duckdb

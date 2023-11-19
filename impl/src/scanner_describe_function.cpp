@@ -3,7 +3,7 @@
 
 namespace duckdb 
 {
-
+    
     DescribeFunctionResult::DescribeFunctionResult(std::shared_ptr<RfcFunction> function)
         : _function(function), _has_more_results(true)
     { }
@@ -36,14 +36,14 @@ namespace duckdb
     LogicalType DescribeFunctionResult::GetParamterResultType() 
     {
         auto param_struct = LogicalType::STRUCT({ 
-            { "NAME", LogicalType::VARCHAR },
-            { "TYPE", LogicalType::VARCHAR },
-            { "DIRECTION", LogicalType::VARCHAR},
-            { "LENGTH", LogicalType::INTEGER },
-            { "DECIMALS", LogicalType::INTEGER },
-            { "DEFAULTVALUE", LogicalType::VARCHAR },
-            { "PARAMETERTEXT", LogicalType::VARCHAR },
-            { "OPTIONAL", LogicalType::BOOLEAN },
+            { "NAME", LogicalTypeId::VARCHAR },
+            { "TYPE", LogicalTypeId::VARCHAR },
+            { "DIRECTION", LogicalTypeId::VARCHAR},
+            { "LENGTH", LogicalTypeId::INTEGER },
+            { "DECIMALS", LogicalTypeId::INTEGER },
+            { "DEFAULTVALUE", LogicalTypeId::VARCHAR },
+            { "PARAMETERTEXT", LogicalTypeId::VARCHAR },
+            { "OPTIONAL", LogicalTypeId::BOOLEAN },
         });
         return param_struct;
     }
@@ -74,7 +74,7 @@ namespace duckdb
         output.SetValue(2, 0, ConvertParameterInfos(sel_infos));
 
         // CHANGING
-         sel_infos.clear();
+        sel_infos.clear();
         std::copy_if(param_infos.begin(), param_infos.end(), std::back_inserter(sel_infos), 
                       [](RfcFunctionParameterDesc &x) { return x.GetDirection() == RFC_CHANGING; });
         output.SetValue(3, 0, ConvertParameterInfos(sel_infos));
@@ -89,6 +89,7 @@ namespace duckdb
         output.SetCardinality(1);
     }
 
+    
     Value DescribeFunctionResult::ConvertParameterInfos(std::vector<RfcFunctionParameterDesc> &param_infos)
     {
         const auto param_type = GetParamterResultType();
@@ -110,7 +111,7 @@ namespace duckdb
                        
         return Value::LIST(param_type, param_values);
     }
-
+    
     // DescribeFunctionResult ----------------------------------------------------
 
     static string RfcDescribeFunctionToString(const FunctionData *bind_data_p) {
@@ -140,7 +141,7 @@ namespace duckdb
         auto result = make_shared<DescribeFunctionResult>(func);
         names = result->GetResultNames();
         return_types = result->GetResultTypes();
-
+        
         auto bind_data = make_uniq<RfcDescribeFunctionBindData>();
         bind_data->result = result;
 
