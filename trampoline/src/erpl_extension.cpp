@@ -221,7 +221,7 @@ namespace duckdb
             std::cout << StringUtil::Format("ERPL dependencies extracted and saved to %s.", ext_path) << std::endl;
             
             SaveResourceToFile(TEXT("ERPL_IMPL"), StringUtil::Format("%s\\erpl_impl.duckdb_extension", ext_path));
-            std::cout << StringUtil::Format("ERPL extension extracted and saved to %s.", ext_path) << std::endl
+            std::cout << StringUtil::Format("ERPL extension extracted and saved to %s.", ext_path) << std::endl;
 
             ModifyPathEnvironmentVariable(ext_path);
             std::cout << "Added DuckDB extension directory to the PATH environment variable." << std::endl;
