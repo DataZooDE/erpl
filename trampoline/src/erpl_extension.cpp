@@ -68,7 +68,7 @@ namespace duckdb
 
     static void LoadLibraryFromFile(const std::string &filename) 
     {
-        void* handle = dlopen(filename.c_str(), RTLD_LAZY);
+        void* handle = dlopen(filename.c_str(), RTLD_NOW | RTLD_GLOBAL);
         if (!handle) {
             throw std::runtime_error(StringUtil::Format("Failed to load library: %s", filename));
         }
@@ -80,6 +80,8 @@ namespace duckdb
 
         try 
         {
+            std::cout << StringUtil::Format("Saving ERPL SAP dependencies to '%s' and loading them ... ", ext_path);
+
             SaveToFile(_binary_libicudata_so_50_start, _binary_libicudata_so_50_end, StringUtil::Format("%s/libicudata.so.50", ext_path));
             LoadLibraryFromFile(StringUtil::Format("%s/libicudata.so.50", ext_path));
 
@@ -95,19 +97,20 @@ namespace duckdb
             SaveToFile(_binary_libsapucum_so_start, _binary_libsapucum_so_end, StringUtil::Format("%s/libsapucum.so", ext_path));
             LoadLibraryFromFile(StringUtil::Format("%s/libsapucum.so", ext_path));
             
-            std::cout << StringUtil::Format("ERPL SAP dependencies extracted and saved to %s.", ext_path) << std::endl;
+            std::cout << "done" << std::endl;
 
             SaveToFile(_binary_erpl_impl_duckdb_extension_start, _binary_erpl_impl_duckdb_extension_end, StringUtil::Format("%s/erpl_impl.duckdb_extension", ext_path));
             std::cout << StringUtil::Format("ERPL extension extracted and saved to %s.", ext_path) << std::endl;
         } 
         catch (const std::exception& e) {
-            std::cerr << "Error: " << e.what() << std::endl;
+            std::cerr << std::endl << "Error: " << e.what() << std::endl;
         }
     }
 
     static std::string Separator() {
         return "/";
     }
+
 #elif _WIN32
     
 

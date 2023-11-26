@@ -78,7 +78,7 @@ void PostHogWorker::Process(PostHogEvent &event)
 
 // PostHogWorker ----------------------------------------------------------------
 
-PostHogTelemetry::PostHogTelemetry()
+PostHogTelemetry::PostHogTelemetry() : telemetry_enabled(true), api_key("phc_t3wwRLtpyEmLHYaZCSszG0MqVr74J6wnCrj9D41zk2t")
 { 
     queue = make_uniq<TelemetryWorkQueue<PostHogWorker, PostHogEvent>>();
     std::function<std::shared_ptr<PostHogWorker>()> worker_factory = [this]() { return make_shared<PostHogWorker>(api_key); };

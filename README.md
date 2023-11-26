@@ -20,7 +20,7 @@ Transparency is our ethos, and in line with this, we are planning a commercial t
 
 For inquiries, potential collaborations, or if your curiosity is piqued, connect with us at [https://erpl.io](https://erpl.io).
 
-## ➜ Example Usage
+## ⚙ Example Usage
 A first example demonstrates how to join two SAP tables with an external table. We’ll be using the [ABAP Flight Reference Scenario](https://help.sap.com/docs/ABAP_PLATFORM_NEW/fc4c71aa50014fd1b43721701471913d/a9d7c7c140a0408dbc5966c52d156b49.html), specifically joining the `SFLIGHT` and `SPFLI` tables which contain flight and flight schedule details respectively, with an external table `WEATHER` that holds weather information. We will extract flight information and associated temperatures at departure and arrival cities.
 
 To start with, we assume you have setup DuckDB and already installed the ERPL extension (see below) and have access to an SAP system having the ABAP Flight Reference Scenario data. 
@@ -165,103 +165,134 @@ The output of this query will provide a comprehensive view of the flights, inclu
 | JL       |     0407 | 2016-11-17 00:00:00 | TOKYO       |        20.3 | FRANKFURT     |      20.4 |
 ```
 
-This example can also be found in it's [Python version in the `examples` folder](./examples/flight_example_python.ipynb).
+This example can also be found in it's [Python](./examples/flight_example_python.ipynb) or [R](./examples/flight_example_r.ipynb) version in the `examples` folder.
 
-# How do I get it?
-Currently building extensions for DuckDB is not as easy as it should be. It is quite easily feasable to build the extension locally, however due to instability in the application binary interface (ABI) dependent on the build environment, often time the extension and the centrally distributed DuckDB binary are not compatible. 
+## ➜ Obtaining the ERPL Extension
 
-To overcome this issue, we use a build system very similar to the one used by the DuckDB team. **We recommend to start with our binaries available here from GitHub releases.**
+### Introduction
+Building extensions for DuckDB can be challenging due to the varying C++ compiler and library ecosystem. This variability often leads to incompatibilities between locally built extensions and the centrally distributed DuckDB binary, primarily due to differences in the Application Binary Interface (ABI).
 
-## Installing the ERPL binaries.
-First step to getting started is to clone this template onto your local computer. Then clone your new repository using 
-```sh
-git clone --recurse-submodules https://bitbucket.org/erpel/erpel.git
+### Recommended Approach
+To ensure compatibility and ease of use, we follow a build process similar to that of the DuckDB team. **Our advice is to start with the pre-compiled binaries available in our [GitHub releases](https://github.com/DataZooDE/erpl/releases).** For those interested in building the extension themselves, our [development instructions](./DEVELOPMENT.md) provide detailed guidance.
+
+### Binary Selection
+The assets in each release follow this naming convention:
 ```
-Note that `--recurse-submodules` will ensure the correct version of duckdb is pulled. This is necessary to make the DuckDB based extension build system work.
-Another dependency is the SAP Netweaver RFC SDK. This is not included in the template, but can be downloaded from the SAP Service Marketplace. The resulting 
-zip file should be placed in the `./nwrfcsdk` folder. The build system will automatically detect the SDK and build the extension against it.
-
-## Installing as python package
-To build the extension:
-```sh
-make
+erpl-${DUCKDB_VERSION}-extension-{OS}-{ARCH}.tar.gz
 ```
-The main binaries that will be built are:
-```sh
-./build/release/duckdb
-./build/release/test/unittest
-./build/release/extension/<extension_name>/<extension_name>.duckdb_extension
+Choose the binary that matches your usage scenario. The table below summarizes the available binaries for various platforms and use cases:
+
+| Usage       | Operating System | Architecture |
+|-------------|------------------|--------------|
+| DuckDB CLI  | Linux            | amd64_gcc4   |
+| Python      | Linux            | amd64        |
+| R           | Linux            | amd64        |
+| Julia       | Linux            | amd64        |
+| Node.js     | Linux            | amd64        |
+| DuckDB CLI  | Windows          | amd64        |
+| Python      | Windows          | amd64        |
+| R           | Windows          | amd64        |
+| Julia       | Windows          | amd64        |
+| Node.js     | Windows          | amd64        |
+
+### Note on OSX Support
+Currently, we do not support OSX due to the unavailability of the SAP Netweaver RFC SDK for Apple Silicon. However, efforts are underway to enable compatibility via the x86 emulation layer, Rosetta.
+
+This revised section aims to provide a clearer, more user-friendly explanation of how to acquire and choose the appropriate ERPL extension, along with a straightforward guide for those interested in building the extension themselves.
+
+## 💻 Installing the ERPL Binaries
+
+### Introduction
+Installation of the ERPL extension is straightforward. Please note that this extension is independent of the [DuckDB Foundation](https://duckdb.org/foundation/) and [DuckDB Labs](https://duckdblabs.com/), meaning the binaries are unsigned. Consequently, DuckDB must be initiated with the `-unsigned` flag. Detailed instructions on this process can be found in the [DuckDB documentation](https://duckdb.org/docs/archive/0.9.2/extensions/overview#ensuring-the-integrity-of-extensions).
+
+### Installation Steps
+1. **Enable Unsigned Extensions in DuckDB**: Set the `-unsigned` flag as described in the DuckDB documentation.
+2. **Install and Load the ERPL Extension**:
+   ```sql
+   INSTALL 'path/to/erpl.duckdb_extension';
+   LOAD 'erpl';
+   ```
+
+### Confirmation of Successful Installation
+Upon successful installation and loading, the extension will output the following message:
 ```
-- `duckdb` is the binary for the duckdb shell with the extension code automatically loaded. 
-- `unittest` is the test runner of duckdb. Again, the extension is already linked into the binary.
-- `<extension_name>.duckdb_extension` is the loadable binary as it would be distributed.
-
-## ⚙ Builidng from VSCode IDE
-(The configuration IMHO would be a good candiate for a blog post).
-We spent some time to make the extension buildable from VSCode IDE. The main challenge was to get the build system to work, attach the debugger and run the tests.
-However there are now two launch configurations that allow to do this:
-
-- "Debug ERPL SQL Unit tests" will build the extension and run the SQL unit tests. (For details on this tests see below).
-- "Debug ERPL CPP Unit tests" will build and debug the extension unit tests. (For details on this tests see below).
-
-
-## ⚙ Running the extension
-To run the extension code, simply start the shell with `./build/release/duckdb`.
-
-Now we can use the features from the extension directly in DuckDB. The template contains a single scalar function `quack()` that takes a string arguments and returns a string:
-```
-D select quack('Jane') as result;
-┌───────────────┐
-│    result     │
-│    varchar    │
-├───────────────┤
-│ Quack Jane 🐥 │
-└───────────────┘
-```
-
-
-
-## 💻 Installing the deployed binaries
-To install your extension binaries from S3, you will need to do two things. Firstly, DuckDB should be launched with the 
-`allow_unsigned_extensions` option set to true. How to set this will depend on the client you're using. Some examples:
-
-CLI:
-```shell
-duckdb -unsigned
+-- Loading ERPL Trampoline Extension. --
+(Saves ERPL SAP dependencies to '/home/jr/.duckdb/extensions/v0.9.2/linux_amd64' and loads them)
+ERPL extension saved and loaded from /home/jr/.duckdb/extensions/v0.9.2/linux_amd64/erpl_impl.duckdb_extension.
+For usage instructions, visit https://erpl.io
 ```
 
-Python:
-```python
-con = duckdb.connect(':memory:', config={'allow_unsigned_extensions' : 'true'})
+### Understanding the Extension Loading Process
+The ERPL extension is composed of two parts:
+1. **Trampoline Extension**: Extracts SAP Netweaver RFC SDK and SAP Business Warehouse BICS libraries from the binary.
+2. **Implementation Extension**: The actual functional part of the extension.
+
+The `erpl_init` function in the trampoline extension bundles and extracts dependencies into the DuckDB extension folder. Post-installation, the directory `~/.duckdb/extensions/v0.9.2/linux_amd64` should contain the following files:
+```
+-rw-r--r-- 1 jr jr 110M 26. Nov 10:23 erpl.duckdb_extension
+-rw-r--r-- 1 jr jr  34M 26. Nov 10:35 erpl_impl.duckdb_extension
+-rw-r--r-- 1 jr jr  20M 26. Nov 10:35 libicudata.so.50
+-rw-r--r-- 1 jr jr  12M 26. Nov 10:35 libicui18n.so.50
+-rw-r--r-- 1 jr jr 8,4M 26. Nov 10:35 libicuuc.so.50
+-rw-r--r-- 1 jr jr 9,5M 26. Nov 10:35 libsapnwrfc.so
+-rw-r--r-- 1 jr jr 1,1M 26. Nov 10:35 libsapucum.so
 ```
 
-NodeJS:
-```js
-db = new duckdb.Database(':memory:', {"allow_unsigned_extensions": "true"});
-```
+This revised section aims for a clearer, more structured presentation of the installation process, ensuring users can easily understand and follow the steps.
 
-Secondly, you will need to set the repository endpoint in DuckDB to the HTTP url of your bucket + version of the extension 
-you want to install. To do this run the following SQL query in DuckDB:
-```sql
-SET custom_extension_repository='bucket.s3.eu-west-1.amazonaws.com/<your_extension_name>/latest';
-```
-Note that the `/latest` path will allow you to install the latest extension version available for your current version of 
-DuckDB. To specify a specific version, you can pass the version instead.
+## Tracking
 
-After running these steps, you can install and load your extension using the regular INSTALL/LOAD commands in DuckDB:
-```sql
-INSTALL <your_extension_name>
-LOAD <your_extension_name>
-```
+### Overview
+Our extension automatically collects basic usage data to enhance its performance and gain insights into user engagement. We employ [Posthog](https://posthog.com/) for data analysis, transmitting information securely to the European Posthog instance at [https://eu.posthog.com](https://eu.posthog.com) via HTTPS.
 
-### Versioning of your extension
-Extension binaries will only work for the specific DuckDB version they were built for. Since you may want to support multiple 
-versions of DuckDB for a release of your extension, you can specify which versions to build for in the CI of this template.
-By default, the CI will build your extension against the version of the DuckDB submodule, which should generally be the most
-recent version of DuckDB. To build for multiple versions of DuckDB, simply add the version to the matrix variable, e.g.:
-```
-strategy:
-    matrix:
-        duckdb_version: [ '<submodule_version>', 'v0.7.0']
-```
+### Data Collected
+Each transmitted request includes the following information:
+- Extension Version
+- DuckDB Version
+- Operating System
+- System Architecture
+- MAC Address of the Primary Network Interface
 
+### Event Tracking
+Data is transmitted under these circumstances:
+- **Extension Load**: No extra data is sent beyond the initial usage information.
+- **Function Invocation**: The name of the invoked function is sent. *Note: Function inputs/outputs are not transmitted.*
+- **Error Occurrence**: The error message is transmitted.
+
+### User Configuration Options
+Users can control tracking through these settings:
+
+1. **Enable/Disable Tracking**:
+   ```sql
+   SET erpl_telemetry_enabled = TRUE; -- Enabled by default; set to FALSE to disable tracking
+   ```
+   
+2. **Posthog API Key Configuration** (usually unchanged):
+   ```sql
+   SET erpl_telemetry_key = 'phc_XXX'; -- Pre-set to our key; customizable to your own key
+   ```
+
+This approach ensures transparency about data collection while offering users control over their privacy settings.
+
+## License
+The ERPL extension is licensed under the [Business Source License (BSL) Version 1.1](./LICENSE.md). The BSL is a source-available license that gives you the following permissions:
+
+### Allowed:
+1. **Copy, Modify, and Create Derivative Works**: You have the right to copy the software, modify it, and create derivative works based on it.
+2. **Redistribute and Non-Production Use**: Redistribution and non-production use of the software is permitted.
+3. **Limited Production Use**: You can make production use of the software, but with limitations. Specifically, the software cannot be offered to third parties on a hosted or embedded basis.
+4. **Change License Rights**: After the Change Date (five years from the first publication of the Licensed Work), you gain rights under the terms of the Change License (MPL 2.0). This implies broader permissions after this date.
+
+### Not Allowed:
+1. **Offering to Third Parties on Hosted/Embedded Basis**: The Additional Use Grant restricts using the software in a manner that it is offered to third parties on a hosted or embedded basis.
+2. **Violation of Current License Requirements**: If your use does not comply with the requirements of the BSL, you must either purchase a commercial license or refrain from using the software.
+3. **Trademark Usage**: You don't have rights to any trademark or logo of Licensor or its affiliates, except as expressly required by the License.
+
+### Additional Points:
+- **Separate Application for Each Version**: The license applies individually to each version of the Licensed Work. The Change Date may vary for each version.
+- **Display of License**: You must conspicuously display this License on each original or modified copy of the Licensed Work.
+- **Third-Party Receipt**: If you receive the Licensed Work from a third party, the terms and conditions of this License still apply.
+- **Automatic Termination on Violation**: Any use of the Licensed Work in violation of this License automatically terminates your rights under this License for all versions of the Licensed Work.
+- **Disclaimer of Warranties**: The Licensed Work is provided "as is" without any warranties, including but not limited to the warranties of merchantability, fitness for a particular purpose, non-infringement, and title.
+
+This summary is based on the provided license text and should be used as a guideline. For legal advice or clarification on specific points, consulting a legal professional is recommended, especially for commercial or complex use cases.

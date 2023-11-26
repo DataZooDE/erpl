@@ -23,4 +23,4 @@ set(TEST_SOURCES
 )
 
 add_executable(erpl_tests ${TEST_SOURCES})
-target_link_libraries(erpl_tests duckdb ${EXTENSION_NAME} test_helpers ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
+target_link_libraries(erpl_tests ${EXTENSION_NAME} duckdb_static test_helpers ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
