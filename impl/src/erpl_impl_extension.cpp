@@ -115,8 +115,7 @@ namespace duckdb {
         
         con.Commit();
     }
-
-    /*
+    
     static void RegisterBicsFunctions(DatabaseInstance &instance)
     {
         #ifndef WITH_BICS
@@ -129,7 +128,7 @@ namespace duckdb {
         auto &context = *con.context;
         auto &catalog = Catalog::GetSystemCatalog(context);
 
-        auto bics_search_infoprovider_info = CreateBicsSearchInfoProviderScanFunction();
+        auto bics_search_infoprovider_info = CreateBicsShowInfoProvidersScanFunction();
         catalog.CreateTableFunction(context, &bics_search_infoprovider_info);
 
         auto bics_describe_infoprovider_info = CreateBicsDescribeInfoProviderScanFunction();
@@ -137,8 +136,6 @@ namespace duckdb {
 
         con.Commit();
     }
-    */
-
   
     void ErplImplExtension::Load(DuckDB &db) 
     {
@@ -146,7 +143,7 @@ namespace duckdb {
         
         RegisterConfiguration(*db.instance);
         RegisterFunctions(*db.instance);
-        //RegisterBicsFunctions(instance);
+        RegisterBicsFunctions(*db.instance);
     }
 
     std::string ErplImplExtension::Name() {

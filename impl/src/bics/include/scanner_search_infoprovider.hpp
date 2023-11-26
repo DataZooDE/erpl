@@ -9,5 +9,5 @@
 #include "sap_function.hpp"
 
 namespace duckdb {
-    CreateTableFunctionInfo CreateBicsSearchInfoProviderScanFunction();
+    CreateTableFunctionInfo CreateBicsShowInfoProvidersScanFunction();
 } // namespace duckdb

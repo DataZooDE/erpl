@@ -6,7 +6,7 @@
 
 namespace duckdb 
 {
-    static string BicsSearchInfoProviderToString(const FunctionData *bind_data_p) 
+    static string BicsShowInfoProvidersToString(const FunctionData *bind_data_p) 
     {
         D_ASSERT(bind_data_p);
         //auto bind_data = (const SapRfcCallBindData *)bind_data_p;
@@ -42,10 +42,10 @@ namespace duckdb
     }
 
 
-    static unique_ptr<FunctionData> BicsSearchInfoProviderBind(ClientContext &context, 
-                                                               TableFunctionBindInput &input, 
-                                                               vector<LogicalType> &return_types, 
-                                                               vector<string> &names) 
+    static unique_ptr<FunctionData> BicsShowInfoProvidersBind(ClientContext &context, 
+                                                              TableFunctionBindInput &input, 
+                                                              vector<LogicalType> &return_types, 
+                                                              vector<string> &names) 
     {
         // Connect to the SAP system
         auto connection = RfcAuthParams::FromContext(context).Connect();
@@ -63,9 +63,9 @@ namespace duckdb
         return std::move(bind_data);
     }
 
-    static void BicsSearchInfoProviderScan(ClientContext &context, 
-                                           TableFunctionInput &data, 
-                                           DataChunk &output) 
+    static void BicsShowInfoProvidersScan(ClientContext &context, 
+                                          TableFunctionInput &data, 
+                                          DataChunk &output) 
     {
         auto &bind_data = data.bind_data->Cast<RfcFunctionBindData>();
         auto result_set = bind_data.result_set;
@@ -77,10 +77,10 @@ namespace duckdb
         result_set->FetchNextResult(output);
     }
 
-    CreateTableFunctionInfo CreateBicsSearchInfoProviderScanFunction() 
+    CreateTableFunctionInfo CreateBicsShowInfoProvidersScanFunction() 
     {
-        auto fun = TableFunction("sap_bics_search_infoprovider", {}, BicsSearchInfoProviderScan, BicsSearchInfoProviderBind);
-        fun.to_string = BicsSearchInfoProviderToString;
+        auto fun = TableFunction("sap_bics_show_infoproviders", {}, BicsShowInfoProvidersScan, BicsShowInfoProvidersBind);
+        fun.to_string = BicsShowInfoProvidersToString;
         
         auto obj_type_enum = Vector(LogicalType::VARCHAR, 2);
         obj_type_enum.SetValue(0, Value("QUERY"));
