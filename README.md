@@ -1,4 +1,7 @@
+<a name="top"></a>
 [⚙ Example Usage](#-example-usage) - [➜ Obtaining the ERPL Extension](#-obtaining-the-erpl-extension) - [💻 Installing the ERPL Binaries](#-installing-the-erpl-binaries) - [Tracking](#tracking) - [Licence](#license)
+
+---
 
 # ★ What is the Erpl Extension?
 The primary objective of this [DuckDB](https://duckdb.org) extension is to facilitate seamless integration with the SAP data ecosystem. Our approach prioritizes:
@@ -21,6 +24,8 @@ Transparency is our ethos, and in line with this, we are planning a commercial t
 - **Enterprise Edition**: A premium version offering additional capabilities to query data from SAP Business Warehouse and data replication via SAP ODP.
 
 For inquiries, potential collaborations, or if your curiosity is piqued, connect with us at [https://erpl.io](https://erpl.io).
+
+[Back to Top](#top)
 
 ## ⚙ Example Usage
 A first example demonstrates how to join two SAP tables with an external table. We’ll be using the [ABAP Flight Reference Scenario](https://help.sap.com/docs/ABAP_PLATFORM_NEW/fc4c71aa50014fd1b43721701471913d/a9d7c7c140a0408dbc5966c52d156b49.html), specifically joining the `SFLIGHT` and `SPFLI` tables which contain flight and flight schedule details respectively, with an external table `WEATHER` that holds weather information. We will extract flight information and associated temperatures at departure and arrival cities.
@@ -169,6 +174,8 @@ The output of this query will provide a comprehensive view of the flights, inclu
 
 This example can also be found in it's [Python](./examples/flight_example_python.ipynb) or [R](./examples/flight_example_r.ipynb) version in the `examples` folder.
 
+[Back to Top](#top)
+
 ## ➜ Obtaining the ERPL Extension
 
 ### Introduction
@@ -242,6 +249,8 @@ The `erpl_init` function in the trampoline extension bundles and extracts depend
 
 This revised section aims for a clearer, more structured presentation of the installation process, ensuring users can easily understand and follow the steps.
 
+[Back to Top](#top)
+
 ## Tracking
 
 ### Overview
@@ -275,6 +284,8 @@ Users can control tracking through these settings:
    ```
 
 This approach ensures transparency about data collection while offering users control over their privacy settings.
+
+[Back to Top](#top)
 
 ## License
 The ERPL extension is licensed under the [Business Source License (BSL) Version 1.1](./LICENSE.md). The BSL is a source-available license that gives you the following permissions:
