@@ -1,3 +1,5 @@
+[⚙ Example Usage](#-example-usage) - [➜ Obtaining the ERPL Extension](#-obtaining-the-erpl-extension) - [💻 Installing the ERPL Binaries](#-installing-the-erpl-binaries) - [Tracking](#tracking) - [Licence](#license)
+
 # ★ What is the Erpl Extension?
 The primary objective of this [DuckDB](https://duckdb.org) extension is to facilitate seamless integration with the SAP data ecosystem. Our approach prioritizes:
 - **Minimal dependencies**: Ensuring a lightweight experience.
