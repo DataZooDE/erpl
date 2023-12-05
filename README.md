@@ -184,7 +184,7 @@ The output of this query will provide a comprehensive view of the flights, inclu
 | JL       |     0407 | 2016-11-17 00:00:00 | TOKYO       |        20.3 | FRANKFURT     |      20.4 |
 ```
 
-This example can also be found in it's [Python](./examples/flight_example_python.ipynb) or [R](./examples/flight_example_r.ipynb) version in the `examples` folder.
+This example can also be found in its [Python](./examples/flight_demo_python.ipynb), [R](./examples/flight_demo_r.ipynb), or [NODEJS](./examples/flight_demo_node.ipynb) version in the `examples` folder.
 
 [Back to Top](#top)
 
