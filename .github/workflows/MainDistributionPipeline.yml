@@ -1,10 +1,10 @@
 name: Main Extension Distribution Pipeline
 on:
   push:
+    paths-ignore:
+      - '**/README.md'
   pull_request:
   workflow_dispatch:
-  paths-ignore:
-    - '**/README.md'
 
 permissions:
   id-token: write # This is required for requesting the JWT
