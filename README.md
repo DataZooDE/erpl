@@ -221,6 +221,8 @@ Currently, we do not support OSX due to the unavailability of the SAP Netweaver 
 
 This revised section aims to provide a clearer, more user-friendly explanation of how to acquire and choose the appropriate ERPL extension, along with a straightforward guide for those interested in building the extension themselves.
 
+[Back to Top](#top)
+
 ## 💻 Installing the ERPL Binaries
 
 ### Introduction
@@ -321,3 +323,5 @@ The ERPL extension is licensed under the [Business Source License (BSL) Version 
 - **Disclaimer of Warranties**: The Licensed Work is provided "as is" without any warranties, including but not limited to the warranties of merchantability, fitness for a particular purpose, non-infringement, and title.
 
 This summary is based on the provided license text and should be used as a guideline. For legal advice or clarification on specific points, consulting a legal professional is recommended, especially for commercial or complex use cases.
+
+[Back to Top](#top)
