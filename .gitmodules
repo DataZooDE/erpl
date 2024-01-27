@@ -1,3 +1,10 @@
 [submodule "duckdb"]
 	path = duckdb
 	url = https://github.com/duckdb/duckdb.git
+
+[submodule "bics"]
+	path = bics
+	url = git@github.com:DataZooDE/erpl-bics.git
+[submodule "odp"]
+	path = odp
+	url = git@github.com:DataZooDE/erpl-odp.git

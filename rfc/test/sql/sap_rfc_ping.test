@@ -1,0 +1,37 @@
+# name: test/sql/rfc/sap_rfc_ping.test
+# description: test sap rfc ping functionality
+# group: [rfc]
+
+# Before we load the extension, this will fail
+statement error
+PRAGMA sap_rfc_ping;
+----
+Catalog Error: Pragma Function with name sap_rfc_ping does not exist!
+
+# Load the extension
+statement ok
+LOAD '__BUILD_DIRECTORY__/extension/erpl_impl/erpl_impl.duckdb_extension';
+
+statement ok
+SET sap_ashost = 'localhost'
+
+statement ok
+SET sap_sysnr = '00'
+
+statement ok
+SET sap_user = 'DEVELOPER'
+
+statement ok
+SET sap_password = 'Htods70334'
+
+statement ok
+SET sap_client = '001'
+
+statement ok
+SET sap_lang = 'EN'
+
+# Confirm ping works
+query I
+PRAGMA sap_rfc_ping;
+----
+PONG

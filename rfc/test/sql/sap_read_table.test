@@ -1,0 +1,98 @@
+# name: test/sql/sap_read_table.test
+# description: test the functionality read a full SAP table
+# group: [rfc]
+
+# Require statement will ensure this test is run with this extension loaded
+require erpel
+
+statement ok
+SET sap_ashost = 'localhost'
+
+statement ok
+SET sap_sysnr = '00'
+
+statement ok
+SET sap_user = 'DEVELOPER'
+
+statement ok
+SET sap_password = 'Htods70334'
+
+statement ok
+SET sap_client = '001'
+
+statement ok
+SET sap_lang = 'EN'
+
+# ------------------------------------------------------------
+# Confirm I retrieve the correct row count
+query I
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT');
+----
+40
+
+# ------------------------------------------------------------
+# Confirm I retrieve the correct table data
+query II
+SELECT CARRIER_ID, CONNECTION_ID FROM sap_read_table('/DMO/FLIGHT') ORDER BY 1, 2 LIMIT 10;
+----
+AA
+0015
+AA
+0015
+AA
+0017
+AA
+0017
+AA
+0018
+AA
+0018
+AA
+0322
+AA
+0322
+AA
+2678
+AA
+2678
+
+# ------------------------------------------------------------
+# If we limit the number we should get this value exactly as count
+query I
+SELECT CARRIER_ID FROM sap_read_table('/DMO/FLIGHT', columns=['CARRIER_ID'], threads=1, max_rows=8);
+----
+SQ
+SQ
+SQ
+SQ
+SQ
+SQ
+SQ
+SQ
+
+# ------------------------------------------------------------
+# If we select a column that we don't have in the columns list, we should get a bind error
+statement error
+SELECT PRICE FROM sap_read_table('/DMO/FLIGHT', columns=['CARRIER_ID', 'CONNECTION_ID']);
+
+# ------------------------------------------------------------
+# Confirm where as named param works
+query I
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', FILTER='CARRIER_ID = ''SQ'' AND CONNECTION_ID = ''0001''');
+----
+2
+
+# ------------------------------------------------------------
+# Confirm that filter pushdown works (for the simply type of expressions DuckDB supports)
+query I
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT') WHERE CARRIER_ID = 'SQ' AND CONNECTION_ID = '0001';
+----
+2
+
+# ------------------------------------------------------------
+# Confirm that a combination of filter pushdown and named param works
+query I
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', FILTER='CARRIER_ID = ''SQ''') WHERE CONNECTION_ID = '0001';
+----
+2
+
