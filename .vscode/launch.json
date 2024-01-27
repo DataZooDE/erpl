@@ -5,18 +5,18 @@
             "name": "Debug ERPL SQL Unit Tests",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/debug/ERPL_IMPL/test/unittest",
+            "program": "${workspaceFolder}/build/debug/ERPL_RFC/test/unittest",
             "args": [
                 "--test-dir",
                 "./test/sql",
                 "[rfc]"
             ],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/impl/",
+            "cwd": "${workspaceFolder}/rfc/",
             "environment": [
                 {
                     "name": "RFC_TRACE",
-                    "value": "1"
+                    "value": "0"
                 },
                 {
                     "name": "LD_LIBRARY_PATH",
@@ -43,14 +43,14 @@
             "name": "Debug BICS SQL Unit Tests",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/debug/test/unittest",
+            "program": "${workspaceFolder}/build/debug/ERPL_RFC/test/unittest",
             "args": [
                 "--test-dir",
-                ".",
-                "[sql_bics]"
+                "./test/sql",
+                "[bics]"
             ],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/rfc/",
             "environment": [
                 {
                     "name": "RFC_TRACE",
@@ -58,7 +58,45 @@
                 },
                 {
                     "name": "LD_LIBRARY_PATH",
-                    "value": "${env:LD_LIBRARY_PATH}:${workspaceFolder}/nwrfcsdk/lib"
+                    "value": "${env:LD_LIBRARY_PATH}:${workspaceFolder}/nwrfcsdk/linux/lib"
+                },
+                {
+                    "name": "LSAN_OPTIONS",
+                    "value": "suppressions=${workspaceFolder}/scripts/lsan_suppress.txt"
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "CMake: build",
+            "miDebuggerPath": ""
+        },
+        {
+            "name": "Debug ODP SQL Unit Tests",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/debug/ERPL_RFC/test/unittest",
+            "args": [
+                "--test-dir",
+                "./test/sql",
+                "[odp]"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/rfc/",
+            "environment": [
+                {
+                    "name": "RFC_TRACE",
+                    "value": "0"
+                },
+                {
+                    "name": "LD_LIBRARY_PATH",
+                    "value": "${env:LD_LIBRARY_PATH}:${workspaceFolder}/nwrfcsdk/linux/lib"
                 },
                 {
                     "name": "LSAN_OPTIONS",
@@ -81,10 +119,12 @@
             "name": "Debug ERPL CPP Unit Tests",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/debug/ERPL_IMPL/extension/erpl_impl/test/cpp/erpl_tests",
-            "args": [ ],
+            "program": "${workspaceFolder}/build/debug/ERPL_RFC/extension/erpl_rfc/test/cpp/erpl_tests",
+            "args": [ 
+                "[odp_xml]"
+            ],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/impl/",
+            "cwd": "${workspaceFolder}/rfc/",
             "environment": [
                 {
                     "name": "RFC_TRACE",
