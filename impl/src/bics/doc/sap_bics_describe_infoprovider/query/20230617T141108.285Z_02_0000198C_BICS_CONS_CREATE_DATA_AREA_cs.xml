@@ -1,9 +1,0 @@
-<?xml version="1.0"?>
-<RfcFunction Name="BICS_CONS_CREATE_DATA_AREA">
-  <Imports>
-    <E_APPLICATION_HANDLE Type="NUM" Length="8" Tag="" Decimals="0" IsSupplied="True"/>
-  </Imports>
-  <Exports/>
-  <Changings/>
-  <Tables/>
-</RfcFunction>
