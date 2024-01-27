@@ -68,3 +68,10 @@ A4H*.txt
 
 # Pixi
 .pixi
+
+# Doc Traces
+/doc/**/*.xml
+/doc/**/*.json
+
+# Test builds of extension
+*.duckdb_extension
