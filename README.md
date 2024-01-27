@@ -1,4 +1,21 @@
-# ★ What is the Erpl Extension?
+<a name="top"></a>
+
+# Let your DuckDB quack SAP!
+
+With ERPL start using Enterprise Data in your Data Science and ML pipelines within minutes!
+
+## Quicklinks
+
+- [★ What is the Erpl Extension?](#-what-is-the-erpl-extension) 
+- [⚙ Example Usage](#-example-usage) 
+- [➜ Obtaining the ERPL Extension](#-obtaining-the-erpl-extension)
+- [💻 Installing the ERPL Binaries](#-installing-the-erpl-binaries)
+- [Tracking](#tracking)
+- [Licence](#license)
+
+---
+
+# ★ What is the ERPL Extension?
 The primary objective of this [DuckDB](https://duckdb.org) extension is to facilitate seamless integration with the SAP data ecosystem. Our approach prioritizes:
 - **Minimal dependencies**: Ensuring a lightweight experience.
 - **User-centric design**: Intuitive and straightforward usage for DuckDB users.
@@ -19,6 +36,8 @@ Transparency is our ethos, and in line with this, we are planning a commercial t
 - **Enterprise Edition**: A premium version offering additional capabilities to query data from SAP Business Warehouse and data replication via SAP ODP.
 
 For inquiries, potential collaborations, or if your curiosity is piqued, connect with us at [https://erpl.io](https://erpl.io).
+
+[Back to Top](#top)
 
 ## ⚙ Example Usage
 A first example demonstrates how to join two SAP tables with an external table. We’ll be using the [ABAP Flight Reference Scenario](https://help.sap.com/docs/ABAP_PLATFORM_NEW/fc4c71aa50014fd1b43721701471913d/a9d7c7c140a0408dbc5966c52d156b49.html), specifically joining the `SFLIGHT` and `SPFLI` tables which contain flight and flight schedule details respectively, with an external table `WEATHER` that holds weather information. We will extract flight information and associated temperatures at departure and arrival cities.
@@ -165,7 +184,9 @@ The output of this query will provide a comprehensive view of the flights, inclu
 | JL       |     0407 | 2016-11-17 00:00:00 | TOKYO       |        20.3 | FRANKFURT     |      20.4 |
 ```
 
-This example can also be found in it's [Python](./examples/flight_example_python.ipynb) or [R](./examples/flight_example_r.ipynb) version in the `examples` folder.
+This example can also be found in its [Python](./examples/flight_demo_python.ipynb), [R](./examples/flight_demo_r.ipynb), or [NODEJS](./examples/flight_demo_node.ipynb) version in the `examples` folder.
+
+[Back to Top](#top)
 
 ## ➜ Obtaining the ERPL Extension
 
@@ -199,6 +220,8 @@ Choose the binary that matches your usage scenario. The table below summarizes t
 Currently, we do not support OSX due to the unavailability of the SAP Netweaver RFC SDK for Apple Silicon. However, efforts are underway to enable compatibility via the x86 emulation layer, Rosetta.
 
 This revised section aims to provide a clearer, more user-friendly explanation of how to acquire and choose the appropriate ERPL extension, along with a straightforward guide for those interested in building the extension themselves.
+
+[Back to Top](#top)
 
 ## 💻 Installing the ERPL Binaries
 
@@ -240,6 +263,8 @@ The `erpl_init` function in the trampoline extension bundles and extracts depend
 
 This revised section aims for a clearer, more structured presentation of the installation process, ensuring users can easily understand and follow the steps.
 
+[Back to Top](#top)
+
 ## Tracking
 
 ### Overview
@@ -274,6 +299,8 @@ Users can control tracking through these settings:
 
 This approach ensures transparency about data collection while offering users control over their privacy settings.
 
+[Back to Top](#top)
+
 ## License
 The ERPL extension is licensed under the [Business Source License (BSL) Version 1.1](./LICENSE.md). The BSL is a source-available license that gives you the following permissions:
 
@@ -296,3 +323,5 @@ The ERPL extension is licensed under the [Business Source License (BSL) Version 
 - **Disclaimer of Warranties**: The Licensed Work is provided "as is" without any warranties, including but not limited to the warranties of merchantability, fitness for a particular purpose, non-infringement, and title.
 
 This summary is based on the provided license text and should be used as a guideline. For legal advice or clarification on specific points, consulting a legal professional is recommended, especially for commercial or complex use cases.
+
+[Back to Top](#top)
