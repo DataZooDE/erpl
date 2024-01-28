@@ -49,6 +49,7 @@ jobs:
       linux_matrix: ${{ steps.set-matrix-linux.outputs.linux_matrix }}
       windows_matrix: ${{ steps.set-matrix-windows.outputs.windows_matrix }}
       osx_matrix: ${{ steps.set-matrix-osx.outputs.osx_matrix }}
+      github_token: ${{ steps.generate_token.outputs.token }}
     steps:
       - name: Generate GitHub token
         id: generate_token
@@ -58,6 +59,7 @@ jobs:
           private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: "erpl,erpl-bics,erpl-odp"
+          skip-token-revoke: true
     
       - uses: actions/checkout@v3
         with:
@@ -117,10 +119,6 @@ jobs:
           apt-get update -y -qq
           apt-get install -y -qq ninja-build make gcc-multilib g++-multilib libssl-dev wget openjdk-8-jdk zip maven unixodbc-dev libc6-dev-i386 lib32readline6-dev libssl-dev libcurl4-gnutls-dev libexpat1-dev gettext unzip build-essential checkinstall libffi-dev curl libz-dev openssh-client python3-pip nodejs
 
-      - name: Check node version
-        run: |
-          node --version
-
       - name: Install Git 2.18.5
         if: ${{ matrix.duckdb_arch == 'linux_amd64' || matrix.duckdb_arch == 'linux_arm64' }}
         run: |
@@ -130,21 +128,12 @@ jobs:
           make
           make prefix=/usr install
           git --version
-
-      - name: Generate GitHub token
-        id: generate_token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
-          private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: "erpl,erpl-bics,erpl-odp"
       
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: 'true'
-          token: ${{ steps.generate_token.outputs.token }}
+          token: ${{ needs.generate_matrix.outputs.github_token }}
 
       - name: Checkout DuckDB to version
         run: |
