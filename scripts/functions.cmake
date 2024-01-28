@@ -66,7 +66,7 @@ function(default_linux_libraries)
 
    # Set SAPNWRFC_HOME and SAPNWRFC_LIB_FILES for use in the parent scope
    get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/linux ABSOLUTE)
-   message(STATUS "SAPNWRFC_HOME: ${SAPNWRFC_HOME}")
+   #message(STATUS "SAPNWRFC_HOME: ${SAPNWRFC_HOME}")
    find_sap_libraries(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME} "sapnwrfc" "sapucum")
    set(SAPNWRFC_HOME ${SAPNWRFC_HOME} PARENT_SCOPE)
    set(SAPNWRFC_LIB_FILES ${SAPNWRFC_LIB_FILES} PARENT_SCOPE)
@@ -92,19 +92,20 @@ endfunction()
 
 #---------------------------------------------------------------------------------------
 
-function(attach_extension_as_object extension_home extension_name)
-      set(OBJ_NAME "${extension_name}.o")
-      get_filename_component(OBJ_PATH "${CMAKE_CURRENT_BINARY_DIR}/${OBJ_NAME}" ABSOLUTE)
-      get_filename_component(EXT_PATH "${extension_home}/${extension_name}" ABSOLUTE)
-      get_filename_component(EXT_DIR "${EXT_PATH}" DIRECTORY)
+function(attach_extension_as_object extension_file)
+    set(OBJ_NAME "${extension_file}.o")
+    get_filename_component(EXT_NAME "${extension_file}" NAME_WE)
+    get_filename_component(OBJ_PATH "${CMAKE_CURRENT_BINARY_DIR}/${OBJ_NAME}" ABSOLUTE)
+    get_filename_component(EXT_DIR "${CMAKE_BINARY_DIR}/extension/${EXT_NAME}" ABSOLUTE)
+    get_filename_component(EXT_PATH "${EXT_DIR}/${extension_file}" ABSOLUTE)
 
-      add_custom_command(
-            OUTPUT "${OBJ_PATH}"
-            COMMAND objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 "${extension_name}" "${OBJ_PATH}"
-            DEPENDS "${EXT_PATH}"
-            COMMENT "Creating object file ${OBJ_PATH}"
-            WORKING_DIRECTORY "${EXT_DIR}"
-      )
+    add_custom_command(
+        OUTPUT "${OBJ_PATH}"
+        COMMAND objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 "${extension_file}" "${OBJ_PATH}"
+        DEPENDS "${EXT_PATH}"
+        COMMENT "Creating object file ${OBJ_PATH}"
+        WORKING_DIRECTORY "${EXT_DIR}"
+    )
 
-      set(ERPL_EXTENSION_OBJECTS ${ERPL_EXTENSION_OBJECTS} "${OBJ_NAME}" PARENT_SCOPE)
+    set(ERPL_EXTENSION_OBJECTS ${ERPL_EXTENSION_OBJECTS} "${OBJ_NAME}" PARENT_SCOPE)
 endfunction()

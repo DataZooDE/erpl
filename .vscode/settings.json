@@ -28,6 +28,12 @@
         "-DDUCKDB_EXTENSION_ERPL_ODP_TEST_PATH=${workspaceFolder}/odp/test/",
         "-DDUCKDB_EXTENSION_ERPL_ODP_SHOULD_LINK=0",
 
+        "-DDUCKDB_EXTENSION_ERPL_PATH=${workspaceFolder}/trampoline/",
+        "-DDUCKDB_EXTENSION_ERPL_LOAD_TESTS=1",
+        "-DDUCKDB_EXTENSION_ERPL_INCLUDE_PATH=${workspaceFolder}/trampoline/src/include",
+        "-DDUCKDB_EXTENSION_ERPL_TEST_PATH=${workspaceFolder}/trampoline/test/",
+        "-DDUCKDB_EXTENSION_ERPL_SHOULD_LINK=0",
+
         "-DEXTENSION_STATIC_BUILD=0",
         "-DBUILD_PARQUET_EXTENSION=1",
         "-DCMAKE_BUILD_TYPE=Debug",

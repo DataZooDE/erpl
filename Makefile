@@ -66,7 +66,13 @@ ifneq ($(wildcard $(PROJ_DIR)odp/CMakeLists.txt),)
 		-DDUCKDB_EXTENSION_ERPL_ODP_SHOULD_LINK=0
 endif
 
-$(info **** $(EXTENSION_NAMES))
+EXTENSION_NAMES := $(strip $(EXTENSION_NAMES);erpl)
+EXTENSION_FLAGS += \
+	-DDUCKDB_EXTENSION_ERPL_PATH="$(PROJ_DIR)trampoline" \
+	-DDUCKDB_EXTENSION_ERPL_LOAD_TESTS=1 \
+	-DDUCKDB_EXTENSION_ERPL_INCLUDE_PATH="$(PROJ_DIR)trampoline/src/include" \
+	-DDUCKDB_EXTENSION_ERPL_TEST_PATH="$(PROJ_DIR)/trampoline/test/sql" \
+	-DDUCKDB_EXTENSION_ERPL_SHOULD_LINK=0
 
 # If extension names are not empty, prepend the option
 ifneq ($(EXTENSION_NAMES),)

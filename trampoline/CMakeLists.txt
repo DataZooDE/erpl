@@ -48,39 +48,23 @@ if(WIN32)
 endif()
 
 if(UNIX AND NOT APPLE)
-    get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/linux ABSOLUTE)
-    IF(CMAKE_BUILD_TYPE MATCHES Debug)
-        get_filename_component(ERPL_RFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../build/debug/ERPL_RFC/extension/erpl_rfc ABSOLUTE)
-        get_filename_component(ERPL_BICS_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../build/debug/ERPL_BICS/extension/erpl_bics ABSOLUTE)
-        get_filename_component(ERPL_ODP_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../build/debug/ERPL_ODP/extension/erpl_odp ABSOLUTE)
-    ELSE()
-        get_filename_component(ERPL_RFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../build/release/ERPL_RFC/extension/erpl_rfc ABSOLUTE)
-        get_filename_component(ERPL_BICS_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../build/release/ERPL_BICS/extension/erpl_bics ABSOLUTE)
-        get_filename_component(ERPL_ODP_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../build/release/ERPL_ODP/extension/erpl_odp ABSOLUTE)
-    ENDIF(CMAKE_BUILD_TYPE MATCHES Debug)
-
-    # Attach the erpl_rfc.duckdb_extension file as an object to the trampoline file 
-    # (we call this erpl to not confuse the user), 
-    # such that it can be extracted
-    #get_filename_component(OBJ_PATH "${CMAKE_CURRENT_BINARY_DIR}/erpl_rfc.duckdb_extension.o" ABSOLUTE)
-    #get_filename_component(ERPL_RFC_EXT_PATH "${ERPL_RFC_HOME}/erpl_rfc.duckdb_extension" ABSOLUTE)
-    #get_filename_component(ERPL_RFC_EXT_NAME "${ERPL_RFC_EXT_PATH}" NAME)
-    #get_filename_component(ERPL_RFC_EXT_DIR "${ERPL_RFC_EXT_PATH}" DIRECTORY)
-    #add_custom_command(
-    #    OUTPUT "${OBJ_PATH}"
-    #    COMMAND objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 "${ERPL_RFC_EXT_NAME}" "${OBJ_PATH}"
-    #    DEPENDS "${ERPL_RFC_EXT_PATH}"
-    #    COMMENT "Creating object file ${CMAKE_CURRENT_BINARY_DIR}/erpl_rfc.duckdb_extension.o"
-    #    WORKING_DIRECTORY "${ERPL_RFC_EXT_DIR}"
-    #)
-    #set(ERPL_EXTENSION_OBJECTS "erpl_rfc.duckdb_extension.o")
-    attach_extension_as_object(${ERPL_RFC_HOME} "erpl_rfc.duckdb_extension")
-    attach_extension_as_object(${ERPL_BICS_HOME} "erpl_bics.duckdb_extension")
-    attach_extension_as_object(${ERPL_ODP_HOME} "erpl_odp.duckdb_extension")
+    # Attach the erpl_XXX.duckdb_extension files as an object to the trampoline file 
+    # (we call this erpl to not confuse the user), such that it can be extracted
+    attach_extension_as_object("erpl_rfc.duckdb_extension")
+    if ("erpl_bics" IN_LIST DUCKDB_EXTENSION_NAMES)
+        message(STATUS "Attaching erpl_bics.duckdb_extension")
+        attach_extension_as_object("erpl_bics.duckdb_extension")
+    endif()
+    
+    if ("erpl_odp" IN_LIST DUCKDB_EXTENSION_NAMES)
+        message(STATUS "Attaching erpl_odp.duckdb_extension")
+        attach_extension_as_object("erpl_odp.duckdb_extension")
+    endif()
 
     message(STATUS "ERPL_EXTENSION_OBJECTS: ${ERPL_EXTENSION_OBJECTS}")
 
     # Attach the SAP libraries as objects to the trampoline file, such that it can be extracted
+    get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/linux ABSOLUTE)
     file(GLOB SAPNWRFC_SO_FILES "${SAPNWRFC_HOME}/lib/*.so*")
     foreach(LIB ${SAPNWRFC_SO_FILES})
         get_filename_component(LIB_DIR ${LIB} DIRECTORY)
@@ -110,5 +94,24 @@ set(EXTENSION_SOURCES
     ${ERPL_EXTENSION_OBJECTS}
 )
 
+build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
+set(PARAMETERS "-warnings")
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
+
+add_dependencies(${EXTENSION_NAME} erpl_rfc_loadable_extension)
+add_dependencies(${LOADABLE_EXTENSION_NAME} erpl_rfc_loadable_extension)
+
+if ("erpl_bics" IN_LIST DUCKDB_EXTENSION_NAMES)
+    add_compile_definitions(WITH_ERPL_BICS)
+    add_dependencies(${EXTENSION_NAME} erpl_bics_loadable_extension)
+    add_dependencies(${LOADABLE_EXTENSION_NAME} erpl_bics_loadable_extension)
+endif()
+
+if ("erpl_odp" IN_LIST DUCKDB_EXTENSION_NAMES)
+    add_compile_definitions(WITH_ERPL_ODP)
+    add_dependencies(${EXTENSION_NAME} erpl_odp_loadable_extension)
+    add_dependencies(${LOADABLE_EXTENSION_NAME} erpl_odp_loadable_extension)
+endif()
+
+target_link_libraries(${EXTENSION_NAME})
 target_link_libraries(${LOADABLE_EXTENSION_NAME})

@@ -32,11 +32,15 @@ extern const char _binary_libicuuc_so_50_end[];
 extern const char _binary_erpl_rfc_duckdb_extension_start[];
 extern const char _binary_erpl_rfc_duckdb_extension_end[];
 
+#ifdef WITH_ERPL_BICS
 extern const char _binary_erpl_bics_duckdb_extension_start[];
 extern const char _binary_erpl_bics_duckdb_extension_end[];
+#endif
 
+#ifdef WITH_ERPL_ODP
 extern const char _binary_erpl_odp_duckdb_extension_start[];
 extern const char _binary_erpl_odp_duckdb_extension_end[];
+#endif
 
 #elif _WIN32
 
@@ -107,11 +111,15 @@ namespace duckdb
             SaveToFile(_binary_erpl_rfc_duckdb_extension_start, _binary_erpl_rfc_duckdb_extension_end, StringUtil::Format("%s/erpl_rfc.duckdb_extension", ext_path));
             std::cout << StringUtil::Format("ERPL RFC extension extracted and saved to %s.", ext_path) << std::endl;
 
+            #ifdef WITH_ERPL_BICS
             SaveToFile(_binary_erpl_bics_duckdb_extension_start, _binary_erpl_bics_duckdb_extension_end, StringUtil::Format("%s/erpl_bics.duckdb_extension", ext_path));
             std::cout << StringUtil::Format("ERPL BICS extension extracted and saved to %s.", ext_path) << std::endl;
+            #endif
 
+            #ifdef WITH_ERPL_ODP
             SaveToFile(_binary_erpl_odp_duckdb_extension_start, _binary_erpl_odp_duckdb_extension_end, StringUtil::Format("%s/erpl_odp.duckdb_extension", ext_path));
             std::cout << StringUtil::Format("ERPL ODP extension extracted and saved to %s.", ext_path) << std::endl;
+            #endif
         } 
         catch (const std::exception& e) {
             std::cerr << std::endl << "Error: " << e.what() << std::endl;
@@ -260,7 +268,6 @@ namespace duckdb
         return ret;
     }
      
-
     static void InstallAndLoadExtension(DuckDB &db, const std::string& ext_name)
     {
         duckdb::Connection con(db);
@@ -271,24 +278,28 @@ namespace duckdb
         if (result->HasError()) {
             throw std::runtime_error(StringUtil::Format("Failed to install %s extension: %s", pr_ext_name, result->GetError()));
         }
-        std::cout << StringUtil::Format("%s implementation extension installed from %s%s%s.duckdb_extension.", 
-                                        pr_ext_name, ext_path, Separator(), ext_name) << std::endl;
-
+        
         result = con.Query(StringUtil::Format("LOAD '%s'", ext_name));
         if (result->HasError()) {
             throw std::runtime_error(StringUtil::Format("Failed to load %s extension: %s", pr_ext_name, result->GetError()));
         }
 
-        std::cout << StringUtil::Format("%s implementation extension loaded.", pr_ext_name) << std::endl;
+        std::cout << StringUtil::Format("%s extension installed and loaded.", pr_ext_name) << std::endl;
     }
 
     static void LoadExtensions(DuckDB &db) 
     {
         InstallAndLoadExtension(db, "erpl_rfc");
-        InstallAndLoadExtension(db, "erpl_bics");
-        InstallAndLoadExtension(db, "erpl_odp");
 
-        std::cout << "ERPL implementation extensions loaded. For instructions on how to use them, visit https://erpl.io" << std::endl;
+        #ifdef WITH_ERPL_BICS
+        InstallAndLoadExtension(db, "erpl_bics");
+        #endif
+
+        #ifdef WITH_ERPL_ODP
+        InstallAndLoadExtension(db, "erpl_odp");
+        #endif
+
+        std::cout << "ERPL extensions loaded. For instructions on how to use them, visit https://erpl.io" << std::endl;
     }
 
     void ErplExtension::Load(DuckDB &db) 
