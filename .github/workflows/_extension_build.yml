@@ -49,7 +49,7 @@ jobs:
       linux_matrix: ${{ steps.set-matrix-linux.outputs.linux_matrix }}
       windows_matrix: ${{ steps.set-matrix-windows.outputs.windows_matrix }}
       osx_matrix: ${{ steps.set-matrix-osx.outputs.osx_matrix }}
-      github_token: ${{ steps.generate_token.outputs.token }}
+      foo: ${{ steps.generate_token.outputs.token }}
     steps:
       - name: Generate GitHub token
         id: generate_token
@@ -57,10 +57,8 @@ jobs:
         with:
           app-id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
           private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
-          owner: ${{ github.repository_owner }}
           repositories: "erpl,erpl-bics,erpl-odp"
-          skip-token-revoke: true
-    
+          
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
@@ -105,7 +103,7 @@ jobs:
     strategy:
       matrix: ${{fromJson(needs.generate_matrix.outputs.linux_matrix)}}
     env:
-      GITHUB_TOKEN: ${{ needs.generate_matrix.outputs.github_token }}
+      GITHUB_TOKEN: ${{ needs.generate_matrix.outputs.foo }}
       VCPKG_TARGET_TRIPLET: ${{ matrix.vcpkg_triplet }}
       VCPKG_TOOLCHAIN_PATH: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
       GEN: Ninja
@@ -135,7 +133,7 @@ jobs:
           fetch-depth: 0
           submodules: 'true'
           token: $GITHUB_TOKEN
-
+          
       - name: Checkout DuckDB to version
         run: |
           cd duckdb
