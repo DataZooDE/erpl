@@ -22,7 +22,7 @@ function(default_win32_libraries)
 
       # Set SAPNWRFC_HOME and SAPNWRFC_LIB_FILES for use in the parent scope
       get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/win ABSOLUTE)
-      message(STATUS "SAPNWRFC_HOME: ${SAPNWRFC_HOME}")
+      #message(STATUS "SAPNWRFC_HOME: ${SAPNWRFC_HOME}")
       find_sap_libraries(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME} "sapnwrfc" "libsapucum")
       set(SAPNWRFC_HOME ${SAPNWRFC_HOME} PARENT_SCOPE)
       set(SAPNWRFC_LIB_FILES ${SAPNWRFC_LIB_FILES} PARENT_SCOPE)

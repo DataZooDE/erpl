@@ -1,20 +1,34 @@
 {
     "cmake.sourceDirectory": "${workspaceFolder}/duckdb",
-    "cmake.buildDirectory": "${workspaceFolder}/build/debug/ERPL_RFC",
+    "cmake.buildDirectory": "${workspaceFolder}/build/debug/",
     "cmake.configureSettings": {
         "CMAKE_TOOLCHAIN_FILE": "${workspaceFolder}/vcpkg/scripts/buildsystems/vcpkg.cmake",
         "VCPKG_MANIFEST_DIR": "${workspaceFolder}/rfc/",
         "VCPKG_BUILD": "1",
         "GEN": "ninja",
     },
+    
     "cmake.configureArgs": [
-        "-DDUCKDB_EXTENSION_NAMES=erpl_rfc",
+        "-DDUCKDB_EXTENSION_NAMES=erpl_rfc;erpl_bics;erpl_odp",
         "-DDUCKDB_EXTENSION_ERPL_RFC_PATH=${workspaceFolder}/rfc/",
         "-DDUCKDB_EXTENSION_ERPL_RFC_LOAD_TESTS=1",
         "-DDUCKDB_EXTENSION_ERPL_RFC_INCLUDE_PATH=${workspaceFolder}/rfc/src/include",
-        "-DDUCKDB_EXTENSION_ERPL_RFC_TEST_PATH=${workspaceFolder}/rfc/test/sql",
-        "-DDUCKDB_EXTENSION_ERPL_RFC_SHOULD_LINK=1",
-        "-DEXTENSION_STATIC_BUILD=1",
+        "-DDUCKDB_EXTENSION_ERPL_RFC_TEST_PATH=${workspaceFolder}/rfc/test/",
+        "-DDUCKDB_EXTENSION_ERPL_RFC_SHOULD_LINK=0",
+
+        "-DDUCKDB_EXTENSION_ERPL_BICS_PATH=${workspaceFolder}/bics/",
+        "-DDUCKDB_EXTENSION_ERPL_BICS_LOAD_TESTS=1",
+        "-DDUCKDB_EXTENSION_ERPL_BICS_INCLUDE_PATH=${workspaceFolder}/bics/src/include",
+        "-DDUCKDB_EXTENSION_ERPL_BICS_TEST_PATH=${workspaceFolder}/bics/test/",
+        "-DDUCKDB_EXTENSION_ERPL_BICS_SHOULD_LINK=0",
+
+        "-DDUCKDB_EXTENSION_ERPL_ODP_PATH=${workspaceFolder}/odp/",
+        "-DDUCKDB_EXTENSION_ERPL_ODP_LOAD_TESTS=1",
+        "-DDUCKDB_EXTENSION_ERPL_ODP_INCLUDE_PATH=${workspaceFolder}/odp/src/include",
+        "-DDUCKDB_EXTENSION_ERPL_ODP_TEST_PATH=${workspaceFolder}/odp/test/",
+        "-DDUCKDB_EXTENSION_ERPL_ODP_SHOULD_LINK=0",
+
+        "-DEXTENSION_STATIC_BUILD=0",
         "-DBUILD_PARQUET_EXTENSION=1",
         "-DCMAKE_BUILD_TYPE=Debug",
         "-Wno-unused-variable"
@@ -127,5 +141,7 @@
         "xutility": "cpp",
         "filesystem": "cpp"
     },
-    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools"
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "cmake.autoSelectActiveFolder": true,
+    "cmake.configureOnOpen": true
 }

@@ -1,4 +1,4 @@
-option(BUILD_UNITTESTS "Build ERPL C++ Unit Tests." TRUE)
+option(BUILD_UNITTESTS "Build ERPL C++ Unit Tests." OFF)
 
 # Set extension name here
 set(TARGET_NAME erpl_rfc)
@@ -80,3 +80,9 @@ endif()
 if(${BUILD_UNITTESTS})
       add_subdirectory(test)
 endif()
+
+install(
+  TARGETS ${EXTENSION_NAME} ${LOADABLE_EXTENSION_NAME}
+  EXPORT "${DUCKDB_EXPORT_SET}"
+  LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
+  ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")
