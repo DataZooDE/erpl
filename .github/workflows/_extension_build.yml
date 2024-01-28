@@ -105,6 +105,7 @@ jobs:
     strategy:
       matrix: ${{fromJson(needs.generate_matrix.outputs.linux_matrix)}}
     env:
+      GITHUB_TOKEN: ${{ needs.generate_matrix.outputs.github_token }}
       VCPKG_TARGET_TRIPLET: ${{ matrix.vcpkg_triplet }}
       VCPKG_TOOLCHAIN_PATH: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
       GEN: Ninja
@@ -133,7 +134,7 @@ jobs:
         with:
           fetch-depth: 0
           submodules: 'true'
-          token: ${{ needs.generate_matrix.outputs.github_token }}
+          token: $GITHUB_TOKEN
 
       - name: Checkout DuckDB to version
         run: |
