@@ -108,8 +108,6 @@ jobs:
       GEN: Ninja
 
     steps:
-
-
       - name: Install required ubuntu packages
         if: ${{ matrix.duckdb_arch == 'linux_amd64' || matrix.duckdb_arch == 'linux_arm64' }}
         run: |
@@ -118,6 +116,10 @@ jobs:
           add-apt-repository ppa:git-core/ppa
           apt-get update -y -qq
           apt-get install -y -qq ninja-build make gcc-multilib g++-multilib libssl-dev wget openjdk-8-jdk zip maven unixodbc-dev libc6-dev-i386 lib32readline6-dev libssl-dev libcurl4-gnutls-dev libexpat1-dev gettext unzip build-essential checkinstall libffi-dev curl libz-dev openssh-client python3-pip nodejs
+
+      - name: Check node version
+        run: |
+          node --version
 
       - name: Install Git 2.18.5
         if: ${{ matrix.duckdb_arch == 'linux_amd64' || matrix.duckdb_arch == 'linux_arm64' }}
@@ -142,7 +144,7 @@ jobs:
         with:
           fetch-depth: 0
           submodules: 'true'
-          token: $GITHUB_TOKEN
+          token: ${{ steps.generate_token.outputs.token }}
 
       - name: Checkout DuckDB to version
         run: |
