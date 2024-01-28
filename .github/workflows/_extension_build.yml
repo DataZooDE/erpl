@@ -128,22 +128,32 @@ jobs:
           make prefix=/usr install
           git --version
       
+      - name: Setup ManyLinux2014
+        if: ${{ matrix.duckdb_arch == 'linux_amd64_gcc4' }}
+        run: |
+          ./duckdb/scripts/setup_manylinux2014.sh general aws-cli ccache ssh python_alias openssl
+          yum install -y openssl-devel nodejs
+
+      - name: Generate GitHub token
+        id: generate_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
+          private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
+          repositories: "erpl,erpl-bics,erpl-odp"
+
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: 'true'
-          token: $GITHUB_TOKEN
+          token: ${{ steps.generate_token.outputs.token }}
           
       - name: Checkout DuckDB to version
         run: |
           cd duckdb
           git checkout ${{ inputs.duckdb_version }}
 
-      - name: Setup ManyLinux2014
-        if: ${{ matrix.duckdb_arch == 'linux_amd64_gcc4' }}
-        run: |
-          ./duckdb/scripts/setup_manylinux2014.sh general aws-cli ccache ssh python_alias openssl
-          yum install -y openssl-devel
+
 
       - name: Setup Ccache
         uses: hendrikmuhs/ccache-action@main
