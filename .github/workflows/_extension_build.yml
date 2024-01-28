@@ -50,13 +50,7 @@ jobs:
       windows_matrix: ${{ steps.set-matrix-windows.outputs.windows_matrix }}
       osx_matrix: ${{ steps.set-matrix-osx.outputs.osx_matrix }}
     steps:
-      - name: Generate token
-        # Use the Github App private key to request an installation
-        # token with read-only access to the organization's private
-        # repositories. This token is then used in the checkout step
-        # (but not in subsequent steps that create releases and upload
-        # assets, those still use the default token that has write
-        # access to the current repository).
+      - name: Generate GitHub token
         id: generate_token
         uses: tibdex/github-app-token@v1
         with:
@@ -135,10 +129,22 @@ jobs:
           make prefix=/usr install
           git --version
 
+      - name: Generate GitHub token
+        id: generate_token
+        uses: tibdex/github-app-token@v1
+        with:
+          app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
+          private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
+          # Limit permissions to what we need (these need to be
+          # configured in the app settings as well).
+          permissions: >-
+            {"contents": "read"}
+
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: 'true'
+          token: ${{ steps.generate_token.outputs.token }}
 
       - name: Checkout DuckDB to version
         run: |
@@ -202,10 +208,22 @@ jobs:
       VCPKG_TARGET_TRIPLET: ${{ matrix.vcpkg_triplet }}
 
     steps:
+      - name: Generate GitHub token
+        id: generate_token
+        uses: tibdex/github-app-token@v1
+        with:
+          app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
+          private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
+          # Limit permissions to what we need (these need to be
+          # configured in the app settings as well).
+          permissions: >-
+            {"contents": "read"}
+
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: 'true'
+          token: ${{ steps.generate_token.outputs.token }}
 
       - uses: actions/setup-python@v2
         with:
