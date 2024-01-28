@@ -118,6 +118,11 @@ jobs:
           apt-get update -y -qq
           apt-get install -y -qq ninja-build make gcc-multilib g++-multilib libssl-dev wget openjdk-8-jdk zip maven unixodbc-dev libc6-dev-i386 lib32readline6-dev libssl-dev libcurl4-gnutls-dev libexpat1-dev gettext unzip build-essential checkinstall libffi-dev curl libz-dev openssh-client python3-pip nodejs
 
+      - name: Install required manylinux packages
+        if: ${{ matrix.duckdb_arch == 'linux_amd64_gcc4' }}
+        run: |
+          yum install -y openssl-devel nodejs
+
       - name: Install Git 2.18.5
         if: ${{ matrix.duckdb_arch == 'linux_amd64' || matrix.duckdb_arch == 'linux_arm64' }}
         run: |
@@ -127,12 +132,6 @@ jobs:
           make
           make prefix=/usr install
           git --version
-      
-      - name: Setup ManyLinux2014
-        if: ${{ matrix.duckdb_arch == 'linux_amd64_gcc4' }}
-        run: |
-          ./duckdb/scripts/setup_manylinux2014.sh general aws-cli ccache ssh python_alias openssl
-          yum install -y openssl-devel nodejs
 
       - name: Generate GitHub token
         id: generate_token
@@ -147,13 +146,16 @@ jobs:
           fetch-depth: 0
           submodules: 'true'
           token: ${{ steps.generate_token.outputs.token }}
+
+      - name: Setup ManyLinux2014
+        if: ${{ matrix.duckdb_arch == 'linux_amd64_gcc4' }}
+        run: |
+          ./duckdb/scripts/setup_manylinux2014.sh general aws-cli ccache ssh python_alias openssl
           
       - name: Checkout DuckDB to version
         run: |
           cd duckdb
           git checkout ${{ inputs.duckdb_version }}
-
-
 
       - name: Setup Ccache
         uses: hendrikmuhs/ccache-action@main
