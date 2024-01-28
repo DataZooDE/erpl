@@ -5,6 +5,7 @@
 [submodule "bics"]
 	path = bics
 	url = git@github.com:DataZooDE/erpl-bics.git
+	
 [submodule "odp"]
 	path = odp
 	url = git@github.com:DataZooDE/erpl-odp.git
