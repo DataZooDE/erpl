@@ -48,10 +48,10 @@ function(default_win32_definitions target)
     )
 
     # Apply compile options to the specified target
-    target_compile_options(${target} PRIVATE 
-        MP 
-        INCREMENTAL
-    )
+    #target_compile_options(${target} PRIVATE 
+    #    MP 
+    #    INCREMENTAL
+    #)
 
     # Set variables for use in the parent scope
     set(BUILD_UNITTESTS FALSE PARENT_SCOPE)
