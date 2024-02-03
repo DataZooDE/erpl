@@ -87,6 +87,13 @@ jobs:
           fetch-depth: 0
           submodules: 'true'
 
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::331993160594:role/ErplGithubOicdRole
+          role-session-name: ErplGithubOicdSession
+          aws-region: eu-west-1
+
       - name: Checkout DuckDB to version
         run: |
           cd duckdb
@@ -101,8 +108,7 @@ jobs:
       - name: Deploy
         shell: bash
         env:
-          AWS_DEFAULT_REGION: ${{ secrets.S3_REGION }}
-          BUCKET_NAME: ${{ secrets.S3_BUCKET }}
+          BUCKET_NAME: ${{ secrets.DEPLOY_S3_BUCKET }}
           DUCKDB_EXTENSION_SIGNING_PK: ${{ secrets.DUCKDB_EXTENSION_SIGNING_PK }}
         run: |
           pwd
