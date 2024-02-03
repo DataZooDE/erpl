@@ -103,7 +103,6 @@ jobs:
     strategy:
       matrix: ${{fromJson(needs.generate_matrix.outputs.linux_matrix)}}
     env:
-      GITHUB_TOKEN: ${{ needs.generate_matrix.outputs.foo }}
       VCPKG_TARGET_TRIPLET: ${{ matrix.vcpkg_triplet }}
       VCPKG_TOOLCHAIN_PATH: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
       GEN: Ninja
@@ -139,7 +138,6 @@ jobs:
         with:
           app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
           private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
-          #repositories: "erpl,erpl-bics,erpl-odp"
 
       - uses: actions/checkout@v3
         with:
