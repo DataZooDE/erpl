@@ -132,7 +132,6 @@ namespace duckdb
 
 #elif _WIN32
     
-
     static std::string Wide2Str(const std::wstring& wstr)
     {
         using convert_typeX = std::codecvt_utf8<wchar_t>;
@@ -243,7 +242,17 @@ namespace duckdb
             std::cout << StringUtil::Format("ERPL dependencies extracted and saved to %s.", ext_path) << std::endl;
             
             SaveResourceToFile(TEXT("ERPL_RFC"), StringUtil::Format("%s\\erpl_rfc.duckdb_extension", ext_path));
-            std::cout << StringUtil::Format("ERPL extension extracted and saved to %s.", ext_path) << std::endl;
+            std::cout << StringUtil::Format("ERPL RFC extension extracted and saved to %s.", ext_path) << std::endl;
+
+            #ifdef WITH_ERPL_BICS
+            SaveResourceToFile(TEXT("ERPL_BICS"), StringUtil::Format("%s\\erpl_bics.duckdb_extension", ext_path));
+            std::cout << StringUtil::Format("ERPL BICS extension extracted and saved to %s.", ext_path) << std::endl;
+            #endif
+
+            #ifdef WITH_ERPL_ODP
+            SaveResourceToFile(TEXT("ERPL_ODP"), StringUtil::Format("%s\\erpl_odp.duckdb_extension", ext_path));
+            std::cout << StringUtil::Format("ERPL ODP extension extracted and saved to %s.", ext_path) << std::endl;
+            #endif
 
             ModifyPathEnvironmentVariable(ext_path);
             std::cout << "Added DuckDB extension directory to the PATH environment variable." << std::endl;
