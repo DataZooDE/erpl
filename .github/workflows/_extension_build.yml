@@ -49,7 +49,6 @@ jobs:
       linux_matrix: ${{ steps.set-matrix-linux.outputs.linux_matrix }}
       windows_matrix: ${{ steps.set-matrix-windows.outputs.windows_matrix }}
       osx_matrix: ${{ steps.set-matrix-osx.outputs.osx_matrix }}
-      foo: ${{ steps.generate_token.outputs.token }}
     steps:
       - name: Generate GitHub token
         id: generate_token
