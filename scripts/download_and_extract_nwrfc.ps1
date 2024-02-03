@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$SRC = 's3://erpl/sapnwrfc/nwrfc750P_12-70002755_win.zip',
+    [string]$SRC = 's3://erpl-resources/sapnwrfc/nwrfc750P_12-70002755_win.zip',
     [string]$TARGET = './nwrfcsdk/win/'
 )
 

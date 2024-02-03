@@ -4,7 +4,7 @@
 set -e
 
 # Download and extract the NW RFC SDK
-SRC=${1:-'s3://erpl/sapnwrfc/nwrfc750P_11-70002752_linux.zip'}
+SRC=${1:-'s3://erpl-resources/sapnwrfc/nwrfc750P_11-70002752_linux.zip'}
 TARGET=${2:-'./sapnwrfc/linux/'}
 
 function download_extract_move() {
