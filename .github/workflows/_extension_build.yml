@@ -193,7 +193,7 @@ jobs:
         with:
           name: ${{ inputs.extension_name }}-${{ inputs.duckdb_version }}-extension-${{matrix.duckdb_arch}}${{inputs.artifact_postfix}}
           path: |
-            build/release/ERPL/extension/${{ inputs.extension_name }}/${{ inputs.extension_name }}.duckdb_extension
+            build/release/extension/${{ inputs.extension_name }}/${{ inputs.extension_name }}.duckdb_extension
             
   #------------------------------------------------------------------------------------------------------------------------------------------------    
   windows:
@@ -259,7 +259,7 @@ jobs:
         with:
           name: ${{ inputs.extension_name }}-${{ inputs.duckdb_version }}-extension-${{matrix.duckdb_arch}}${{inputs.artifact_postfix}}
           path: |
-            build/release/ERPL/extension/${{ inputs.extension_name }}/${{ inputs.extension_name }}.duckdb_extension
+            build/release/extension/${{ inputs.extension_name }}/${{ inputs.extension_name }}.duckdb_extension
   #------------------------------------------------------------------------------------------------------------------------------------------------
   # macos:
   #   name: MacOS
