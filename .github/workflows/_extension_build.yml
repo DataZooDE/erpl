@@ -94,106 +94,107 @@ jobs:
           echo windows_matrix=$windows_matrix >> $GITHUB_OUTPUT
           echo `cat $GITHUB_OUTPUT`
   # -----------------------------------------------------------------------------------------------------------------------------------------------
-  # linux:
-  #   name: Linux
-  #   runs-on: ubuntu-latest
-  #   container: ${{ matrix.container }}
-  #   needs: generate_matrix
-  #   if: ${{ needs.generate_matrix.outputs.linux_matrix != '{}' && needs.generate_matrix.outputs.linux_matrix != '' }}
-  #   strategy:
-  #     matrix: ${{fromJson(needs.generate_matrix.outputs.linux_matrix)}}
-  #   env:
-  #     GITHUB_TOKEN: ${{ needs.generate_matrix.outputs.foo }}
-  #     VCPKG_TARGET_TRIPLET: ${{ matrix.vcpkg_triplet }}
-  #     VCPKG_TOOLCHAIN_PATH: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
-  #     GEN: Ninja
+  linux:
+    name: Linux
+    runs-on: ubuntu-latest
+    container: ${{ matrix.container }}
+    needs: generate_matrix
+    if: ${{ needs.generate_matrix.outputs.linux_matrix != '{}' && needs.generate_matrix.outputs.linux_matrix != '' }}
+    strategy:
+      matrix: ${{fromJson(needs.generate_matrix.outputs.linux_matrix)}}
+    env:
+      GITHUB_TOKEN: ${{ needs.generate_matrix.outputs.foo }}
+      VCPKG_TARGET_TRIPLET: ${{ matrix.vcpkg_triplet }}
+      VCPKG_TOOLCHAIN_PATH: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
+      GEN: Ninja
 
-  #   steps:
-  #     - name: Install required ubuntu packages
-  #       if: ${{ matrix.duckdb_arch == 'linux_amd64' || matrix.duckdb_arch == 'linux_arm64' }}
-  #       run: |
-  #         apt-get update -y -qq
-  #         apt-get install -y -qq software-properties-common
-  #         add-apt-repository ppa:git-core/ppa
-  #         apt-get update -y -qq
-  #         apt-get install -y -qq ninja-build make gcc-multilib g++-multilib libssl-dev wget openjdk-8-jdk zip maven unixodbc-dev libc6-dev-i386 lib32readline6-dev libssl-dev libcurl4-gnutls-dev libexpat1-dev gettext unzip build-essential checkinstall libffi-dev curl libz-dev openssh-client python3-pip nodejs
+    steps:
+      - name: Install required ubuntu packages
+        if: ${{ matrix.duckdb_arch == 'linux_amd64' || matrix.duckdb_arch == 'linux_arm64' }}
+        run: |
+          apt-get update -y -qq
+          apt-get install -y -qq software-properties-common
+          add-apt-repository ppa:git-core/ppa
+          apt-get update -y -qq
+          apt-get install -y -qq ninja-build make gcc-multilib g++-multilib libssl-dev wget openjdk-8-jdk zip maven unixodbc-dev libc6-dev-i386 lib32readline6-dev libssl-dev libcurl4-gnutls-dev libexpat1-dev gettext unzip build-essential checkinstall libffi-dev curl libz-dev openssh-client python3-pip nodejs
 
-  #     - name: Install required manylinux packages
-  #       if: ${{ matrix.duckdb_arch == 'linux_amd64_gcc4' }}
-  #       run: |
-  #         yum install -y openssl-devel nodejs
+      - name: Install required manylinux packages
+        if: ${{ matrix.duckdb_arch == 'linux_amd64_gcc4' }}
+        run: |
+          yum install -y openssl-devel nodejs
 
-  #     - name: Install Git 2.18.5
-  #       if: ${{ matrix.duckdb_arch == 'linux_amd64' || matrix.duckdb_arch == 'linux_arm64' }}
-  #       run: |
-  #         wget https://github.com/git/git/archive/refs/tags/v2.18.5.tar.gz
-  #         tar xvf v2.18.5.tar.gz
-  #         cd git-2.18.5
-  #         make
-  #         make prefix=/usr install
-  #         git --version
+      - name: Install Git 2.18.5
+        if: ${{ matrix.duckdb_arch == 'linux_amd64' || matrix.duckdb_arch == 'linux_arm64' }}
+        run: |
+          wget https://github.com/git/git/archive/refs/tags/v2.18.5.tar.gz
+          tar xvf v2.18.5.tar.gz
+          cd git-2.18.5
+          make
+          make prefix=/usr install
+          git --version
 
-  #     - name: Generate GitHub token
-  #       id: generate_token
-  #       uses: tibdex/github-app-token@v1.8.2
-  #       with:
-  #         app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
-  #         private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
-  #         #repositories: "erpl,erpl-bics,erpl-odp"
+      - name: Generate GitHub token
+        id: generate_token
+        uses: tibdex/github-app-token@v1.8.2
+        with:
+          app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
+          private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
+          #repositories: "erpl,erpl-bics,erpl-odp"
 
-  #     - uses: actions/checkout@v3
-  #       with:
-  #         fetch-depth: 0
-  #         submodules: 'true'
-  #         token: ${{ steps.generate_token.outputs.token }}
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          submodules: 'true'
+          token: ${{ steps.generate_token.outputs.token }}
 
-  #     - name: Setup ManyLinux2014
-  #       if: ${{ matrix.duckdb_arch == 'linux_amd64_gcc4' }}
-  #       run: |
-  #         ./duckdb/scripts/setup_manylinux2014.sh general aws-cli ccache ssh python_alias openssl
+      - name: Setup ManyLinux2014
+        if: ${{ matrix.duckdb_arch == 'linux_amd64_gcc4' }}
+        run: |
+          ./duckdb/scripts/setup_manylinux2014.sh general aws-cli ccache ssh python_alias openssl
           
-  #     - name: Checkout DuckDB to version
-  #       run: |
-  #         cd duckdb
-  #         git checkout ${{ inputs.duckdb_version }}
+      - name: Checkout DuckDB to version
+        run: |
+          cd duckdb
+          git checkout ${{ inputs.duckdb_version }}
 
-  #     - name: Setup Ccache
-  #       uses: hendrikmuhs/ccache-action@v1.2.11 # Note: pinned due to GLIBC incompatibility in later releases
-  #       with:
-  #         key: ${{ github.job }}-${{ matrix.duckdb_arch }}
+      - name: Setup Ccache
+        uses: hendrikmuhs/ccache-action@v1.2.11 # Note: pinned due to GLIBC incompatibility in later releases
+        with:
+          key: ${{ github.job }}-${{ matrix.duckdb_arch }}
 
-  #     - name: Setup Ubuntu
-  #       if: ${{ matrix.duckdb_arch == 'linux_amd64' || matrix.duckdb_arch == 'linux_arm64' }}
-  #       uses: ./duckdb/.github/actions/ubuntu_18_setup
-  #       with:
-  #         aarch64_cross_compile: ${{ matrix.duckdb_arch == 'linux_arm64' && 1 }}
+      - name: Setup Ubuntu
+        if: ${{ matrix.duckdb_arch == 'linux_amd64' || matrix.duckdb_arch == 'linux_arm64' }}
+        uses: ./duckdb/.github/actions/ubuntu_18_setup
+        with:
+          aarch64_cross_compile: ${{ matrix.duckdb_arch == 'linux_arm64' && 1 }}
 
-  #     - name: Setup vcpkg
-  #       uses: lukka/run-vcpkg@v11.1
-  #       with:
-  #         vcpkgGitCommitId: ${{ inputs.vcpkg_commit }}
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11.1
+        with:
+          vcpkgGitCommitId: ${{ inputs.vcpkg_commit }}
 
-  #     - name: Configure AWS Credentials
-  #       uses: aws-actions/configure-aws-credentials@v1
-  #       with:
-  #         role-to-assume: arn:aws:iam::331993160594:role/ErplGithubOicdRole
-  #         role-session-name: ErplGithubOicdSession
-  #         aws-region: eu-west-1
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::331993160594:role/ErplGithubOicdRole
+          role-session-name: ErplGithubOicdSession
+          aws-region: eu-west-1
 
-  #     - name: Build extension
-  #       env:
-  #         GEN: 'ninja'
-  #         CC: ${{ matrix.duckdb_arch == 'linux_arm64' && 'aarch64-linux-gnu-gcc' || '' }}
-  #         CXX: ${{ matrix.duckdb_arch == 'linux_arm64' && 'aarch64-linux-gnu-g++' || '' }}
-  #       run: |
-  #         ./scripts/download_and_extract_nwrfc.sh s3://erpl/sapnwrfc/nwrfc750P_11-70002752_linux.zip ./nwrfcsdk/linux/
-  #         make release
+      - name: Build extension
+        env:
+          GEN: 'ninja'
+          CC: ${{ matrix.duckdb_arch == 'linux_arm64' && 'aarch64-linux-gnu-gcc' || '' }}
+          CXX: ${{ matrix.duckdb_arch == 'linux_arm64' && 'aarch64-linux-gnu-g++' || '' }}
+        run: |
+          ./scripts/download_and_extract_nwrfc.sh s3://erpl/sapnwrfc/nwrfc750P_11-70002752_linux.zip ./nwrfcsdk/linux/
+          make release
 
-  #     - uses: actions/upload-artifact@v2
-  #       with:
-  #         name: ${{ inputs.extension_name }}-${{ inputs.duckdb_version }}-extension-${{matrix.duckdb_arch}}${{inputs.artifact_postfix}}
-  #         path: |
-  #           build/release/ERPL/extension/${{ inputs.extension_name }}/${{ inputs.extension_name }}.duckdb_extension
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ inputs.extension_name }}-${{ inputs.duckdb_version }}-extension-${{matrix.duckdb_arch}}${{inputs.artifact_postfix}}
+          path: |
+            build/release/ERPL/extension/${{ inputs.extension_name }}/${{ inputs.extension_name }}.duckdb_extension
+            
   #------------------------------------------------------------------------------------------------------------------------------------------------    
   windows:
     name: Windows
