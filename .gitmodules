@@ -9,3 +9,6 @@
 [submodule "odp"]
 	path = odp
 	url = git@github.com:DataZooDE/erpl-odp.git
+[submodule "vcpkg"]
+	path = vcpkg
+	url = https://github.com/microsoft/vcpkg
