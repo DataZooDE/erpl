@@ -10,30 +10,24 @@ project(${TARGET_NAME})
 include(../scripts/functions.cmake)
 
 if(WIN32)
-    add_definitions(-MP -INCREMENTAL)
-    get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/win ABSOLUTE)
-    IF(CMAKE_BUILD_TYPE MATCHES Debug)
-        get_filename_component(ERPL_RFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../build/debug/ERPL_RFC/extension/erpl_rfc ABSOLUTE)
-    ELSE()
-        get_filename_component(ERPL_RFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../build/release/ERPL_RFC/extension/erpl_rfc ABSOLUTE)
-    ENDIF(CMAKE_BUILD_TYPE MATCHES Debug)
-
     # Attach the erpl_rfc.duckdb_extension file as a resource to the trampoline file
     # (we call this erpl to not confuse the user),
     # such that it can be extracted
-    get_filename_component(ERPL_EXT_PATH "${ERPL_RFC_HOME}/erpl_rfc.duckdb_extension" ABSOLUTE)
-    get_filename_component(ERPL_EXT_NAME "${ERPL_EXT_PATH}" NAME)
-    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/resources.rc" "ERPL_RFC RCDATA \"${ERPL_EXT_PATH}\"\n")
+    init_resource_file()
+    attach_extension_and_dependencies_as_resource("erpl_rfc.duckdb_extension")
 
-    # Add SSL libraries as resources to the trampoline file, such that it can be extracted
-    file(GLOB ERPL_DLL_DEPENDENCIES "${ERPL_RFC_HOME}/../../vcpkg_installed/x64-windows/bin/*.dll")
-    foreach(DLL ${ERPL_DLL_DEPENDENCIES})
-        get_filename_component(RC_PATH ${DLL} ABSOLUTE)
-        get_filename_component(RC_NAME ${DLL} NAME_WE)
-        file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/resources.rc" "${RC_NAME} RCDATA \"${RC_PATH}\"\n")
-    endforeach()
+    if ("erpl_bics" IN_LIST DUCKDB_EXTENSION_NAMES)
+        message(STATUS "Attaching erpl_bics.duckdb_extension")
+        attach_extension_and_dependencies_as_resource("erpl_bics.duckdb_extension")
+    endif()
+
+    if ("erpl_odp" IN_LIST DUCKDB_EXTENSION_NAMES)
+        message(STATUS "Attaching erpl_odp.duckdb_extension")
+        attach_extension_and_dependencies_as_resource("erpl_odp.duckdb_extension")
+    endif()
 
     # Add the SAP libraries as resources to the trampoline file, such that it can be extracted
+    get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/win ABSOLUTE)
     file(GLOB SAPNWRFC_DLL_FILES "${SAPNWRFC_HOME}/lib/*.dll")
     foreach(DLL ${SAPNWRFC_DLL_FILES})
         get_filename_component(RC_PATH ${DLL} ABSOLUTE)
@@ -111,6 +105,16 @@ if ("erpl_odp" IN_LIST DUCKDB_EXTENSION_NAMES)
     add_compile_definitions(WITH_ERPL_ODP)
     add_dependencies(${EXTENSION_NAME} erpl_odp_loadable_extension)
     add_dependencies(${LOADABLE_EXTENSION_NAME} erpl_odp_loadable_extension)
+endif()
+
+if(WIN32)
+      default_win32_definitions(${EXTENSION_NAME})
+      default_win32_definitions(${LOADABLE_EXTENSION_NAME})
+endif()
+
+if(UNIX AND NOT APPLE)
+      default_linux_definitions(${EXTENSION_NAME})
+      default_linux_definitions(${LOADABLE_EXTENSION_NAME})
 endif()
 
 target_link_libraries(${EXTENSION_NAME})

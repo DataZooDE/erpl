@@ -26,6 +26,7 @@ Set environmet variable
 
    - Clone the ERPL repository: `git clone https://github.com/duckdb/duckdb.git`.
    - Fetch the `duckdb` submodule after clone:  `git submodule update --init --recursive`.
+     (To make this work under windows I had to first `git config --global core.sshCommand 'C:/Windows/System32/OpenSSH/ssh.exe'`)
    - Navigate to the duckdb directory: `cd duckdb` and checkout the `v0.9.0` tag: `git checkout v0.9.0`.
 
 4. **Download sapnwrfc Library:**

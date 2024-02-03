@@ -48,10 +48,9 @@ function(default_win32_definitions target)
     )
 
     # Apply compile options to the specified target
-    #target_compile_options(${target} PRIVATE 
-    #    MP 
-    #    INCREMENTAL
-    #)
+    target_compile_options(${target} PRIVATE /MP64)
+    set_target_properties(${target} PROPERTIES LINK_FLAGS "/ignore:4217")
+    target_link_options(${target} INTERFACE "/ignore:4217")
 
     # Set variables for use in the parent scope
     set(BUILD_UNITTESTS FALSE PARENT_SCOPE)
@@ -108,4 +107,38 @@ function(attach_extension_as_object extension_file)
     )
 
     set(ERPL_EXTENSION_OBJECTS ${ERPL_EXTENSION_OBJECTS} "${OBJ_NAME}" PARENT_SCOPE)
+endfunction()
+
+#---------------------------------------------------------------------------------------
+
+function (init_resource_file)
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/resources.rc" "")
+endfunction()
+
+function(attach_extension_and_dependencies_as_resource extension_file)
+    set(LOCAL_EXTENSION_OBJECTS ${ADDED_EXTENSION_OBJECTS} PARENT_SCOPE)
+
+    get_filename_component(EXT_NAME "${extension_file}" NAME_WE)
+    string(TOUPPER ${EXT_NAME} EXT_NAME_UPPER)
+    get_filename_component(EXT_DIR "${CMAKE_BINARY_DIR}/extension/${EXT_NAME}" ABSOLUTE)
+    get_filename_component(EXT_PATH "${EXT_DIR}/${extension_file}" ABSOLUTE)
+    
+    if (NOT "${EXT_NAME_UPPER}" IN_LIST LOCAL_EXTENSION_OBJECTS)
+        list(APPEND LOCAL_EXTENSION_OBJECTS "${EXT_NAME_UPPER}")
+        file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/resources.rc" "${EXT_NAME_UPPER} RCDATA \"${EXT_PATH}\"\n")
+    endif()
+
+    # Add extension libraries as resources to the trampoline file, such that it can be extracted
+    file(GLOB EXT_DLL_DEPENDENCIES "${EXT_DIR}/*.dll")
+    foreach(DLL ${EXT_DLL_DEPENDENCIES})
+        get_filename_component(RC_PATH ${DLL} ABSOLUTE)
+        get_filename_component(RC_NAME ${DLL} NAME_WE)
+
+        if (NOT "${RC_NAME}" IN_LIST LOCAL_EXTENSION_OBJECTS)
+            list(APPEND LOCAL_EXTENSION_OBJECTS "${RC_NAME}")
+            file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/resources.rc" "${RC_NAME} RCDATA \"${RC_PATH}\"\n")
+        endif()
+    endforeach()
+
+    set(ADDED_EXTENSION_OBJECTS ${LOCAL_EXTENSION_OBJECTS} PARENT_SCOPE)
 endfunction()
