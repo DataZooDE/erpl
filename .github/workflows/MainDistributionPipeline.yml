@@ -34,8 +34,8 @@ jobs:
       duckdb_version: v0.9.1
       extension_name: erpl
       exclude_archs: osx_amd64;osx_arm64;linux_arm64
-      deploy_latest: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' }}
-      deploy_versioned: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' }}
+      deploy_latest: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
+      deploy_versioned: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
 
   duckdb-stable-build-v092:
     name: Build v.0.9.2 extension binaries
