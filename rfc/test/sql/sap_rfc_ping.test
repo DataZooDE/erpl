@@ -10,7 +10,7 @@ Catalog Error: Pragma Function with name sap_rfc_ping does not exist!
 
 # Load the extension
 statement ok
-LOAD '__BUILD_DIRECTORY__/extension/erpl_impl/erpl_impl.duckdb_extension';
+LOAD 'erpl_rfc';
 
 statement ok
 SET sap_ashost = 'localhost'

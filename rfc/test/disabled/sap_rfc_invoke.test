@@ -3,7 +3,7 @@
 # group: [rfc]
 
 # Require statement will ensure this test is run with this extension loaded
-require erpl_impl;
+require erpl_rfc;
 
 statement ok
 SET sap_ashost = 'localhost'
