@@ -126,7 +126,7 @@ jobs:
       - name: Deploy
         shell: bash
         env:
-          BUCKET_NAME: ${{ secrets.DEPLOY_S3_BUCKET }}
+          BUCKET_NAME: ${{ vars.DEPLOY_S3_BUCKET }}
           DUCKDB_EXTENSION_SIGNING_PK: ${{ secrets.DUCKDB_EXTENSION_SIGNING_PK }}
         run: |
           pwd
