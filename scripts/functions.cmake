@@ -115,8 +115,8 @@ function (init_resource_file)
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/resources.rc" "")
 endfunction()
 
-function(attach_extension_and_dependencies_as_resource extension_file)
-    set(LOCAL_EXTENSION_OBJECTS ${ADDED_EXTENSION_OBJECTS} PARENT_SCOPE)
+function(attach_extension_and_dependencies_as_resource extension_file ext_objs)
+    set(LOCAL_EXTENSION_OBJECTS ${ext_objs})
 
     get_filename_component(EXT_NAME "${extension_file}" NAME_WE)
     string(TOUPPER ${EXT_NAME} EXT_NAME_UPPER)
@@ -132,6 +132,26 @@ function(attach_extension_and_dependencies_as_resource extension_file)
     # Add extension libraries as resources to the trampoline file, such that it can be extracted
     file(GLOB EXT_DLL_DEPENDENCIES "${EXT_DIR}/*.dll")
     foreach(DLL ${EXT_DLL_DEPENDENCIES})
+        get_filename_component(RC_PATH ${DLL} ABSOLUTE)
+        get_filename_component(RC_NAME ${DLL} NAME_WE)
+
+        list(FIND LOCAL_EXTENSION_OBJECTS "${RC_NAME}" _index)
+        if(${_index} EQUAL -1)
+            list(APPEND LOCAL_EXTENSION_OBJECTS "${RC_NAME}")
+            file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/resources.rc" "${RC_NAME} RCDATA \"${RC_PATH}\"\n")
+        endif()
+    endforeach()
+
+    set(ADDED_EXTENSION_OBJECTS ${LOCAL_EXTENSION_OBJECTS} PARENT_SCOPE)
+endfunction()
+
+#---------------------------------------------------------------------------------------
+
+function(attach_vcpkg_dlls_as_resources ext_objs)
+    set(LOCAL_EXTENSION_OBJECTS ${ext_objs})
+    
+    file(GLOB VCPKG_DLL_FILES "${VCPKG_INSTALLED_DIR}/x64-*/bin/*.dll")
+    foreach(DLL ${VCPKG_DLL_FILES})
         get_filename_component(RC_PATH ${DLL} ABSOLUTE)
         get_filename_component(RC_NAME ${DLL} NAME_WE)
 

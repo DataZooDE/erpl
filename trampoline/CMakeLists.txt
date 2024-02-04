@@ -14,19 +14,23 @@ if(WIN32)
     # (we call this erpl to not confuse the user),
     # such that it can be extracted
     init_resource_file()
-    attach_extension_and_dependencies_as_resource("erpl_rfc.duckdb_extension")
+    attach_extension_and_dependencies_as_resource("erpl_rfc.duckdb_extension" "${ADDED_EXTENSION_OBJECTS}")
 
     list(FIND DUCKDB_EXTENSION_NAMES "erpl_bics" _index)
     if(NOT ${_index} EQUAL -1)
         message(STATUS "Attaching erpl_bics.duckdb_extension")
-        attach_extension_and_dependencies_as_resource("erpl_bics.duckdb_extension")
+        attach_extension_and_dependencies_as_resource("erpl_bics.duckdb_extension" "${ADDED_EXTENSION_OBJECTS}")
     endif()
 
     list(FIND DUCKDB_EXTENSION_NAMES "erpl_odp" _index)
     if(NOT ${_index} EQUAL -1)
         message(STATUS "Attaching erpl_odp.duckdb_extension")
-        attach_extension_and_dependencies_as_resource("erpl_odp.duckdb_extension")
+        attach_extension_and_dependencies_as_resource("erpl_odp.duckdb_extension" "${ADDED_EXTENSION_OBJECTS}")
     endif()
+
+    # Add vcpkg libraries as resources to the trampoline file, such that it can be extracted
+    message(STATUS "Attaching vcpkg libraries")
+    attach_vcpkg_dlls_as_resources("${ADDED_EXTENSION_OBJECTS}")
 
     # Add the SAP libraries as resources to the trampoline file, such that it can be extracted
     get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/win ABSOLUTE)
