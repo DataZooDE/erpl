@@ -21,6 +21,7 @@ jobs:
     with:
       duckdb_version: v0.9.1
       extension_name: erpl
+      exclude_archs: osx_amd64;osx_arm64'
       vcpkg_commit: 9edb1b8e590cc086563301d735cae4b6e732d2d2
     secrets: inherit
 
@@ -32,6 +33,7 @@ jobs:
     with:
       duckdb_version: v0.9.1
       extension_name: erpl
+      exclude_archs: osx_amd64;osx_arm64'
       deploy_latest: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' }}
       deploy_versioned: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' }}
 
@@ -41,6 +43,7 @@ jobs:
     with:
       duckdb_version: v0.9.2
       extension_name: erpl
+      exclude_archs: osx_amd64;osx_arm64'
       vcpkg_commit: 9edb1b8e590cc086563301d735cae4b6e732d2d2
     secrets: inherit
 
@@ -52,6 +55,7 @@ jobs:
     with:
       duckdb_version: v0.9.2
       extension_name: erpl
+      exclude_archs: osx_amd64;osx_arm64'
       deploy_latest: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' }}
       deploy_versioned: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' }}
 
