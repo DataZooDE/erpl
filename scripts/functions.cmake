@@ -82,6 +82,10 @@ function(default_linux_definitions target)
         SAPwithTHREADS
     )
 
+    set(CMAKE_SKIP_BUILD_RPATH  FALSE)
+    set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+    set(CMAKE_INSTALL_RPATH "\${ORIGIN}")
+
     # Apply compile options to the specified target
     target_compile_options(${target} PRIVATE 
         -Wno-deprecated-declarations
