@@ -4,6 +4,16 @@
 
 With ERPL start using Enterprise Data in your Data Science and ML pipelines within minutes!
 
+## Quick Install
+
+Install with two lines of code in DuckDB (unsigned option must be set):
+
+```
+SET custom_extension_repository = 'http://get.erpl.io';
+INSTALL erpl;
+```
+
+
 ## Quicklinks
 
 - [★ What is the Erpl Extension?](#-what-is-the-erpl-extension) 
