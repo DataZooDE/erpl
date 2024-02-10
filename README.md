@@ -2,7 +2,9 @@
 
 # Let your DuckDB quack SAP!
 
-With ERPL start using Enterprise Data in your Data Science and ML pipelines within minutes!
+**Disclaimer**: This extension is currently in an experimental state. Feel free to try it out, but be aware that minimal testing and benchmarking were done.
+
+With ERPL, use Enterprise Data in your Data Science and ML pipelines within minutes!
 
 ## Quick Install
 
