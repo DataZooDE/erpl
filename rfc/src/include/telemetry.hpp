@@ -1,12 +1,16 @@
 #pragma once
 
-#include <vector>
+#include <chrono>
+#include <condition_variable>
+#include <fstream>
+#include <functional>
+#include <future>
+#include <iostream>
+#include <memory>
 #include <mutex>
 #include <queue>
 #include <thread>
-#include <condition_variable>
-#include <iostream>
-#include <fstream>
+#include <vector>
 
 #include "duckdb.hpp"
 
@@ -15,8 +19,8 @@ namespace duckdb {
 class PostHogEvent
 {
     public:
-        std::string GetPropertiesJson();
-        std::string GetNowISO8601();
+        std::string GetPropertiesJson() const;
+        std::string GetNowISO8601() const;
 
         std::string event_name;
         std::string distinct_id; // user distinct id
@@ -27,84 +31,84 @@ class PostHogWorker
 {
     public:
         PostHogWorker(std::string api_key);
-        void Process(PostHogEvent &event);
+        void Process(const PostHogEvent &event);
 
     private:
         std::string api_key;
 };
 
-template <typename TWorker, typename TEvent>
-class TelemetryWorkQueue 
-{
-    public:
-        TelemetryWorkQueue() : stop(false) { };
+void PostHogProcess(const std::string api_key, const PostHogEvent &event);
 
-        ~TelemetryWorkQueue() 
-        { 
-            StopWorkers();
-        };
-
-        void InitializeWorkers(std::function<std::shared_ptr<TWorker>()> &worker_factory)
-        {
-            InitializeWorkers(1, worker_factory);
-        }
-
-        void InitializeWorkers(unsigned int n_threads, std::function<std::shared_ptr<TWorker>()> &worker_factory)
-        {
-            for(unsigned int i = 0; i < n_threads; ++i) {
-                auto worker = worker_factory();
-                std::thread worker_thread([this, worker] { 
-                    while(!stop) 
+template <typename TEvent>
+class TelemetryTaskQueue {
+public:
+    TelemetryTaskQueue(unsigned int n_threads = 1)
+    {
+        _stop = false;
+        for (unsigned int i = 0; i < n_threads; ++i) {
+            _workers.emplace_back([this] {
+                while (true) {
+                    std::function<void()> task;
                     {
-                        std::unique_lock<std::mutex> lock(thread_lock);
-                        condition.wait(lock, [this] { return !queue.empty() || stop; });
-                        if(stop) {
-                            break;
-                        }
+                        std::unique_lock<std::mutex> lock(this->_queue_mutex);
+                        this->_condition.wait(lock, [this] {
+                            return this->_stop || !this->_tasks.empty();
+                        });
 
-                        TEvent item = queue.front();
-                        queue.pop();
-                        lock.unlock();
-                        
-                        try {
-                            worker->Process(item);
-                        } catch (std::exception &ex) {
-                            printf("Warning: Error during processing telementry event: %s\n", ex.what());
-                        }
+                        if (this->_stop)
+                            return;
+
+                        task = std::move(this->_tasks.front());
+                        this->_tasks.pop();
                     }
-                });
-                workers.push_back(std::move(worker_thread));
-            }
-        }
 
-        void StopWorkers() 
+                    task();
+                }
+            });
+        }
+    }
+
+    ~TelemetryTaskQueue()
+    {
         {
-            {
-                std::unique_lock<std::mutex> lock(thread_lock);
-                stop = true;
-            }
-            condition.notify_all();
-            for (std::thread& worker : workers)
-            {
-                worker.join();
-            }
+            std::unique_lock<std::mutex> lock(_queue_mutex);
+            _stop = true;
         }
+        _condition.notify_all();
+        for (auto &worker : _workers) {
+            worker.detach();
+        }
+    }
 
-        void Capture(TEvent item) 
+    template<class F, class... Args>
+    auto EnqueueTask(F&& f, Args&&... args) 
+        -> std::future<typename std::result_of<F(Args...)>::type> {
+        using return_type = typename std::result_of<F(Args...)>::type;
+
+        auto task = std::make_shared< std::packaged_task<return_type()> >(
+            std::bind(std::forward<F>(f), std::forward<Args>(args)...)
+        );
+            
+        std::future<return_type> res = task->get_future();
         {
-            {
-                std::unique_lock<std::mutex> lock(thread_lock);
-                queue.push(item);
-            }
-            condition.notify_one();
-        }
+            std::unique_lock<std::mutex> lock(_queue_mutex);
 
-    private:
-        std::vector<std::thread> workers;
-        std::queue<TEvent> queue;
-        std::mutex thread_lock;
-        std::condition_variable condition;
-        bool stop;
+            if(_stop)
+                throw std::runtime_error("Enqueue on stopped TelemetryTaskQueue");
+
+            _tasks.emplace([task](){ (*task)(); });
+        }
+        _condition.notify_one();
+        return res;
+    }
+
+private:
+    std::vector<std::thread> _workers;
+    std::queue< std::function<void()> > _tasks;
+    
+    std::mutex _queue_mutex;
+    std::condition_variable _condition;
+    bool _stop;
 };
 
 class PostHogTelemetry 
@@ -114,6 +118,7 @@ class PostHogTelemetry
         static std::string GetMacAddress();
 
         void CaptureExtensionLoad();
+        void CaptureExtensionLoad(std::string extension_name);
         void CaptureFunctionExecution(std::string function_name);
        
         bool IsEnabled();
@@ -124,15 +129,16 @@ class PostHogTelemetry
         
     private:
         PostHogTelemetry(); 
+        ~PostHogTelemetry();
 
         static bool IsPhysicalDevice(const std::string& device);
         static std::string FindFirstPhysicalDevice();
 
-        std::unique_ptr<TelemetryWorkQueue<PostHogWorker, PostHogEvent>> queue;
+        TelemetryTaskQueue<PostHogEvent> _queue;
 
-        bool telemetry_enabled;
-        std::string api_key;
-        std::mutex thread_lock;
+        bool _telemetry_enabled;
+        std::string _api_key;
+        std::mutex _thread_lock;
 };
 
 } // namespace duckdb

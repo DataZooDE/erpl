@@ -24,10 +24,8 @@ TEST_CASE("Test recording of tracking events", "[telemetry]")
 
     std::string api_key = "phc_t3wwRLtpyEmLHYaZCSszG0MqVr74J6wnCrj9D41zk2t";
 
-    TelemetryWorkQueue<PostHogWorker, PostHogEvent> queue;
-    std::function<std::shared_ptr<PostHogWorker>()> worker_factory = [api_key]() { return make_shared<PostHogWorker>(api_key); };
-    queue.InitializeWorkers(worker_factory);
-    queue.Capture(event);
+    TelemetryTaskQueue<PostHogEvent> queue;
+    queue.EnqueueTask([api_key](auto event) { PostHogProcess(api_key, event); }, event);
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
 }
