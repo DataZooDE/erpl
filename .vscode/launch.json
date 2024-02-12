@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug ERPL RFC Unit Tests",
+            "name": "Debug RFC SQL Unit Tests",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/debug/test/unittest",
@@ -50,7 +50,7 @@
                 "[bics]"
             ],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/rfc/",
+            "cwd": "${workspaceFolder}/bics/",
             "environment": [
                 {
                     "name": "RFC_TRACE",
@@ -63,6 +63,10 @@
                 {
                     "name": "LSAN_OPTIONS",
                     "value": "suppressions=${workspaceFolder}/scripts/lsan_suppress.txt"
+                },
+                {
+                    "name": "ASAN_OPTIONS",
+                    "value": "detect_odr_violation=0"
                 }
             ],
             "externalConsole": false,
@@ -81,14 +85,14 @@
             "name": "Debug ODP SQL Unit Tests",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/debug/ERPL_RFC/test/unittest",
+            "program": "${workspaceFolder}/build/debug/test/unittest",
             "args": [
                 "--test-dir",
-                "./test/sql",
-                "[odp]"
+                "${workspaceFolder}/odp",
+                "'test/sql/*'"
             ],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/rfc/",
+            "cwd": "${workspaceFolder}/odp/",
             "environment": [
                 {
                     "name": "RFC_TRACE",
@@ -101,7 +105,12 @@
                 {
                     "name": "LSAN_OPTIONS",
                     "value": "suppressions=${workspaceFolder}/scripts/lsan_suppress.txt"
+                },
+                {
+                    "name": "ASAN_OPTIONS",
+                    "value": "detect_odr_violation=0"
                 }
+
             ],
             "externalConsole": false,
             "MIMode": "gdb",
@@ -116,15 +125,13 @@
             "miDebuggerPath": ""
         },
         {
-            "name": "Debug ERPL CPP Unit Tests",
+            "name": "Debug ODP CPP Unit Tests",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/debug/ERPL_RFC/extension/erpl_rfc/test/cpp/erpl_tests",
-            "args": [ 
-                "[odp_xml]"
-            ],
+            "program": "${workspaceFolder}/build/debug/extension/erpl_odp/test/cpp/erpl_odp_tests",
+            "args": [ ],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/rfc/",
+            "cwd": "${workspaceFolder}/odp/",
             "environment": [
                 {
                     "name": "RFC_TRACE",

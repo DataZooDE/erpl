@@ -1,1 +1,2 @@
 leak:libsapnwrfc.so
+memory:libsapnwrfc.so

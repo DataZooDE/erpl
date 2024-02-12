@@ -22,7 +22,7 @@
 
 namespace duckdb {
 
-std::string PostHogEvent::GetPropertiesJson()
+std::string PostHogEvent::GetPropertiesJson() const
 {
     std::string json = "{";
     bool first = true;
@@ -38,7 +38,7 @@ std::string PostHogEvent::GetPropertiesJson()
     return json;
 }
 
-std::string PostHogEvent::GetNowISO8601()
+std::string PostHogEvent::GetNowISO8601() const
 {
     std::time_t t = std::time(nullptr);
     std::tm tm = *std::localtime(&t);
@@ -48,13 +48,10 @@ std::string PostHogEvent::GetNowISO8601()
 }
 
 // PostHogEvent -----------------------------------------------------------------
-PostHogWorker::PostHogWorker(std::string api_key) : api_key(api_key)
-{ 
-    
-}
 
-void PostHogWorker::Process(PostHogEvent &event) 
+void PostHogProcess(const std::string api_key, const PostHogEvent &event) 
 {
+    auto re = duckdb_re2::Regex("*");
     std::string payload = StringUtil::Format(R"(
         {
             "api_key": "%s",
@@ -68,23 +65,29 @@ void PostHogWorker::Process(PostHogEvent &event)
     )", api_key, event.event_name, event.distinct_id, 
         event.GetPropertiesJson(), event.GetNowISO8601());
 
-    auto cli = make_uniq<duckdb_httplib_openssl::Client>("https://eu.posthog.com");
+    auto cli = duckdb_httplib_openssl::Client("https://eu.posthog.com");
     auto url = "/batch/";
-    auto res = cli->Post(url, payload, "application/json");
+    if (cli.is_valid() == false) {
+        throw new std::runtime_error("Invalid client");
+    }
+    auto res = cli.Post(url, payload, "application/json");
     if (res && res->status != 200) {
         throw new std::runtime_error(StringUtil::Format("Sending posthog event failed: %s", res->body));
     }
+
+    cli.stop();
 }
 
-// PostHogWorker ----------------------------------------------------------------
+// PostHogProcess ----------------------------------------------------------------
 
-PostHogTelemetry::PostHogTelemetry() : telemetry_enabled(true), api_key("phc_t3wwRLtpyEmLHYaZCSszG0MqVr74J6wnCrj9D41zk2t")
-{ 
-    queue = make_uniq<TelemetryWorkQueue<PostHogWorker, PostHogEvent>>();
-    std::function<std::shared_ptr<PostHogWorker>()> worker_factory = [this]() { return make_shared<PostHogWorker>(api_key); };
-    queue->InitializeWorkers(worker_factory);
-};
+PostHogTelemetry::PostHogTelemetry() 
+    : _queue(TelemetryTaskQueue<PostHogEvent>()),
+      _telemetry_enabled(true), 
+      _api_key("phc_t3wwRLtpyEmLHYaZCSszG0MqVr74J6wnCrj9D41zk2t")
+{  }
 
+PostHogTelemetry::~PostHogTelemetry() 
+{ }
 
 PostHogTelemetry& PostHogTelemetry::Instance() 
 {
@@ -94,7 +97,12 @@ PostHogTelemetry& PostHogTelemetry::Instance()
 
 void PostHogTelemetry::CaptureExtensionLoad()
 {
-    if (!telemetry_enabled) {
+    CaptureExtensionLoad("erpl_rfc");
+}
+
+void PostHogTelemetry::CaptureExtensionLoad(std::string extension_name)
+{
+    if (!_telemetry_enabled) {
         return;
     }
 
@@ -102,16 +110,17 @@ void PostHogTelemetry::CaptureExtensionLoad()
         "extension_load",
         GetMacAddress(),
         {
-            {"extension_name", "erpl"},
+            {"extension_name", extension_name},
             {"extension_version", "0.1.0"}
         }
     };
-    queue->Capture(event);
+    auto api_key = this->_api_key;
+    _queue.EnqueueTask([api_key](auto event) { PostHogProcess(api_key, event); }, event);
 }
 
 void PostHogTelemetry::CaptureFunctionExecution(std::string function_name) 
 {
-    if (!telemetry_enabled) {
+    if (!_telemetry_enabled) {
         return;
     }
 
@@ -123,30 +132,31 @@ void PostHogTelemetry::CaptureFunctionExecution(std::string function_name)
             {"function_version", "0.1.0"}
         }
     };
-    queue->Capture(event);
+    auto api_key = this->_api_key;
+    _queue.EnqueueTask([api_key](auto event) { PostHogProcess(api_key, event); }, event);
 }
 
 
 bool PostHogTelemetry::IsEnabled() 
 {
-    return telemetry_enabled;
+    return _telemetry_enabled;
 }
 
 void PostHogTelemetry::SetEnabled(bool enabled) 
 {
-    std::lock_guard<mutex> t(thread_lock);
-    telemetry_enabled = enabled;
+    std::lock_guard<mutex> t(_thread_lock);
+    _telemetry_enabled = enabled;
 }
 
 std::string PostHogTelemetry::GetAPIKey() 
 {
-    return api_key;
+    return _api_key;
 }
 
 void PostHogTelemetry::SetAPIKey(std::string new_key) 
 {
-    std::lock_guard<mutex> t(thread_lock);
-    api_key = new_key;
+    std::lock_guard<mutex> t(_thread_lock);
+    _api_key = new_key;
 }
 
 #ifdef __linux__ 
