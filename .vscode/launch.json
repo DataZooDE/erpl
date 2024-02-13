@@ -25,7 +25,12 @@
                 {
                     "name": "LSAN_OPTIONS",
                     "value": "suppressions=${workspaceFolder}/scripts/lsan_suppress.txt"
+                },
+                {
+                    "name": "ASAN_OPTIONS",
+                    "value": "detect_odr_violation=0"
                 }
+
             ],
             "externalConsole": false,
             "MIMode": "gdb",

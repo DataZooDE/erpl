@@ -3,8 +3,7 @@
 # group: [rfc]
 
 # Load the extension
-statement ok
-LOAD '__BUILD_DIRECTORY__/extension/erpl_impl/erpl_impl.duckdb_extension';
+require erpl_rfc
 
 statement ok
 SET sap_ashost = 'localhost'

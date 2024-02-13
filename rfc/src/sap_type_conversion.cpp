@@ -329,9 +329,18 @@ namespace duckdb
             return Value();
         }
 
-        //auto bcd_str_without_decimal = std::regex_replace(bcd_str, std::regex("\\."), "");
-        //int64_t value = std::stoll(bcd_str_without_decimal);
-        //return Value::DECIMAL(value, length, decimals);
+        // Remove after terminator from the string
+        size_t pos = bcd_str.find('\0');
+        if (pos != std::string::npos) {
+            bcd_str = bcd_str.substr(0, pos);
+        }
+
+        // Check if it is a negative bcd and the last character 
+        // is of the decimal is '-'
+        if (!bcd_str.empty() && bcd_str.back() == '-') {
+            bcd_str.pop_back();
+            bcd_str.insert(bcd_str.begin(), '-');
+        }
 
         auto str_val = Value(bcd_str);
         auto dec_typ = LogicalType::DECIMAL(length, decimals);
