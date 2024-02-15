@@ -60,7 +60,7 @@ jobs:
       deploy_versioned: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
 
   duckdb-stable-build-v010:
-    name: Build v.0.9.2 extension binaries
+    name: Build v.0.10.0 extension binaries
     uses: ./.github/workflows/_extension_build.yml
     with:
       duckdb_version: v0.10.0
