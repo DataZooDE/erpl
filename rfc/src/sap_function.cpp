@@ -984,8 +984,8 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         RFC_ERROR_INFO error_info;
         _desc_handle = RfcGetFunctionDesc(connection->handle, std2uc(function_name).get(), &error_info);
         if (_desc_handle == NULL || error_info.code != RFC_OK) {
-            throw Exception(StringUtil::Format("Error getting function description: %s: %s",
-                                               rfcrc2std(error_info.code), uc2std(error_info.message)));
+            throw std::runtime_error(StringUtil::Format("Error getting function description: %s: %s",
+                                                        rfcrc2std(error_info.code), uc2std(error_info.message)));
         }
     }
 
@@ -1265,9 +1265,9 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         RFC_ERROR_INFO error_info;
         rc = RfcDestroyFunction(_handle, &error_info);
         if (rc != RFC_OK) {
-            throw Exception(StringUtil::Format("Error destroying function: %s: %s "  
-                                               "(This is indicates a serious error in the SAP NW RFC library.)",
-                                               rfcrc2std(error_info.code), uc2std(error_info.message)));
+            throw std::runtime_error(StringUtil::Format("Error destroying function: %s: %s "  
+                                                        "(This is indicates a serious error in the SAP NW RFC library.)",
+                                                        rfcrc2std(error_info.code), uc2std(error_info.message)));
         }
         _handle = NULL;
     }
