@@ -23,8 +23,14 @@ SET sap_client = '001'
 statement ok
 SET sap_lang = 'EN'
 
-# Confirm echo rfc call works
+# Confirm get decimal for get flight call works
 query I
 select count(*) from sap_rfc_invoke('BAPI_FLIGHT_GETLIST', path='/FLIGHT_LIST');
 ----
 94
+
+# Confirm echo rfc call works
+query I
+SELECT ADDITIONAL_INFO.DISTANCE FROM sap_rfc_invoke('BAPI_FLIGHT_GETDETAIL', {'AIRLINEID': 'LH', 'CONNECTIONID': '0400', 'FLIGHTDATE': '2016-11-18'::DATE });
+----
+6162.0000

@@ -205,8 +205,8 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             case RFCTYPE_BCD:
             case RFCTYPE_DECF16:
             case RFCTYPE_DECF34:
-                //return LogicalType::DECIMAL(GetLength() * 2 - 1, GetDecimals());
-                return LogicalType::DECIMAL(GetLength(), GetDecimals());
+                return LogicalType::DECIMAL(GetLength() * 2 - 1, GetDecimals());
+                //return LogicalType::DECIMAL(GetLength(), GetDecimals());
                 break;
             case RFCTYPE_CHAR:
             case RFCTYPE_STRING:
@@ -1636,10 +1636,6 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                 }
             }
             else {
-                //if (! selected_fields.empty()) {
-                //    throw std::runtime_error("Selected fields not supported for non-tabular results");
-                //}
-
                 auto &out_vec = output.data[src_col_idx];
                 out_vec.SetValue(0, _result_data[src_col_idx]);
                 output.SetCardinality(1);
