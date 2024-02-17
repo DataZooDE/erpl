@@ -48,11 +48,11 @@
             "name": "Debug BICS SQL Unit Tests",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/debug/ERPL_RFC/test/unittest",
+            "program": "${workspaceFolder}/build/debug/test/unittest",
             "args": [
                 "--test-dir",
-                "./test/sql",
-                "[bics]"
+                "${workspaceFolder}/bics",
+                "'test/sql/*'"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/bics/",
