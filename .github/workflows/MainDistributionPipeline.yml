@@ -15,47 +15,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  duckdb-stable-build-v091:
-    name: Build v.0.9.1 extension binaries
+  duckdb-stable-build-v010:
+    name: Build v.0.10.0 extension binaries
     uses: ./.github/workflows/_extension_build.yml
     with:
-      duckdb_version: v0.9.1
+      duckdb_version: v0.10.0
       extension_name: erpl
-      exclude_archs: osx_amd64;osx_arm64;linux_arm64
+      exclude_archs: osx_amd64;osx_arm64;linux_arm64;windows_amd64_rtools;wasm_mvp;wasm_eh;wasm_threads
       vcpkg_commit: 9edb1b8e590cc086563301d735cae4b6e732d2d2
     secrets: inherit
 
-  duckdb-stable-deploy-v091:
+  duckdb-stable-deploy-v010:
     name: Deploy extension binaries
-    needs: duckdb-stable-build-v091
+    needs: duckdb-stable-build-v010
     uses: ./.github/workflows/_extension_deploy.yml
     secrets: inherit
     with:
-      duckdb_version: v0.9.1
+      duckdb_version: v0.10.0
       extension_name: erpl
-      exclude_archs: osx_amd64;osx_arm64;linux_arm64
-      deploy_latest: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
-      deploy_versioned: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
-
-  duckdb-stable-build-v092:
-    name: Build v.0.9.2 extension binaries
-    uses: ./.github/workflows/_extension_build.yml
-    with:
-      duckdb_version: v0.9.2
-      extension_name: erpl
-      exclude_archs: osx_amd64;osx_arm64;linux_arm64
-      vcpkg_commit: 9edb1b8e590cc086563301d735cae4b6e732d2d2
-    secrets: inherit
-
-  duckdb-stable-deploy-v092:
-    name: Deploy extension binaries
-    needs: duckdb-stable-build-v092
-    uses: ./.github/workflows/_extension_deploy.yml
-    secrets: inherit
-    with:
-      duckdb_version: v0.9.2
-      extension_name: erpl
-      exclude_archs: osx_amd64;osx_arm64;linux_arm64
+      exclude_archs: osx_amd64;osx_arm64;linux_arm64;windows_amd64_rtools;wasm_mvp;wasm_eh;wasm_threads
       deploy_latest: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
       deploy_versioned: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
 

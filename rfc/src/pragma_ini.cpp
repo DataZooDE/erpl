@@ -15,7 +15,7 @@ namespace duckdb
         auto ini_path = std2uc(parameters.values[0].ToString());
         rc = RfcSetIniPath(ini_path.get(), &error_info);
         if (rc != RFC_OK) {
-            throw Exception(StringUtil::Format("Failed to set ini path: %s", uc2std(error_info.message)));
+            throw std::runtime_error(StringUtil::Format("Failed to set ini path: %s", uc2std(error_info.message)));
         }
 
         auto ip_query = StringUtil::Format(StringUtil::Format("SELECT '%s' as ini_path", uc2std(ini_path.get())));
@@ -31,7 +31,7 @@ namespace duckdb
 
         rc = RfcReloadIniFile(&error_info);
         if (rc != RFC_OK) {
-            throw Exception(StringUtil::Format("Failed to reload ini file: %s", uc2std(error_info.message)));
+            throw std::runtime_error(StringUtil::Format("Failed to reload ini file: %s", uc2std(error_info.message)));
         }
 
         auto rif_query = StringUtil::Format(StringUtil::Format("SELECT 'Reloaded ini file' as reload_ini_file"));

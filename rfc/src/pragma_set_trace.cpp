@@ -31,7 +31,7 @@ namespace duckdb
         
         rc = RfcSetTraceLevel(NULL, NULL, trace_level, &error_info);
         if (rc != RFC_OK) {
-            throw Exception(StringUtil::Format("Failed to set trace level: %s", uc2std(error_info.message)));
+            throw std::runtime_error(StringUtil::Format("Failed to set trace level: %s", uc2std(error_info.message)));
         }
 
         auto tl_query = StringUtil::Format(StringUtil::Format("SELECT '%s (%d)' as trace_level", trace_level_str, trace_level));
@@ -48,7 +48,7 @@ namespace duckdb
         auto trace_dir = std2uc(parameters.values[0].ToString());
         rc = RfcSetTraceDir(trace_dir.get(), &error_info);
         if (rc != RFC_OK) {
-            throw Exception(StringUtil::Format("Failed to set trace directory: %s", uc2std(error_info.message)));
+            throw std::runtime_error(StringUtil::Format("Failed to set trace directory: %s", uc2std(error_info.message)));
         }
 
         auto td_query = StringUtil::Format(StringUtil::Format("SELECT '%s' as trace_dir", uc2std(trace_dir.get())));
@@ -67,7 +67,7 @@ namespace duckdb
 
         rc = RfcSetMaximumTraceFileSize(trace_file_size, trace_size_unit, &error_info);
         if (rc != RFC_OK) {
-            throw Exception(StringUtil::Format("Failed to set trace file size: %s", uc2std(error_info.message)));
+            throw std::runtime_error(StringUtil::Format("Failed to set trace file size: %s", uc2std(error_info.message)));
         }
 
         auto tfs_query = StringUtil::Format(StringUtil::Format("SELECT '%d' as trace_file_size", trace_file_size));
@@ -85,7 +85,7 @@ namespace duckdb
 
         rc = RfcSetMaximumStoredTraceFiles(max_stored_trace_files, &error_info);
         if (rc != RFC_OK) {
-            throw Exception(StringUtil::Format("Failed to set maximum stored trace files: %s", uc2std(error_info.message)));
+            throw std::runtime_error(StringUtil::Format("Failed to set maximum stored trace files: %s", uc2std(error_info.message)));
         }
 
         auto mstf_query = StringUtil::Format(StringUtil::Format("SELECT '%d' as max_stored_trace_files", max_stored_trace_files));
