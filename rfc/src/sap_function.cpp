@@ -780,12 +780,15 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             {
                 return tims2duck(str_value);
             }
+            case RFCTYPE_BCD:
+            {
+                return bcd2duck(str_value, GetLength() * 2 - 1, GetDecimals());
+            }
             default:
             {
                 return Value(str_value);
             }
         }
-
 
         return Value(csv_value);
     }

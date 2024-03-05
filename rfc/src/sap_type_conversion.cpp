@@ -323,6 +323,12 @@ namespace duckdb
         return Value::CreateValue(duck_time);
     }
 
+    inline void ltrim(std::string &s) {
+        s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) {
+            return !std::isspace(ch);
+        }));
+    }
+
     Value bcd2duck(std::string &bcd_str, unsigned int length, unsigned int decimals)
     {
         if (bcd_str.empty()) {
@@ -339,6 +345,7 @@ namespace duckdb
         // is of the decimal is '-'
         if (!bcd_str.empty() && bcd_str.back() == '-') {
             bcd_str.pop_back();
+            ltrim(bcd_str);
             bcd_str.insert(bcd_str.begin(), '-');
         }
 
