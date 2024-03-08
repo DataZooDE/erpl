@@ -22,7 +22,7 @@ statement ok
 SET sap_user = 'DEVELOPER'
 
 statement ok
-SET sap_password = 'Htods70334'
+SET sap_password = 'ABAPtr1909'
 
 statement ok
 SET sap_client = '001'

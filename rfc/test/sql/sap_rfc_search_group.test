@@ -15,7 +15,7 @@ statement ok
 SET sap_user = 'DEVELOPER'
 
 statement ok
-SET sap_password = 'Htods70334'
+SET sap_password = 'ABAPtr1909'
 
 statement ok
 SET sap_client = '001'
@@ -35,4 +35,4 @@ BI Consumer Services
 query I
 select COUNT(*) from sap_rfc_show_groups();
 ----
-15640
+15705

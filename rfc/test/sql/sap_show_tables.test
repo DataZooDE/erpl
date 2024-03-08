@@ -15,7 +15,7 @@ statement ok
 SET sap_user = 'DEVELOPER'
 
 statement ok
-SET sap_password = 'Htods70334'
+SET sap_password = 'ABAPtr1909'
 
 statement ok
 SET sap_client = '001'
@@ -28,7 +28,7 @@ SET sap_lang = 'EN'
 query I
 SELECT count(*) FROM sap_show_tables();
 ----
-50023
+50220
 
 # ------------------------------------------------------------
 # Confirm I retrieve correct data for a table
