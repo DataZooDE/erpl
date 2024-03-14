@@ -323,15 +323,31 @@ namespace duckdb
         return Value::CreateValue(duck_time);
     }
 
+    inline void ltrim(std::string &s) {
+        s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) {
+            return !std::isspace(ch);
+        }));
+    }
+
     Value bcd2duck(std::string &bcd_str, unsigned int length, unsigned int decimals)
     {
         if (bcd_str.empty()) {
             return Value();
         }
 
-        //auto bcd_str_without_decimal = std::regex_replace(bcd_str, std::regex("\\."), "");
-        //int64_t value = std::stoll(bcd_str_without_decimal);
-        //return Value::DECIMAL(value, length, decimals);
+        // Remove after terminator from the string
+        size_t pos = bcd_str.find('\0');
+        if (pos != std::string::npos) {
+            bcd_str = bcd_str.substr(0, pos);
+        }
+
+        // Check if it is a negative bcd and the last character 
+        // is of the decimal is '-'
+        if (!bcd_str.empty() && bcd_str.back() == '-') {
+            bcd_str.pop_back();
+            ltrim(bcd_str);
+            bcd_str.insert(bcd_str.begin(), '-');
+        }
 
         auto str_val = Value(bcd_str);
         auto dec_typ = LogicalType::DECIMAL(length, decimals);

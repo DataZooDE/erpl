@@ -354,7 +354,9 @@ namespace duckdb
     {
         auto &scheduler = TaskScheduler::GetScheduler(context);
         if (max_threads > 0) {
-            scheduler.SetThreads(max_threads);
+            unsigned int db_num_threads = context.db->NumberOfThreads();
+            max_threads = std::min(max_threads, db_num_threads);
+            scheduler.SetThreads(max_threads, 1);
         }
         //scheduler.SetThreads(5);
         auto producer_token = scheduler.CreateProducer();

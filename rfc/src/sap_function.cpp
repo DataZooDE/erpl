@@ -205,8 +205,8 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             case RFCTYPE_BCD:
             case RFCTYPE_DECF16:
             case RFCTYPE_DECF34:
-                //return LogicalType::DECIMAL(GetLength() * 2 - 1, GetDecimals());
-                return LogicalType::DECIMAL(GetLength(), GetDecimals());
+                return LogicalType::DECIMAL(GetLength() * 2 - 1, GetDecimals());
+                //return LogicalType::DECIMAL(GetLength(), GetDecimals());
                 break;
             case RFCTYPE_CHAR:
             case RFCTYPE_STRING:
@@ -780,12 +780,15 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             {
                 return tims2duck(str_value);
             }
+            case RFCTYPE_BCD:
+            {
+                return bcd2duck(str_value, GetLength() * 2 - 1, GetDecimals());
+            }
             default:
             {
                 return Value(str_value);
             }
         }
-
 
         return Value(csv_value);
     }
@@ -821,36 +824,41 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         // https://learn.microsoft.com/en-us/biztalk/adapters-and-accelerators/adapter-sap/basic-sap-data-types
 
         static const std::map<std::string, RFCTYPE> type_map = {
-            {"ACCP",    RFCTYPE_NUM},
-            {"CHAR",    RFCTYPE_CHAR},
-            {"CLNT",    RFCTYPE_CHAR},
-            {"CURR",    RFCTYPE_BCD},
-            {"CUKY",    RFCTYPE_CHAR},
-            {"DATS",    RFCTYPE_DATE},
-            {"DEC",     RFCTYPE_BCD},
-            {"FLTP",    RFCTYPE_FLOAT},
-            {"INT1",    RFCTYPE_INT1},
-            {"INT2",    RFCTYPE_INT2},
-            {"INT4",    RFCTYPE_INT},
-            {"LANG",    RFCTYPE_CHAR},
-            {"LCHR",    RFCTYPE_STRING},
-            {"LRAW",    RFCTYPE_BYTE},
-            {"NUMC",    RFCTYPE_NUM},
-            {"PREC",    RFCTYPE_INT2},
-            {"QUAN",    RFCTYPE_BCD},
-            {"RAW",     RFCTYPE_BYTE},
-            {"RAWSTRING", RFCTYPE_BYTE},
-            {"RSTR",    RFCTYPE_STRING},
-            {"STRING",  RFCTYPE_STRING},
-            {"STRG",    RFCTYPE_STRING},
-            {"SSTR",    RFCTYPE_STRING},
-            {"TIMS",    RFCTYPE_TIME},
-            {"UNIT",    RFCTYPE_CHAR}
+            {"ACCP",        RFCTYPE_NUM},
+            {"CHAR",        RFCTYPE_CHAR},
+            {"CLNT",        RFCTYPE_CHAR},
+            {"CURR",        RFCTYPE_BCD},
+            {"CUKY",        RFCTYPE_CHAR},
+            {"DATS",        RFCTYPE_DATE},
+            {"DEC",         RFCTYPE_BCD},
+            {"FLTP",        RFCTYPE_FLOAT},
+            {"INT1",        RFCTYPE_INT1},
+            {"INT2",        RFCTYPE_INT2},
+            {"INT4",        RFCTYPE_INT},
+            {"LANG",        RFCTYPE_CHAR},
+            {"LCHR",        RFCTYPE_STRING},
+            {"LRAW",        RFCTYPE_BYTE},
+            {"NUMC",        RFCTYPE_NUM},
+            {"PREC",        RFCTYPE_INT2},
+            {"QUAN",        RFCTYPE_BCD},
+            {"RAW",         RFCTYPE_BYTE},
+            {"RAWSTRING",   RFCTYPE_BYTE},
+            {"RSTR",        RFCTYPE_STRING},
+            {"STRING",      RFCTYPE_STRING},
+            {"STRG",        RFCTYPE_STRING},
+            {"SSTR",        RFCTYPE_STRING},
+            {"TIMS",        RFCTYPE_TIME},
+            {"UNIT",        RFCTYPE_CHAR}
         };
 
         auto it = type_map.find(type_name);
         if (it != type_map.end()) {
-            return RfcType(it->second, nullptr, length, decimals);
+            auto abap_internal_lenght = length;
+            if (it->second == RFCTYPE_BCD) {
+                abap_internal_lenght = (length + 1) / 2;
+            }
+
+            return RfcType(it->second, nullptr, abap_internal_lenght, decimals);
         } else {
             throw std::runtime_error(StringUtil::Format("Unsupported SAP table type name: %s", type_name));
         }
@@ -984,8 +992,8 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         RFC_ERROR_INFO error_info;
         _desc_handle = RfcGetFunctionDesc(connection->handle, std2uc(function_name).get(), &error_info);
         if (_desc_handle == NULL || error_info.code != RFC_OK) {
-            throw Exception(StringUtil::Format("Error getting function description: %s: %s",
-                                               rfcrc2std(error_info.code), uc2std(error_info.message)));
+            throw std::runtime_error(StringUtil::Format("Error getting function description: %s: %s",
+                                                        rfcrc2std(error_info.code), uc2std(error_info.message)));
         }
     }
 
@@ -1265,9 +1273,9 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         RFC_ERROR_INFO error_info;
         rc = RfcDestroyFunction(_handle, &error_info);
         if (rc != RFC_OK) {
-            throw Exception(StringUtil::Format("Error destroying function: %s: %s "  
-                                               "(This is indicates a serious error in the SAP NW RFC library.)",
-                                               rfcrc2std(error_info.code), uc2std(error_info.message)));
+            throw std::runtime_error(StringUtil::Format("Error destroying function: %s: %s "  
+                                                        "(This is indicates a serious error in the SAP NW RFC library.)",
+                                                        rfcrc2std(error_info.code), uc2std(error_info.message)));
         }
         _handle = NULL;
     }
@@ -1636,10 +1644,6 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                 }
             }
             else {
-                //if (! selected_fields.empty()) {
-                //    throw std::runtime_error("Selected fields not supported for non-tabular results");
-                //}
-
                 auto &out_vec = output.data[src_col_idx];
                 out_vec.SetValue(0, _result_data[src_col_idx]);
                 output.SetCardinality(1);
