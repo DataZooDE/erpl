@@ -165,6 +165,8 @@ std::string PostHogTelemetry::GetMacAddressSafe()
         return GetMacAddress();
     } catch (std::exception &e) {
         return "00:00:00:00:00:00";
+    } catch (std::runtime_error &e) {
+        return "00:00:00:00:00:00";
     }
 }
 
