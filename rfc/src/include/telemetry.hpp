@@ -116,6 +116,7 @@ class PostHogTelemetry
     public:
         static PostHogTelemetry& Instance();
         static std::string GetMacAddress();
+        static std::string GetMacAddressSafe();
 
         void CaptureExtensionLoad();
         void CaptureExtensionLoad(std::string extension_name);

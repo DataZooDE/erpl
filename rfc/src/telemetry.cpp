@@ -108,7 +108,7 @@ void PostHogTelemetry::CaptureExtensionLoad(std::string extension_name)
 
     PostHogEvent event = {
         "extension_load",
-        GetMacAddress(),
+        GetMacAddressSafe(),
         {
             {"extension_name", extension_name},
             {"extension_version", "0.1.0"}
@@ -126,7 +126,7 @@ void PostHogTelemetry::CaptureFunctionExecution(std::string function_name)
 
     PostHogEvent event = {
         "function_execution",
-        GetMacAddress(),
+        GetMacAddressSafe(),
         {
             {"function_name", function_name},
             {"function_version", "0.1.0"}
@@ -157,6 +157,15 @@ void PostHogTelemetry::SetAPIKey(std::string new_key)
 {
     std::lock_guard<mutex> t(_thread_lock);
     _api_key = new_key;
+}
+
+std::string PostHogTelemetry::GetMacAddressSafe() 
+{
+    try {
+        return GetMacAddress();
+    } catch (std::exception &e) {
+        return "00:00:00:00:00:00";
+    }
 }
 
 #ifdef __linux__ 
