@@ -24,4 +24,4 @@ docker run \
 	--ulimit nofile=1048576:1048576 \
 	-v $PROFILE_FILE:/usr/sap/A4H/SYS/profile/A4H_D00_vhcala4hci \
 	-v $LICENSE_FILE:/opt/sap/ASABAP_license \
-	sapse/abap-platform-trial:1909 -agree-to-sap-license -skip-limits-check
+	sapse/abap-platform-trial:1909_SP01 -agree-to-sap-license -skip-limits-check

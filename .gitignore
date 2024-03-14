@@ -59,6 +59,9 @@ Thumbs.db
 # Smoke test
 smoke/*
 
+# Disabled tests
+**/test/disabled/*
+
 # SAP Trace files
 dev_rfc.log
 rfc*.trc

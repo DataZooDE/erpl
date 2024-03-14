@@ -63,7 +63,7 @@ LOAD `erpl`;
 SET sap_ashost = 'localhost';
 SET sap_sysnr = '00';
 SET sap_user = 'DEVELOPER';
-SET sap_password = 'Htods70334';
+SET sap_password = 'ABAPtr1909';
 SET sap_client = '001';
 SET sap_lang = 'EN';
 ```
