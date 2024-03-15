@@ -165,8 +165,6 @@ std::string PostHogTelemetry::GetMacAddressSafe()
         return GetMacAddress();
     } catch (std::exception &e) {
         return "00:00:00:00:00:00";
-    } catch (std::runtime_error &e) {
-        return "00:00:00:00:00:00";
     }
 }
 
@@ -174,6 +172,9 @@ std::string PostHogTelemetry::GetMacAddressSafe()
 std::string PostHogTelemetry::GetMacAddress() 
 {
     auto device = FindFirstPhysicalDevice();
+    if (device.empty()) {
+        return "00:00:00:00:00:00";
+    }
 
     std::ifstream file(StringUtil::Format("/sys/class/net/%s/address", device));
 
@@ -217,7 +218,7 @@ std::string PostHogTelemetry::FindFirstPhysicalDevice()
         }
     }
 
-    throw new std::runtime_error("Could not find physical network device");
+    return "";
 }
 
 #elif _WIN32
