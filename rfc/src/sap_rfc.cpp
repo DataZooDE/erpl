@@ -558,7 +558,7 @@ namespace duckdb
     // --------------------------------------------------------------------------------------------
 
     RfcReadColumnTask::RfcReadColumnTask(RfcReadColumnStateMachine *owning_state_machine, ClientContext &client_context, duckdb::Vector &current_column_output)
-        :  ExecutorTask(client_context), owning_state_machine(owning_state_machine), current_column_output(current_column_output)
+        :  ExecutorTask(client_context, nullptr), owning_state_machine(owning_state_machine), current_column_output(current_column_output)
     { }
 
     TaskExecutionResult RfcReadColumnTask::ExecuteTask(TaskExecutionMode mode) 

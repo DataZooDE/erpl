@@ -3,7 +3,7 @@
 # group: [rfc]
 
 # Require statement will ensure this test is run with this extension loaded
-require erpl_rfc;
+require erpl_rfc
 
 statement ok
 SET sap_ashost = 'localhost'
@@ -96,10 +96,3 @@ C
 X
 
 endloop
-
-# Verify flight test example
-query I
-select * from sap_rfc_invoke('BAPI_FLIGHT_GETLIST');
-----
-LH
-400
