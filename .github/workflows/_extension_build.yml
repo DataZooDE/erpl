@@ -104,6 +104,7 @@ jobs:
     env:
       VCPKG_TARGET_TRIPLET: ${{ matrix.vcpkg_triplet }}
       VCPKG_TOOLCHAIN_PATH: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
+      DUCKDB_PLATFORM: ${{ matrix.duckdb_arch }}
       GEN: Ninja
 
     steps:
@@ -182,6 +183,7 @@ jobs:
           GEN: 'ninja'
           CC: ${{ matrix.duckdb_arch == 'linux_arm64' && 'aarch64-linux-gnu-gcc' || '' }}
           CXX: ${{ matrix.duckdb_arch == 'linux_arm64' && 'aarch64-linux-gnu-g++' || '' }}
+          DUCKDB_PLATFORM: ${{ matrix.duckdb_arch }}
         run: |
           ./scripts/download_and_extract_nwrfc.sh s3://erpl-resources/sapnwrfc/nwrfc750P_11-70002752_linux.zip ./nwrfcsdk/linux/
           make release
@@ -204,8 +206,17 @@ jobs:
       GEN: Ninja
       VCPKG_TOOLCHAIN_PATH: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
       VCPKG_TARGET_TRIPLET: ${{ matrix.vcpkg_triplet }}
+      DUCKDB_PLATFORM: ${{ matrix.duckdb_arch }}
+      CC: ${{ matrix.duckdb_arch == 'windows_amd64_rtools' && 'gcc' || '' }}
+      CXX: ${{ matrix.duckdb_arch == 'windows_amd64_rtools' && 'g++' || '' }}
 
     steps:
+      - name: Keep \n line endings
+        shell: bash
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
       - name: Generate GitHub token
         id: generate_token
         uses: tibdex/github-app-token@v1.8.2
@@ -219,9 +230,16 @@ jobs:
           submodules: 'true'
           token: ${{ steps.generate_token.outputs.token }}
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.7'
+          python-version: '3.11'
+
+      - uses: r-lib/actions/setup-r@v2
+        if: matrix.duckdb_arch == 'windows_amd64_rtools'
+        with:
+          r-version: 'devel'
+          update-rtools: true
+          rtools-version: '42' # linker bug in 43
 
       - name: Checkout DuckDB to version
         run: |
@@ -245,7 +263,20 @@ jobs:
           role-session-name: ErplGithubOicdSession
           aws-region: eu-west-1
 
+      - name: Fix for MSVC issue
+        shell: bash
+        env:
+          OVERLAY_TRIPLET_SRC:  ${{ github.workspace }}/vcpkg/triplets/community/x64-windows-static-md.cmake
+          OVERLAY_TRIPLET_DST:  ${{ github.workspace }}/overlay_triplets/x64-windows-static-md.cmake
+        run: |
+          mkdir overlay_triplets
+          cp $OVERLAY_TRIPLET_SRC $OVERLAY_TRIPLET_DST
+          echo "set(VCPKG_PLATFORM_TOOLSET_VERSION "14.38")" >> $OVERLAY_TRIPLET_DST
+
       - name: Build extension
+        env:
+          VCPKG_OVERLAY_TRIPLETS: "${{ github.workspace }}/overlay_triplets"
+          DUCKDB_PLATFORM: ${{ matrix.duckdb_arch }}
         run: |
           python -m pip install awscli
           .\scripts\download_and_extract_nwrfc.ps1 's3://erpl-resources/sapnwrfc/nwrfc750P_12-70002755_win.zip' './nwrfcsdk/win/'
