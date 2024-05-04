@@ -27,7 +27,7 @@ INSTALL erpl;
 
 ---
 
-# ★ What is the ERPL Extension?
+## ★ What is the ERPL Extension?
 The primary objective of this [DuckDB](https://duckdb.org) extension is to facilitate seamless integration with the SAP data ecosystem. Our approach prioritizes:
 - **Minimal dependencies**: Ensuring a lightweight experience.
 - **User-centric design**: Intuitive and straightforward usage for DuckDB users.
