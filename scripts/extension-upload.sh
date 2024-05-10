@@ -27,16 +27,7 @@ script_dir="$(dirname "$(readlink -f "$0")")"
 if [[ $4 == wasm_* ]]; then
   brotli < $ext > "$ext.compressed"
 else
-  #gzip < $ext.append > "$ext.compressed"
   gzip < $ext > "$ext.compressed"
-fi
-
-set -e
-
-# Abort if AWS key is not set
-if [ -z "$AWS_ACCESS_KEY_ID" ]; then
-    echo "No AWS key found, skipping.."
-    exit 0
 fi
 
 # upload versioned version
