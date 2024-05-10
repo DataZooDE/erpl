@@ -43,7 +43,7 @@ if [[ $4 == wasm* ]]; then
 fi
 
 # (Optionally) Sign binary
-if [ "$DUCKDB_EXTENSION_SIGNING_PK" != "" ]; then
+if [ "$DUCKDB_EXTENSION_SI<GNING_PK" != "" ]; then
   echo "$DUCKDB_EXTENSION_SIGNING_PK" > private.pem
   $script_dir/../duckdb/scripts/compute-extension-hash.sh $ext.append > $ext.hash
   openssl pkeyutl -sign -in $ext.hash -inkey private.pem -pkeyopt digest:sha256 -out $ext.sign
@@ -60,7 +60,8 @@ cat $ext.sign >> $ext.append
 if [[ $4 == wasm_* ]]; then
   brotli < $ext.append > "$ext.compressed"
 else
-  gzip < $ext.append > "$ext.compressed"
+  #gzip < $ext.append > "$ext.compressed"
+  gzip < $ext > "$ext.compressed"
 fi
 
 set -e
