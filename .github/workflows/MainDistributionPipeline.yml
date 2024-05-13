@@ -35,7 +35,7 @@ jobs:
       extension_name: erpl
       exclude_archs: osx_amd64;osx_arm64;linux_arm64;windows_amd64_rtools;wasm_mvp;wasm_eh;wasm_threads
       deploy_latest: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
-      deploy_versioned: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
+      deploy_versioned: ${{ !(startsWith(github.ref, 'refs/tags/v')) && !(github.ref == 'refs/heads/master') }}
 
   duckdb-stable-build-v0102:
     name: Build v.0.10.2 extension binaries
@@ -57,5 +57,5 @@ jobs:
       extension_name: erpl
       exclude_archs: osx_amd64;osx_arm64;linux_arm64;windows_amd64_rtools;wasm_mvp;wasm_eh;wasm_threads
       deploy_latest: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
-      deploy_versioned: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
+      deploy_versioned: ${{ !(startsWith(github.ref, 'refs/tags/v')) && !(github.ref == 'refs/heads/master') }}
 
