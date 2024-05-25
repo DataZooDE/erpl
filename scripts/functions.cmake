@@ -166,3 +166,21 @@ function(attach_vcpkg_dlls_as_resources ext_objs)
 
     set(ADDED_EXTENSION_OBJECTS ${LOCAL_EXTENSION_OBJECTS} PARENT_SCOPE)
 endfunction()
+
+#---------------------------------------------------------------------------------------
+
+function(add_yyjson_from_duckdb)
+    get_filename_component(yyjson_ext "${PROJECT_SOURCE_DIR}/../duckdb/extension/json/yyjson" REALPATH)
+    if(EXISTS "${yyjson_ext}")
+        include_directories(../duckdb/extension/json/yyjson/include/)
+        add_subdirectory(../duckdb/extension/json/yyjson/)
+        message (NOTICE "-- Using yyjson extension from ${yyjson_ext}")
+    endif()
+
+    get_filename_component(yyjson_thirdparty "${PROJECT_SOURCE_DIR}/../duckdb/third_party/yyjson" REALPATH)
+    if(EXISTS "${yyjson_thirdparty}")
+        include_directories(../duckdb/third_party/yyjson/include/)
+        add_compile_definitions(DUCKDB_YYJSON_THIRDPARTY)
+        message(NOTICE "-- Using yyjson third party from ${yyjson_thirdparty}")
+    endif()
+endfunction()

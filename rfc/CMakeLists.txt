@@ -21,14 +21,14 @@ if(UNIX AND NOT APPLE)
 endif()
 
 include_directories(src/include
-                    ../duckdb/extension/json/yyjson/include
                     ../duckdb/third_party/
                     ../duckdb/third_party/httplib
                     ../duckdb/third_party/miniz
                     ${SAPNWRFC_HOME}/include
                     ${OPENSSL_INCLUDE_DIR})
 
-add_subdirectory(../duckdb/extension/json/yyjson/ ../build/yyjson)
+
+add_yyjson_from_duckdb()
 
 set(EXTENSION_SOURCES
       src/erpl_rfc_extension.cpp
