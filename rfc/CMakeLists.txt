@@ -11,6 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 project(${TARGET_NAME})
 
 include(../scripts/functions.cmake)
+add_duckdb_version_definition()
 
 if(WIN32)
       default_win32_libraries()
@@ -26,7 +27,6 @@ include_directories(src/include
                     ../duckdb/third_party/miniz
                     ${SAPNWRFC_HOME}/include
                     ${OPENSSL_INCLUDE_DIR})
-
 
 add_yyjson_from_duckdb()
 

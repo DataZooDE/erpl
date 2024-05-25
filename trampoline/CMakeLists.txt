@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 project(${TARGET_NAME})
 
 include(../scripts/functions.cmake)
+add_duckdb_version_definition()
 
 if(WIN32)
     # Attach the erpl_rfc.duckdb_extension file as a resource to the trampoline file

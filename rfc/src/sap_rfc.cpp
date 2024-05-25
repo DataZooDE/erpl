@@ -495,7 +495,13 @@ namespace duckdb
     duckdb::shared_ptr<RfcReadColumnTask> RfcReadColumnStateMachine::CreateTaskForNextStep(ClientContext &client_context, duckdb::Vector &column_output) 
     {
         std::lock_guard<mutex> t(thread_lock);
-        auto task = make_shared_ptr<RfcReadColumnTask>(this, client_context, column_output);
+        
+        #if ((DUCKDB_MAJOR_VERSION>0) || (DUCKDB_MAJOR_VERSION==0 && DUCKDB_MINOR_VERSION>10) || (DUCKDB_MAJOR_VERSION==0 && DUCKDB_MINOR_VERSION==10 && DUCKDB_PATCH_VERSION>=3))
+            auto task = duckdb::make_shared_ptr<RfcReadColumnTask>(this, client_context, column_output);
+        #else
+            auto task = duckdb::make_shared<RfcReadColumnTask>(this, client_context, column_output);
+        #endif
+        
         return task;
     }
 
