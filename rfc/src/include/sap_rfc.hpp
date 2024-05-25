@@ -101,7 +101,7 @@ namespace duckdb
 			void SetInactive();
 			void SetActive(idx_t projected_column_idx);
 			bool Finished();
-			std::shared_ptr<RfcReadColumnTask> CreateTaskForNextStep(ClientContext &client_context, duckdb::Vector &column_output);
+			duckdb::shared_ptr<RfcReadColumnTask> CreateTaskForNextStep(ClientContext &client_context, duckdb::Vector &column_output);
 			unsigned int GetRfcColumnIndex();
 			unsigned int GetProjectedColumnIndex();
 			std::shared_ptr<RfcConnection> GetConnection();

@@ -38,17 +38,12 @@ namespace duckdb
         auto func_name = inputs[0].GetValue<string>();
         auto func_args = std::vector<Value>(inputs.begin()+1, inputs.end());
         auto path = GetPathNamedParam(input);
-        auto func = make_shared<RfcFunction>(connection, func_name);
-        
-        // Create the invocation and bind arguments to it
-        auto invocation = func->BeginInvocation(func_args);
-        auto result_set = invocation->Invoke(path);
+        auto result_set = RfcResultSet::InvokeFunction(connection, func_name, func_args, path);
         names = result_set->GetResultNames();
         return_types = result_set->GetResultTypes();
 
         // Make this invocation available to the bind data
         auto bind_data = make_uniq<RfcFunctionBindData>();
-        bind_data->invocation = invocation;
         bind_data->result_set = result_set;
 
         return std::move(bind_data);

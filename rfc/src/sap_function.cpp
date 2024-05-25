@@ -490,7 +490,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         return ConvertRfcValue(function_handle, field_name);
     }
 
-    Value RfcType::ConvertRfcValue(shared_ptr<RfcInvocation> invocation, string &field_name) 
+    Value RfcType::ConvertRfcValue(std::shared_ptr<RfcInvocation> invocation, string &field_name) 
     {
         auto function_handle = invocation->GetFunctionHandle();
         return ConvertRfcValue(function_handle, field_name);
@@ -1342,7 +1342,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             throw std::runtime_error(StringUtil::Format("Failed to invoke function:\n%s", rfcerrorinfo2std(error_info)));
         }
 
-        return make_shared<RfcResultSet>(shared_from_this(), path);
+        return std::make_shared<RfcResultSet>(shared_from_this(), path);
     }
     
     std::shared_ptr<RfcResultSet> RfcInvocation::Invoke() 
@@ -1752,7 +1752,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                                                                std::vector<Value> &function_arguments,
                                                                std::string result_path)
     {
-        auto func = make_shared<RfcFunction>(connection, function_name);
+        auto func = std::make_shared<RfcFunction>(connection, function_name);
         auto invocation = function_arguments.size() > 0 
                             ? func->BeginInvocation(function_arguments) 
                             : func->BeginInvocation();
