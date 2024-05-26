@@ -173,6 +173,13 @@ function(add_yyjson_from_duckdb)
     get_filename_component(yyjson_ext "${PROJECT_SOURCE_DIR}/../duckdb/extension/json/yyjson" REALPATH)
     if(EXISTS "${yyjson_ext}")
         include_directories(../duckdb/extension/json/yyjson/include/)
+
+        if (NOT TARGET yyjson_added)
+            # Mark the directory as added
+            add_subdirectory(../duckdb/extension/json/yyjson/ ../build/yyjson)
+            add_library(yyjson_added INTERFACE)
+        endif()
+        
         message (NOTICE "-- Using yyjson extension from ${yyjson_ext}")
     endif()
 
