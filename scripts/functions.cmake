@@ -36,7 +36,8 @@ function(default_win32_definitions target)
         SAPonNT 
         _AFXDLL 
         WIN32 
-        _WIN32_WINNT=0x0502 
+        _WIN32_WINNT=_WIN32_WINNT_WIN10
+        NTDDI_VERSION=NTDDI_WIN10
         WIN64 
         _AMD64_ 
         SAPwithUNICODE 
@@ -47,10 +48,19 @@ function(default_win32_definitions target)
         SAP_API=
     )
 
+    # Apply flags to disable specific warnings for this target
+    if (MSVC)
+        target_compile_options(${target} PRIVATE /MP64)
+        set_target_properties(${target} PROPERTIES LINK_FLAGS "/ignore:4217")
+        target_link_options(${target} INTERFACE "/ignore:4217")
+    endif()
+
+    if (MINGW)
+        target_compile_options(${target} PRIVATE -Wno-attributes -Wno-deprecated-declarations)
+    endif()
+    
     # Apply compile options to the specified target
-    target_compile_options(${target} PRIVATE /MP64)
-    set_target_properties(${target} PROPERTIES LINK_FLAGS "/ignore:4217")
-    target_link_options(${target} INTERFACE "/ignore:4217")
+    
 
     # Set variables for use in the parent scope
     set(BUILD_UNITTESTS FALSE PARENT_SCOPE)
