@@ -21,12 +21,15 @@ if(UNIX AND NOT APPLE)
       default_linux_libraries()
 endif()
 
+find_package(OpenSSL REQUIRED)
+
 include_directories(src/include
                     ../duckdb/third_party/
                     ../duckdb/third_party/httplib
                     ../duckdb/third_party/miniz
                     ${SAPNWRFC_HOME}/include
-                    ${OPENSSL_INCLUDE_DIR})
+                    ${OPENSSL_INCLUDE_DIR}
+)
 
 add_yyjson_from_duckdb()
 
@@ -69,12 +72,18 @@ if(UNIX AND NOT APPLE)
       default_linux_definitions(${LOADABLE_EXTENSION_NAME})
 endif()
 
-target_link_libraries(${EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} OpenSSL::SSL OpenSSL::Crypto)
-target_link_libraries(${LOADABLE_EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} OpenSSL::SSL OpenSSL::Crypto)
+target_link_libraries(${EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
+target_link_libraries(${LOADABLE_EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
 
 if (WIN32)
       target_link_libraries(${EXTENSION_NAME} iphlpapi)
       target_link_libraries(${LOADABLE_EXTENSION_NAME} iphlpapi)
+endif()
+
+if(MINGW)
+   find_package(ZLIB)
+   target_link_libraries(${EXTENSION_NAME} ZLIB::ZLIB -lcrypt32)
+   target_link_libraries(${LOADABLE_EXTENSION_NAME} ZLIB::ZLIB -lcrypt32)
 endif()
 
 if(${BUILD_UNITTESTS})
