@@ -25,7 +25,7 @@ static unique_ptr<FunctionData> RfcDescribeFunctionBind(ClientContext &context,
 
     // Create the function
     auto func_name = inputs[0].ToString();
-    auto func_handle = make_shared<RfcFunction>(connection, func_name);
+    auto func_handle = std::make_shared<RfcFunction>(connection, func_name);
 
     auto func_args = CreateFunctionArguments(func_name);
     auto result_set = RfcResultSet::InvokeFunction(connection, "RPY_FUNCTIONMODULE_READ", func_args);

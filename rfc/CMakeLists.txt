@@ -11,6 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 project(${TARGET_NAME})
 
 include(../scripts/functions.cmake)
+add_duckdb_version_definition()
 
 if(WIN32)
       default_win32_libraries()
@@ -20,15 +21,17 @@ if(UNIX AND NOT APPLE)
       default_linux_libraries()
 endif()
 
+find_package(OpenSSL REQUIRED)
+
 include_directories(src/include
-                    ../duckdb/extension/json/yyjson/include
                     ../duckdb/third_party/
                     ../duckdb/third_party/httplib
                     ../duckdb/third_party/miniz
                     ${SAPNWRFC_HOME}/include
-                    ${OPENSSL_INCLUDE_DIR})
+                    ${OPENSSL_INCLUDE_DIR}
+)
 
-add_subdirectory(../duckdb/extension/json/yyjson/ ../build/yyjson)
+add_yyjson_from_duckdb()
 
 set(EXTENSION_SOURCES
       src/erpl_rfc_extension.cpp
@@ -69,12 +72,18 @@ if(UNIX AND NOT APPLE)
       default_linux_definitions(${LOADABLE_EXTENSION_NAME})
 endif()
 
-target_link_libraries(${EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} OpenSSL::SSL OpenSSL::Crypto)
-target_link_libraries(${LOADABLE_EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} OpenSSL::SSL OpenSSL::Crypto)
+target_link_libraries(${EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
+target_link_libraries(${LOADABLE_EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
 
 if (WIN32)
       target_link_libraries(${EXTENSION_NAME} iphlpapi)
       target_link_libraries(${LOADABLE_EXTENSION_NAME} iphlpapi)
+endif()
+
+if(MINGW)
+   find_package(ZLIB)
+   target_link_libraries(${EXTENSION_NAME} ZLIB::ZLIB -lcrypt32)
+   target_link_libraries(${LOADABLE_EXTENSION_NAME} ZLIB::ZLIB -lcrypt32)
 endif()
 
 if(${BUILD_UNITTESTS})

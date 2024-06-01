@@ -39,15 +39,12 @@ namespace duckdb
         auto connection = RfcAuthParams::FromContext(context).Connect();
 
         // Create the function
-        auto func = make_shared<RfcFunction>(connection, "RFC_FUNCTION_SEARCH");
         auto func_args = CreateFunctionArguments(input);
-        auto invocation = func->BeginInvocation(func_args);
-        auto result_set = invocation->Invoke("/FUNCTIONS");
+        auto result_set = RfcResultSet::InvokeFunction(connection, "RFC_FUNCTION_SEARCH", func_args, "/FUNCTIONS");
         names = result_set->GetResultNames();
         return_types = result_set->GetResultTypes();
 
         auto bind_data = make_uniq<RfcFunctionBindData>();
-        bind_data->invocation = invocation;
         bind_data->result_set = result_set;
 
         return std::move(bind_data);

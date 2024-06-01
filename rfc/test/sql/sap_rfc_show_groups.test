@@ -1,5 +1,5 @@
-# name: test/sql/sap_rfc_describe_function.test
-# description: test sap rfc describe function functionality
+# name: test/sql/sap_rfc_search_group.test
+# description: test sap rfc search group function
 # group: [rfc]
 
 # Require RFC the extension
@@ -37,10 +37,16 @@ statement ok
 SET sap_lang = '${ERPL_SAP_LANG}'
 # ---------------------------------------------------------------------
 
-# Confirm describe function works
-query III
-select name, import[1].name, export[1].name from sap_rfc_describe_function('STFC_CONNECTION');
+# Do a query on one individual group
+query II
+select name, text from sap_rfc_show_groups(GROUPNAME='RSBOLAP_BICS');
 ----
-STFC_CONNECTION
-REQUTEXT
-ECHOTEXT
+RSBOLAP_BICS
+BI Consumer Services
+
+# ---------------------------------------------------------------------
+# Check whether we can query all groups
+query I
+select COUNT(*) from sap_rfc_show_groups();
+----
+16062

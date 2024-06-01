@@ -64,7 +64,7 @@ namespace duckdb {
             void AdaptValue(RfcInvocation &invocation, string &arg_name, Value &arg_value);
             void AdaptValue(DATA_CONTAINER_HANDLE &container_handle, string &arg_name, Value &arg_value);
             Value ConvertRfcValue(RfcInvocation &invocation, string &field_name);
-            Value ConvertRfcValue(shared_ptr<RfcInvocation> invocation, string &field_name);
+            Value ConvertRfcValue(std::shared_ptr<RfcInvocation> invocation, string &field_name);
             Value ConvertCsvValue(Value &csv_value);
             
             virtual std::string ToSqlLiteral();

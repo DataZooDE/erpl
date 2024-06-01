@@ -36,7 +36,8 @@ function(default_win32_definitions target)
         SAPonNT 
         _AFXDLL 
         WIN32 
-        _WIN32_WINNT=0x0502 
+        _WIN32_WINNT=_WIN32_WINNT_WIN10
+        NTDDI_VERSION=NTDDI_WIN10
         WIN64 
         _AMD64_ 
         SAPwithUNICODE 
@@ -47,10 +48,19 @@ function(default_win32_definitions target)
         SAP_API=
     )
 
+    # Apply flags to disable specific warnings for this target
+    if (MSVC)
+        target_compile_options(${target} PRIVATE /MP64)
+        set_target_properties(${target} PROPERTIES LINK_FLAGS "/ignore:4217")
+        target_link_options(${target} INTERFACE "/ignore:4217")
+    endif()
+
+    if (MINGW)
+        target_compile_options(${target} PRIVATE -Wno-attributes -Wno-deprecated-declarations)
+    endif()
+    
     # Apply compile options to the specified target
-    target_compile_options(${target} PRIVATE /MP64)
-    set_target_properties(${target} PROPERTIES LINK_FLAGS "/ignore:4217")
-    target_link_options(${target} INTERFACE "/ignore:4217")
+    
 
     # Set variables for use in the parent scope
     set(BUILD_UNITTESTS FALSE PARENT_SCOPE)
@@ -165,4 +175,36 @@ function(attach_vcpkg_dlls_as_resources ext_objs)
     endforeach()
 
     set(ADDED_EXTENSION_OBJECTS ${LOCAL_EXTENSION_OBJECTS} PARENT_SCOPE)
+endfunction()
+
+#---------------------------------------------------------------------------------------
+
+function(add_yyjson_from_duckdb)
+    get_filename_component(yyjson_ext "${PROJECT_SOURCE_DIR}/../duckdb/extension/json/yyjson" REALPATH)
+    if(EXISTS "${yyjson_ext}")
+        include_directories(../duckdb/extension/json/yyjson/include/)
+
+        if (NOT TARGET yyjson_added)
+            # Mark the directory as added
+            add_subdirectory(../duckdb/extension/json/yyjson/ ../build/yyjson)
+            add_library(yyjson_added INTERFACE)
+        endif()
+        
+        message (NOTICE "-- Using yyjson extension from ${yyjson_ext}")
+    endif()
+
+    get_filename_component(yyjson_thirdparty "${PROJECT_SOURCE_DIR}/../duckdb/third_party/yyjson" REALPATH)
+    if(EXISTS "${yyjson_thirdparty}")
+        include_directories(../duckdb/third_party/yyjson/include/)
+        add_compile_definitions(DUCKDB_YYJSON_THIRDPARTY)
+        message(NOTICE "-- Using yyjson third party from ${yyjson_thirdparty}")
+    endif()
+endfunction()
+
+#---------------------------------------------------------------------------------------
+
+function(add_duckdb_version_definition)
+    add_compile_definitions(DUCKDB_MAJOR_VERSION=${DUCKDB_MAJOR_VERSION})
+    add_compile_definitions(DUCKDB_MINOR_VERSION=${DUCKDB_MINOR_VERSION})
+    add_compile_definitions(DUCKDB_PATCH_VERSION=${DUCKDB_PATCH_VERSION})
 endfunction()

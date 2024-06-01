@@ -10,8 +10,6 @@
 #define _MSC_VER 1936
 #endif
 
-#define NTDDI_VERSION NTDDI_WIN10
-
 #include <winsock2.h>
 #include <iphlpapi.h>
 

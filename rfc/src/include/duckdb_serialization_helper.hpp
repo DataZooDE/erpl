@@ -3,6 +3,10 @@
 #include "duckdb.hpp"
 #include "yyjson.hpp"
 
+#ifdef DUCKDB_YYJSON_THIRDPARTY
+using namespace duckdb_yyjson;
+#endif // DUCKDB_YYJSON_THIRDPARTY
+
 namespace duckdb 
 {
     class ErplSerializer 

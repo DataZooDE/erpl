@@ -1,5 +1,6 @@
 #!/bin/bash
 
+APAB_PLATFORM_IMAGE="sapse/abap-cloud-developer-trial:ABAPTRIAL_2022"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 PROFILE_FILE="$SCRIPT_DIR/A4H_D00_vhcala4hci.profile"
 LICENSE_FILE="${1:-$SCRIPT_DIR/A4H_Multiple.txt}"
@@ -24,4 +25,4 @@ docker run \
 	--ulimit nofile=1048576:1048576 \
 	-v $PROFILE_FILE:/usr/sap/A4H/SYS/profile/A4H_D00_vhcala4hci \
 	-v $LICENSE_FILE:/opt/sap/ASABAP_license \
-	sapse/abap-platform-trial:1909_SP01 -agree-to-sap-license -skip-limits-check
+	$APAB_PLATFORM_IMAGE -agree-to-sap-license -skip-limits-check

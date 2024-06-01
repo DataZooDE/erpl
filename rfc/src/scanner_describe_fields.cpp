@@ -37,7 +37,7 @@ namespace duckdb
         auto connection = RfcAuthParams::FromContext(context).Connect();
 
         // Create the function
-        auto func = make_shared<RfcFunction>(connection, "DDIF_FIELDINFO_GET");
+        auto func = std::make_shared<RfcFunction>(connection, "DDIF_FIELDINFO_GET");
         auto func_args = CreateFunctionArguments(input);
         auto invocation = func->BeginInvocation(func_args);
         auto result_set = invocation->Invoke("/DFIES_TAB");

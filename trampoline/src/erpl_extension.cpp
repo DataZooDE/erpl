@@ -232,9 +232,9 @@ namespace duckdb
         auto ext_path = GetExtensionDir();
         try 
         {
-            SaveResourceToFile(TEXT("ICUDT50"), StringUtil::Format("%s\\icudt50.dll", ext_path));
-            SaveResourceToFile(TEXT("ICUIN50"), StringUtil::Format("%s\\icuin50.dll", ext_path));
-            SaveResourceToFile(TEXT("ICUUC50"), StringUtil::Format("%s\\icuuc50.dll", ext_path));
+            SaveResourceToFile(TEXT("ICUDT57"), StringUtil::Format("%s\\icudt57.dll", ext_path));
+            SaveResourceToFile(TEXT("ICUIN57"), StringUtil::Format("%s\\icuin57.dll", ext_path));
+            SaveResourceToFile(TEXT("ICUUC57"), StringUtil::Format("%s\\icuuc57.dll", ext_path));
             SaveResourceToFile(TEXT("SAPNWRFC"), StringUtil::Format("%s\\sapnwrfc.dll", ext_path));
             SaveResourceToFile(TEXT("LIBSAPUCUM"), StringUtil::Format("%s\\libsapucum.dll", ext_path));
             SaveResourceToFile(TEXT("LIBCRYPTO-3-x64"), StringUtil::Format("%s\\libcrypto-3-x64.dll", ext_path));

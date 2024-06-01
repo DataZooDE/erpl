@@ -1,5 +1,5 @@
-# name: test/sql/sap_rfc_describe_function.test
-# description: test sap rfc describe function functionality
+# name: test/sql/sap_rfc_search_function.test
+# description: test sap rfc search function
 # group: [rfc]
 
 # Require RFC the extension
@@ -37,10 +37,17 @@ statement ok
 SET sap_lang = '${ERPL_SAP_LANG}'
 # ---------------------------------------------------------------------
 
-# Confirm describe function works
+# Confirm echo rfc call works
 query III
-select name, import[1].name, export[1].name from sap_rfc_describe_function('STFC_CONNECTION');
+select FUNCNAME, GROUPNAME, STEXT from sap_rfc_show_function(FUNCNAME='*/ASU/RS_VARIANT_CHANGE*');
 ----
-STFC_CONNECTION
-REQUTEXT
-ECHOTEXT
+/ASU/RS_VARIANT_CHANGE
+/ASU/SVAR
+Ändern Variante
+
+# ---------------------------------------------------------------------
+# Confirm echo rfc call works
+query I
+select COUNT(*) from sap_rfc_show_function();
+----
+22485
