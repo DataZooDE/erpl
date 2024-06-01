@@ -80,7 +80,7 @@ namespace duckdb {
     }
 
     std::string ErplRfcExtension::Name() {
-        return "erpl";
+        return "erpl_rfc";
     }
 
 } // namespace duckdb

@@ -1,27 +1,41 @@
-# name: test/sql/ping.test
-# description: test sap rfc ping functionality
+# name: test/sql/sap_rfc_invoke.test
+# description: test invocation of sap rfc functions
 # group: [rfc]
 
-# Require statement will ensure this test is run with this extension loaded
+# Require RFC the extension
 require erpl_rfc
 
-statement ok
-SET sap_ashost = 'localhost'
+# Configure connection ------------------------------------------------
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
 
 statement ok
-SET sap_sysnr = '00'
+SET sap_ashost = '${ERPL_SAP_ASHOST}'
 
 statement ok
-SET sap_user = 'DEVELOPER'
+SET sap_sysnr = '${ERPL_SAP_SYSNR}'
 
 statement ok
-SET sap_password = 'ABAPtr1909'
+SET sap_user = '${ERPL_SAP_USER}'
 
 statement ok
-SET sap_client = '001'
+SET sap_password = '${ERPL_SAP_PASSWORD}'
 
 statement ok
-SET sap_lang = 'EN'
+SET sap_client = '${ERPL_SAP_CLIENT}'
+
+statement ok
+SET sap_lang = '${ERPL_SAP_LANG}'
+# ---------------------------------------------------------------------
 
 # Verify that multiple calls also works
 loop i 0 10
@@ -34,6 +48,7 @@ Hello
 
 endloop
 
+# ---------------------------------------------------------------------
 # Confirm structure input / output works
 query IIIIII
 select ECHOSTRUCT.RFCFLOAT, ECHOSTRUCT.RFCCHAR1, ECHOSTRUCT.RFCDATE, ECHOSTRUCT.RFCTIME, ECHOSTRUCT.RFCINT4, ECHOSTRUCT.RFCDATA1 from sap_rfc_invoke('STFC_STRUCTURE', {
@@ -58,6 +73,7 @@ A
 32767
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
+# ---------------------------------------------------------------------
 # Verify that multiple calls also works
 loop i 0 10
 
@@ -77,6 +93,7 @@ BB
 
 endloop
 
+# ---------------------------------------------------------------------
 # Verify that multiple calls also works
 loop i 0 10
 

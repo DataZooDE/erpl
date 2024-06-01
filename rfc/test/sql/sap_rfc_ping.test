@@ -1,4 +1,4 @@
-# name: test/sql/rfc/sap_rfc_ping.test
+# name: test/sql/sap_rfc_ping.test
 # description: test sap rfc ping functionality
 # group: [rfc]
 
@@ -8,27 +8,40 @@ PRAGMA sap_rfc_ping;
 ----
 Catalog Error: Pragma Function with name sap_rfc_ping does not exist!
 
-# Load the extension
-statement ok
-LOAD 'erpl_rfc';
+# Require RFC the extension
+require erpl_rfc
+
+# Configure connection ------------------------------------------------
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
 
 statement ok
-SET sap_ashost = 'localhost'
+SET sap_ashost = '${ERPL_SAP_ASHOST}'
 
 statement ok
-SET sap_sysnr = '00'
+SET sap_sysnr = '${ERPL_SAP_SYSNR}'
 
 statement ok
-SET sap_user = 'DEVELOPER'
+SET sap_user = '${ERPL_SAP_USER}'
 
 statement ok
-SET sap_password = 'ABAPtr1909'
+SET sap_password = '${ERPL_SAP_PASSWORD}'
 
 statement ok
-SET sap_client = '001'
+SET sap_client = '${ERPL_SAP_CLIENT}'
 
 statement ok
-SET sap_lang = 'EN'
+SET sap_lang = '${ERPL_SAP_LANG}'
+# ---------------------------------------------------------------------
 
 # Confirm ping works
 query I

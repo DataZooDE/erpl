@@ -10,7 +10,7 @@
     
     "cmake.configureArgs": [
         "-DDUCKDB_EXTENSION_CONFIGS=${workspaceFolder}/extension_config.cmake",
-        "-DEXTENSION_STATIC_BUILD=0",
+        "-DEXTENSION_STATIC_BUILD=1",
         "-DBUILD_PARQUET_EXTENSION=1",
         "-DCMAKE_BUILD_TYPE=Debug",
         "-Wno-unused-variable"
