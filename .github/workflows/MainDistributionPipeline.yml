@@ -37,3 +37,25 @@ jobs:
       deploy_latest: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
       deploy_versioned: ${{ !(startsWith(github.ref, 'refs/tags/v')) && !(github.ref == 'refs/heads/master') }}
 
+  duckdb-stable-build-v100:
+    name: Build v.1.0.0 extension binaries
+    uses: ./.github/workflows/_extension_build.yml
+    with:
+      duckdb_version: v1.0.0
+      extension_name: erpl
+      exclude_archs: osx_amd64;osx_arm64;linux_arm64;windows_amd64_rtools;wasm_mvp;wasm_eh;wasm_threads
+      vcpkg_commit: 9edb1b8e590cc086563301d735cae4b6e732d2d2
+    secrets: inherit
+
+  duckdb-stable-deploy-v100:
+    name: Deploy extension binaries
+    needs: duckdb-stable-build-v0103
+    uses: ./.github/workflows/_extension_deploy.yml
+    secrets: inherit
+    with:
+      duckdb_version: v1.0.0
+      extension_name: erpl
+      exclude_archs: osx_amd64;osx_arm64;linux_arm64;windows_amd64_rtools;wasm_mvp;wasm_eh;wasm_threads
+      deploy_latest: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
+      deploy_versioned: ${{ !(startsWith(github.ref, 'refs/tags/v')) && !(github.ref == 'refs/heads/master') }}
+
