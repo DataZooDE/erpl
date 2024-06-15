@@ -109,7 +109,12 @@ function(default_osx_libraries)
    find_package(OpenSSL REQUIRED)
 
    # Set SAPNWRFC_HOME and SAPNWRFC_LIB_FILES for use in the parent scope
-   get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/osx_arm ABSOLUTE)
+   if("${OSX_BUILD_ARCH}" STREQUAL "arm64")
+        get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/osx_arm ABSOLUTE)
+   else()
+        get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/osx_amd64 ABSOLUTE)
+   endif()
+
    #message(STATUS "SAPNWRFC_HOME: ${SAPNWRFC_HOME}")
    find_sap_libraries(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME} "sapnwrfc" "sapucum")
    set(SAPNWRFC_HOME ${SAPNWRFC_HOME} PARENT_SCOPE)
