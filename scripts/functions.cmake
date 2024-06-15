@@ -173,9 +173,16 @@ function(convert_dylib_to_object lib_name lib_path obj_name obj_path change_rpat
     file(WRITE "${SOURCE_PATH}" "#include \"${HEADER_PATH}\"")
 
     # Step 3: Compile the source file to an object file
+
+    if("${OSX_BUILD_ARCH}" STREQUAL "x86_64")
+        set(ARCH_FLAG "x86_64")
+    else()
+        set(ARCH_FLAG "arm64")
+    endif()
+
     add_custom_command(
         OUTPUT "${obj_name}"
-        COMMAND ${CMAKE_C_COMPILER} -c "${SOURCE_PATH}" -o "${obj_path}"
+        COMMAND clang -arch "${ARCH_FLAG}" -c "${SOURCE_PATH}" -o "${obj_path}"
         DEPENDS "${SOURCE_PATH}" "${HEADER_PATH}"
         COMMENT "Compiling ${SOURCE_PATH} to object file ${obj_path}"
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
