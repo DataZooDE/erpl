@@ -27,7 +27,7 @@ jobs:
 
   duckdb-stable-deploy-v100:
     name: Deploy extension binaries
-    needs: duckdb-stable-build-v0103
+    needs: duckdb-stable-build-v100
     uses: ./.github/workflows/_extension_deploy.yml
     secrets: inherit
     with:
