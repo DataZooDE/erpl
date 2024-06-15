@@ -13,7 +13,18 @@
 #include <winsock2.h>
 #include <iphlpapi.h>
 
+#elif __APPLE__
+
+#include <iostream>
+#include <stdexcept>
+#include <ifaddrs.h>
+#include <net/if.h>
+#include <net/if_dl.h>
+#include <cstring>
+
 #endif
+
+#include "duckdb/common/platform.h"
 
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include "httplib.hpp"
@@ -109,7 +120,8 @@ void PostHogTelemetry::CaptureExtensionLoad(std::string extension_name)
         GetMacAddressSafe(),
         {
             {"extension_name", extension_name},
-            {"extension_version", "0.1.0"}
+            {"extension_version", "0.1.0"},
+            {"extension_platform", DuckDBPlatform() }
         }
     };
     auto api_key = this->_api_key;
@@ -166,7 +178,8 @@ std::string PostHogTelemetry::GetMacAddressSafe()
     }
 }
 
-#ifdef __linux__ 
+#ifdef __linux__
+
 std::string PostHogTelemetry::GetMacAddress() 
 {
     auto device = FindFirstPhysicalDevice();
@@ -250,6 +263,38 @@ std::string PostHogTelemetry::GetMacAddress()
     }
 
     return mac_addresses.empty() ? "" : mac_addresses.front();
+}
+
+#elif __APPLE__
+
+std::string PostHogTelemetry::GetMacAddress() 
+{
+    struct ifaddrs *ifap, *ifa;
+    struct sockaddr_dl *sdl = nullptr;
+    char mac_address[18] = {0};
+
+    if (getifaddrs(&ifap) != 0) {
+        throw std::runtime_error("getifaddrs() failed!");
+    }
+
+    for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr->sa_family == AF_LINK && strcmp(ifa->ifa_name, "en0") == 0) {
+            sdl = (struct sockaddr_dl *)ifa->ifa_addr;
+            break;
+        }
+    }
+
+    if (sdl && sdl->sdl_alen == 6) {
+        unsigned char *ptr = (unsigned char *)LLADDR(sdl);
+        snprintf(mac_address, sizeof(mac_address), "%02x:%02x:%02x:%02x:%02x:%02x",
+                 ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5]);
+    } else {
+        strncpy(mac_address, "00:00:00:00:00:00", sizeof(mac_address));
+    }
+
+    freeifaddrs(ifap);
+
+    return std::string(mac_address);
 }
 
 #else
