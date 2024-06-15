@@ -103,6 +103,84 @@ endfunction()
 
 #---------------------------------------------------------------------------------------
 
+function(default_osx_libraries)
+   # Set variables for use in the parent scope
+   set(OPENSSL_USE_STATIC_LIBS TRUE PARENT_SCOPE)
+   find_package(OpenSSL REQUIRED)
+
+   # Set SAPNWRFC_HOME and SAPNWRFC_LIB_FILES for use in the parent scope
+   get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/osx_arm ABSOLUTE)
+   #message(STATUS "SAPNWRFC_HOME: ${SAPNWRFC_HOME}")
+   find_sap_libraries(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME} "sapnwrfc" "sapucum")
+   set(SAPNWRFC_HOME ${SAPNWRFC_HOME} PARENT_SCOPE)
+   set(SAPNWRFC_LIB_FILES ${SAPNWRFC_LIB_FILES} PARENT_SCOPE)
+endfunction()
+
+#---------------------------------------------------------------------------------------
+
+function(default_osx_definitions target)
+    # Apply compile definitions to the specified target
+    target_compile_definitions(${target} PRIVATE 
+        SAPonDARW 
+        SAPwithUNICODE 
+        SAPwithTHREADS
+    )
+
+    target_link_options(${target} PRIVATE "LINKER:-rpath,@loader_path")
+
+    # Apply compile options to the specified target
+    target_compile_options(${target} PRIVATE 
+        -Wno-deprecated-declarations
+    )
+
+    set_target_properties(${target} PROPERTIES XCODE_ATTRIBUTE_LD_RUNPATH_SEARCH_PATHS "@executable_path")
+endfunction()
+
+#---------------------------------------------------------------------------------------
+
+function(convert_dylib_to_object lib_name lib_path obj_name obj_path change_rpath)
+    set(HEADER_PATH "${CMAKE_CURRENT_BINARY_DIR}/${lib_name}.h")
+    set(SOURCE_PATH "${CMAKE_CURRENT_BINARY_DIR}/${lib_name}.c")
+    get_filename_component(LIB_DIR "${lib_path}" DIRECTORY)
+    get_filename_component(LIB_FILE "${lib_path}" NAME)
+
+    # Step 1: Convert the dylib to a C array
+    if (change_rpath)
+        add_custom_command(
+            OUTPUT "${HEADER_PATH}"
+            COMMAND install_name_tool -id @rpath/${LIB_FILE} ${LIB_FILE}
+            COMMAND xxd -i ${LIB_FILE} ${HEADER_PATH}
+            DEPENDS "${lib_path}"
+            COMMENT "Converting ${lib_path} to C header ${HEADER_PATH}"
+            WORKING_DIRECTORY "${LIB_DIR}"
+        )
+    else()
+        add_custom_command(
+            OUTPUT "${HEADER_PATH}"
+            COMMAND xxd -i ${LIB_FILE} ${HEADER_PATH}
+            DEPENDS "${lib_path}"
+            COMMENT "Converting ${lib_path} to C header ${HEADER_PATH}"
+            WORKING_DIRECTORY "${LIB_DIR}"
+        )
+    endif()
+    
+    
+
+    # Step 2: Create a C source file that includes the generated header
+    file(WRITE "${SOURCE_PATH}" "#include \"${HEADER_PATH}\"")
+
+    # Step 3: Compile the source file to an object file
+    add_custom_command(
+        OUTPUT "${obj_name}"
+        COMMAND ${CMAKE_C_COMPILER} -c "${SOURCE_PATH}" -o "${obj_path}"
+        DEPENDS "${SOURCE_PATH}" "${HEADER_PATH}"
+        COMMENT "Compiling ${SOURCE_PATH} to object file ${obj_path}"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+    )
+endfunction()
+
+#---------------------------------------------------------------------------------------
+
 function(attach_extension_as_object extension_file)
     set(OBJ_NAME "${extension_file}.o")
     get_filename_component(EXT_NAME "${extension_file}" NAME_WE)
@@ -110,13 +188,17 @@ function(attach_extension_as_object extension_file)
     get_filename_component(EXT_DIR "${CMAKE_BINARY_DIR}/extension/${EXT_NAME}" ABSOLUTE)
     get_filename_component(EXT_PATH "${EXT_DIR}/${extension_file}" ABSOLUTE)
 
-    add_custom_command(
-        OUTPUT "${OBJ_PATH}"
-        COMMAND objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 "${extension_file}" "${OBJ_PATH}"
-        DEPENDS "${EXT_PATH}"
-        COMMENT "Creating object file ${OBJ_PATH}"
-        WORKING_DIRECTORY "${EXT_DIR}"
-    )
+    if(UNIX AND APPLE)
+        convert_dylib_to_object("${EXT_NAME}" "${EXT_PATH}" "${OBJ_NAME}" "${OBJ_PATH}" OFF)
+    else()
+        add_custom_command(
+            OUTPUT "${OBJ_PATH}"
+            COMMAND objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 "${extension_file}" "${OBJ_PATH}"
+            DEPENDS "${EXT_PATH}"
+            COMMENT "Creating object file ${OBJ_PATH} on Linux"
+            WORKING_DIRECTORY "${EXT_DIR}"
+        )
+    endif()
 
     set(ERPL_EXTENSION_OBJECTS ${ERPL_EXTENSION_OBJECTS} "${OBJ_NAME}" PARENT_SCOPE)
 endfunction()

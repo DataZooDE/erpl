@@ -52,6 +52,7 @@ if(UNIX AND NOT APPLE)
     # Attach the erpl_XXX.duckdb_extension files as an object to the trampoline file 
     # (we call this erpl to not confuse the user), such that it can be extracted
     attach_extension_as_object("erpl_rfc.duckdb_extension")
+
     list(FIND DUCKDB_EXTENSION_NAMES "erpl_bics" _index)
     if(NOT ${_index} EQUAL -1)
         message(STATUS "Attaching erpl_bics.duckdb_extension")
@@ -84,6 +85,40 @@ if(UNIX AND NOT APPLE)
             COMMENT "Creating object file ${CMAKE_CURRENT_BINARY_DIR}/${OBJ_NAME}.o"
             WORKING_DIRECTORY "${LIB_DIR}"
         )
+    endforeach()
+endif()
+
+if(UNIX AND APPLE)
+    # Attach the erpl_XXX.duckdb_extension files as an object to the trampoline file 
+    # (we call this erpl to not confuse the user), such that it can be extracted
+    attach_extension_as_object("erpl_rfc.duckdb_extension")
+
+    list(FIND DUCKDB_EXTENSION_NAMES "erpl_bics" _index)
+    if(NOT ${_index} EQUAL -1)
+        message(STATUS "Attaching erpl_bics.duckdb_extension")
+        attach_extension_as_object("erpl_bics.duckdb_extension")
+    endif()
+    
+    list(FIND DUCKDB_EXTENSION_NAMES "erpl_odp" _index)
+    if(NOT ${_index} EQUAL -1)
+        message(STATUS "Attaching erpl_odp.duckdb_extension")
+        attach_extension_as_object("erpl_odp.duckdb_extension")
+    endif()
+
+    message(STATUS "ERPL_EXTENSION_OBJECTS: ${ERPL_EXTENSION_OBJECTS}")
+
+    # Attach the SAP libraries as objects to the trampoline file, such that it can be extracted
+    get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/osx_arm ABSOLUTE)
+    file(GLOB SAPNWRFC_DYLIB_FILES "${SAPNWRFC_HOME}/lib/*.dylib")
+    foreach(LIB ${SAPNWRFC_DYLIB_FILES})
+        get_filename_component(LIB_DIR ${LIB} DIRECTORY)
+        get_filename_component(LIB_NAME ${LIB} NAME)
+        get_filename_component(OBJ_NAME ${LIB} NAME_WE)
+        file(RELATIVE_PATH REL_LIB ${CMAKE_CURRENT_SOURCE_DIR} ${LIB})
+
+        list(APPEND SAPNWRFC_LIB_OBJECTS "${OBJ_NAME}.o")
+
+        convert_dylib_to_object("${OBJ_NAME}" "${LIB}" "${OBJ_NAME}.o" "${CMAKE_CURRENT_BINARY_DIR}/${OBJ_NAME}.o" ON)
     endforeach()
 endif()
 
