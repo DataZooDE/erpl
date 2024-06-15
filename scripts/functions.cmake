@@ -114,7 +114,7 @@ function(default_osx_libraries)
    else()
         get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/osx_amd64 ABSOLUTE)
    endif()
-
+   
    #message(STATUS "SAPNWRFC_HOME: ${SAPNWRFC_HOME}")
    find_sap_libraries(SAPNWRFC_LIB_FILES ${SAPNWRFC_HOME} "sapnwrfc" "sapucum")
    set(SAPNWRFC_HOME ${SAPNWRFC_HOME} PARENT_SCOPE)
@@ -169,8 +169,6 @@ function(convert_dylib_to_object lib_name lib_path obj_name obj_path change_rpat
         )
     endif()
     
-    
-
     # Step 2: Create a C source file that includes the generated header
     file(WRITE "${SOURCE_PATH}" "#include \"${HEADER_PATH}\"")
 

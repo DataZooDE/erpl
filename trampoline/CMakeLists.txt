@@ -108,7 +108,12 @@ if(UNIX AND APPLE)
     message(STATUS "ERPL_EXTENSION_OBJECTS: ${ERPL_EXTENSION_OBJECTS}")
 
     # Attach the SAP libraries as objects to the trampoline file, such that it can be extracted
-    get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/osx_arm ABSOLUTE)
+    if("${OSX_BUILD_ARCH}" STREQUAL "arm64")
+        get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/osx_arm ABSOLUTE)
+    else()
+        get_filename_component(SAPNWRFC_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../nwrfcsdk/osx_amd64 ABSOLUTE)
+    endif()
+
     file(GLOB SAPNWRFC_DYLIB_FILES "${SAPNWRFC_HOME}/lib/*.dylib")
     foreach(LIB ${SAPNWRFC_DYLIB_FILES})
         get_filename_component(LIB_DIR ${LIB} DIRECTORY)
