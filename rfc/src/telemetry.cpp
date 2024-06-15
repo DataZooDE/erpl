@@ -24,8 +24,6 @@
 
 #endif
 
-#include "duckdb/common/platform.h"
-
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include "httplib.hpp"
 
@@ -121,7 +119,7 @@ void PostHogTelemetry::CaptureExtensionLoad(std::string extension_name)
         {
             {"extension_name", extension_name},
             {"extension_version", "0.1.0"},
-            {"extension_platform", DuckDBPlatform() }
+            {"extension_platform", DuckDB::Platform() }
         }
     };
     auto api_key = this->_api_key;
