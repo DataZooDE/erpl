@@ -296,19 +296,18 @@ jobs:
     strategy:
       matrix: ${{fromJson(needs.generate_matrix.outputs.osx_matrix)}}
     env:
-      VCPKG_TOOLCHAIN_PATH: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
       VCPKG_TARGET_TRIPLET: ${{ matrix.vcpkg_triplet }}
+      VCPKG_TOOLCHAIN_PATH: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
       OSX_BUILD_ARCH: ${{ matrix.osx_build_arch }}
       GEN: Ninja
 
     steps:
       - name: Generate GitHub token
         id: generate_token
-        uses: actions/create-github-app-token@v1
+        uses: tibdex/github-app-token@v1.8.2
         with:
-          app-id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
-          private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
-          repositories: "erpl,erpl-bics,erpl-odp"
+          app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
+          private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
 
       - uses: actions/checkout@v3
         with:
@@ -325,9 +324,9 @@ jobs:
         with:
           key: ${{ github.job }}-${{ matrix.duckdb_arch }}
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.7'
+          python-version: '3.11'
 
       - name: Checkout DuckDB to version
         run: |
@@ -335,7 +334,7 @@ jobs:
           git checkout ${{ inputs.duckdb_version }}
 
       - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v11
+        uses: lukka/run-vcpkg@v11.1
         with:
           vcpkgGitCommitId: ${{ inputs.vcpkg_commit }}
 
@@ -350,11 +349,24 @@ jobs:
 
       - name: Build extension
         shell: bash
+        if: matrix.osx_build_arch == 'arm64'
+        env:
+          DUCKDB_PLATFORM: ${{ matrix.duckdb_arch }}
         run: |
           python -m pip install awscli
-          ./scripts/download_and_extract_nwrfc.sh 's3://erpl-resources/sapnwrfc/nwrfc750P_12-80002761_osx.zip' './nwrfcsdk/osx/'
+          ./scripts/download_and_extract_nwrfc.sh 's3://erpl-resources/sapnwrfc/nwrfc750P_13-80008131_osx_arm.zip' './nwrfcsdk/osx_arm/'
           make release
-        
+      
+      - name: Build extension
+        shell: bash
+        if: matrix.osx_build_arch == 'x86_64'
+        env:
+          DUCKDB_PLATFORM: ${{ matrix.duckdb_arch }}
+        run: |
+          python -m pip install awscli
+          ./scripts/download_and_extract_nwrfc.sh 's3://erpl-resources/sapnwrfc/nwrfc750P_13-80002761_osx.zip' './nwrfcsdk/osx_amd64/'
+          make release
+
       - uses: actions/upload-artifact@v2
         with:
           name: ${{ inputs.extension_name }}-${{ inputs.duckdb_version }}-extension-${{matrix.duckdb_arch}}${{inputs.artifact_postfix}}
