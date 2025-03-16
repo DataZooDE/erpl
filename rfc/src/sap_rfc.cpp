@@ -563,11 +563,13 @@ namespace duckdb
 
     // --------------------------------------------------------------------------------------------
 
+    static const duckdb::PhysicalOperator DUMMY_OPERATOR(duckdb::PhysicalOperatorType::INVALID, vector<LogicalType>(), 0);
+
     RfcReadColumnTask::RfcReadColumnTask(RfcReadColumnStateMachine *owning_state_machine, ClientContext &client_context, duckdb::Vector &current_column_output)
-        :  ExecutorTask(client_context, nullptr), owning_state_machine(owning_state_machine), current_column_output(current_column_output)
+        :  duckdb::ExecutorTask(client_context, nullptr, DUMMY_OPERATOR), owning_state_machine(owning_state_machine), current_column_output(current_column_output)
     { }
 
-    TaskExecutionResult RfcReadColumnTask::ExecuteTask(TaskExecutionMode mode) 
+    TaskExecutionResult RfcReadColumnTask::ExecuteTask(duckdb::TaskExecutionMode mode) 
     {
         std::lock_guard<mutex> t(owning_state_machine->thread_lock);
 

@@ -4,12 +4,6 @@
 
 namespace duckdb 
 {
-    static string RfcInvokeToString(const FunctionData *bind_data_p) {
-	    D_ASSERT(bind_data_p);
-        //auto bind_data = (const SapRfcCallBindData *)bind_data_p;
-	    return StringUtil::Format("Unclear what to do here");
-    }
-
     std::string GetPathNamedParam(TableFunctionBindInput &input) {
         auto &named_params = input.named_parameters;
         if (named_params.find("path") != named_params.end()) {
@@ -69,7 +63,6 @@ namespace duckdb
     TableFunction CreateRfcInvokeScanFunction() 
     {
         auto fun = TableFunction("sap_rfc_invoke", { LogicalType::VARCHAR }, RfcInvokeScan, RfcInvokeBind);
-        fun.to_string = RfcInvokeToString;
         fun.projection_pushdown = false;
         fun.varargs = LogicalType::ANY;
         fun.named_parameters["path"] = LogicalType::VARCHAR;

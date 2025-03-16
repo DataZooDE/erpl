@@ -133,7 +133,7 @@ namespace duckdb
 			std::mutex thread_lock;
 	};
 
-	class RfcReadColumnTask : public ExecutorTask 
+	class RfcReadColumnTask : public duckdb::ExecutorTask 
 	{
 		public:
 			RfcReadColumnTask(RfcReadColumnStateMachine *owning_state_machine, ClientContext &client_context, duckdb::Vector &current_column_output);
