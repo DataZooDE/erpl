@@ -188,7 +188,7 @@ jobs:
           ./scripts/download_and_extract_nwrfc.sh s3://erpl-resources/sapnwrfc/nwrfc750P_13-70002752_linux.zip ./nwrfcsdk/linux/
           make release
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.extension_name }}-${{ inputs.duckdb_version }}-extension-${{matrix.duckdb_arch}}${{inputs.artifact_postfix}}
           path: |
@@ -282,7 +282,7 @@ jobs:
           .\scripts\download_and_extract_nwrfc.ps1 's3://erpl-resources/sapnwrfc/nwrfc750P_13-70002755_win.zip' './nwrfcsdk/win/'
           make release
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.extension_name }}-${{ inputs.duckdb_version }}-extension-${{matrix.duckdb_arch}}${{inputs.artifact_postfix}}
           path: |
@@ -367,7 +367,7 @@ jobs:
           ./scripts/download_and_extract_nwrfc.sh 's3://erpl-resources/sapnwrfc/nwrfc750P_13-80002761_osx.zip' './nwrfcsdk/osx_amd64/'
           make release
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.extension_name }}-${{ inputs.duckdb_version }}-extension-${{matrix.duckdb_arch}}${{inputs.artifact_postfix}}
           path: |
