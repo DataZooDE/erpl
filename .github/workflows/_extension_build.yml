@@ -58,7 +58,7 @@ jobs:
           private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
           repositories: "erpl,erpl-bics,erpl-odp"
           
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: 'true'
@@ -139,7 +139,7 @@ jobs:
           app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
           private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: 'true'
@@ -156,7 +156,7 @@ jobs:
           git checkout ${{ inputs.duckdb_version }}
 
       - name: Setup Ccache
-        uses: hendrikmuhs/ccache-action@v1.2.11 # Note: pinned due to GLIBC incompatibility in later releases
+        uses: hendrikmuhs/ccache-action@v1.2.11
         with:
           key: ${{ github.job }}-${{ matrix.duckdb_arch }}
 
@@ -172,7 +172,7 @@ jobs:
           vcpkgGitCommitId: ${{ inputs.vcpkg_commit }}
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::331993160594:role/ErplGithubOicdRole
           role-session-name: ErplGithubOicdSession
@@ -188,7 +188,7 @@ jobs:
           ./scripts/download_and_extract_nwrfc.sh s3://erpl-resources/sapnwrfc/nwrfc750P_13-70002752_linux.zip ./nwrfcsdk/linux/
           make release
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.extension_name }}-${{ inputs.duckdb_version }}-extension-${{matrix.duckdb_arch}}${{inputs.artifact_postfix}}
           path: |
@@ -224,7 +224,7 @@ jobs:
           app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
           private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: 'true'
@@ -247,7 +247,7 @@ jobs:
           git checkout ${{ inputs.duckdb_version }}
 
       - name: Setup Ccache
-        uses: hendrikmuhs/ccache-action@main
+        uses: hendrikmuhs/ccache-action@v1.2.11
         with:
           key: ${{ github.job }}-${{ matrix.duckdb_arch }}
 
@@ -257,7 +257,7 @@ jobs:
           vcpkgGitCommitId: ${{ inputs.vcpkg_commit }}
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::331993160594:role/ErplGithubOicdRole
           role-session-name: ErplGithubOicdSession
@@ -282,7 +282,7 @@ jobs:
           .\scripts\download_and_extract_nwrfc.ps1 's3://erpl-resources/sapnwrfc/nwrfc750P_13-70002755_win.zip' './nwrfcsdk/win/'
           make release
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.extension_name }}-${{ inputs.duckdb_version }}-extension-${{matrix.duckdb_arch}}${{inputs.artifact_postfix}}
           path: |
@@ -310,7 +310,7 @@ jobs:
           private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
           repositories: "erpl,erpl-bics,erpl-odp"
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: 'true'
@@ -321,11 +321,11 @@ jobs:
           brew install ninja
 
       - name: Setup Ccache
-        uses: hendrikmuhs/ccache-action@main
+        uses: hendrikmuhs/ccache-action@v1.2.11
         with:
           key: ${{ github.job }}-${{ matrix.duckdb_arch }}
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.7'
 
@@ -335,7 +335,7 @@ jobs:
           git checkout ${{ inputs.duckdb_version }}
 
       - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v11
+        uses: lukka/run-vcpkg@v11.1
         with:
           vcpkgGitCommitId: ${{ inputs.vcpkg_commit }}
 
@@ -355,7 +355,7 @@ jobs:
           ./scripts/download_and_extract_nwrfc.sh 's3://erpl-resources/sapnwrfc/nwrfc750P_12-80002761_osx.zip' './nwrfcsdk/osx/'
           make release
         
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.extension_name }}-${{ inputs.duckdb_version }}-extension-${{matrix.duckdb_arch}}${{inputs.artifact_postfix}}
           path: |
