@@ -18,12 +18,12 @@ jobs:
   duckdb-stable-build-v121:
     name: Build v.1.2.1 extension binaries
     uses: ./.github/workflows/_extension_build.yml
+    secrets: inherit
     with:
       duckdb_version: v1.2.1
       extension_name: erpl
       exclude_archs: linux_arm64;windows_amd64_rtools;wasm_mvp;wasm_eh;wasm_threads
       vcpkg_commit: 9edb1b8e590cc086563301d735cae4b6e732d2d2
-    secrets: inherit
 
   duckdb-stable-deploy-v121:
     name: Deploy extension binaries
