@@ -21,6 +21,10 @@ if(UNIX AND NOT APPLE)
       default_linux_libraries()
 endif()
 
+if(UNIX AND APPLE)
+      default_osx_libraries()
+endif()
+
 find_package(OpenSSL REQUIRED)
 
 include_directories(src/include
@@ -70,6 +74,11 @@ endif()
 if(UNIX AND NOT APPLE)
       default_linux_definitions(${EXTENSION_NAME})
       default_linux_definitions(${LOADABLE_EXTENSION_NAME})
+endif()
+
+if(UNIX AND APPLE)
+      default_osx_definitions(${EXTENSION_NAME})
+      default_osx_definitions(${LOADABLE_EXTENSION_NAME})
 endif()
 
 target_link_libraries(${EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
