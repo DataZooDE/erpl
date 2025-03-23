@@ -41,6 +41,10 @@ on:
         type: string
         default: "./duckdb/scripts/modify_distribution_matrix.py"
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   generate_matrix:
     name: Generate matrix
@@ -50,19 +54,10 @@ jobs:
       windows_matrix: ${{ steps.set-matrix-windows.outputs.windows_matrix }}
       osx_matrix: ${{ steps.set-matrix-osx.outputs.osx_matrix }}
     steps:
-      - name: Generate GitHub token
-        id: generate_token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
-          private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
-          repositories: "erpl,erpl-bics,erpl-odp"
-          
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: 'true'
-          token: ${{ steps.generate_token.outputs.token }}
 
       - name: Checkout DuckDB to version
         run: |
@@ -132,19 +127,10 @@ jobs:
           make prefix=/usr install
           git --version
 
-      - name: Generate GitHub token
-        id: generate_token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
-          private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
-          repositories: "erpl,erpl-bics,erpl-odp"
-
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: 'true'
-          token: ${{ steps.generate_token.outputs.token }}
 
       - name: Setup ManyLinux2014
         if: ${{ matrix.duckdb_arch == 'linux_amd64_gcc4' }}
@@ -218,19 +204,10 @@ jobs:
           git config --global core.autocrlf false
           git config --global core.eol lf
 
-      - name: Generate GitHub token
-        id: generate_token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
-          private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
-          repositories: "erpl,erpl-bics,erpl-odp"
-
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: 'true'
-          token: ${{ steps.generate_token.outputs.token }}
 
       - uses: actions/setup-python@v5
         with:
@@ -304,19 +281,10 @@ jobs:
       GEN: Ninja
 
     steps:
-      - name: Generate GitHub token
-        id: generate_token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
-          private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
-          repositories: "erpl,erpl-bics,erpl-odp"
-
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: 'true'
-          token: ${{ steps.generate_token.outputs.token }}
 
       - name: Install Ninja
         run: |

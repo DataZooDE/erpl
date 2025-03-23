@@ -49,6 +49,10 @@ on:
         type: string
         default: "./duckdb/scripts/modify_distribution_matrix.py"
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   generate_matrix:
     name: Generate matrix
@@ -56,19 +60,10 @@ jobs:
     outputs:
       deploy_matrix: ${{ steps.parse-matrices.outputs.deploy_matrix }}
     steps:
-      - name: Generate GitHub token
-        id: generate_token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
-          private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
-          repositories: "erpl,erpl-bics,erpl-odp"
-          
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: 'true'
-          token: ${{ steps.generate_token.outputs.token }}
 
       - name: Checkout DuckDB to version
         run: |
@@ -91,19 +86,10 @@ jobs:
       matrix: ${{fromJson(needs.generate_matrix.outputs.deploy_matrix)}}
 
     steps:
-      - name: Generate GitHub token
-        id: generate_token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
-          private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
-          repositories: "erpl,erpl-bics,erpl-odp"
-
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: 'true'
-          token: ${{ steps.generate_token.outputs.token }}
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
