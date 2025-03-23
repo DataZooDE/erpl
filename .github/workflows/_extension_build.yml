@@ -203,7 +203,7 @@ jobs:
     strategy:
       matrix: ${{fromJson(needs.generate_matrix.outputs.windows_matrix)}}
     env:
-      GEN: Ninja
+      GEN: 'ninja'
       VCPKG_TOOLCHAIN_PATH: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
       VCPKG_TARGET_TRIPLET: ${{ matrix.vcpkg_triplet }}
       DUCKDB_PLATFORM: ${{ matrix.duckdb_arch }}
@@ -297,15 +297,13 @@ jobs:
       matrix: ${{fromJson(needs.generate_matrix.outputs.osx_matrix)}}
     env:
       VCPKG_TARGET_TRIPLET: ${{ matrix.vcpkg_triplet }}
-      VCPKG_TARGET_TRIPLET: ${{ matrix.vcpkg_triplet }}
       VCPKG_TOOLCHAIN_PATH: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
       OSX_BUILD_ARCH: ${{ matrix.osx_build_arch }}
-      GEN: Ninja
+      GEN: 'ninja'
 
     steps:
       - name: Generate GitHub token
         id: generate_token
-        uses: tibdex/github-app-token@v1.8.2
         uses: tibdex/github-app-token@v1.8.2
         with:
           app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
@@ -329,7 +327,6 @@ jobs:
           key: ${{ github.job }}-${{ matrix.duckdb_arch }}
 
       - uses: actions/setup-python@v5
-      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           python-version: '3.11'
@@ -340,7 +337,6 @@ jobs:
           git checkout ${{ inputs.duckdb_version }}
 
       - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v11.1
         uses: lukka/run-vcpkg@v11.1
         with:
           vcpkgGitCommitId: ${{ inputs.vcpkg_commit }}
