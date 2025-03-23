@@ -308,8 +308,6 @@ jobs:
         with:
           app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
           private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
-          app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
-          private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
 
       - uses: actions/checkout@v3
         with:
