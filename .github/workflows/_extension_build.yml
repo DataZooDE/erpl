@@ -41,10 +41,6 @@ on:
         type: string
         default: "./duckdb/scripts/modify_distribution_matrix.py"
 
-permissions:
-  contents: read
-  id-token: write
-
 jobs:
   generate_matrix:
     name: Generate matrix
@@ -54,10 +50,19 @@ jobs:
       windows_matrix: ${{ steps.set-matrix-windows.outputs.windows_matrix }}
       osx_matrix: ${{ steps.set-matrix-osx.outputs.osx_matrix }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Generate GitHub token
+        id: generate_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
+          private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
+          repositories: "erpl,erpl-bics,erpl-odp"
+          
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: 'true'
+          token: ${{ steps.generate_token.outputs.token }}
 
       - name: Checkout DuckDB to version
         run: |
@@ -127,10 +132,18 @@ jobs:
           make prefix=/usr install
           git --version
 
-      - uses: actions/checkout@v4
+      - name: Generate GitHub token
+        id: generate_token
+        uses: tibdex/github-app-token@v1.8.2
+        with:
+          app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
+          private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
+
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: 'true'
+          token: ${{ steps.generate_token.outputs.token }}
 
       - name: Setup ManyLinux2014
         if: ${{ matrix.duckdb_arch == 'linux_amd64_gcc4' }}
@@ -143,7 +156,7 @@ jobs:
           git checkout ${{ inputs.duckdb_version }}
 
       - name: Setup Ccache
-        uses: hendrikmuhs/ccache-action@v1.2.11
+        uses: hendrikmuhs/ccache-action@v1.2.11 # Note: pinned due to GLIBC incompatibility in later releases
         with:
           key: ${{ github.job }}-${{ matrix.duckdb_arch }}
 
@@ -159,7 +172,7 @@ jobs:
           vcpkgGitCommitId: ${{ inputs.vcpkg_commit }}
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v1
         with:
           role-to-assume: arn:aws:iam::331993160594:role/ErplGithubOicdRole
           role-session-name: ErplGithubOicdSession
@@ -175,7 +188,7 @@ jobs:
           ./scripts/download_and_extract_nwrfc.sh s3://erpl-resources/sapnwrfc/nwrfc750P_13-70002752_linux.zip ./nwrfcsdk/linux/
           make release
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v2
         with:
           name: ${{ inputs.extension_name }}-${{ inputs.duckdb_version }}-extension-${{matrix.duckdb_arch}}${{inputs.artifact_postfix}}
           path: |
@@ -204,10 +217,18 @@ jobs:
           git config --global core.autocrlf false
           git config --global core.eol lf
 
-      - uses: actions/checkout@v4
+      - name: Generate GitHub token
+        id: generate_token
+        uses: tibdex/github-app-token@v1.8.2
+        with:
+          app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
+          private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
+
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: 'true'
+          token: ${{ steps.generate_token.outputs.token }}
 
       - uses: actions/setup-python@v5
         with:
@@ -226,7 +247,7 @@ jobs:
           git checkout ${{ inputs.duckdb_version }}
 
       - name: Setup Ccache
-        uses: hendrikmuhs/ccache-action@v1.2.11
+        uses: hendrikmuhs/ccache-action@main
         with:
           key: ${{ github.job }}-${{ matrix.duckdb_arch }}
 
@@ -236,7 +257,7 @@ jobs:
           vcpkgGitCommitId: ${{ inputs.vcpkg_commit }}
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v1
         with:
           role-to-assume: arn:aws:iam::331993160594:role/ErplGithubOicdRole
           role-session-name: ErplGithubOicdSession
@@ -261,7 +282,7 @@ jobs:
           .\scripts\download_and_extract_nwrfc.ps1 's3://erpl-resources/sapnwrfc/nwrfc750P_13-70002755_win.zip' './nwrfcsdk/win/'
           make release
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v2
         with:
           name: ${{ inputs.extension_name }}-${{ inputs.duckdb_version }}-extension-${{matrix.duckdb_arch}}${{inputs.artifact_postfix}}
           path: |
@@ -275,29 +296,37 @@ jobs:
     strategy:
       matrix: ${{fromJson(needs.generate_matrix.outputs.osx_matrix)}}
     env:
-      VCPKG_TOOLCHAIN_PATH: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
       VCPKG_TARGET_TRIPLET: ${{ matrix.vcpkg_triplet }}
+      VCPKG_TOOLCHAIN_PATH: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
       OSX_BUILD_ARCH: ${{ matrix.osx_build_arch }}
       GEN: Ninja
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Generate GitHub token
+        id: generate_token
+        uses: tibdex/github-app-token@v1.8.2
+        with:
+          app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
+          private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
+
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: 'true'
+          token: ${{ steps.generate_token.outputs.token }}
 
       - name: Install Ninja
         run: |
           brew install ninja
 
       - name: Setup Ccache
-        uses: hendrikmuhs/ccache-action@v1.2.11
+        uses: hendrikmuhs/ccache-action@main
         with:
           key: ${{ github.job }}-${{ matrix.duckdb_arch }}
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.7'
+          python-version: '3.11'
 
       - name: Checkout DuckDB to version
         run: |
@@ -320,12 +349,25 @@ jobs:
 
       - name: Build extension
         shell: bash
+        if: matrix.osx_build_arch == 'arm64'
+        env:
+          DUCKDB_PLATFORM: ${{ matrix.duckdb_arch }}
         run: |
           python -m pip install awscli
-          ./scripts/download_and_extract_nwrfc.sh 's3://erpl-resources/sapnwrfc/nwrfc750P_12-80002761_osx.zip' './nwrfcsdk/osx/'
+          ./scripts/download_and_extract_nwrfc.sh 's3://erpl-resources/sapnwrfc/nwrfc750P_13-80008131_osx_arm.zip' './nwrfcsdk/osx_arm/'
           make release
-        
-      - uses: actions/upload-artifact@v4
+      
+      - name: Build extension
+        shell: bash
+        if: matrix.osx_build_arch == 'x86_64'
+        env:
+          DUCKDB_PLATFORM: ${{ matrix.duckdb_arch }}
+        run: |
+          python -m pip install awscli
+          ./scripts/download_and_extract_nwrfc.sh 's3://erpl-resources/sapnwrfc/nwrfc750P_13-80002761_osx.zip' './nwrfcsdk/osx_amd64/'
+          make release
+
+      - uses: actions/upload-artifact@v2
         with:
           name: ${{ inputs.extension_name }}-${{ inputs.duckdb_version }}-extension-${{matrix.duckdb_arch}}${{inputs.artifact_postfix}}
           path: |
