@@ -353,24 +353,25 @@ namespace duckdb
     void RfcReadTableBindData::Step(ClientContext &context, DataChunk &output) 
     {
         auto &scheduler = TaskScheduler::GetScheduler(context);
+        auto executor = TaskExecutor(scheduler);
         if (max_threads > 0) {
             unsigned int db_num_threads = context.db->NumberOfThreads();
             max_threads = std::min(max_threads, db_num_threads);
             scheduler.SetThreads(max_threads, 1);
         }
-        //scheduler.SetThreads(5);
-        auto producer_token = scheduler.CreateProducer();
         
         for (auto &sm : column_state_machines) {
             if (! sm.Active()) {
                 continue;
             }
-            auto task = sm.CreateTaskForNextStep(context, output.data[sm.GetProjectedColumnIndex()]);
-            scheduler.ScheduleTask(*producer_token, task);
+            auto task = sm.CreateTaskForNextStep(executor, output.data[sm.GetProjectedColumnIndex()]);
+            executor.ScheduleTask(std::move(task));
         }
 
-        auto n_active = NActiveStateMachines();
-        scheduler.ExecuteTasks(n_active);
+        //auto n_active = NActiveStateMachines();
+        //scheduler.ExecuteTasks(n_active);
+
+        executor.WorkOnTasks();
         
         if (! AreActiveStateMachineCaridnalitiesEqual()) {
             throw std::runtime_error("Cardinality of column state machines is not the same. This should not happen.");
@@ -492,12 +493,12 @@ namespace duckdb
         return current_state == ReadTableStates::FINISHED;
     }
 
-    duckdb::shared_ptr<RfcReadColumnTask> RfcReadColumnStateMachine::CreateTaskForNextStep(ClientContext &client_context, duckdb::Vector &column_output) 
+    duckdb::unique_ptr<RfcReadColumnTask> RfcReadColumnStateMachine::CreateTaskForNextStep(duckdb::TaskExecutor &executor, duckdb::Vector &column_output) 
     {
         std::lock_guard<mutex> t(thread_lock);
         
         #if ((DUCKDB_MAJOR_VERSION>0) || (DUCKDB_MAJOR_VERSION==0 && DUCKDB_MINOR_VERSION>10) || (DUCKDB_MAJOR_VERSION==0 && DUCKDB_MINOR_VERSION==10 && DUCKDB_PATCH_VERSION>=3))
-            auto task = duckdb::make_shared_ptr<RfcReadColumnTask>(this, client_context, column_output);
+            auto task = duckdb::make_uniq<RfcReadColumnTask>(this, executor, column_output);
         #else
             auto task = duckdb::make_shared<RfcReadColumnTask>(this, client_context, column_output);
         #endif
@@ -565,11 +566,11 @@ namespace duckdb
 
     static const duckdb::PhysicalOperator DUMMY_OPERATOR(duckdb::PhysicalOperatorType::INVALID, vector<LogicalType>(), 0);
 
-    RfcReadColumnTask::RfcReadColumnTask(RfcReadColumnStateMachine *owning_state_machine, ClientContext &client_context, duckdb::Vector &current_column_output)
-        :  duckdb::ExecutorTask(client_context, nullptr, DUMMY_OPERATOR), owning_state_machine(owning_state_machine), current_column_output(current_column_output)
+    RfcReadColumnTask::RfcReadColumnTask(RfcReadColumnStateMachine *owning_state_machine, duckdb::TaskExecutor &executor, duckdb::Vector &current_column_output)
+        :  duckdb::BaseExecutorTask(executor), owning_state_machine(owning_state_machine), current_column_output(current_column_output)
     { }
 
-    TaskExecutionResult RfcReadColumnTask::ExecuteTask(duckdb::TaskExecutionMode mode) 
+    void RfcReadColumnTask::ExecuteTask() 
     {
         std::lock_guard<mutex> t(owning_state_machine->thread_lock);
 
@@ -638,7 +639,6 @@ namespace duckdb
         }
         
         //printf("[%lu] %s\n", owning_state_machine->column_idx, owning_state_machine->ToString().c_str());
-        return TaskExecutionResult::TASK_FINISHED;   
     }
 
     
@@ -691,6 +691,7 @@ namespace duckdb
             .Add("QUERY_TABLE", Value(table_name))
             .Add("ROWSKIPS", Value::CreateValue<int32_t>(batch_count * desired_batch_size))
             .Add("ROWCOUNT", Value::CreateValue<int32_t>(actual_batch_size))
+            .Add("GET_SORTED", Value("X"))
             .Add("FIELDS", fields);
 
         if (! options.empty()) {
