@@ -425,7 +425,7 @@ jobs:
           DUCKDB_PLATFORM: ${{ matrix.duckdb_arch }}
         run: |
           python -m pip install awscli
-          ./scripts/download_and_extract_nwrfc.sh 's3://erpl-resources/sapnwrfc/nwrfc750P_13-80002761_osx.zip' './nwrfcsdk/osx/'
+          ./scripts/download_and_extract_nwrfc.sh 's3://erpl-resources/sapnwrfc/nwrfc750P_13-80002761_osx.zip' './nwrfcsdk/osx_amd64/'
           make release
 
       - uses: actions/upload-artifact@v4
