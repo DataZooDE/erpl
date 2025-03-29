@@ -16,6 +16,7 @@ RUN yum install -y perl-IPC-Cmd
 RUN yum install -y ccache
 RUN yum install -y java-11-openjdk-devel maven
 RUN yum install -y libgcc*i686 libstdc++*i686 glibc*i686 libgfortran*i686
+RUN yum install -y awscli
 
 # Setup VCPKG n a mounted volume TODO: figure out how to cache this
 ARG vcpkg_url
