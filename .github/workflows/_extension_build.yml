@@ -209,6 +209,11 @@ jobs:
           DUCKDB_GIT_VERSION=${{ inputs.duckdb_version }}
           LINUX_CI_IN_DOCKER=1
           TOOLCHAIN_FLAGS=${{ matrix.duckdb_arch == 'linux_arm64' && '-DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ -DCMAKE_Fortran_COMPILER=aarch64-linux-gnu-gfortran' || '' }}
+          AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+          AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+          AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN
+          AWS_REGION=$AWS_REGION
+          AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION
           EOF
 
       - name: Generate timestamp for Ccache entry
