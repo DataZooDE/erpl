@@ -30,6 +30,11 @@ on:
         required: false
         type: string
         default: ""
+      # Override the default vcpkg repository
+      vcpkg_url:
+        required: false
+        type: string
+        default: "https://github.com/microsoft/vcpkg.git"
       # Override the default vcpkg commit used by this version of DuckDB
       vcpkg_commit:
         required: false
