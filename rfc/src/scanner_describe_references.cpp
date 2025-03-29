@@ -4,12 +4,6 @@
 
 namespace duckdb 
 {
-    static string RfcDescribeReferencesToString(const FunctionData *bind_data_p) {
-        D_ASSERT(bind_data_p);
-        //auto bind_data = (const SapRfcCallBindData *)bind_data_p;
-        return StringUtil::Format("Unclear what to do here");
-    }
-
     static unique_ptr<FunctionData> RfcDescribeReferencesBind(ClientContext &context, 
                                                               TableFunctionBindInput &input, 
                                                               vector<LogicalType> &return_types, 
@@ -31,7 +25,6 @@ namespace duckdb
     TableFunction CreateRfcDescribeReferencessScanFunction() 
     {
         auto fun = TableFunction("sap_describe_references", {}, RfcDescribeReferencesScan, RfcDescribeReferencesBind);
-        fun.to_string = RfcDescribeReferencesToString;
         fun.projection_pushdown = false;
 
         return fun;

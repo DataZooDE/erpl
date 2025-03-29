@@ -71,3 +71,6 @@ else
 	cd ./duckdb && make clean
 	cd ./duckdb && make clean-python
 endif
+
+configure_ci:
+	@echo "configure_ci step is skipped for this extension build..."

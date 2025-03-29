@@ -90,9 +90,8 @@ if (WIN32)
 endif()
 
 if(MINGW)
-   find_package(ZLIB)
-   target_link_libraries(${EXTENSION_NAME} ZLIB::ZLIB -lcrypt32)
-   target_link_libraries(${LOADABLE_EXTENSION_NAME} ZLIB::ZLIB -lcrypt32)
+   target_link_libraries(${EXTENSION_NAME} -lcrypt32)
+   target_link_libraries(${LOADABLE_EXTENSION_NAME} -lcrypt32)
 endif()
 
 if(${BUILD_UNITTESTS})
