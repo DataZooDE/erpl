@@ -192,7 +192,7 @@ jobs:
             --build-arg 'vcpkg_commit=${{ inputs.vcpkg_commit }}' \
             --build-arg 'extra_toolchains=${{ inputs.enable_rust  && format(';{0};rust;', inputs.extra_toolchains) || format(';{0};', inputs.extra_toolchains) }}' \
             -t duckdb/${{ matrix.duckdb_arch }} \
-            ./extension-ci-tools/docker/${{ matrix.duckdb_arch }}
+            ./.github/docker/${{ matrix.duckdb_arch }}
 
       - name: Create env file for docker
         run: |
@@ -229,17 +229,6 @@ jobs:
           key: ccache-extension-distribution-${{ matrix.duckdb_arch }}-${{ inputs.duckdb_version }}-${{ steps.ccache_timestamp.outputs.timestamp }}
           restore-keys: |
             ccache-extension-distribution-${{ matrix.duckdb_arch }}-${{ inputs.duckdb_version }}  
-
-      - name: Setup Ubuntu
-        if: ${{ matrix.duckdb_arch == 'linux_amd64' || matrix.duckdb_arch == 'linux_arm64' }}
-        uses: ./duckdb/.github/actions/ubuntu_18_setup
-        with:
-          aarch64_cross_compile: ${{ matrix.duckdb_arch == 'linux_arm64' && 1 }}
-
-      - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v11.1
-        with:
-          vcpkgGitCommitId: ${{ inputs.vcpkg_commit }}
 
       - name: Run configure (inside Docker)
         shell: bash
