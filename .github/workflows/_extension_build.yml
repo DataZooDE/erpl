@@ -110,6 +110,13 @@ jobs:
       GEN: Ninja
 
     steps:
+      - name: Generate GitHub token
+        id: generate_token
+        uses: tibdex/github-app-token@v1.8.2
+        with:
+          app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
+          private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
+          
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
