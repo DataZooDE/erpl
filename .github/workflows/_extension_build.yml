@@ -112,11 +112,12 @@ jobs:
     steps:
       - name: Generate GitHub token
         id: generate_token
-        uses: tibdex/github-app-token@v1.8.2
+        uses: actions/create-github-app-token@v1
         with:
-          app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
-          private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
+          app-id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
+          private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
           repositories: "erpl,erpl-bics,erpl-odp"
+          
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -285,7 +286,7 @@ jobs:
           app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
           private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
           repositories: "erpl,erpl-bics,erpl-odp"
-          
+
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
