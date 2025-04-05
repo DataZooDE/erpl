@@ -2,51 +2,64 @@
 # description: test sap sap_show_tables function
 # group: [rfc]
 
-# Require statement will ensure this test is run with this extension loaded
+# Require RFC the extension
 require erpl_rfc
 
-statement ok
-SET sap_ashost = 'localhost'
+# Configure connection ------------------------------------------------
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
 
 statement ok
-SET sap_sysnr = '00'
+SET sap_ashost = '${ERPL_SAP_ASHOST}'
 
 statement ok
-SET sap_user = 'DEVELOPER'
+SET sap_sysnr = '${ERPL_SAP_SYSNR}'
 
 statement ok
-SET sap_password = 'ABAPtr1909'
+SET sap_user = '${ERPL_SAP_USER}'
 
 statement ok
-SET sap_client = '001'
+SET sap_password = '${ERPL_SAP_PASSWORD}'
 
 statement ok
-SET sap_lang = 'EN'
+SET sap_client = '${ERPL_SAP_CLIENT}'
 
-# ------------------------------------------------------------
+statement ok
+SET sap_lang = '${ERPL_SAP_LANG}'
+# ---------------------------------------------------------------------
+
 # Confirm I retrieve the correct number of tables
 query I
 SELECT count(*) FROM sap_show_tables();
 ----
-50220
+53919
 
-# ------------------------------------------------------------
+# ---------------------------------------------------------------------
 # Confirm I retrieve correct data for a table
 query III
 SELECT table_name, text, class FROM sap_show_tables() ORDER BY 1 LIMIT 1;
 ----
-/1BS/SADL_CDS
+/1BS/SADLQE_TEST
 Generated Table for View
 VIEW
 
-# ------------------------------------------------------------
+# ---------------------------------------------------------------------
 # Confirm selection via table name works
 query I
 SELECT COUNT(*) FROM sap_show_tables(TABLENAME="*FLIGHT*");
 ----
-34
+33
 
-# ------------------------------------------------------------
+# ---------------------------------------------------------------------
 # Confirm a selection with no result also works
 query I
 SELECT COUNT(*) FROM sap_show_tables(TABLENAME="__NON_EXISTING_TABLE__");

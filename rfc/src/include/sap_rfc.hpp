@@ -4,6 +4,7 @@
 
 #include "duckdb.hpp"
 #include "duckdb/parallel/base_pipeline_event.hpp"
+#include "duckdb/parallel/task_executor.hpp"
 #include "sapnwrfc.h"
 
 #include "sap_function.hpp"
@@ -101,7 +102,7 @@ namespace duckdb
 			void SetInactive();
 			void SetActive(idx_t projected_column_idx);
 			bool Finished();
-			std::shared_ptr<RfcReadColumnTask> CreateTaskForNextStep(ClientContext &client_context, duckdb::Vector &column_output);
+			duckdb::unique_ptr<RfcReadColumnTask> CreateTaskForNextStep(duckdb::TaskExecutor &executor, duckdb::Vector &column_output);
 			unsigned int GetRfcColumnIndex();
 			unsigned int GetProjectedColumnIndex();
 			std::shared_ptr<RfcConnection> GetConnection();
@@ -133,11 +134,11 @@ namespace duckdb
 			std::mutex thread_lock;
 	};
 
-	class RfcReadColumnTask : public ExecutorTask 
+	class RfcReadColumnTask : public duckdb::BaseExecutorTask 
 	{
 		public:
-			RfcReadColumnTask(RfcReadColumnStateMachine *owning_state_machine, ClientContext &client_context, duckdb::Vector &current_column_output);
-			TaskExecutionResult ExecuteTask(TaskExecutionMode mode) override;
+			RfcReadColumnTask(RfcReadColumnStateMachine *owning_state_machine, duckdb::TaskExecutor &executor, duckdb::Vector &current_column_output);
+			void ExecuteTask();
 			
 		private:
 			unsigned int ExecuteNextTableReadForColumn();

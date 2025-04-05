@@ -2,7 +2,6 @@
 #include "duckdb/common/types/blob.hpp"
 #include "yyjson.hpp"
 
-
 namespace duckdb 
 {
     std::string ErplSerializer::SerializeJson(const Value &value) 

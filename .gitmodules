@@ -13,3 +13,7 @@
 [submodule "vcpkg"]
 	path = vcpkg
 	url = https://github.com/microsoft/vcpkg
+
+[submodule "extension-ci-tools"]
+	path = extension-ci-tools
+	url = git@github.com:duckdb/extension-ci-tools.git

@@ -26,7 +26,7 @@ namespace duckdb
     ArgBuilder& ArgBuilder::Add(const std::string& name, duckdb::vector<Value> &values) 
     {
         if (values.size() == 0) {
-            return Add(name, Value::EMPTYLIST(LogicalTypeId::ANY));
+            return Add(name, Value::LIST(LogicalTypeId::ANY, vector<Value>()));
         }
 
         auto list_value = Value::LIST(values);

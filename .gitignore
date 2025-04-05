@@ -70,8 +70,9 @@ cpic*.trc
 # SAP License files
 A4H*.txt
 
-# Pixi
+# Venv 
 .pixi
+python-env/*
 
 # Doc Traces
 **/doc/**/*.xml

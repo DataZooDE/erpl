@@ -9,32 +9,8 @@
     },
     
     "cmake.configureArgs": [
-        "-DDUCKDB_EXTENSION_NAMES=erpl_rfc;erpl_bics;erpl_odp",
-        "-DDUCKDB_EXTENSION_ERPL_RFC_PATH=${workspaceFolder}/rfc/",
-        "-DDUCKDB_EXTENSION_ERPL_RFC_LOAD_TESTS=1",
-        "-DDUCKDB_EXTENSION_ERPL_RFC_INCLUDE_PATH=${workspaceFolder}/rfc/src/include",
-        "-DDUCKDB_EXTENSION_ERPL_RFC_TEST_PATH=${workspaceFolder}/rfc/test/",
-        "-DDUCKDB_EXTENSION_ERPL_RFC_SHOULD_LINK=0",
-
-        "-DDUCKDB_EXTENSION_ERPL_BICS_PATH=${workspaceFolder}/bics/",
-        "-DDUCKDB_EXTENSION_ERPL_BICS_LOAD_TESTS=1",
-        "-DDUCKDB_EXTENSION_ERPL_BICS_INCLUDE_PATH=${workspaceFolder}/bics/src/include",
-        "-DDUCKDB_EXTENSION_ERPL_BICS_TEST_PATH=${workspaceFolder}/bics/test/",
-        "-DDUCKDB_EXTENSION_ERPL_BICS_SHOULD_LINK=0",
-
-        "-DDUCKDB_EXTENSION_ERPL_ODP_PATH=${workspaceFolder}/odp/",
-        "-DDUCKDB_EXTENSION_ERPL_ODP_LOAD_TESTS=1",
-        "-DDUCKDB_EXTENSION_ERPL_ODP_INCLUDE_PATH=${workspaceFolder}/odp/src/include",
-        "-DDUCKDB_EXTENSION_ERPL_ODP_TEST_PATH=${workspaceFolder}/odp/test/",
-        "-DDUCKDB_EXTENSION_ERPL_ODP_SHOULD_LINK=0",
-
-        "-DDUCKDB_EXTENSION_ERPL_PATH=${workspaceFolder}/trampoline/",
-        "-DDUCKDB_EXTENSION_ERPL_LOAD_TESTS=1",
-        "-DDUCKDB_EXTENSION_ERPL_INCLUDE_PATH=${workspaceFolder}/trampoline/src/include",
-        "-DDUCKDB_EXTENSION_ERPL_TEST_PATH=${workspaceFolder}/trampoline/test/",
-        "-DDUCKDB_EXTENSION_ERPL_SHOULD_LINK=0",
-
-        "-DEXTENSION_STATIC_BUILD=0",
+        "-DDUCKDB_EXTENSION_CONFIGS=${workspaceFolder}/extension_config.cmake",
+        "-DEXTENSION_STATIC_BUILD=1",
         "-DBUILD_PARQUET_EXTENSION=1",
         "-DCMAKE_BUILD_TYPE=Debug",
         "-Wno-unused-variable"
@@ -145,7 +121,9 @@
         "xtr1common": "cpp",
         "xtree": "cpp",
         "xutility": "cpp",
-        "filesystem": "cpp"
+        "filesystem": "cpp",
+        "hash_set": "cpp",
+        "text_encoding": "cpp"
     },
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
     "cmake.autoSelectActiveFolder": true,

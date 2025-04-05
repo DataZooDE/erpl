@@ -30,6 +30,11 @@ on:
         required: false
         type: string
         default: ""
+      # Override the default vcpkg repository
+      vcpkg_url:
+        required: false
+        type: string
+        default: "https://github.com/microsoft/vcpkg.git"
       # Override the default vcpkg commit used by this version of DuckDB
       vcpkg_commit:
         required: false
@@ -96,105 +101,161 @@ jobs:
   linux:
     name: Linux
     runs-on: ubuntu-latest
-    container: ${{ matrix.container }}
     needs: generate_matrix
     if: ${{ needs.generate_matrix.outputs.linux_matrix != '{}' && needs.generate_matrix.outputs.linux_matrix != '' }}
     strategy:
       matrix: ${{fromJson(needs.generate_matrix.outputs.linux_matrix)}}
     env:
       VCPKG_TARGET_TRIPLET: ${{ matrix.vcpkg_triplet }}
+      VCPKG_HOST_TRIPLET: ${{ matrix.vcpkg_host_triplet }}
+      VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
       VCPKG_TOOLCHAIN_PATH: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
       DUCKDB_PLATFORM: ${{ matrix.duckdb_arch }}
+      BUILD_SHELL: ${{ inputs.build_duckdb_shell && '1' || '0' }}
       GEN: Ninja
 
     steps:
-      - name: Install required ubuntu packages
-        if: ${{ matrix.duckdb_arch == 'linux_amd64' || matrix.duckdb_arch == 'linux_arm64' }}
-        run: |
-          apt-get update -y -qq
-          apt-get install -y -qq software-properties-common
-          add-apt-repository ppa:git-core/ppa
-          apt-get update -y -qq
-          apt-get install -y -qq ninja-build make gcc-multilib g++-multilib libssl-dev wget openjdk-8-jdk zip maven unixodbc-dev libc6-dev-i386 lib32readline6-dev libssl-dev libcurl4-gnutls-dev libexpat1-dev gettext unzip build-essential checkinstall libffi-dev curl libz-dev openssh-client python3-pip nodejs
-
-      - name: Install required manylinux packages
-        if: ${{ matrix.duckdb_arch == 'linux_amd64_gcc4' }}
-        run: |
-          yum install -y openssl-devel nodejs
-
-      - name: Install Git 2.18.5
-        if: ${{ matrix.duckdb_arch == 'linux_amd64' || matrix.duckdb_arch == 'linux_arm64' }}
-        run: |
-          wget https://github.com/git/git/archive/refs/tags/v2.18.5.tar.gz
-          tar xvf v2.18.5.tar.gz
-          cd git-2.18.5
-          make
-          make prefix=/usr install
-          git --version
-
       - name: Generate GitHub token
         id: generate_token
         uses: tibdex/github-app-token@v1.8.2
         with:
           app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
           private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
+          
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::331993160594:role/ErplGithubOicdRole
+          role-session-name: ErplGithubOicdSession
+          aws-region: eu-west-1
 
-      - uses: actions/checkout@v3
+      - name: Export GitHub Actions cache environment variables
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Free up some unused space
+        continue-on-error: true
+        run: |
+          docker images -a -q > package.list
+          if [ -s package.list ]; then
+              echo "To be deleted"
+              cat package.list
+              echo "---"
+              docker rmi $(cat package.list)
+          fi
+          rm package.list
+
+      - name: Restart docker to run on /mnt
+        run: |
+          sudo systemctl stop docker
+  
+      - name: Configure Docker with custom data directory
+        run: |
+          sudo mkdir -p /mnt/docker-data
+          echo '{ "data-root": "/mnt/docker-data" }' | sudo tee /etc/docker/daemon.json
+  
+      - name: Start Docker with updated storage path
+        run: sudo systemctl start docker
+  
+      - name: Verify Docker storage path
+        run: docker info | grep "Docker Root Dir"
+
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: 'true'
           token: ${{ steps.generate_token.outputs.token }}
-
-      - name: Setup ManyLinux2014
-        if: ${{ matrix.duckdb_arch == 'linux_amd64_gcc4' }}
-        run: |
-          ./duckdb/scripts/setup_manylinux2014.sh general aws-cli ccache ssh python_alias openssl
           
       - name: Checkout DuckDB to version
         run: |
           cd duckdb
           git checkout ${{ inputs.duckdb_version }}
 
-      - name: Setup Ccache
-        uses: hendrikmuhs/ccache-action@v1.2.11 # Note: pinned due to GLIBC incompatibility in later releases
-        with:
-          key: ${{ github.job }}-${{ matrix.duckdb_arch }}
-
-      - name: Setup Ubuntu
-        if: ${{ matrix.duckdb_arch == 'linux_amd64' || matrix.duckdb_arch == 'linux_arm64' }}
-        uses: ./duckdb/.github/actions/ubuntu_18_setup
-        with:
-          aarch64_cross_compile: ${{ matrix.duckdb_arch == 'linux_arm64' && 1 }}
-
-      - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v11.1
-        with:
-          vcpkgGitCommitId: ${{ inputs.vcpkg_commit }}
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          role-to-assume: arn:aws:iam::331993160594:role/ErplGithubOicdRole
-          role-session-name: ErplGithubOicdSession
-          aws-region: eu-west-1
-
-      - name: Build extension
-        env:
-          GEN: 'ninja'
-          CC: ${{ matrix.duckdb_arch == 'linux_arm64' && 'aarch64-linux-gnu-gcc' || '' }}
-          CXX: ${{ matrix.duckdb_arch == 'linux_arm64' && 'aarch64-linux-gnu-g++' || '' }}
-          DUCKDB_PLATFORM: ${{ matrix.duckdb_arch }}
+      - name: Tag extension
+        if: ${{inputs.extension_tag != ''}}
         run: |
-          ./scripts/download_and_extract_nwrfc.sh s3://erpl-resources/sapnwrfc/nwrfc750P_11-70002752_linux.zip ./nwrfcsdk/linux/
-          make release
+          git tag ${{ inputs.extension_tag }}
 
-      - uses: actions/upload-artifact@v2
+      - name: Tag DuckDB extension
+        if: ${{inputs.duckdb_tag != ''}}
+        run: |
+          DUCKDB_TAG=${{ inputs.duckdb_tag }} make set_duckdb_tag
+
+      - name: Build Docker image
+        shell: bash
+        run: |
+          docker build \
+            --build-arg 'vcpkg_url=${{ inputs.vcpkg_url }}' \
+            --build-arg 'vcpkg_commit=${{ inputs.vcpkg_commit }}' \
+            --build-arg 'extra_toolchains=${{ inputs.enable_rust  && format(';{0};rust;', inputs.extra_toolchains) || format(';{0};', inputs.extra_toolchains) }}' \
+            -t duckdb/${{ matrix.duckdb_arch }} \
+            ./.github/docker/${{ matrix.duckdb_arch }}
+
+      - name: Create env file for docker
+        run: |
+          cat <<-EOF > docker_env.txt
+          ACTIONS_CACHE_URL=$ACTIONS_CACHE_URL
+          ACTIONS_RUNTIME_TOKEN=$ACTIONS_RUNTIME_TOKEN
+          VCPKG_BINARY_SOURCES=clear;x-gha,readwrite
+          VCPKG_TARGET_TRIPLET=${{ matrix.vcpkg_target_triplet }}
+          BUILD_SHELL=${{ inputs.build_duckdb_shell && '1' || '0' }}
+          OPENSSL_ROOT_DIR=/duckdb_build_dir/build/release/vcpkg_installed/${{ matrix.vcpkg_target_triplet }}
+          OPENSSL_DIR=/duckdb_build_dir/build/release/vcpkg_installed/${{ matrix.vcpkg_target_triplet }}
+          OPENSSL_USE_STATIC_LIBS=true
+          DUCKDB_PLATFORM=${{ matrix.duckdb_arch }}
+          DUCKDB_GIT_VERSION=${{ inputs.duckdb_version }}
+          LINUX_CI_IN_DOCKER=1
+          TOOLCHAIN_FLAGS=${{ matrix.duckdb_arch == 'linux_arm64' && '-DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ -DCMAKE_Fortran_COMPILER=aarch64-linux-gnu-gfortran' || '' }}
+          AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+          AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+          AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN
+          AWS_REGION=$AWS_REGION
+          AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION
+          EOF
+
+      - name: Generate timestamp for Ccache entry
+        shell: cmake -P {0}
+        id: ccache_timestamp
+        run: |
+          string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
+          message("::set-output name=timestamp::${current_date}")
+
+      - name: Create Ccache directory
+        run: |
+          mkdir ccache_dir
+
+      - name: Load Ccache
+        uses: actions/cache@v4
         with:
+          path: ./ccache_dir
+          key: ccache-extension-distribution-${{ matrix.duckdb_arch }}-${{ inputs.duckdb_version }}-${{ steps.ccache_timestamp.outputs.timestamp }}
+          restore-keys: |
+            ccache-extension-distribution-${{ matrix.duckdb_arch }}-${{ inputs.duckdb_version }}  
+
+      - name: Run configure (inside Docker)
+        shell: bash
+        run: |
+          docker run --env-file=docker_env.txt -v `pwd`:/duckdb_build_dir -v `pwd`/ccache_dir:/ccache_dir duckdb/${{ matrix.duckdb_arch }} make configure_ci
+
+      - name: Download and extract nwrfc (inside Docker)
+        run: |
+          docker run --env-file=docker_env.txt -v `pwd`:/duckdb_build_dir -v `pwd`/ccache_dir:/ccache_dir duckdb/${{ matrix.duckdb_arch }} ./scripts/download_and_extract_nwrfc.sh s3://erpl-resources/sapnwrfc/nwrfc750P_13-70002752_linux.zip ./nwrfcsdk/linux/
+
+      - name: Build extension (inside Docker)
+        run: |
+          docker run --env-file=docker_env.txt -v `pwd`:/duckdb_build_dir -v `pwd`/ccache_dir:/ccache_dir duckdb/${{ matrix.duckdb_arch }} make release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: error
           name: ${{ inputs.extension_name }}-${{ inputs.duckdb_version }}-extension-${{matrix.duckdb_arch}}${{inputs.artifact_postfix}}
           path: |
             build/release/extension/${{ inputs.extension_name }}/${{ inputs.extension_name }}.duckdb_extension
-            
-  #------------------------------------------------------------------------------------------------------------------------------------------------    
+
+  #------------------------------------------------------------------------------------------------------------------------------------------------
   windows:
     name: Windows
     runs-on: windows-latest
@@ -203,7 +264,7 @@ jobs:
     strategy:
       matrix: ${{fromJson(needs.generate_matrix.outputs.windows_matrix)}}
     env:
-      GEN: Ninja
+      GEN: 'ninja'
       VCPKG_TOOLCHAIN_PATH: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
       VCPKG_TARGET_TRIPLET: ${{ matrix.vcpkg_triplet }}
       DUCKDB_PLATFORM: ${{ matrix.duckdb_arch }}
@@ -279,10 +340,10 @@ jobs:
           DUCKDB_PLATFORM: ${{ matrix.duckdb_arch }}
         run: |
           python -m pip install awscli
-          .\scripts\download_and_extract_nwrfc.ps1 's3://erpl-resources/sapnwrfc/nwrfc750P_12-70002755_win.zip' './nwrfcsdk/win/'
+          .\scripts\download_and_extract_nwrfc.ps1 's3://erpl-resources/sapnwrfc/nwrfc750P_13-70002755_win.zip' './nwrfcsdk/win/'
           make release
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.extension_name }}-${{ inputs.duckdb_version }}-extension-${{matrix.duckdb_arch}}${{inputs.artifact_postfix}}
           path: |
@@ -296,19 +357,18 @@ jobs:
     strategy:
       matrix: ${{fromJson(needs.generate_matrix.outputs.osx_matrix)}}
     env:
-      VCPKG_TOOLCHAIN_PATH: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
       VCPKG_TARGET_TRIPLET: ${{ matrix.vcpkg_triplet }}
+      VCPKG_TOOLCHAIN_PATH: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
       OSX_BUILD_ARCH: ${{ matrix.osx_build_arch }}
-      GEN: Ninja
+      GEN: 'ninja'
 
     steps:
       - name: Generate GitHub token
         id: generate_token
-        uses: actions/create-github-app-token@v1
+        uses: tibdex/github-app-token@v1.8.2
         with:
-          app-id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
-          private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
-          repositories: "erpl,erpl-bics,erpl-odp"
+          app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
+          private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
 
       - uses: actions/checkout@v3
         with:
@@ -325,9 +385,9 @@ jobs:
         with:
           key: ${{ github.job }}-${{ matrix.duckdb_arch }}
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.7'
+          python-version: '3.11'
 
       - name: Checkout DuckDB to version
         run: |
@@ -335,7 +395,7 @@ jobs:
           git checkout ${{ inputs.duckdb_version }}
 
       - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v11
+        uses: lukka/run-vcpkg@v11.1
         with:
           vcpkgGitCommitId: ${{ inputs.vcpkg_commit }}
 
@@ -350,12 +410,25 @@ jobs:
 
       - name: Build extension
         shell: bash
+        if: matrix.osx_build_arch == 'arm64'
+        env:
+          DUCKDB_PLATFORM: ${{ matrix.duckdb_arch }}
         run: |
           python -m pip install awscli
-          ./scripts/download_and_extract_nwrfc.sh 's3://erpl-resources/sapnwrfc/nwrfc750P_12-80002761_osx.zip' './nwrfcsdk/osx/'
+          ./scripts/download_and_extract_nwrfc.sh 's3://erpl-resources/sapnwrfc/nwrfc750P_13-80008131_osx_arm.zip' './nwrfcsdk/osx_arm/'
           make release
-        
-      - uses: actions/upload-artifact@v2
+      
+      - name: Build extension
+        shell: bash
+        if: matrix.osx_build_arch == 'x86_64'
+        env:
+          DUCKDB_PLATFORM: ${{ matrix.duckdb_arch }}
+        run: |
+          python -m pip install awscli
+          ./scripts/download_and_extract_nwrfc.sh 's3://erpl-resources/sapnwrfc/nwrfc750P_13-80002761_osx.zip' './nwrfcsdk/osx_amd64/'
+          make release
+
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.extension_name }}-${{ inputs.duckdb_version }}-extension-${{matrix.duckdb_arch}}${{inputs.artifact_postfix}}
           path: |

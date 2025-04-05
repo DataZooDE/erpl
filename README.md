@@ -11,8 +11,8 @@ With ERPL, use Enterprise Data in your Data Science and ML pipelines within minu
 Install with two lines of code in DuckDB (unsigned option must be set):
 
 ```
-SET custom_extension_repository = 'http://get.erpl.io';
-INSTALL erpl;
+INSTALL 'erpl' FROM 'http://get.erpl.io';
+LOAD 'erpl';
 ```
 
 
@@ -63,7 +63,7 @@ LOAD `erpl`;
 SET sap_ashost = 'localhost';
 SET sap_sysnr = '00';
 SET sap_user = 'DEVELOPER';
-SET sap_password = 'ABAPtr1909';
+SET sap_password = 'ABAPtr2022#01';
 SET sap_client = '001';
 SET sap_lang = 'EN';
 ```
@@ -227,11 +227,16 @@ Choose the binary that matches your usage scenario. The table below summarizes t
 | R           | Windows          | amd64        |
 | Julia       | Windows          | amd64        |
 | Node.js     | Windows          | amd64        |
-
-### Note on OSX Support
-Currently, we do not support OSX due to the unavailability of the SAP Netweaver RFC SDK for Apple Silicon. However, efforts are underway to enable compatibility via the x86 emulation layer, Rosetta.
-
-This revised section aims to provide a clearer, more user-friendly explanation of how to acquire and choose the appropriate ERPL extension, along with a straightforward guide for those interested in building the extension themselves.
+| DuckDB CLI  | OSX              | amd64        |
+| Python      | OSX              | amd64        |
+| R           | OSX              | amd64        |
+| Julia       | OSX              | amd64        |
+| Node.js     | OSX              | amd64        |
+| DuckDB CLI  | OSX              | arm64        |
+| Python      | OSX              | arm64        |
+| R           | OSX              | arm64        |
+| Julia       | OSX              | arm64        |
+| Node.js     | OSX              | arm64        |
 
 [Back to Top](#top)
 

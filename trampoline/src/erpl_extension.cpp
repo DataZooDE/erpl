@@ -47,6 +47,41 @@ extern const char _binary_erpl_odp_duckdb_extension_end[];
 #define UNICODE 1
 #include <windows.h>
 
+#elif __APPLE__
+
+#include <dlfcn.h>
+#include <libgen.h> // for dirname
+#include <mach-o/dyld.h> // for _NSGetExecutablePath
+
+// Symbols created by xxd & clang compilation
+extern const char libsapnwrfc_dylib[];
+extern const unsigned int libsapnwrfc_dylib_len;
+
+extern const char libsapucum_dylib[];
+extern const unsigned int libsapucum_dylib_len;
+
+extern const char libicudata_50_dylib[];
+extern const unsigned int libicudata_50_dylib_len;
+
+extern const char libicui18n_50_dylib[];
+extern const unsigned int libicui18n_50_dylib_len;
+
+extern const char libicuuc_50_dylib[];
+extern const unsigned int libicuuc_50_dylib_len;
+
+extern const char erpl_rfc_duckdb_extension[];
+extern const unsigned int erpl_rfc_duckdb_extension_len;
+
+#ifdef WITH_ERPL_BICS
+extern const char erpl_bics_duckdb_extension[];
+extern const unsigned int erpl_bics_duckdb_extension_len;
+#endif
+
+#ifdef WITH_ERPL_ODP
+extern const char erpl_odp_duckdb_extension[];
+extern const unsigned int erpl_odp_duckdb_extension_len;
+#endif
+
 #endif
 
 
@@ -232,9 +267,9 @@ namespace duckdb
         auto ext_path = GetExtensionDir();
         try 
         {
-            SaveResourceToFile(TEXT("ICUDT50"), StringUtil::Format("%s\\icudt50.dll", ext_path));
-            SaveResourceToFile(TEXT("ICUIN50"), StringUtil::Format("%s\\icuin50.dll", ext_path));
-            SaveResourceToFile(TEXT("ICUUC50"), StringUtil::Format("%s\\icuuc50.dll", ext_path));
+            SaveResourceToFile(TEXT("ICUDT57"), StringUtil::Format("%s\\icudt57.dll", ext_path));
+            SaveResourceToFile(TEXT("ICUIN57"), StringUtil::Format("%s\\icuin57.dll", ext_path));
+            SaveResourceToFile(TEXT("ICUUC57"), StringUtil::Format("%s\\icuuc57.dll", ext_path));
             SaveResourceToFile(TEXT("SAPNWRFC"), StringUtil::Format("%s\\sapnwrfc.dll", ext_path));
             SaveResourceToFile(TEXT("LIBSAPUCUM"), StringUtil::Format("%s\\libsapucum.dll", ext_path));
             SaveResourceToFile(TEXT("LIBCRYPTO-3-x64"), StringUtil::Format("%s\\libcrypto-3-x64.dll", ext_path));
@@ -266,7 +301,106 @@ namespace duckdb
         return "\\";
     }
 
+#elif __APPLE__
+
+static std::string GetExtensionDir() 
+{
+    Dl_info dl_info;
+    if (!dladdr((void*)GetExtensionDir, &dl_info)) {
+        throw std::runtime_error("Failed to get path of ERPL extension");
+    }
+
+    std::string full_path(dl_info.dli_fname);
+    std::string dir_path = dirname(const_cast<char*>(full_path.c_str())); 
+
+    return dir_path;
+}
+
+static void SaveToFile(const char* start, const unsigned int len, const std::string& filename) 
+{
+    std::ofstream ofs(filename, std::ios::binary);
+    if (!ofs) {
+        throw std::runtime_error("Failed to open file: " + filename);
+    }
+    ofs.write(start, len);
+}
+
+static void LoadLibraryFromFile(const std::string &filename) 
+{
+    void* handle = dlopen(filename.c_str(), RTLD_NOW | RTLD_GLOBAL);
+    if (!handle) {
+        throw std::runtime_error("Failed to load library: " + filename);
+    }
+}
+
+static void ModifyDyldEnvironmentVariable(const std::string &ext_path) 
+{
+    const char *cur_path = std::getenv("DYLD_LIBRARY_PATH");
+    std::string new_path;
+
+    if (cur_path) {
+        new_path = std::string(cur_path) + ":" + ext_path;
+    } else {
+        new_path = ext_path;
+    }
+
+    if (setenv("DYLD_LIBRARY_PATH", new_path.c_str(), 1) != 0) {
+        throw std::runtime_error("Failed to set DYLD_LIBRARY_PATH");
+    }
+}
+
+static void ExtractExtensionsAndSapLibs() 
+{
+    auto ext_path = GetExtensionDir();
+
+    try 
+    {
+        std::cout << "Saving ERPL SAP dependencies to '" << ext_path << "' and loading them ... ";
+
+        SaveToFile(libicudata_50_dylib, libicudata_50_dylib_len, ext_path + "/libicudata.50.dylib");
+        LoadLibraryFromFile(ext_path + "/libicudata.50.dylib");
+
+        SaveToFile(libicuuc_50_dylib, libicuuc_50_dylib_len, ext_path + "/libicuuc.50.dylib");
+        LoadLibraryFromFile(ext_path + "/libicuuc.50.dylib");
+
+        SaveToFile(libicui18n_50_dylib, libicui18n_50_dylib_len, ext_path + "/libicui18n.50.dylib");
+        LoadLibraryFromFile(ext_path + "/libicui18n.50.dylib");
+
+        SaveToFile(libsapnwrfc_dylib, libsapnwrfc_dylib_len, ext_path + "/libsapnwrfc.dylib");
+        LoadLibraryFromFile(ext_path + "/libsapnwrfc.dylib");
+
+        SaveToFile(libsapucum_dylib, libsapucum_dylib_len, ext_path + "/libsapucum.dylib");
+        LoadLibraryFromFile(ext_path + "/libsapucum.dylib");
+
+        std::cout << "done" << std::endl;
+
+        SaveToFile(erpl_rfc_duckdb_extension, erpl_rfc_duckdb_extension_len, ext_path + "/erpl_rfc.duckdb_extension");
+        std::cout << "ERPL RFC extension extracted and saved to " << ext_path << "." << std::endl;
+
+        #ifdef WITH_ERPL_BICS
+        SaveToFile(erpl_bics_duckdb_extension, erpl_bics_duckdb_extension_len, ext_path + "/erpl_bics.duckdb_extension");
+        std::cout << "ERPL BICS extension extracted and saved to " << ext_path << "." << std::endl;
+        #endif
+
+        #ifdef WITH_ERPL_ODP
+        SaveToFile(erpl_odp_duckdb_extension, erpl_odp_duckdb_extension_len, ext_path + "/erpl_odp.duckdb_extension");
+        std::cout << "ERPL ODP extension extracted and saved to " << ext_path << "." << std::endl;
+        #endif
+
+        ModifyDyldEnvironmentVariable(ext_path);
+        std::cout << "Added DuckDB extension directory to the DYLD search path." << std::endl;
+    } 
+    catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+    }
+}
+
+static std::string Separator() {
+    return "/";
+}
+
 #endif
+    
     static std::string PrintableExtensionName(const std::string &extension_name) 
     {
         // This function transforms from erpl_rfc to ERPL RFC

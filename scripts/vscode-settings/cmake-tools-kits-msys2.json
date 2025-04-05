@@ -1,0 +1,44 @@
+[
+    {
+      "name": "Clang 18.1.4 x86_64-w64-windows-gnu (mingw64)",
+      "compilers": {
+        "C": "C:/msys64/mingw64/bin/clang.exe",
+        "CXX": "C:/msys64/mingw64/bin/clang++.exe"
+      },
+      "cmakeSettings": {
+        "CMAKE_MAKE_PROGRAM": "C:/msys64/mingw64/bin/ninja.exe",
+        "VCPKG_HOST_TRIPLET": "x64-mingw-dynamic",
+        "VCPKG_TARGET_TRIPLET": "x64-mingw-dynamic",
+        "VCPKG_DEFAULT_TRIPLET": "x64-mingw-dynamic",
+        "VCPKG_DEFAULT_HOST_TRIPLET": "x64-mingw-dynamic"
+      },
+      "isTrusted": true,
+      "environmentVariables": {
+        "CMT_MINGW_PATH": "C/msys64/mingw64/bin",
+        "MSYSTEM": "MINGW64",
+        "MSYSTEM_PREFIX": "/mingw64",
+        "PATH": "C:/msys64/mingw64/bin;C:/msys64/usr/bin;${env:PATH}"     
+      }
+    },
+    {
+      "name": "GCC 13.2.0 x86_64-w64-mingw32 (mingw64)",
+      "compilers": {
+        "C": "C:/msys64/mingw64/bin/gcc.exe",
+        "CXX": "C:/msys64/mingw64/bin/g++.exe"
+      },
+      "cmakeSettings": {
+        "CMAKE_MAKE_PROGRAM": "C:/msys64/mingw64/bin/ninja.exe",
+        "VCPKG_HOST_TRIPLET": "x64-mingw-dynamic",
+        "VCPKG_TARGET_TRIPLET": "x64-mingw-dynamic",
+        "VCPKG_DEFAULT_TRIPLET": "x64-mingw-dynamic",
+        "VCPKG_DEFAULT_HOST_TRIPLET": "x64-mingw-dynamic"
+      },
+      "isTrusted": true,
+      "environmentVariables": {
+        "CMT_MINGW_PATH": "C:/msys64/mingw64/bin",
+        "MSYSTEM": "MINGW64",
+        "MSYSTEM_PREFIX": "/mingw64",
+        "PATH": "C:/msys64/mingw64/bin;C:/msys64/usr/bin;${env:PATH}"
+      }
+    }
+  ]

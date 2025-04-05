@@ -36,7 +36,6 @@ static unique_ptr<FunctionData> RfcShowGroupBind(ClientContext &context,
     auto connection = RfcAuthParams::FromContext(context).Connect();
 
     // Create the function
-    auto func = make_shared<RfcFunction>(connection, "RFC_GROUP_SEARCH");
     auto func_args = CreateFunctionArguments(input);
     auto result_set = RfcResultSet::InvokeFunction(connection, "RFC_GROUP_SEARCH", func_args, "/GROUPS");
     names = std::vector<string>( { "name", "text" });

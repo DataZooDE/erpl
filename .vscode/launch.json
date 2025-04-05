@@ -29,8 +29,31 @@
                 {
                     "name": "ASAN_OPTIONS",
                     "value": "detect_odr_violation=0"
+                },
+                {
+                    "name": "ERPL_SAP_ASHOST",
+                    "value": "localhost"
+                },
+                {
+                    "name": "ERPL_SAP_SYSNR",
+                    "value": "00"
+                },
+                {
+                    "name": "ERPL_SAP_CLIENT",
+                    "value": "001"
+                },
+                {
+                    "name": "ERPL_SAP_LANG",
+                    "value": "EN"
+                },
+                {
+                    "name": "ERPL_SAP_USER",
+                    "value": "DEVELOPER"
+                },
+                {
+                    "name": "ERPL_SAP_PASSWORD",
+                    "value": "ABAPtr2022#00"
                 }
-
             ],
             "externalConsole": false,
             "MIMode": "gdb",
@@ -72,6 +95,30 @@
                 {
                     "name": "ASAN_OPTIONS",
                     "value": "detect_odr_violation=0"
+                },
+                {
+                    "name": "ERPL_SAP_ASHOST",
+                    "value": "localhost"
+                },
+                {
+                    "name": "ERPL_SAP_SYSNR",
+                    "value": "00"
+                },
+                {
+                    "name": "ERPL_SAP_CLIENT",
+                    "value": "001"
+                },
+                {
+                    "name": "ERPL_SAP_LANG",
+                    "value": "EN"
+                },
+                {
+                    "name": "ERPL_SAP_USER",
+                    "value": "DEVELOPER"
+                },
+                {
+                    "name": "ERPL_SAP_PASSWORD",
+                    "value": "ABAPtr2022#00"
                 }
             ],
             "externalConsole": false,
@@ -114,6 +161,30 @@
                 {
                     "name": "ASAN_OPTIONS",
                     "value": "detect_odr_violation=0"
+                },
+                {
+                    "name": "ERPL_SAP_ASHOST",
+                    "value": "localhost"
+                },
+                {
+                    "name": "ERPL_SAP_SYSNR",
+                    "value": "00"
+                },
+                {
+                    "name": "ERPL_SAP_CLIENT",
+                    "value": "001"
+                },
+                {
+                    "name": "ERPL_SAP_LANG",
+                    "value": "EN"
+                },
+                {
+                    "name": "ERPL_SAP_USER",
+                    "value": "DEVELOPER"
+                },
+                {
+                    "name": "ERPL_SAP_PASSWORD",
+                    "value": "ABAPtr2022#00"
                 }
 
             ],

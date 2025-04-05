@@ -4,11 +4,6 @@
 
 namespace duckdb 
 {
-    static string RfcDescribeFieldsToString(const FunctionData *bind_data_p) {
-        D_ASSERT(bind_data_p);
-        return StringUtil::Format("Unclear what to do here");
-    }
-
     static std::vector<Value> CreateFunctionArguments(TableFunctionBindInput &input) {
         child_list_t<Value> args;
 
@@ -37,7 +32,7 @@ namespace duckdb
         auto connection = RfcAuthParams::FromContext(context).Connect();
 
         // Create the function
-        auto func = make_shared<RfcFunction>(connection, "DDIF_FIELDINFO_GET");
+        auto func = std::make_shared<RfcFunction>(connection, "DDIF_FIELDINFO_GET");
         auto func_args = CreateFunctionArguments(input);
         auto invocation = func->BeginInvocation(func_args);
         auto result_set = invocation->Invoke("/DFIES_TAB");
@@ -80,7 +75,6 @@ namespace duckdb
     TableFunction CreateRfcDescribeFieldsScanFunction() 
     {
         auto fun = TableFunction("sap_describe_fields", {LogicalType::VARCHAR}, RfcDescribeFieldsScan, RfcDescribeFieldsBind);
-        fun.to_string = RfcDescribeFieldsToString;
         fun.projection_pushdown = false;
 
         return fun;
