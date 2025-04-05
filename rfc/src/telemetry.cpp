@@ -1,3 +1,5 @@
+#define NOMINMAX
+
 #include "telemetry.hpp"
 
 #ifdef __linux__
