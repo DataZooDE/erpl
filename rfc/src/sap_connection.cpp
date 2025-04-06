@@ -1,6 +1,9 @@
 #include "duckdb.hpp"
 #include "sap_connection.hpp"
 #include "sap_type_conversion.hpp"
+#include "sap_secret.hpp"
+#include <fstream>
+#include <sstream>
 
 namespace duckdb 
 {
@@ -28,78 +31,156 @@ namespace duckdb
     }
 
     // RfcEnvironmentCredentialsProvider ----------------------------------------
-    
-    RfcAuthParams RfcAuthParams::FromContext(ClientContext &context) {
-        RfcAuthParams params;
 
-        Value v_ashost;
-        if (context.TryGetCurrentSetting("sap_ashost", v_ashost)) {
-		    params.ashost = StringValue::Get(v_ashost);
-	    }
 
-        Value v_sysnr;
-        if (context.TryGetCurrentSetting("sap_sysnr", v_sysnr)) {
-            params.sysnr = StringValue::Get(v_sysnr);
+    RfcAuthParams RfcAuthParams::FromContext(ClientContext &context, const string &secret_name) {
+        auto &secret_manager = duckdb::SecretManager::Get(context);
+        auto transaction = duckdb::CatalogTransaction::GetSystemCatalogTransaction(context);
+
+        // Lookup the secret
+        auto secret_match = secret_manager.LookupSecret(transaction, secret_name, "sap_rfc");
+        if (! secret_match.HasMatch()) {
+
+            throw InvalidInputException("Secret '%s' not found", secret_name);
         }
 
-        Value v_user;
-        if (context.TryGetCurrentSetting("sap_user", v_user)) {
-            params.user = StringValue::Get(v_user);
-        }
-
-        Value v_password;
-        if (context.TryGetCurrentSetting("sap_password", v_password)) {
-            params.password = StringValue::Get(v_password);
-        }
-
-        Value v_client;
-        if (context.TryGetCurrentSetting("sap_client", v_client)) {
-            params.client = StringValue::Get(v_client);
-        }
-
-        Value v_lang;
-        if (context.TryGetCurrentSetting("sap_lang", v_lang)) {
-            params.lang = StringValue::Get(v_lang);
-        }
-
-        return params;
+        // Cast to SapSecret
+        const auto &duck_secret = dynamic_cast<const KeyValueSecret &>(secret_match.GetSecret());
+        return ConvertSecretToAuthParams(duck_secret);
     }
 
     std::string RfcAuthParams::ToString() {
-        return StringUtil::Format("ashost=%s sysnr=%s user=%s password=%s client=%s lang=%s",
-                                  this->ashost, this->sysnr, this->user, this->password, this->client, this->lang);
+        std::stringstream ss;
+        ss << "ashost=" << ashost;
+        if (!sysnr.empty()) ss << " sysnr=" << sysnr;
+        if (!user.empty()) ss << " user=" << user;
+        if (!password.empty()) ss << " password=***";
+        if (!client.empty()) ss << " client=" << client;
+        if (!lang.empty()) ss << " lang=" << lang;
+        if (!mshost.empty()) ss << " mshost=" << mshost;
+        if (!msserv.empty()) ss << " msserv=" << msserv;
+        if (!sysid.empty()) ss << " sysid=" << sysid;
+        if (!group.empty()) ss << " group=" << group;
+        if (!snc_qop.empty()) ss << " snc_qop=" << snc_qop;
+        if (!snc_myname.empty()) ss << " snc_myname=" << snc_myname;
+        if (!snc_partnername.empty()) ss << " snc_partnername=" << snc_partnername;
+        if (!snc_lib.empty()) ss << " snc_lib=" << snc_lib;
+        if (!mysapsso2.empty()) ss << " mysapsso2=" << mysapsso2;
+        return ss.str();
     }
 
     std::shared_ptr<RfcConnection> RfcAuthParams::Connect() 
     {
         RFC_ERROR_INFO error_info;
-        RFC_CONNECTION_PARAMETER params[6];
+        RFC_CONNECTION_PARAMETER params[15];
+        size_t param_count = 0; 
 
         auto ashost = std2uc(this->ashost);
-        params[0].name = cU("ashost");
-        params[0].value = ashost.get();
-	    
+        if (strlenR(ashost.get()) > 0) {
+            params[param_count].name = cU("ashost");
+            params[param_count].value = ashost.get();
+            param_count++;
+        }
+
         auto sysnr = std2uc(this->sysnr);
-        params[1].name = cU("sysnr");	
-        params[1].value = sysnr.get();
-	    
+        if (strlenR(sysnr.get()) > 0) {
+            params[param_count].name = cU("sysnr");	
+            params[param_count].value = sysnr.get();
+            param_count++;
+        }
+
         auto user = std2uc(this->user);
-        params[2].name = cU("user");	
-        params[2].value = user.get();
-	    
+        if (strlenR(user.get()) > 0) {
+            params[param_count].name = cU("user");	
+            params[param_count].value = user.get();
+            param_count++;
+        }
+
         auto password = std2uc(this->password);
-        params[3].name = cU("passwd");	
-        params[3].value = password.get();
-	    
+        if (strlenR(password.get()) > 0) {
+            params[param_count].name = cU("passwd");	
+            params[param_count].value = password.get();
+            param_count++;
+        }
+
         auto client = std2uc(this->client);
-        params[4].name = cU("client");	
-        params[4].value = client.get();
-	    
+        if (strlenR(client.get()) > 0) {
+            params[param_count].name = cU("client");	
+            params[param_count].value = client.get();
+            param_count++;
+        }
+
         auto lang = std2uc(this->lang);
-        params[5].name = cU("lang");	
-        params[5].value = lang.get(); 
+        if (strlenR(lang.get()) > 0) {
+            params[param_count].name = cU("lang");	
+            params[param_count].value = lang.get(); 
+            param_count++;
+        }
+
+        auto mshost = std2uc(this->mshost);
+        if (strlenR(mshost.get()) > 0) {
+            params[param_count].name = cU("mshost");	
+            params[param_count].value = mshost.get();
+            param_count++;
+        }
+
+        auto msserv = std2uc(this->msserv);
+        if (strlenR(msserv.get()) > 0) {
+            params[param_count].name = cU("msserv");	
+            params[param_count].value = msserv.get();
+            param_count++;
+        }
+
+        auto sysid = std2uc(this->sysid);
+        if (strlenR(sysid.get()) > 0) {
+            params[param_count].name = cU("sysid");	
+            params[param_count].value = sysid.get();
+            param_count++;
+        }   
+
+        auto group = std2uc(this->group);
+        if (strlenR(group.get()) > 0) {
+            params[param_count].name = cU("group");	
+            params[param_count].value = group.get();
+            param_count++;
+        }
+
+        auto snc_qop = std2uc(this->snc_qop);
+        if (strlenR(snc_qop.get()) > 0) {
+            params[param_count].name = cU("snc_qop");	
+            params[param_count].value = snc_qop.get();
+            param_count++;
+        }
         
-        auto connection_handle = RfcOpenConnection(params, 6, &error_info);
+        auto snc_myname = std2uc(this->snc_myname);
+        if (strlenR(snc_myname.get()) > 0) {
+            params[param_count].name = cU("snc_myname");	
+            params[param_count].value = snc_myname.get();
+            param_count++;
+        }
+        
+        auto snc_partnername = std2uc(this->snc_partnername);
+        if (strlenR(snc_partnername.get()) > 0) {
+            params[param_count].name = cU("snc_partnername");	
+            params[param_count].value = snc_partnername.get();
+            param_count++;
+        }
+        
+        auto snc_lib = std2uc(this->snc_lib);
+        if (strlenR(snc_lib.get()) > 0) {
+            params[param_count].name = cU("snc_lib");	
+            params[param_count].value = snc_lib.get();
+            param_count++;
+        }
+        
+        auto mysapsso2 = std2uc(this->mysapsso2);
+        if (strlenR(mysapsso2.get()) > 0) {
+            params[param_count].name = cU("mysapsso2");	
+            params[param_count].value = mysapsso2.get();
+            param_count++;
+        }
+        
+        auto connection_handle = RfcOpenConnection(params, param_count, &error_info);
 
         if (connection_handle == NULL) {
             throw IOException(StringUtil::Format("Error during SAP RFC logon: %s: %s",rfcrc2std(error_info.code), uc2std(error_info.message)));
@@ -184,7 +265,5 @@ namespace duckdb
     }
 
     // RfcConnnection -----------------------------------------------------------
-
-    
 
 } // namespace duckdb

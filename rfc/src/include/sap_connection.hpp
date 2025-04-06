@@ -2,6 +2,7 @@
 
 #include "duckdb.hpp"
 #include "sapnwrfc.h"
+#include "sap_secret.hpp"
 
 namespace duckdb 
 {
@@ -78,8 +79,17 @@ namespace duckdb
 		string password;
 		string client;
 		string lang;
+		string mshost;
+		string msserv;
+		string sysid;
+		string group;
+		string snc_qop;
+		string snc_myname;
+		string snc_partnername;
+		string snc_lib;
+		string mysapsso2;
 
-		static RfcAuthParams FromContext(ClientContext &context);
+		static RfcAuthParams FromContext(ClientContext &context, const string &secret_name = SAP_SECRET_DEFAULT_PATH);
 		string ToString();
 		std::shared_ptr<RfcConnection> Connect();
 	};

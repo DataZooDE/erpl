@@ -15,6 +15,10 @@
 #include "duckdb/storage/storage_extension.hpp"
 #include "duckdb/planner/filter/conjunction_filter.hpp"
 #include "duckdb/planner/filter/constant_filter.hpp"
+#include "duckdb/planner/filter/dynamic_filter.hpp"
+#include "duckdb/planner/filter/in_filter.hpp"
+#include "duckdb/planner/filter/optional_filter.hpp"
+#include "duckdb/planner/filter/struct_filter.hpp"
 
 #include "sap_rfc.hpp"
 #include "sap_function.hpp"
@@ -276,6 +280,30 @@ namespace duckdb
 		        auto operator_string = TransformComparision(const_filter.comparison_type);
 		        return StringUtil::Format("%s %s %s", column_name, operator_string, constant_string);
             }
+            case TableFilterType::OPTIONAL_FILTER: {
+                auto &optional_filter = filter.Cast<OptionalFilter>();
+		        return TransformFilter(column_name, *optional_filter.child_filter);
+            }
+            case TableFilterType::STRUCT_EXTRACT: {
+                auto &struct_filter = filter.Cast<StructFilter>();
+                auto child_name = KeywordHelper::WriteQuoted(struct_filter.child_name, '\"');
+                auto new_name = "(" + column_name + ")." + child_name;
+                return TransformFilter(new_name, *struct_filter.child_filter);
+	        }
+            case TableFilterType::IN_FILTER: {
+                auto &in_filter = filter.Cast<InFilter>();
+                string in_list;
+                for(auto &val : in_filter.values) {
+                    if (!in_list.empty()) {
+                        in_list += ", ";
+                    }
+                    in_list += TransformLiteral(val);
+                }
+                return column_name + " IN (" + in_list + ")";
+            }
+            case TableFilterType::DYNAMIC_FILTER: {
+                return std::string();
+            }
             case TableFilterType::IS_NOT_NULL: {
                 return StringUtil::Format("%s IS NOT NULL", column_name);
             }
@@ -286,6 +314,28 @@ namespace duckdb
                 throw InternalException("Unsupported table filter type");
             }
         }
+    }
+
+    std::string RfcReadTableBindData::TransformLiteral(const Value &val) {
+        switch (val.type().id()) {
+            case LogicalTypeId::BLOB:
+                return TransformBlob(StringValue::Get(val));
+            default:
+                return KeywordHelper::WriteQuoted(val.ToString());
+        }
+    }
+
+    std::string RfcReadTableBindData::TransformBlob(const string &val) {
+        char const HEX_DIGITS[] = "0123456789ABCDEF";
+
+        string result = "'\\x";
+        for(idx_t i = 0; i < val.size(); i++) {
+            uint8_t byte_val = static_cast<uint8_t>(val[i]);
+            result += HEX_DIGITS[(byte_val >> 4) & 0xf];
+            result += HEX_DIGITS[byte_val & 0xf];
+        }
+        result += "'::BYTEA";
+        return result;
     }
 
     std::string RfcReadTableBindData::CreateExpression(string &column_name, vector<unique_ptr<TableFilter>> &filters, string op) 

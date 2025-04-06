@@ -52,7 +52,7 @@ For inquiries, potential collaborations, or if your curiosity is piqued, connect
 [Back to Top](#top)
 
 ## ⚙ Example Usage
-A first example demonstrates how to join two SAP tables with an external table. We’ll be using the [ABAP Flight Reference Scenario](https://help.sap.com/docs/ABAP_PLATFORM_NEW/fc4c71aa50014fd1b43721701471913d/a9d7c7c140a0408dbc5966c52d156b49.html), specifically joining the `SFLIGHT` and `SPFLI` tables which contain flight and flight schedule details respectively, with an external table `WEATHER` that holds weather information. We will extract flight information and associated temperatures at departure and arrival cities.
+A first example demonstrates how to join two SAP tables with an external table. We'll be using the [ABAP Flight Reference Scenario](https://help.sap.com/docs/ABAP_PLATFORM_NEW/fc4c71aa50014fd1b43721701471913d/a9d7c7c140a0408dbc5966c52d156b49.html), specifically joining the `SFLIGHT` and `SPFLI` tables which contain flight and flight schedule details respectively, with an external table `WEATHER` that holds weather information. We will extract flight information and associated temperatures at departure and arrival cities.
 
 To start with, we assume you have setup DuckDB and already installed the ERPL extension (see below) and have access to an SAP system having the ABAP Flight Reference Scenario data. 
 
@@ -60,13 +60,17 @@ First we start DuckDB with the `-unsigned` - flag set. Then we load the extensio
 ```sql
 LOAD `erpl`;
 
-SET sap_ashost = 'localhost';
-SET sap_sysnr = '00';
-SET sap_user = 'DEVELOPER';
-SET sap_password = 'ABAPtr2022#01';
-SET sap_client = '001';
-SET sap_lang = 'EN';
+CREATE SECRET abap_trial (
+    TYPE sap_rfc, 
+    ASHOST 'localhost', 
+    SYSNR '00', 
+    CLIENT '001', 
+    USER 'DEVELOPER', 
+    PASSWD 'ABAPtr2022#01',
+    LANG 'EN'
+);
 ```
+
 In our case we use the docker based [ABAP Platform Trial](https://hub.docker.com/r/sapse/abap-platform-trial). The credentials are set by default, details can be found in the documentation of the docker image. 
 
 Now we explore the schema of the three tables tables:
@@ -282,6 +286,54 @@ This revised section aims for a clearer, more structured presentation of the ins
 
 [Back to Top](#top)
 
+## Function Reference
+
+### RFC Functions
+
+| Function Name | Function Type | Return Type | Parameters | Parameter Types | Description |
+|--------------|---------------|-------------|------------|-----------------|-------------|
+| sap_rfc_ping | Pragma | BOOLEAN | - | - | Tests the connection to the SAP system |
+| sap_rfc_invoke | Table | TABLE | function_name, parameters | VARCHAR, JSON | Invokes an RFC function with the given parameters |
+| sap_rfc_show | Table | TABLE | - | - | Lists all available RFC functions |
+| sap_rfc_show_function | Table | TABLE | - | - | Shows details about a specific RFC function |
+| sap_rfc_show_groups | Table | TABLE | - | - | Lists all RFC function groups |
+| sap_rfc_describe_function | Table | TABLE | function_name | VARCHAR | Describes the parameters of an RFC function |
+| sap_rfc_describe_fields | Table | TABLE | table_name | VARCHAR | Describes the fields of a table |
+| sap_rfc_describe_references | Table | TABLE | - | - | Lists all referenced tables |
+| sap_read_table | Table | TABLE | table_name | VARCHAR | Reads data from a table |
+| sap_show_tables | Table | TABLE | - | - | Lists all available tables |
+| sap_rfc_set_trace_level | Pragma | - | level | VARCHAR | Sets the trace level for RFC calls |
+| sap_rfc_set_trace_dir | Pragma | - | directory | VARCHAR | Sets the directory for trace files |
+| sap_rfc_set_maximum_trace_file_size | Pragma | - | size | VARCHAR | Sets the maximum size for trace files |
+| sap_rfc_set_maximum_stored_trace_files | Pragma | - | count | VARCHAR | Sets the maximum number of stored trace files |
+| sap_rfc_set_ini_path | Pragma | - | path | VARCHAR | Sets the path to the RFC ini file |
+| sap_rfc_reload_ini_file | Pragma | - | - | - | Reloads the RFC ini file |
+
+### BICS Functions
+
+| Function Name | Function Type | Return Type | Parameters | Parameter Types | Description |
+|--------------|---------------|-------------|------------|-----------------|-------------|
+| sap_bics_show | Table | TABLE | - | - | Lists all available InfoProviders |
+| sap_bics_show_cubes | Table | TABLE | - | - | Lists all available cubes |
+| sap_bics_show_queries | Table | TABLE | - | - | Lists all available queries |
+| sap_bics_describe | Table | TABLE | info_provider | VARCHAR | Describes an InfoProvider |
+| sap_bics_begin | Table | TABLE | query_name | VARCHAR | Begins a BICS query |
+| sap_bics_columns | Table | TABLE | query_name | VARCHAR | Sets the columns for a BICS query |
+| sap_bics_rows | Table | TABLE | query_name | VARCHAR | Sets the rows for a BICS query |
+| sap_bics_filter | Table | TABLE | query_name | VARCHAR | Sets filters for a BICS query |
+| sap_bics_result | Table | TABLE | query_name | VARCHAR | Executes a BICS query and returns results |
+
+### ODP Functions
+
+| Function Name | Function Type | Return Type | Parameters | Parameter Types | Description |
+|--------------|---------------|-------------|------------|-----------------|-------------|
+| sap_odp_describe | Table | TABLE | source_name, source_type | VARCHAR, VARCHAR | Describes an ODP source |
+| sap_odp_show_cursors | Table | TABLE | - | - | Lists all available ODP cursors |
+| sap_odp_show_subscriptions | Table | TABLE | - | - | Lists all ODP subscriptions |
+| sap_odp_read_full | Table | TABLE | source_name, source_type | VARCHAR, VARCHAR | Reads data from an ODP source |
+
+[Back to Top](#top)
+
 ## Tracking
 
 ### Overview
@@ -342,3 +394,5 @@ The ERPL extension is licensed under the [Business Source License (BSL) Version 
 This summary is based on the provided license text and should be used as a guideline. For legal advice or clarification on specific points, consulting a legal professional is recommended, especially for commercial or complex use cases.
 
 [Back to Top](#top)
+
+

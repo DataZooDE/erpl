@@ -75,6 +75,8 @@ namespace duckdb
 			static RfcType GetRfcTypeForFieldMeta(Value &DFIES_entry);
 	
 			static std::string TransformFilter(std::string &column_name, TableFilter &filter);
+			static std::string TransformLiteral(const Value &val);
+			static std::string TransformBlob(const std::string &val);
 			static std::string CreateExpression(string &column_name, vector<unique_ptr<TableFilter>> &filters, string op);
 			static std::string TransformComparision(ExpressionType type);
     };

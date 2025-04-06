@@ -18,32 +18,25 @@
 #include "scanner_read_table.hpp"
 
 #include "telemetry.hpp"
+#include "sap_connection.hpp"
+#include "sap_secret.hpp"
 
 namespace duckdb {
 
 
     static void OnTelemetryEnabled(ClientContext &context, SetScope scope, Value &parameter)
     {
-        auto telemetry_enabled = parameter.GetValue<bool>();
-        PostHogTelemetry::Instance().SetEnabled(telemetry_enabled);
+        PostHogTelemetry::Instance().SetEnabled(parameter.GetValue<bool>());
     }
 
     static void OnAPIKey(ClientContext &context, SetScope scope, Value &parameter)
     {
-        auto api_key = parameter.GetValue<std::string>();
-        PostHogTelemetry::Instance().SetAPIKey(api_key);
+        PostHogTelemetry::Instance().SetAPIKey(parameter.GetValue<string>());
     }
 
     static void RegisterConfiguration(DatabaseInstance &instance)
     {
         auto &config = DBConfig::GetConfig(instance);
-
-        config.AddExtensionOption("sap_ashost", "The hostname SAP application server", LogicalType::VARCHAR);
-        config.AddExtensionOption("sap_sysnr", "System number on the application server", LogicalType::VARCHAR);
-        config.AddExtensionOption("sap_user", "Username to login", LogicalType::VARCHAR);
-        config.AddExtensionOption("sap_password", "User password to login", LogicalType::VARCHAR);
-        config.AddExtensionOption("sap_client", "Don't know yet", LogicalType::VARCHAR);
-        config.AddExtensionOption("sap_lang", "Language of the user to connect with", LogicalType::VARCHAR, Value("EN"));
         config.AddExtensionOption("erpl_telemetry_enabled", "Enable ERPL telemetry, see https://erpl.io/telemetry for details.", 
                                   LogicalType::BOOLEAN, Value(true), OnTelemetryEnabled);
         config.AddExtensionOption("erpl_telemetry_key", "Telemetry key, see https://erpl.io/telemetry for details.", LogicalType::VARCHAR, 
@@ -51,6 +44,8 @@ namespace duckdb {
 
         auto provider = make_uniq<RfcEnvironmentCredentialsProvider>(config);
         provider->SetAll();
+
+        RegisterSapSecretType(instance);
     }
 
     static void RegisterRfcFunctions(DatabaseInstance &instance)

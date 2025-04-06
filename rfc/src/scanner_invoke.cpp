@@ -1,5 +1,6 @@
 #include "duckdb.hpp"
 #include "scanner_invoke.hpp"
+#include "sap_secret.hpp"
 #include "telemetry.hpp"
 
 namespace duckdb 
@@ -26,7 +27,7 @@ namespace duckdb
         auto &inputs = input.inputs;
         
         // Connect to the SAP system
-        auto connection = RfcAuthParams::FromContext(context).Connect();
+        auto connection = GetAuthParamsFromContext(context, input).Connect();
 
         // Create the function
         auto func_name = inputs[0].GetValue<string>();
@@ -66,6 +67,7 @@ namespace duckdb
         fun.projection_pushdown = false;
         fun.varargs = LogicalType::ANY;
         fun.named_parameters["path"] = LogicalType::VARCHAR;
+        fun.named_parameters["secret"] = LogicalType::VARCHAR;
 
         return fun;
     }

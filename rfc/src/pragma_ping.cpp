@@ -7,7 +7,9 @@ namespace duckdb {
     {
         PostHogTelemetry::Instance().CaptureFunctionExecution("sap_rfc_ping");
 
-        auto connection = RfcAuthParams::FromContext(context).Connect();
+        // Connect to the SAP system
+        auto auth_params = GetAuthParamsFromContext(context, parameters);
+        auto connection = auth_params.Connect();
         connection->Ping();
         
         auto pragma_query = StringUtil::Format("SELECT 'PONG' as msg");
@@ -16,7 +18,9 @@ namespace duckdb {
 
     PragmaFunction CreateRfcPingPragma() 
     {
-        auto rfc_ping_pragma = PragmaFunction::PragmaStatement("sap_rfc_ping", RfcPing);
+        auto rfc_ping_pragma = PragmaFunction::PragmaCall("sap_rfc_ping", RfcPing, {});
+        rfc_ping_pragma.named_parameters["secret"] = LogicalType::VARCHAR;
+
         return rfc_ping_pragma;
     }
 } // namespace duckdb

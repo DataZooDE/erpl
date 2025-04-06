@@ -19,22 +19,16 @@ require-env ERPL_SAP_CLIENT
 require-env ERPL_SAP_LANG
 
 statement ok
-SET sap_ashost = '${ERPL_SAP_ASHOST}'
+CREATE SECRET abap_trial (
+    TYPE sap_rfc, 
+    ASHOST '${ERPL_SAP_ASHOST}', 
+    SYSNR '${ERPL_SAP_SYSNR}', 
+    CLIENT '${ERPL_SAP_CLIENT}', 
+    USER '${ERPL_SAP_USER}', 
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}'
+);
 
-statement ok
-SET sap_sysnr = '${ERPL_SAP_SYSNR}'
-
-statement ok
-SET sap_user = '${ERPL_SAP_USER}'
-
-statement ok
-SET sap_password = '${ERPL_SAP_PASSWORD}'
-
-statement ok
-SET sap_client = '${ERPL_SAP_CLIENT}'
-
-statement ok
-SET sap_lang = '${ERPL_SAP_LANG}'
 # ---------------------------------------------------------------------
 
 # Do a query on one individual group
@@ -49,4 +43,4 @@ BI Consumer Services
 query I
 select COUNT(*) from sap_rfc_show_groups();
 ----
-16062
+16122
