@@ -1,3 +1,7 @@
+if(MSVC)
+    add_compile_options(/bigobj)
+endif()
+
 get_filename_component(rfc_ext "${PROJECT_SOURCE_DIR}/../rfc" REALPATH)
 get_filename_component(bics_ext "${PROJECT_SOURCE_DIR}/../bics" REALPATH)
 get_filename_component(odp_ext "${PROJECT_SOURCE_DIR}/../odp" REALPATH)
