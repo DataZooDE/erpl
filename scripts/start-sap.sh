@@ -11,6 +11,7 @@ docker run \
 	--rm \
 	--name a4h \
 	-h vhcala4hci \
+	--mac-address="02:42:ac:11:00:02" \
 	-p 3200:3200 \
 	-p 3300:3300 \
 	-p 8443:8443 \
