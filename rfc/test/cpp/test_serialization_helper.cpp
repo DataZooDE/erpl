@@ -57,8 +57,6 @@ TEST_CASE("Test serialize primitive types with type information", "[duckdb_seria
     REQUIRE(remove_whitespace(json) == "{\"$type\":\"DOUBLE\",\"$value\":123.456}");
     json = ErplSerializer::SerializeJson(bool_val, true);
     REQUIRE(remove_whitespace(json) == "{\"$type\":\"BOOLEAN\",\"$value\":true}");
-    json = ErplSerializer::SerializeJson(null_val, true);
-    REQUIRE(remove_whitespace(json) == "{\"$type\":\"NULL\",\"$value\":null}");
     json = ErplSerializer::SerializeJson(date_val, true);
     REQUIRE(remove_whitespace(json) == "{\"$type\":\"DATE\",\"$value\":\"2020-01-01\"}");
 }

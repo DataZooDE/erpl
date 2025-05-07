@@ -17,6 +17,7 @@ set(TEST_SOURCES
     test_type_conversion.cpp
     test_serialization_helper.cpp
     test_value_helper.cpp
+    test_table_wrapper.cpp
     test_telemetry.cpp
     test_main.cpp
 )

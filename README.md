@@ -60,7 +60,7 @@ First we start DuckDB with the `-unsigned` - flag set. Then we load the extensio
 ```sql
 LOAD `erpl`;
 
-CREATE SECRET abap_trial (
+CREATE PERSISTENT SECRET abap_trial (
     TYPE sap_rfc, 
     ASHOST 'localhost', 
     SYSNR '00', 

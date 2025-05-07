@@ -23,6 +23,8 @@ private:
     child_list_t<Value> _args;
 };
 
+// ------------------------------------------------------------------------------------------------
+
 class ValueHelper
 {
 public:
@@ -67,6 +69,8 @@ std::vector<T> ConvertListValueToVector(Value &value) {
     }
     return result;
 }
+
+// ------------------------------------------------------------------------------------------------
 
 template <typename TRow>
 class GenericTable 
@@ -129,27 +133,51 @@ protected:
     }
 };
 
+// ------------------------------------------------------------------------------------------------
+
 class ValueWrapper 
 {
-    public:
-        ValueWrapper(std::shared_ptr<Value> value) 
-            : _value(value) 
-        { }
+public:
+    ValueWrapper(std::shared_ptr<Value> value) 
+        : _value(value) 
+    { }
 
-        ValueWrapper(std::shared_ptr<Value> value, std::string root_path) 
-            : _value(value), _root_path(root_path) 
-        { }
+    ValueWrapper(std::shared_ptr<Value> value, std::string root_path) 
+        : _value(value), _root_path(root_path) 
+    { }
 
-        inline ValueHelper Helper() const {
-            return ValueHelper(*_value, _root_path);
-        }
+    inline ValueHelper Helper() const {
+        return ValueHelper(*_value, _root_path);
+    }
 
-        bool IsMutable() const {
-            return ! _root_path.empty();
-        }
+    bool IsMutable() const {
+        return ! _root_path.empty();
+    }
 
-    protected:
-        std::shared_ptr<Value> _value;
-        std::string _root_path;
+protected:
+    std::shared_ptr<Value> _value;
+    std::string _root_path;
 };
+
+// ------------------------------------------------------------------------------------------------
+
+class TableWrapper
+{
+public:
+    TableWrapper(std::shared_ptr<Value> value, std::string root_path = std::string());
+
+    idx_t Size() const;
+    duckdb::LogicalType ListOrientedRowType() const;
+
+    duckdb::Value operator[](const idx_t index) const;
+private:
+    duckdb::LogicalType CreateListOrientedRowTypeFromStructOrientedValue(const duckdb::Value &value) const;
+    duckdb::Value CreateListOrientedValueFromIndex(const idx_t index) const;
+
+private:
+    std::shared_ptr<Value> _struct_oriented_value;
+    mutable duckdb::LogicalType _list_oriented_row_type;
+    std::string _root_path;
+};
+
 } // namespace duckdb

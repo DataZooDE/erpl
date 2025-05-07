@@ -328,5 +328,67 @@ namespace duckdb
             return Value::CreateValue("");
         }
     }
-    
+
+// TableWrapper ---------------------------------------------------------------
+
+TableWrapper::TableWrapper(std::shared_ptr<Value> struct_oriented_value, std::string root_path)
+    : _struct_oriented_value(struct_oriented_value), _list_oriented_row_type(LogicalType::INVALID), _root_path(root_path)
+{ }
+
+duckdb::LogicalType TableWrapper::ListOrientedRowType() const
+{
+    if (_list_oriented_row_type == LogicalType::INVALID && _struct_oriented_value != nullptr) {
+        _list_oriented_row_type = CreateListOrientedRowTypeFromStructOrientedValue(*_struct_oriented_value);
+    }
+    return _list_oriented_row_type;
+}
+
+size_t TableWrapper::Size() const
+{
+    auto list_oriented_row_type = ListOrientedRowType();
+    auto struct_children = StructValue::GetChildren(*_struct_oriented_value);
+    if (struct_children.size() < 1) {
+        throw std::runtime_error("Struct oriented value table must have at least one column.");
+    }
+
+    auto rows_of_first_column = ListValue::GetChildren(struct_children[0]);
+    return rows_of_first_column.size();
+}
+
+duckdb::Value TableWrapper::operator[](const idx_t index) const
+{
+    return CreateListOrientedValueFromIndex(index);
+}
+
+duckdb::LogicalType TableWrapper::CreateListOrientedRowTypeFromStructOrientedValue(const duckdb::Value &value) const
+{
+    // This is a struct of lists, we want to convert this to a
+    // struct type which is not list oriented.
+    child_list_t<LogicalType> list_oriented_child_types;
+
+    for (auto [child_name, child_type]: StructType::GetChildTypes(value.type())) {
+        if (child_type.id() != LogicalTypeId::LIST) {
+            throw std::runtime_error("All children of a struct must be lists");
+        }
+
+        auto list_type = ListType::GetChildType(child_type);
+        list_oriented_child_types.push_back(std::make_pair(child_name, list_type));
+    }
+
+    return LogicalType::STRUCT(list_oriented_child_types);
+}
+
+duckdb::Value TableWrapper::CreateListOrientedValueFromIndex(const idx_t index) const
+{
+    auto all_columns = StructValue::GetChildren(*_struct_oriented_value);
+    vector<Value> new_record_values;
+
+    for (auto &column: all_columns) {
+        auto row_values = ListValue::GetChildren(column);
+        new_record_values.push_back(row_values[index]);
+    }
+
+    return Value::STRUCT(ListOrientedRowType(), new_record_values);
+}
+
 } // namespace duckdb
