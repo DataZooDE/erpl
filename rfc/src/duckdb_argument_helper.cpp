@@ -343,7 +343,7 @@ duckdb::LogicalType TableWrapper::ListOrientedRowType() const
     return _list_oriented_row_type;
 }
 
-size_t TableWrapper::Size() const
+idx_t TableWrapper::Size() const
 {
     auto list_oriented_row_type = ListOrientedRowType();
     auto struct_children = StructValue::GetChildren(*_struct_oriented_value);
@@ -352,7 +352,8 @@ size_t TableWrapper::Size() const
     }
 
     auto rows_of_first_column = ListValue::GetChildren(struct_children[0]);
-    return rows_of_first_column.size();
+    idx_t size = rows_of_first_column.size();
+    return size;
 }
 
 duckdb::Value TableWrapper::operator[](const idx_t index) const
