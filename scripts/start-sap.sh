@@ -1,6 +1,6 @@
 #!/bin/bash
 
-APAB_PLATFORM_IMAGE="sapse/abap-cloud-developer-trial:ABAPTRIAL_2022_SP01"
+APAB_PLATFORM_IMAGE="sapse/abap-cloud-developer-trial:2023"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 PROFILE_FILE="$SCRIPT_DIR/A4H_D00_vhcala4hci.profile"
 LICENSE_FILE="${1:-$SCRIPT_DIR/A4H_Multiple.txt}"

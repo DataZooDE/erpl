@@ -66,7 +66,7 @@ CREATE PERSISTENT SECRET abap_trial (
     SYSNR '00', 
     CLIENT '001', 
     USER 'DEVELOPER', 
-    PASSWD 'ABAPtr2022#01',
+    PASSWD 'ABAPtr2023#00',
     LANG 'EN'
 );
 ```
