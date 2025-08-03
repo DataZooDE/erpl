@@ -1,0 +1,89 @@
+# name: test/sql/tunnel/sap_tunnel_integration.test
+# description: test tunnel integration with actual SSH connections
+# group: [tunnel]
+
+# Require tunnel the extension
+require erpl_tunnel
+
+# Configure SSH connection ------------------------------------------------
+# These environment variables should be set for integration testing
+# If not set, the test will be skipped
+
+# ---------------------------------------------------------------------
+require-env ERPL_SSH_HOST
+
+require-env ERPL_SSH_PORT
+
+require-env ERPL_SSH_USER
+
+require-env ERPL_SSH_PASSWORD
+
+# ---------------------------------------------------------------------
+
+# Create a tunnel secret for testing
+statement ok
+CREATE SECRET tunnel_integration_test (
+    TYPE ssh_tunnel,
+    ssh_host '${ERPL_SSH_HOST}',
+    ssh_port '${ERPL_SSH_PORT}',
+    ssh_user '${ERPL_SSH_USER}',
+    password '${ERPL_SSH_PASSWORD}',
+    auth_method 'password'
+)
+
+# ---------------------------------------------------------------------
+
+# Test tunnel creation with pragma function
+# This test will create a tunnel and return the tunnel ID
+# Note: This test requires a working SSH server with password authentication
+# If the SSH server is not properly configured, this test will fail
+# The tunnel forwards from localhost:9000 to http-service:8000 through the SSH bastion
+query II
+PRAGMA erpl_tunnel_create(secret='tunnel_integration_test', remote_host='http-service', remote_port='8000', local_port='9000');
+----
+1
+Tunnel created successfully
+
+# Test tunnel creation with custom timeout
+query II
+PRAGMA erpl_tunnel_create(secret='tunnel_integration_test', remote_host='http-service', remote_port='8000', local_port='9001', timeout='30');
+----
+2
+Tunnel created successfully
+
+# ---------------------------------------------------------------------
+
+# Test that tunnels table shows created tunnels
+query II
+SELECT tunnel_id, status FROM erpl_tunnels() WHERE tunnel_id > 0 ORDER BY tunnel_id;
+----
+1
+Active
+2
+Active
+
+# ---------------------------------------------------------------------
+
+# Test closing the tunnels with pragma function
+query II
+PRAGMA erpl_tunnel_close(1);
+----
+1
+Tunnel closed successfully
+
+query II
+PRAGMA erpl_tunnel_close(2);
+----
+2
+Tunnel closed successfully
+
+# ---------------------------------------------------------------------
+
+# Verify tunnels are closed
+query II
+SELECT tunnel_id, status FROM erpl_tunnels() WHERE tunnel_id > 0 ORDER BY tunnel_id;
+----
+1
+Closed
+2
+Closed 

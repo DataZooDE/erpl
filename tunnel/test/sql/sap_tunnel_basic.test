@@ -1,0 +1,60 @@
+# name: test/sql/tunnel/sap_tunnel_basic.test
+# description: test tunnel basic functionality
+# group: [tunnel]
+
+# Require tunnel the extension
+require erpl_tunnel
+
+# Configure SSH connection ------------------------------------------------
+# These environment variables should be set for integration testing
+# If not set, the test will be skipped
+
+# ---------------------------------------------------------------------
+require-env ERPL_SSH_HOST
+
+require-env ERPL_SSH_PORT
+
+require-env ERPL_SSH_USER
+
+require-env ERPL_SSH_PASSWORD
+
+# ---------------------------------------------------------------------
+
+# Create a tunnel secret for testing
+statement ok
+CREATE SECRET tunnel_test (
+    TYPE ssh_tunnel,
+    ssh_host '${ERPL_SSH_HOST}',
+    ssh_port '${ERPL_SSH_PORT}',
+    ssh_user '${ERPL_SSH_USER}',
+    password '${ERPL_SSH_PASSWORD}',
+    auth_method 'password'
+)
+
+# ---------------------------------------------------------------------
+
+# Test that the extension loads and basic functions exist
+query I
+SELECT 1;
+----
+1
+
+# ---------------------------------------------------------------------
+
+# Test that the tunnels table function exists and returns empty when no tunnels
+query II
+SELECT tunnel_id, status FROM erpl_tunnels();
+----
+
+# ---------------------------------------------------------------------
+
+# Test that pragma functions exist (without actually creating tunnels)
+# This verifies the functions are registered correctly
+# Note: tunnel_status is now handled by the tunnels() table function
+
+# Test that we get a message for non-existent tunnel
+query II
+PRAGMA erpl_tunnel_close(999);
+----
+999
+Tunnel not found or already closed

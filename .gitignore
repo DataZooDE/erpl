@@ -66,6 +66,7 @@ smoke/*
 dev_rfc.log
 rfc*.trc
 cpic*.trc
+trace/*
 
 # SAP License files
 A4H*.txt

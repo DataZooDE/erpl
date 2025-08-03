@@ -1,0 +1,36 @@
+networks:
+  ssh-testnet:
+    driver: bridge
+
+services:
+  ssh-bastion:
+    image: rastasheep/ubuntu-sshd:18.04
+    container_name: ssh-bastion
+    networks:
+      - ssh-testnet
+    ports:
+      - "2222:22"
+    environment:
+      - ROOT_PASSWORD=testpass
+    volumes:
+      - ./setup_ssh.sh:/setup_ssh.sh:ro
+      - ./sshd_config:/etc/ssh/sshd_config:ro
+    command: >
+      sh -c "
+        /usr/sbin/sshd -D -f /etc/ssh/sshd_config &
+        sleep 5 &&
+        sh /setup_ssh.sh &&
+        wait
+      "
+
+  http-service:
+    image: python:3.9-slim
+    container_name: http-service
+    networks:
+      - ssh-testnet
+    working_dir: /app
+    volumes:
+      - ./http_server.py:/app/http_server.py:ro
+    command: python http_server.py
+    expose:
+      - "8000" 

@@ -1,0 +1,38 @@
+# Custom SSH daemon configuration for testing
+Port 22
+Protocol 2
+HostKey /etc/ssh/ssh_host_rsa_key
+HostKey /etc/ssh/ssh_host_dsa_key
+HostKey /etc/ssh/ssh_host_ecdsa_key
+HostKey /etc/ssh/ssh_host_ed25519_key
+
+# Authentication settings - more permissive for testing
+MaxAuthTries 100
+MaxSessions 20
+ClientAliveInterval 60
+ClientAliveCountMax 3
+
+# Allow root login with password for testing
+PermitRootLogin yes
+PasswordAuthentication yes
+ChallengeResponseAuthentication no
+UsePAM yes
+
+# Logging
+SyslogFacility AUTH
+LogLevel INFO
+
+# Allow all users and hosts for testing
+AllowUsers root
+PermitEmptyPasswords no
+
+# Session settings
+X11Forwarding yes
+X11DisplayOffset 10
+PrintMotd no
+PrintLastLog yes
+TCPKeepAlive yes
+
+# Accept locale-related environment variables
+AcceptEnv LANG LC_*
+Subsystem sftp /usr/lib/openssh/sftp-server 

@@ -1,0 +1,57 @@
+name: SSH Tunnel Integration Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'tunnel/**'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'tunnel/**'
+
+jobs:
+  integration-test:
+    name: SSH Tunnel Integration Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          cmake \
+          libssh2-1-dev \
+          libssl-dev \
+          curl \
+          net-tools \
+          openssh-client
+          
+    - name: Build tunnel extension
+      run: |
+        cd tunnel
+        mkdir -p build
+        cd build
+        cmake ..
+        make -j$(nproc)
+        # Copy the built binary to the integration test directory
+        cp ssh_tunnel_client ../test/integration/
+        
+    - name: Run integration tests
+      run: |
+        cd tunnel/test/integration
+        ./test_integration.sh
+        
+    - name: Upload test artifacts (on failure)
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: tunnel-test-logs
+        path: |
+          tunnel/test/integration/*.log
+          tunnel/test/integration/ci_test_key*
+        retention-days: 7 

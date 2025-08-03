@@ -1,0 +1,13 @@
+# Test artifacts
+ci_test_key*
+*.log
+
+# Docker artifacts
+docker-compose.override.yml
+
+# Temporary files
+*.tmp
+*.temp
+
+# Build artifacts (if copied here)
+ssh_tunnel_client 

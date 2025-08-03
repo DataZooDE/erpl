@@ -112,7 +112,7 @@ PostHogTelemetry& PostHogTelemetry::Instance()
 
 void PostHogTelemetry::CaptureExtensionLoad()
 {
-    CaptureExtensionLoad("erpl_rfc");
+    CaptureExtensionLoad("erpl_tunnel");
 }
 
 void PostHogTelemetry::CaptureExtensionLoad(std::string extension_name)
@@ -314,4 +314,4 @@ std::string PostHogTelemetry::GetMacAddress()
 
 // PostHogTelemetry --------------------------------------------------------
 
-} // namespace duckdb
+} // namespace duckdb 
