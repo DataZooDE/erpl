@@ -49,10 +49,10 @@ id,name,city,age
 
 ## DuckDB Usage Examples
 
-### 1. Create SSH Secret
+### 1. Create SSH Secret (Password Authentication)
 ```sql
-CREATE SECRET tunnel_test (
-    TYPE tunnel_ssh,
+CREATE SECRET tunnel_test_password (
+    TYPE ssh_tunnel,
     ssh_host 'localhost',
     ssh_port '2222',
     ssh_user 'root',
@@ -61,27 +61,96 @@ CREATE SECRET tunnel_test (
 );
 ```
 
-### 2. Create Tunnel
+### 2. Create SSH Secret (Key Authentication - No Passphrase)
 ```sql
-PRAGMA tunnel_create(secret='tunnel_test', remote_host='http-service', remote_port='8000', local_port='9000');
+CREATE SECRET tunnel_test_key (
+    TYPE ssh_tunnel,
+    ssh_host 'localhost',
+    ssh_port '2222',
+    ssh_user 'root',
+    private_key_path 'test/integration/test_key_static',
+    auth_method 'key'
+);
 ```
 
-### 3. Access CSV Data Through Tunnel
+### 3. Create SSH Secret (Key Authentication - With Passphrase)
 ```sql
--- Direct CSV access via tunnel
+CREATE SECRET tunnel_test_key_passphrase (
+    TYPE ssh_tunnel,
+    ssh_host 'localhost',
+    ssh_port '2222',
+    ssh_user 'root',
+    private_key_path 'test/integration/test_key_static_passphrase',
+    passphrase 'testpassphrase',
+    auth_method 'key'
+);
+```
+
+### 4. Create Tunnels
+```sql
+-- Using password authentication
+PRAGMA erpl_tunnel_create(secret='tunnel_test_password', remote_host='http-service', remote_port='8000', local_port='9000');
+
+-- Using key authentication (no passphrase)
+PRAGMA erpl_tunnel_create(secret='tunnel_test_key', remote_host='http-service', remote_port='8000', local_port='9001');
+
+-- Using key authentication (with passphrase)
+PRAGMA erpl_tunnel_create(secret='tunnel_test_key_passphrase', remote_host='http-service', remote_port='8000', local_port='9002');
+```
+
+### 5. Access CSV Data Through Tunnels
+```sql
+-- Direct CSV access via password tunnel
 SELECT * FROM 'http://localhost:9000/data.csv';
+
+-- Direct CSV access via key tunnel (no passphrase)
+SELECT * FROM 'http://localhost:9001/data.csv';
+
+-- Direct CSV access via key tunnel (with passphrase)
+SELECT * FROM 'http://localhost:9002/data.csv';
 
 -- Or using read_csv_auto
 SELECT * FROM read_csv_auto('http://localhost:9000/data.csv');
 
--- Test the tunnel is working
+-- Test the tunnels are working
 SELECT * FROM 'http://localhost:9000/';
+SELECT * FROM 'http://localhost:9001/';
+SELECT * FROM 'http://localhost:9002/';
 ```
 
-### 4. Close Tunnel
+### 6. Close Tunnels
 ```sql
-PRAGMA tunnel_close(tunnel_id='1');
+PRAGMA erpl_tunnel_close(1);  -- Close password tunnel
+PRAGMA erpl_tunnel_close(2);  -- Close key tunnel (no passphrase)
+PRAGMA erpl_tunnel_close(3);  -- Close key tunnel (with passphrase)
 ```
+
+## Authentication Methods
+
+The test environment supports both password and key-based SSH authentication:
+
+### Password Authentication
+- **Username**: `root`
+- **Password**: `testpass`
+- **Method**: Password-based authentication
+- **Use case**: Simple testing and development
+
+### Key Authentication (No Passphrase)
+- **Username**: `root`
+- **Key Type**: RSA 2048-bit
+- **Key File**: `test_key_static`
+- **Method**: Public key authentication
+- **Use case**: Simple key authentication
+
+### Key Authentication (With Passphrase)
+- **Username**: `root`
+- **Key Type**: RSA 2048-bit
+- **Key File**: `test_key_static_passphrase`
+- **Passphrase**: `testpassphrase`
+- **Method**: Public key authentication with passphrase
+- **Use case**: More secure key authentication
+
+The SSH bastion is configured to accept all authentication methods simultaneously.
 
 ## Architecture
 
@@ -89,6 +158,7 @@ PRAGMA tunnel_close(tunnel_id='1');
 ┌─────────────────┐    SSH Tunnel    ┌─────────────────┐
 │   DuckDB        │ ───────────────► │  SSH Bastion    │
 │  (localhost)    │                  │  (localhost:2222)│
+│                 │                  │  (Password + Key)│
 └─────────────────┘                  └─────────────────┘
                                               │
                                               │ Docker Network

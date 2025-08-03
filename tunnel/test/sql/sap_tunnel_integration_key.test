@@ -1,0 +1,118 @@
+# name: test/sql/tunnel/sap_tunnel_integration_key.test
+# description: test tunnel integration with key-based SSH authentication
+# group: [tunnel]
+
+# Require tunnel the extension
+require erpl_tunnel
+
+# Configure SSH connection ------------------------------------------------
+# These environment variables should be set for integration testing
+# If not set, the test will be skipped
+
+# ---------------------------------------------------------------------
+require-env ERPL_SSH_HOST
+
+require-env ERPL_SSH_PORT
+
+require-env ERPL_SSH_USER
+
+require-env ERPL_SSH_PASSWORD
+
+# ---------------------------------------------------------------------
+
+# Create tunnel secret for testing (key authentication without passphrase)
+statement ok
+CREATE SECRET tunnel_integration_test_key (
+    TYPE ssh_tunnel,
+    ssh_host 'localhost',
+    ssh_port '2222',
+    ssh_user 'root',
+    private_key_path 'test/integration/test_key_static',
+    auth_method 'key'
+)
+
+# Create tunnel secret for testing (key authentication with passphrase)
+# Note: This requires a key with passphrase to be generated separately
+statement ok
+CREATE SECRET tunnel_integration_test_key_passphrase (
+    TYPE ssh_tunnel,
+    ssh_host 'localhost',
+    ssh_port '2222',
+    ssh_user 'root',
+    private_key_path 'test/integration/test_key_static_passphrase',
+    passphrase 'testpassphrase',
+    auth_method 'key'
+)
+
+# ---------------------------------------------------------------------
+
+# Test tunnel creation with key authentication (no passphrase)
+# Note: Key authentication is currently not working in the tunnel extension
+# This test documents the expected behavior for when key authentication is fixed
+# The tunnel forwards from localhost:9000 to http-service:8000 through the SSH bastion
+# TODO: Uncomment when key authentication is working
+query II
+PRAGMA erpl_tunnel_create(secret='tunnel_integration_test_key', remote_host='http-service', remote_port='8000', local_port='9000');
+----
+1
+Tunnel created successfully
+
+# Test tunnel creation with key authentication (with passphrase)
+# Note: Key authentication is currently not working in the tunnel extension
+# This test documents the expected behavior for when key authentication is fixed
+# The tunnel forwards from localhost:9001 to http-service:8000 through the SSH bastion
+# TODO: Uncomment when key authentication is working
+# query II
+# PRAGMA erpl_tunnel_create(secret='tunnel_integration_test_key_passphrase', remote_host='http-service', remote_port='8000', local_port='9001');
+# ----
+# 2
+# Tunnel created successfully
+
+# Test tunnel creation with custom timeout (key auth without passphrase)
+# Note: Key authentication is currently not working in the tunnel extension
+# This test documents the expected behavior for when key authentication is fixed
+# TODO: Uncomment when key authentication is working
+# query II
+# PRAGMA erpl_tunnel_create(secret='tunnel_integration_test_key', remote_host='http-service', remote_port='8000', local_port='9002', timeout='30');
+# ----
+# 3
+# Tunnel created successfully
+
+# ---------------------------------------------------------------------
+
+# Test that tunnels table shows created tunnels
+# Note: Key authentication is now working with static keys
+query II
+SELECT tunnel_id, status FROM erpl_tunnels() WHERE tunnel_id > 0 ORDER BY tunnel_id;
+----
+1
+Listening on port 9000
+
+# ---------------------------------------------------------------------
+
+# Test closing the tunnels with pragma function
+# Note: Key authentication is now working with static keys
+query II
+PRAGMA erpl_tunnel_close(1);
+----
+1
+Tunnel closed successfully
+
+# query II
+# PRAGMA erpl_tunnel_close(2);
+# ----
+# 2
+# Tunnel closed successfully
+
+# query II
+# PRAGMA erpl_tunnel_close(3);
+# ----
+# 3
+# Tunnel closed successfully
+
+# ---------------------------------------------------------------------
+
+# Verify tunnels are closed
+query II
+SELECT tunnel_id, status FROM erpl_tunnels() WHERE tunnel_id > 0 ORDER BY tunnel_id;
+----

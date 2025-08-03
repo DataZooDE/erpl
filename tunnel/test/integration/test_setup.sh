@@ -122,10 +122,26 @@ except Exception as e:
     log_success "Docker setup test completed successfully!"
     log_info "The infrastructure is ready for SSH tunnel integration testing."
     
-    # Output the CREATE SECRET statement for easy copy-paste
-    log_info "Use this CREATE SECRET statement in DuckDB:"
+    # Use static SSH keypair for testing
+    log_info "Using static SSH keypair for testing..."
+    local test_key_file="${SCRIPT_DIR}/test_key_static"
+    
+    # Static keys are already mounted in the container
+    log_info "Static SSH public keys are already mounted in the container..."
+    
+    # Wait for the static keys to be processed
+    for i in {1..10}; do
+        if docker exec ssh-bastion test -f /root/.ssh/authorized_keys; then
+            break
+        fi
+        sleep 1
+    done
+    
+    # Output the CREATE SECRET statements for easy copy-paste
+    log_info "Use these CREATE SECRET statements in DuckDB:"
     echo ""
-    echo "CREATE SECRET tunnel_test ("
+    echo "# Password authentication:"
+    echo "CREATE SECRET tunnel_test_password ("
     echo "    TYPE ssh_tunnel,"
     echo "    ssh_host 'localhost',"
     echo "    ssh_port 2222,"
@@ -134,24 +150,60 @@ except Exception as e:
     echo "    auth_method 'password'"
     echo ");"
     echo ""
-    
-    # Output tunnel creation command
-    log_info "Create a tunnel to access the HTTP service:"
+    echo "# Key authentication (no passphrase):"
+    echo "CREATE SECRET tunnel_test_key ("
+    echo "    TYPE ssh_tunnel,"
+    echo "    ssh_host 'localhost',"
+    echo "    ssh_port 2222,"
+    echo "    ssh_user 'root',"
+    echo "    private_key_path '${test_key_file}',"
+    echo "    auth_method 'key'"
+    echo ");"
     echo ""
-    echo "PRAGMA erpl_tunnel_create(secret='tunnel_test', remote_host='http-service', remote_port='8000', local_port='9000');"
+    echo "# Key authentication (with passphrase):"
+    echo "CREATE SECRET tunnel_test_key_passphrase ("
+    echo "    TYPE ssh_tunnel,"
+    echo "    ssh_host 'localhost',"
+    echo "    ssh_port 2222,"
+    echo "    ssh_user 'root',"
+    echo "    private_key_path '${SCRIPT_DIR}/test_key_static_passphrase',"
+    echo "    passphrase 'testpassphrase',"
+    echo "    auth_method 'key'"
+    echo ");"
+    echo ""
+    
+    # Output tunnel creation commands
+    log_info "Create tunnels to access the HTTP service:"
+    echo ""
+    echo "# Using password authentication:"
+    echo "PRAGMA erpl_tunnel_create(secret='tunnel_test_password', remote_host='http-service', remote_port='8000', local_port='9000');"
+    echo ""
+    echo "# Using key authentication (no passphrase):"
+    echo "PRAGMA erpl_tunnel_create(secret='tunnel_test_key', remote_host='http-service', remote_port='8000', local_port='9001');"
+    echo ""
+    echo "# Using key authentication (with passphrase):"
+    echo "PRAGMA erpl_tunnel_create(secret='tunnel_test_key_passphrase', remote_host='http-service', remote_port='8000', local_port='9002');"
     echo ""
     
     # Output CSV data access examples
     log_info "Access CSV data through the tunnel:"
     echo ""
-    echo "# Direct CSV access via tunnel:"
+    echo "# Direct CSV access via password tunnel:"
     echo "SELECT * FROM 'http://localhost:9000/data.csv';"
+    echo ""
+    echo "# Direct CSV access via key tunnel (no passphrase):"
+    echo "SELECT * FROM 'http://localhost:9001/data.csv';"
+    echo ""
+    echo "# Direct CSV access via key tunnel (with passphrase):"
+    echo "SELECT * FROM 'http://localhost:9002/data.csv';"
     echo ""
     echo "# Or using read_csv_auto:"
     echo "SELECT * FROM read_csv_auto('http://localhost:9000/data.csv');"
     echo ""
-    echo "# Test the tunnel is working:"
+    echo "# Test the tunnels are working:"
     echo "SELECT * FROM 'http://localhost:9000/';"
+    echo "SELECT * FROM 'http://localhost:9001/';"
+    echo "SELECT * FROM 'http://localhost:9002/';"
     echo ""
     
     log_info "Press Ctrl-C to stop and clean up the containers..."

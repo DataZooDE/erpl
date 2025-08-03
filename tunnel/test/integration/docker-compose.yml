@@ -15,6 +15,8 @@ services:
     volumes:
       - ./setup_ssh.sh:/setup_ssh.sh:ro
       - ./sshd_config:/etc/ssh/sshd_config:ro
+      - ./test_key_static.pub:/tmp/test_key_static.pub:ro
+      - ./test_key_static_passphrase.pub:/tmp/test_key_static_passphrase.pub:ro
     command: >
       sh -c "
         /usr/sbin/sshd -D -f /etc/ssh/sshd_config &

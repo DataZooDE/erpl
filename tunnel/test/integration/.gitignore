@@ -1,5 +1,9 @@
 # Test artifacts
 ci_test_key*
+test_key
+test_key.pub
+test_key_passphrase
+test_key_passphrase.pub
 *.log
 
 # Docker artifacts

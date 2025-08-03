@@ -20,15 +20,28 @@ require-env ERPL_SSH_PASSWORD
 
 # ---------------------------------------------------------------------
 
-# Create a tunnel secret for testing
+# Create tunnel secrets for testing (both password and key authentication)
 statement ok
-CREATE SECRET tunnel_test (
+CREATE SECRET tunnel_test_password (
     TYPE ssh_tunnel,
     ssh_host '${ERPL_SSH_HOST}',
     ssh_port '${ERPL_SSH_PORT}',
     ssh_user '${ERPL_SSH_USER}',
     password '${ERPL_SSH_PASSWORD}',
     auth_method 'password'
+)
+
+# Note: For key authentication, the test environment provides
+# the private key file path via environment variable ERPL_SSH_PRIVATE_KEY_PATH
+# The path is passed to the test runner and should be available
+statement ok
+CREATE SECRET tunnel_test_key (
+    TYPE ssh_tunnel,
+    ssh_host '${ERPL_SSH_HOST}',
+    ssh_port '${ERPL_SSH_PORT}',
+    ssh_user '${ERPL_SSH_USER}',
+    private_key_path 'test/integration/test_key_static',
+    auth_method 'key'
 )
 
 # ---------------------------------------------------------------------

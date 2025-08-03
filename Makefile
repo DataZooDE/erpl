@@ -98,8 +98,13 @@ sql_tests_tunnel: debug
 	cd ./tunnel/test/integration && docker-compose up -d
 	@echo "Waiting for SSH server to be ready..."
 	@sleep 15
+	@echo "Using static SSH keypairs for testing..."
+	@cd ./tunnel/test/integration && echo "Static keys are already generated and mounted"
+	@echo "Static SSH public keys are already mounted in the container..."
+	@echo "Waiting for SSH key setup..."
+	@sleep 5
 	@echo "Running tunnel SQL tests..."
-	-cd ./tunnel && ERPL_SSH_HOST=localhost ERPL_SSH_PORT=2222 ERPL_SSH_USER=root ERPL_SSH_PASSWORD=testpass LSAN_OPTIONS=suppressions=../scripts/lsan_suppress.txt ASAN_OPTIONS=detect_odr_violation=0 bash -c 'if [ -n "$(TEST_FILE)" ]; then \
+	-cd ./tunnel && ERPL_SSH_HOST=localhost ERPL_SSH_PORT=2222 ERPL_SSH_USER=root ERPL_SSH_PASSWORD=testpass ERPL_SSH_PRIVATE_KEY_PATH=test/integration/test_key LSAN_OPTIONS=suppressions=../scripts/lsan_suppress.txt ASAN_OPTIONS=detect_odr_violation=0 bash -c 'if [ -n "$(TEST_FILE)" ]; then \
 		echo "Running test: test/sql/$(TEST_FILE)" && \
 		../build/debug/test/unittest --test-dir . "test/sql/$(TEST_FILE)"; \
 	else \
@@ -110,6 +115,7 @@ sql_tests_tunnel: debug
 	fi'
 	@echo "Stopping SSH mock server..."
 	cd ./tunnel/test/integration && docker-compose down
+	@echo "Static SSH keys are preserved for future tests..."
 
 # Usage examples:
 #   make sql_tests_bics                    # Run all BICS tests
