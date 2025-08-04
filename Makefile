@@ -79,19 +79,39 @@ configure_ci:
 	@echo "configure_ci step is skipped for this extension build..."
 
 #### SQL Test targets
-# Helper function to determine test pattern based on TEST_FILE argument
-define get_test_pattern
-$(if $(TEST_FILE),'test/sql/$(TEST_FILE)','test/sql/*.test')
-endef
 
 sql_tests_rfc: debug
-	cd ./rfc && RFC_TRACE=0 LSAN_OPTIONS=suppressions=../scripts/lsan_suppress.txt ASAN_OPTIONS=detect_odr_violation=0 ERPL_SAP_ASHOST=localhost ERPL_SAP_SYSNR=00 ERPL_SAP_CLIENT=001 ERPL_SAP_LANG=EN ERPL_SAP_USER=DEVELOPER ERPL_SAP_PASSWORD=ABAPtr2023#00 LD_LIBRARY_PATH=$${LD_LIBRARY_PATH}:../nwrfcsdk/linux/lib ../build/debug/test/unittest --test-dir . $(call get_test_pattern)
+	cd ./rfc && RFC_TRACE=0 LSAN_OPTIONS=suppressions=../scripts/lsan_suppress.txt ASAN_OPTIONS=detect_odr_violation=0 ERPL_SAP_ASHOST=localhost ERPL_SAP_SYSNR=00 ERPL_SAP_CLIENT=001 ERPL_SAP_LANG=EN ERPL_SAP_USER=DEVELOPER ERPL_SAP_PASSWORD=ABAPtr2023#00 LD_LIBRARY_PATH=$${LD_LIBRARY_PATH}:../nwrfcsdk/linux/lib bash -c 'if [ -n "$(TEST_FILE)" ]; then \
+		echo "Running test: test/sql/$(TEST_FILE)" && \
+		../build/debug/test/unittest --test-dir . "test/sql/$(TEST_FILE)"; \
+	else \
+		for test_file in test/sql/*.test; do \
+			echo "Running test: $$test_file"; \
+			../build/debug/test/unittest --test-dir . "$$test_file"; \
+		done; \
+	fi'
 
 sql_tests_bics: debug
-	cd ./bics && RFC_TRACE=0 LSAN_OPTIONS=suppressions=../scripts/lsan_suppress.txt ASAN_OPTIONS=detect_odr_violation=0 ERPL_SAP_ASHOST=localhost ERPL_SAP_SYSNR=00 ERPL_SAP_CLIENT=001 ERPL_SAP_LANG=EN ERPL_SAP_USER=DEVELOPER ERPL_SAP_PASSWORD=ABAPtr2023#00 LD_LIBRARY_PATH=$${LD_LIBRARY_PATH}:../nwrfcsdk/linux/lib ../build/debug/test/unittest --test-dir . $(call get_test_pattern)
+	cd ./bics && RFC_TRACE=0 LSAN_OPTIONS=suppressions=../scripts/lsan_suppress.txt ASAN_OPTIONS=detect_odr_violation=0 ERPL_SAP_ASHOST=localhost ERPL_SAP_SYSNR=00 ERPL_SAP_CLIENT=001 ERPL_SAP_LANG=EN ERPL_SAP_USER=DEVELOPER ERPL_SAP_PASSWORD=ABAPtr2023#00 LD_LIBRARY_PATH=$${LD_LIBRARY_PATH}:../nwrfcsdk/linux/lib bash -c 'if [ -n "$(TEST_FILE)" ]; then \
+		echo "Running test: test/sql/$(TEST_FILE)" && \
+		../build/debug/test/unittest --test-dir . "test/sql/$(TEST_FILE)"; \
+	else \
+		for test_file in test/sql/*.test; do \
+			echo "Running test: $$test_file"; \
+			../build/debug/test/unittest --test-dir . "$$test_file"; \
+		done; \
+	fi'
 
 sql_tests_odp: debug
-	cd ./odp && RFC_TRACE=0 LSAN_OPTIONS=suppressions=../scripts/lsan_suppress.txt ASAN_OPTIONS=detect_odr_violation=0 ERPL_SAP_ASHOST=localhost ERPL_SAP_SYSNR=00 ERPL_SAP_CLIENT=001 ERPL_SAP_LANG=EN ERPL_SAP_USER=DEVELOPER ERPL_SAP_PASSWORD=ABAPtr2022#00 LD_LIBRARY_PATH=$${LD_LIBRARY_PATH}:../nwrfcsdk/linux/lib ../build/debug/test/unittest --test-dir . $(call get_test_pattern)
+	cd ./odp && RFC_TRACE=0 LSAN_OPTIONS=suppressions=../scripts/lsan_suppress.txt ASAN_OPTIONS=detect_odr_violation=0 ERPL_SAP_ASHOST=localhost ERPL_SAP_SYSNR=00 ERPL_SAP_CLIENT=001 ERPL_SAP_LANG=EN ERPL_SAP_USER=DEVELOPER ERPL_SAP_PASSWORD=ABAPtr2022#00 LD_LIBRARY_PATH=$${LD_LIBRARY_PATH}:../nwrfcsdk/linux/lib bash -c 'if [ -n "$(TEST_FILE)" ]; then \
+		echo "Running test: test/sql/$(TEST_FILE)" && \
+		../build/debug/test/unittest --test-dir . "test/sql/$(TEST_FILE)"; \
+	else \
+		for test_file in test/sql/*.test; do \
+			echo "Running test: $$test_file"; \
+			../build/debug/test/unittest --test-dir . "$$test_file"; \
+		done; \
+	fi'
 
 sql_tests_tunnel: debug
 	@echo "Starting SSH mock server via docker-compose..."

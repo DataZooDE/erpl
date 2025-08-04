@@ -54,8 +54,7 @@ if(NOT libssh2_FOUND)
 endif()
 
 include_directories(src/include
-                    ../duckdb/third_party/
-                    ../duckdb/third_party/httplib
+                    ../rfc/src/include
                     ${OPENSSL_INCLUDE_DIR}
                     ${libssh2_INCLUDE_DIRS}
 )
@@ -71,7 +70,6 @@ set(EXTENSION_SOURCES
       src/pragma_tunnel_close.cpp
       src/pragma_tunnel_close_all.cpp
       src/scanner_tunnels.cpp
-      src/telemetry.cpp
       ${YYJSON_OBJECT_FILES}
 )
 
@@ -95,8 +93,8 @@ if(UNIX AND APPLE)
       default_osx_definitions(${LOADABLE_EXTENSION_NAME})
 endif()
 
-target_link_libraries(${EXTENSION_NAME} ${OPENSSL_LIBRARIES} ${libssh2_LIBRARIES})
-target_link_libraries(${LOADABLE_EXTENSION_NAME} ${OPENSSL_LIBRARIES} ${libssh2_LIBRARIES})
+target_link_libraries(${EXTENSION_NAME} erpl_rfc_extension ${OPENSSL_LIBRARIES} ${libssh2_LIBRARIES})
+target_link_libraries(${LOADABLE_EXTENSION_NAME} erpl_rfc_extension ${OPENSSL_LIBRARIES} ${libssh2_LIBRARIES})
 
 if(${BUILD_UNITTESTS})
       add_subdirectory(test)
