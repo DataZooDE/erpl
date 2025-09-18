@@ -1,6 +1,7 @@
 #define DUCKDB_EXTENSION_MAIN
 
 #include "duckdb.hpp"
+#include "duckdb/main/extension/extension_loader.hpp"
 #include "erpl_extension.hpp"
 
 #include <codecvt>
@@ -430,27 +431,33 @@ static std::string Separator() {
         std::cout << StringUtil::Format("%s extension installed and loaded.", pr_ext_name) << std::endl;
     }
 
-    static void LoadExtensions(DuckDB &db) 
+    static void LoadExtensions(DatabaseInstance &db) 
     {
-        InstallAndLoadExtension(db, "erpl_rfc");
+        DuckDB db_wrapper(db);
+        InstallAndLoadExtension(db_wrapper, "erpl_rfc");
 
         #ifdef WITH_ERPL_BICS
-        InstallAndLoadExtension(db, "erpl_bics");
+        InstallAndLoadExtension(db_wrapper, "erpl_bics");
         #endif
 
         #ifdef WITH_ERPL_ODP
-        InstallAndLoadExtension(db, "erpl_odp");
+        InstallAndLoadExtension(db_wrapper, "erpl_odp");
         #endif
 
         std::cout << "ERPL extensions loaded. For instructions on how to use them, visit https://erpl.io" << std::endl;
     }
 
-    void ErplExtension::Load(DuckDB &db) 
+    static void LoadInternal(ExtensionLoader &loader)
     {
        std::cout << "-- Loading ERPL Trampoline Extension. --" << std::endl 
                  << "(The purpose of the extension is to extract dependencies and load the ERPL implementation)" << std::endl;
        ExtractExtensionsAndSapLibs();
-       LoadExtensions(db);
+       LoadExtensions(loader.GetDatabaseInstance());
+    }
+
+    void ErplExtension::Load(ExtensionLoader &loader) 
+    {
+       LoadInternal(loader);
     }
 
     std::string ErplExtension::Name() {
@@ -461,8 +468,8 @@ static std::string Separator() {
 extern "C" {
     DUCKDB_EXTENSION_API void erpl_init(duckdb::DatabaseInstance &db) 
     {
-        duckdb::DuckDB db_wrapper(db);
-	    db_wrapper.LoadExtension<duckdb::ErplExtension>();
+        duckdb::ExtensionLoader loader(db, "erpl");
+        LoadInternal(loader);
     }
 
     DUCKDB_EXTENSION_API const char *erpl_version() 

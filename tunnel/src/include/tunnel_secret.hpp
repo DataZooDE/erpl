@@ -16,7 +16,7 @@ static constexpr const char *TUNNEL_SECRET_DEFAULT_PATH = "*";
 TunnelAuthParams ConvertTunnelSecretToAuthParams(const KeyValueSecret &duck_secret);
 
 // Register the tunnel secret type with DuckDB
-void RegisterTunnelSecretType(DatabaseInstance &instance);
+void RegisterTunnelSecretType(ExtensionLoader &loader);
 
 // Get the secret name from the named parameters
 std::string GetTunnelSecretNameFromParams(const TableFunctionBindInput &parameters);

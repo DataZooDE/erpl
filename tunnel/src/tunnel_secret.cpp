@@ -1,6 +1,6 @@
 #include "tunnel_secret.hpp"
 #include "tunnel_connection.hpp"
-#include "duckdb/main/extension_util.hpp"
+#include "duckdb/main/extension/extension_loader.hpp"
 #include "duckdb/common/string_util.hpp"
 
 namespace duckdb {
@@ -48,19 +48,19 @@ void SetTunnelSecretParameters(CreateSecretFunction &function) {
     function.named_parameters["auth_method"] = LogicalType::VARCHAR;
 }
 
-void RegisterTunnelSecretType(DatabaseInstance &db) {
+void RegisterTunnelSecretType(ExtensionLoader &loader) {
     // Register the tunnel secret type
     duckdb::SecretType tunnel_secret_type;
     tunnel_secret_type.name = TUNNEL_SECRET_TYPE_NAME;
     tunnel_secret_type.deserializer = KeyValueSecret::Deserialize<KeyValueSecret>;
     tunnel_secret_type.default_provider = TUNNEL_SECRET_PROVIDER;
     
-    ExtensionUtil::RegisterSecretType(db, tunnel_secret_type);
+    loader.RegisterSecretType(tunnel_secret_type);
     
     // Register the create secret function
     CreateSecretFunction tunnel_secret_function = {TUNNEL_SECRET_TYPE_NAME, TUNNEL_SECRET_PROVIDER, CreateTunnelSecretFunction};
     SetTunnelSecretParameters(tunnel_secret_function);
-    ExtensionUtil::RegisterFunction(db, tunnel_secret_function);
+    loader.RegisterFunction(tunnel_secret_function);
 }
 
 TunnelAuthParams ConvertTunnelSecretToAuthParams(const KeyValueSecret &duck_secret) {

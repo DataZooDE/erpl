@@ -1,7 +1,7 @@
 #define DUCKDB_EXTENSION_MAIN
 
 #include "duckdb.hpp"
-#include "duckdb/main/extension_util.hpp"
+#include "duckdb/main/extension/extension_loader.hpp"
 #include "tunnel_manager.hpp"
 #include "tunnel_secret.hpp"
 #include "erpl_tunnel_extension.hpp"
@@ -26,8 +26,9 @@ static void OnAPIKey(ClientContext &context, SetScope scope, Value &parameter)
     PostHogTelemetry::Instance().SetAPIKey(parameter.GetValue<string>());
 }
 
-static void RegisterConfiguration(DatabaseInstance &instance)
+static void RegisterConfiguration(ExtensionLoader &loader)
 {
+    auto &instance = loader.GetDatabaseInstance();
     auto &config = DBConfig::GetConfig(instance);
     config.AddExtensionOption("erpl_telemetry_enabled", "Enable ERPL telemetry, see https://erpl.io/telemetry for details.", 
                               LogicalType::BOOLEAN, Value(true), OnTelemetryEnabled);
@@ -35,27 +36,32 @@ static void RegisterConfiguration(DatabaseInstance &instance)
                               Value("phc_t3wwRLtpyEmLHYaZCSszG0MqVr74J6wnCrj9D41zk2t"), OnAPIKey);
 }
 
-static void RegisterTunnelFunctions(DatabaseInstance &instance) {
+static void RegisterTunnelFunctions(ExtensionLoader &loader) {
     // Register tunnel secret type
-    RegisterTunnelSecretType(instance);
+    RegisterTunnelSecretType(loader);
     
     // Initialize tunnel manager
     g_tunnel_manager = std::make_unique<TunnelManager>();
     
     // Register pragma functions
-    ExtensionUtil::RegisterFunction(instance, CreateTunnelCreatePragma());
-    ExtensionUtil::RegisterFunction(instance, CreateTunnelClosePragma());
-    ExtensionUtil::RegisterFunction(instance, CreateTunnelCloseAllPragma());
+    loader.RegisterFunction(CreateTunnelCreatePragma());
+    loader.RegisterFunction(CreateTunnelClosePragma());
+    loader.RegisterFunction(CreateTunnelCloseAllPragma());
 
     // Register table function for listing tunnels
-    ExtensionUtil::RegisterFunction(instance, CreateTunnelsTableFunction());
+    loader.RegisterFunction(CreateTunnelsTableFunction());
 }
 
-void ErplTunnelExtension::Load(DuckDB &db) {
+static void LoadInternal(ExtensionLoader &loader)
+{
     PostHogTelemetry::Instance().CaptureExtensionLoad();
     
-    RegisterConfiguration(*db.instance);
-    RegisterTunnelFunctions(*db.instance);
+    RegisterConfiguration(loader);
+    RegisterTunnelFunctions(loader);
+}
+
+void ErplTunnelExtension::Load(ExtensionLoader &loader) {
+    LoadInternal(loader);
 }
 
 std::string ErplTunnelExtension::Name() {
@@ -66,8 +72,8 @@ std::string ErplTunnelExtension::Name() {
 
 extern "C" {
     DUCKDB_EXTENSION_API void erpl_tunnel_init(duckdb::DatabaseInstance &db) {
-        duckdb::DuckDB db_wrapper(db);
-        db_wrapper.LoadExtension<duckdb::ErplTunnelExtension>();
+        duckdb::ExtensionLoader loader(db, "erpl_tunnel");
+        LoadInternal(loader);
     }
 
     DUCKDB_EXTENSION_API const char *erpl_tunnel_version() {

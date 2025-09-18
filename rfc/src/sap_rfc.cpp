@@ -614,7 +614,9 @@ namespace duckdb
 
     // --------------------------------------------------------------------------------------------
 
-    static const duckdb::PhysicalOperator DUMMY_OPERATOR(duckdb::PhysicalOperatorType::INVALID, vector<LogicalType>(), 0);
+    // Note: PhysicalOperator constructor has changed in DuckDB v1.4.0
+    // This dummy operator is no longer needed or should be handled differently
+    // static const duckdb::PhysicalOperator DUMMY_OPERATOR(duckdb::PhysicalOperatorType::INVALID, vector<LogicalType>(), 0, 0);
 
     RfcReadColumnTask::RfcReadColumnTask(RfcReadColumnStateMachine *owning_state_machine, duckdb::TaskExecutor &executor, duckdb::Vector &current_column_output)
         :  duckdb::BaseExecutorTask(executor), owning_state_machine(owning_state_machine), current_column_output(current_column_output)

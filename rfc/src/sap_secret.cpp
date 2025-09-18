@@ -1,5 +1,5 @@
 #include "duckdb.hpp"
-#include "duckdb/main/extension_util.hpp"
+#include "duckdb/main/extension/extension_loader.hpp"
 
 #include "sap_secret.hpp"
 #include "sap_connection.hpp"
@@ -71,7 +71,7 @@ void SetSapSecretParameters(CreateSecretFunction &function) {
 	function.named_parameters["mysapsso2"] = LogicalType::VARCHAR;
 }
 
-void RegisterSapSecretType(DatabaseInstance &db) 
+void RegisterSapSecretType(ExtensionLoader &loader) 
 {
     // Register the new type
 	duckdb::SecretType sap_rfc_secret_type;
@@ -79,11 +79,11 @@ void RegisterSapSecretType(DatabaseInstance &db)
 	sap_rfc_secret_type.deserializer = KeyValueSecret::Deserialize<KeyValueSecret>;
 	sap_rfc_secret_type.default_provider = SAP_SECRET_PROVIDER;
 
-	ExtensionUtil::RegisterSecretType(db, sap_rfc_secret_type);
+	loader.RegisterSecretType(sap_rfc_secret_type);
 
 	CreateSecretFunction sap_rfc_secret_function = {SAP_SECRET_TYPE_NAME, SAP_SECRET_PROVIDER, CreateSapSecretFunction};
 	SetSapSecretParameters(sap_rfc_secret_function);
-	ExtensionUtil::RegisterFunction(db, sap_rfc_secret_function);
+	loader.RegisterFunction(sap_rfc_secret_function);
 }
 
 RfcAuthParams ConvertSecretToAuthParams(const KeyValueSecret &duck_secret) 

@@ -16,7 +16,7 @@ static constexpr const char *SAP_SECRET_DEFAULT_PATH = "*";
 RfcAuthParams ConvertSecretToAuthParams(const KeyValueSecret &duck_secret);
 
 // Register the SAP secret type with DuckDB
-void RegisterSapSecretType(DatabaseInstance &instance);
+void RegisterSapSecretType(ExtensionLoader &loader);
 
 // Get the secret name from the named parameters
 std::string GetSecretNameFromParams(const TableFunctionBindInput &parameters);

@@ -3,7 +3,7 @@
 #include "duckdb.hpp"
 
 #include "duckdb/catalog/catalog.hpp"
-#include "duckdb/main/extension_util.hpp"
+#include "duckdb/main/extension/extension_loader.hpp"
 
 #include "erpl_rfc_extension.hpp"
 #include "pragma_ping.hpp"
@@ -34,8 +34,9 @@ namespace duckdb {
         PostHogTelemetry::Instance().SetAPIKey(parameter.GetValue<string>());
     }
 
-    static void RegisterConfiguration(DatabaseInstance &instance)
+    static void RegisterConfiguration(ExtensionLoader &loader)
     {
+        auto &instance = loader.GetDatabaseInstance();
         auto &config = DBConfig::GetConfig(instance);
         config.AddExtensionOption("erpl_telemetry_enabled", "Enable ERPL telemetry, see https://erpl.io/telemetry for details.", 
                                   LogicalType::BOOLEAN, Value(true), OnTelemetryEnabled);
@@ -45,33 +46,38 @@ namespace duckdb {
         auto provider = make_uniq<RfcEnvironmentCredentialsProvider>(config);
         provider->SetAll();
 
-        RegisterSapSecretType(instance);
+        RegisterSapSecretType(loader);
     }
 
-    static void RegisterRfcFunctions(DatabaseInstance &instance)
+    static void RegisterRfcFunctions(ExtensionLoader &loader)
     {
-        ExtensionUtil::RegisterFunction(instance, CreateRfcPingPragma());
-        ExtensionUtil::RegisterFunction(instance, CreateRfcInvokeScanFunction());
-        ExtensionUtil::RegisterFunction(instance, CreateRfcShowFunctionScanFunction());
-        ExtensionUtil::RegisterFunction(instance, CreateRfcShowGroupScanFunction());
-        ExtensionUtil::RegisterFunction(instance, CreateRfcDescribeFunctionScanFunction());
-        ExtensionUtil::RegisterFunction(instance, CreateRfcShowTablesScanFunction());
-        ExtensionUtil::RegisterFunction(instance, CreateRfcDescribeFieldsScanFunction());
-        ExtensionUtil::RegisterFunction(instance, CreateRfcReadTableScanFunction());
-        ExtensionUtil::RegisterFunction(instance, CreateRfcSetTraceLevelPragma());
-        ExtensionUtil::RegisterFunction(instance, CreateRfcSetTraceDirPragma());
-        ExtensionUtil::RegisterFunction(instance, CreateRfcSetMaximumTraceFileSizePragma());
-        ExtensionUtil::RegisterFunction(instance, CreateRfcSetMaximumStoredTraceFilesPragma());
-        ExtensionUtil::RegisterFunction(instance, CreateRfcSetIniPathPragma());
-        ExtensionUtil::RegisterFunction(instance, CreateRfcReloadIniFilePragma());
+        loader.RegisterFunction(CreateRfcPingPragma());
+        loader.RegisterFunction(CreateRfcInvokeScanFunction());
+        loader.RegisterFunction(CreateRfcShowFunctionScanFunction());
+        loader.RegisterFunction(CreateRfcShowGroupScanFunction());
+        loader.RegisterFunction(CreateRfcDescribeFunctionScanFunction());
+        loader.RegisterFunction(CreateRfcShowTablesScanFunction());
+        loader.RegisterFunction(CreateRfcDescribeFieldsScanFunction());
+        loader.RegisterFunction(CreateRfcReadTableScanFunction());
+        loader.RegisterFunction(CreateRfcSetTraceLevelPragma());
+        loader.RegisterFunction(CreateRfcSetTraceDirPragma());
+        loader.RegisterFunction(CreateRfcSetMaximumTraceFileSizePragma());
+        loader.RegisterFunction(CreateRfcSetMaximumStoredTraceFilesPragma());
+        loader.RegisterFunction(CreateRfcSetIniPathPragma());
+        loader.RegisterFunction(CreateRfcReloadIniFilePragma());
     }
     
-    void ErplRfcExtension::Load(DuckDB &db) 
+    static void LoadInternal(ExtensionLoader &loader)
     {
         PostHogTelemetry::Instance().CaptureExtensionLoad();
         
-        RegisterConfiguration(*db.instance);
-        RegisterRfcFunctions(*db.instance);
+        RegisterConfiguration(loader);
+        RegisterRfcFunctions(loader);
+    }
+
+    void ErplRfcExtension::Load(ExtensionLoader &loader) 
+    {
+        LoadInternal(loader);
     }
 
     std::string ErplRfcExtension::Name() {
@@ -83,8 +89,8 @@ namespace duckdb {
 extern "C" {
     DUCKDB_EXTENSION_API void erpl_rfc_init(duckdb::DatabaseInstance &db) 
     {
-        duckdb::DuckDB db_wrapper(db);
-	    db_wrapper.LoadExtension<duckdb::ErplRfcExtension>();
+        duckdb::ExtensionLoader loader(db, "erpl_rfc");
+        LoadInternal(loader);
     }
 
     DUCKDB_EXTENSION_API const char *erpl_rfc_version() 

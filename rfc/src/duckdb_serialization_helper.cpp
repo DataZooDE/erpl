@@ -325,7 +325,7 @@ namespace duckdb
     Value ErplSerializer::DeserializeJsonTimestamp(std::string &typ, yyjson_val *val) 
     {
         auto str = std::string(yyjson_get_str(val));
-        return Value::CreateValue(Timestamp::FromString(str));
+        return Value::CreateValue(Timestamp::FromString(str, false));
     }
 
     Value ErplSerializer::DeserializeJsonBlob(std::string &typ, yyjson_val *val) 
