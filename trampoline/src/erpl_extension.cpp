@@ -76,6 +76,9 @@ extern const unsigned int libicuuc_50_dylib_len;
 extern const char erpl_rfc_duckdb_extension[];
 extern const unsigned int erpl_rfc_duckdb_extension_len;
 
+extern const char erpl_tunnel_duckdb_extension[];
+extern const unsigned int erpl_tunnel_duckdb_extension_len;
+
 #ifdef WITH_ERPL_BICS
 extern const char erpl_bics_duckdb_extension[];
 extern const unsigned int erpl_bics_duckdb_extension_len;
