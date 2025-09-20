@@ -44,6 +44,15 @@ endif
 EXTENSION_FLAGS=-DDUCKDB_EXTENSION_CONFIGS='${EXT_CONFIG}'
 BUILD_FLAGS=-DEXTENSION_STATIC_BUILD=1 $(EXTENSION_FLAGS) ${EXT_FLAGS} $(OSX_BUILD_FLAG) $(TOOLCHAIN_FLAGS) -DDUCKDB_EXPLICIT_PLATFORM='${DUCKDB_PLATFORM}'
 
+#### Windows-specific optimizations
+ifeq ($(OS),Windows_NT)
+	# Reduce parallelism to avoid memory issues on Windows
+	CMAKE_BUILD_PARALLEL_LEVEL ?= 2
+	# Add Windows-specific build flags
+	BUILD_FLAGS += -DCMAKE_BUILD_PARALLEL_LEVEL=$(CMAKE_BUILD_PARALLEL_LEVEL)
+	BUILD_FLAGS += -DCMAKE_GENERATOR_PLATFORM=x64
+endif
+
 #### Main build
 debug:
 ifeq ($(OS),Windows_NT)
