@@ -300,3 +300,27 @@ function(add_duckdb_version_definition)
     add_compile_definitions(DUCKDB_MINOR_VERSION=${DUCKDB_MINOR_VERSION})
     add_compile_definitions(DUCKDB_PATCH_VERSION=${DUCKDB_PATCH_VERSION})
 endfunction()
+
+
+#---------------------------------------------------------------------------------------
+
+function(enable_mold_linker)
+    # Try to find mold binary
+    find_program(MOLD_LINKER mold)
+    if(MOLD_LINKER)
+        message(STATUS "Found mold: ${MOLD_LINKER}")
+        
+        # Check if compiler supports -fuse-ld=mold
+        check_cxx_compiler_flag("-fuse-ld=mold" HAS_FUSE_LD_MOLD)
+        if(HAS_FUSE_LD_MOLD)
+            set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=mold")
+            set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fuse-ld=mold")
+            set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -fuse-ld=mold")
+            message(STATUS "Using mold as linker with -fuse-ld=mold")
+        else()
+            message(WARNING "Compiler does not support -fuse-ld=mold")
+        endif()
+    else()
+        message(STATUS "mold linker not found, using default linker")
+    endif()
+endfunction()

@@ -71,13 +71,8 @@ std::string ErplTunnelExtension::Name() {
 } // namespace duckdb
 
 extern "C" {
-    DUCKDB_EXTENSION_API void erpl_tunnel_init(duckdb::DatabaseInstance &db) {
-        duckdb::ExtensionLoader loader(db, "erpl_tunnel");
-        LoadInternal(loader);
-    }
-
-    DUCKDB_EXTENSION_API const char *erpl_tunnel_version() {
-        return duckdb::DuckDB::LibraryVersion();
+    DUCKDB_CPP_EXTENSION_ENTRY(erpl_tunnel, loader) {
+        duckdb::LoadInternal(loader);
     }
 }
 

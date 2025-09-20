@@ -176,13 +176,13 @@ except Exception as e:
     log_info "Create tunnels to access the HTTP service:"
     echo ""
     echo "# Using password authentication:"
-    echo "PRAGMA erpl_tunnel_create(secret='tunnel_test_password', remote_host='http-service', remote_port='8000', local_port='9000');"
+    echo "PRAGMA tunnel_create(secret='tunnel_test_password', remote_host='http-service', remote_port='8000', local_port='9000');"
     echo ""
     echo "# Using key authentication (no passphrase):"
-    echo "PRAGMA erpl_tunnel_create(secret='tunnel_test_key', remote_host='http-service', remote_port='8000', local_port='9001');"
+    echo "PRAGMA tunnel_create(secret='tunnel_test_key', remote_host='http-service', remote_port='8000', local_port='9001');"
     echo ""
     echo "# Using key authentication (with passphrase):"
-    echo "PRAGMA erpl_tunnel_create(secret='tunnel_test_key_passphrase', remote_host='http-service', remote_port='8000', local_port='9002');"
+    echo "PRAGMA tunnel_create(secret='tunnel_test_key_passphrase', remote_host='http-service', remote_port='8000', local_port='9002');"
     echo ""
     
     # Output CSV data access examples

@@ -6,7 +6,7 @@
 namespace duckdb {
 
 string TunnelClose(ClientContext &context, const FunctionParameters &parameters) {
-    PostHogTelemetry::Instance().CaptureFunctionExecution("erpl_tunnel_close");
+    PostHogTelemetry::Instance().CaptureFunctionExecution("tunnel_close");
     
     // Extract tunnel_id from positional parameters
     int64_t tunnel_id = parameters.values[0].GetValue<int64_t>(); 
@@ -24,7 +24,7 @@ string TunnelClose(ClientContext &context, const FunctionParameters &parameters)
 }
 
 PragmaFunction CreateTunnelClosePragma() {
-    auto tunnel_close_pragma = PragmaFunction::PragmaCall("erpl_tunnel_close", TunnelClose, { LogicalType::INTEGER});
+    auto tunnel_close_pragma = PragmaFunction::PragmaCall("tunnel_close", TunnelClose, { LogicalType::INTEGER});
     return tunnel_close_pragma;
 }
 

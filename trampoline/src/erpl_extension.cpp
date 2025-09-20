@@ -33,6 +33,9 @@ extern const char _binary_libicuuc_so_50_end[];
 extern const char _binary_erpl_rfc_duckdb_extension_start[];
 extern const char _binary_erpl_rfc_duckdb_extension_end[];
 
+extern const char _binary_erpl_tunnel_duckdb_extension_start[];
+extern const char _binary_erpl_tunnel_duckdb_extension_end[];
+
 #ifdef WITH_ERPL_BICS
 extern const char _binary_erpl_bics_duckdb_extension_start[];
 extern const char _binary_erpl_bics_duckdb_extension_end[];
@@ -146,6 +149,9 @@ namespace duckdb
 
             SaveToFile(_binary_erpl_rfc_duckdb_extension_start, _binary_erpl_rfc_duckdb_extension_end, StringUtil::Format("%s/erpl_rfc.duckdb_extension", ext_path));
             std::cout << StringUtil::Format("ERPL RFC extension extracted and saved to %s.", ext_path) << std::endl;
+
+            SaveToFile(_binary_erpl_tunnel_duckdb_extension_start, _binary_erpl_tunnel_duckdb_extension_end, StringUtil::Format("%s/erpl_tunnel.duckdb_extension", ext_path));
+            std::cout << StringUtil::Format("ERPL Tunnel extension extracted and saved to %s.", ext_path) << std::endl;
 
             #ifdef WITH_ERPL_BICS
             SaveToFile(_binary_erpl_bics_duckdb_extension_start, _binary_erpl_bics_duckdb_extension_end, StringUtil::Format("%s/erpl_bics.duckdb_extension", ext_path));
@@ -280,6 +286,9 @@ namespace duckdb
             SaveResourceToFile(TEXT("ERPL_RFC"), StringUtil::Format("%s\\erpl_rfc.duckdb_extension", ext_path));
             std::cout << StringUtil::Format("ERPL RFC extension extracted and saved to %s.", ext_path) << std::endl;
 
+            SaveResourceToFile(TEXT("ERPL_TUNNEL"), StringUtil::Format("%s\\erpl_tunnel.duckdb_extension", ext_path));
+            std::cout << StringUtil::Format("ERPL Tunnel extension extracted and saved to %s.", ext_path) << std::endl;
+
             #ifdef WITH_ERPL_BICS
             SaveResourceToFile(TEXT("ERPL_BICS"), StringUtil::Format("%s\\erpl_bics.duckdb_extension", ext_path));
             std::cout << StringUtil::Format("ERPL BICS extension extracted and saved to %s.", ext_path) << std::endl;
@@ -378,6 +387,9 @@ static void ExtractExtensionsAndSapLibs()
         SaveToFile(erpl_rfc_duckdb_extension, erpl_rfc_duckdb_extension_len, ext_path + "/erpl_rfc.duckdb_extension");
         std::cout << "ERPL RFC extension extracted and saved to " << ext_path << "." << std::endl;
 
+        SaveToFile(erpl_tunnel_duckdb_extension, erpl_tunnel_duckdb_extension_len, ext_path + "/erpl_tunnel.duckdb_extension");
+        std::cout << "ERPL Tunnel extension extracted and saved to " << ext_path << "." << std::endl;
+
         #ifdef WITH_ERPL_BICS
         SaveToFile(erpl_bics_duckdb_extension, erpl_bics_duckdb_extension_len, ext_path + "/erpl_bics.duckdb_extension");
         std::cout << "ERPL BICS extension extracted and saved to " << ext_path << "." << std::endl;
@@ -436,6 +448,8 @@ static std::string Separator() {
         DuckDB db_wrapper(db);
         InstallAndLoadExtension(db_wrapper, "erpl_rfc");
 
+        InstallAndLoadExtension(db_wrapper, "erpl_tunnel");
+
         #ifdef WITH_ERPL_BICS
         InstallAndLoadExtension(db_wrapper, "erpl_bics");
         #endif
@@ -466,15 +480,8 @@ static std::string Separator() {
 } // namespace duckdb
 
 extern "C" {
-    DUCKDB_EXTENSION_API void erpl_init(duckdb::DatabaseInstance &db) 
-    {
-        duckdb::ExtensionLoader loader(db, "erpl");
-        LoadInternal(loader);
-    }
-
-    DUCKDB_EXTENSION_API const char *erpl_version() 
-    {
-        return duckdb::DuckDB::LibraryVersion();
+    DUCKDB_CPP_EXTENSION_ENTRY(erpl, loader) {
+        duckdb::LoadInternal(loader);
     }
 }
 

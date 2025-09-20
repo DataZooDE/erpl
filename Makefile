@@ -27,7 +27,7 @@ ifneq (${OSX_BUILD_ARCH}, "")
 endif
 
 #### VCPKG config
-VCPKG_TOOLCHAIN_PATH?=$(PROJ_DIR)vcpkg/scripts/buildsystems/vcpkg.cmake
+VCPKG_TOOLCHAIN_PATH?=$(VCPKG_ROOT)/scripts/buildsystems/vcpkg.cmake
 ifneq ("${VCPKG_TOOLCHAIN_PATH}", "")
 	TOOLCHAIN_FLAGS:=${TOOLCHAIN_FLAGS} -DVCPKG_MANIFEST_DIR='${PROJ_DIR}rfc' -DVCPKG_BUILD=1 -DCMAKE_TOOLCHAIN_FILE='${VCPKG_TOOLCHAIN_PATH}'
 endif
@@ -72,7 +72,6 @@ else
 	rm -rf ./build
 	rm -rf ./testext
 	cd ./duckdb && make clean
-	cd ./duckdb && make clean-python
 endif
 
 configure_ci:

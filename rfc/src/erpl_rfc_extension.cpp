@@ -87,15 +87,8 @@ namespace duckdb {
 } // namespace duckdb
 
 extern "C" {
-    DUCKDB_EXTENSION_API void erpl_rfc_init(duckdb::DatabaseInstance &db) 
-    {
-        duckdb::ExtensionLoader loader(db, "erpl_rfc");
-        LoadInternal(loader);
-    }
-
-    DUCKDB_EXTENSION_API const char *erpl_rfc_version() 
-    {
-        return duckdb::DuckDB::LibraryVersion();
+    DUCKDB_CPP_EXTENSION_ENTRY(erpl_rfc, loader) {
+        duckdb::LoadInternal(loader);
     }
 }
 

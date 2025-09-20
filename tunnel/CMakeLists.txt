@@ -27,36 +27,31 @@ endif()
 
 find_package(OpenSSL REQUIRED)
 
-# Try to find libssh2 from vcpkg first, then system
-find_package(libssh2 QUIET)
-if(NOT libssh2_FOUND)
-    # Try pkg-config for system libssh2
-    find_package(PkgConfig QUIET)
-    if(PkgConfig_FOUND)
-        pkg_check_modules(PC_LIBSSH2 QUIET libssh2)
-    endif()
-    
-    find_library(LIBSSH2_LIBRARY NAMES ssh2 libssh2
-                 HINTS ${PC_LIBSSH2_LIBRARY_DIRS}
-                 PATHS ${PC_LIBSSH2_LIBDIR})
-    find_path(LIBSSH2_INCLUDE_DIR NAMES libssh2.h
-              HINTS ${PC_LIBSSH2_INCLUDE_DIRS}
-              PATHS ${PC_LIBSSH2_INCLUDEDIR})
-    
-    if(LIBSSH2_LIBRARY AND LIBSSH2_INCLUDE_DIR)
-        set(libssh2_FOUND TRUE)
-        set(libssh2_LIBRARIES ${LIBSSH2_LIBRARY})
-        set(libssh2_INCLUDE_DIRS ${LIBSSH2_INCLUDE_DIR})
-        message(STATUS "Found system libssh2: ${LIBSSH2_LIBRARY}")
-    else()
-        message(FATAL_ERROR "libssh2 not found. Please install libssh2 development package.")
+# Try to find libssh2 using CMake config first (works with vcpkg)
+find_package(libssh2 CONFIG QUIET)
+if(libssh2_FOUND)
+    # Use CMake target from vcpkg - this will automatically handle static/shared linking
+    set(LIBSSH2_LIBRARIES libssh2::libssh2)
+    set(LIBSSH2_INCLUDE_DIRS "")  # CMake targets handle includes automatically
+else()
+    # Fallback to pkg-config for system installations
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(LIBSSH2 REQUIRED libssh2)
+    if(LIBSSH2_FOUND)
+        # Prefer static libraries when available
+        if(LIBSSH2_STATIC_LIBRARIES)
+            set(LIBSSH2_LIBRARIES ${LIBSSH2_STATIC_LIBRARIES})
+            set(LIBSSH2_LIBRARY_DIRS ${LIBSSH2_STATIC_LIBRARY_DIRS})
+            set(LIBSSH2_LDFLAGS ${LIBSSH2_STATIC_LDFLAGS})
+        endif()
     endif()
 endif()
+
 
 include_directories(src/include
                     ../rfc/src/include
                     ${OPENSSL_INCLUDE_DIR}
-                    ${libssh2_INCLUDE_DIRS}
+                    ${LIBSSH2_INCLUDE_DIRS}
 )
 
 add_yyjson_from_duckdb()
@@ -93,8 +88,19 @@ if(UNIX AND APPLE)
       default_osx_definitions(${LOADABLE_EXTENSION_NAME})
 endif()
 
-target_link_libraries(${EXTENSION_NAME} erpl_rfc_extension ${OPENSSL_LIBRARIES} ${libssh2_LIBRARIES})
-target_link_libraries(${LOADABLE_EXTENSION_NAME} erpl_rfc_extension ${OPENSSL_LIBRARIES} ${libssh2_LIBRARIES})
+# Add library directories for static linking (only needed for pkg-config)
+if(NOT libssh2_FOUND AND LIBSSH2_LIBRARY_DIRS)
+    link_directories(${LIBSSH2_LIBRARY_DIRS})
+endif()
+
+target_link_libraries(${EXTENSION_NAME} erpl_rfc_extension ${OPENSSL_LIBRARIES} ${LIBSSH2_LIBRARIES})
+target_link_libraries(${LOADABLE_EXTENSION_NAME} erpl_rfc_extension ${OPENSSL_LIBRARIES} ${LIBSSH2_LIBRARIES})
+
+# Add additional linker flags for static linking if needed (only for pkg-config)
+if(NOT libssh2_FOUND AND LIBSSH2_LDFLAGS)
+    target_link_options(${EXTENSION_NAME} PRIVATE ${LIBSSH2_LDFLAGS})
+    target_link_options(${LOADABLE_EXTENSION_NAME} PRIVATE ${LIBSSH2_LDFLAGS})
+endif()
 
 if(${BUILD_UNITTESTS})
       add_subdirectory(test)

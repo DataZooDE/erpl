@@ -7,7 +7,7 @@
 namespace duckdb {
 
 string TunnelCreate(ClientContext &context, const FunctionParameters &parameters) {
-    PostHogTelemetry::Instance().CaptureFunctionExecution("erpl_tunnel_create");
+    PostHogTelemetry::Instance().CaptureFunctionExecution("tunnel_create");
     
     // Get authentication parameters from the secret
     auto auth_params = GetTunnelAuthParamsFromContext(context, parameters);
@@ -31,7 +31,7 @@ string TunnelCreate(ClientContext &context, const FunctionParameters &parameters
     }
     
     if (remote_host.empty() || remote_port == 0 || local_port == 0) {
-        throw InvalidInputException("erpl_tunnel_create requires remote_host, remote_port, and local_port parameters");
+        throw InvalidInputException("tunnel_create requires remote_host, remote_port, and local_port parameters");
     }
     
     // Create tunnel using the tunnel manager with timeout
@@ -44,13 +44,13 @@ string TunnelCreate(ClientContext &context, const FunctionParameters &parameters
 }
 
 PragmaFunction CreateTunnelCreatePragma() {
-    auto tunnel_create_pragma = PragmaFunction::PragmaCall("erpl_tunnel_create", TunnelCreate, {});
+    auto tunnel_create_pragma = PragmaFunction::PragmaCall("tunnel_create", TunnelCreate, {});
     tunnel_create_pragma.named_parameters["secret"] = LogicalType::VARCHAR;
     tunnel_create_pragma.named_parameters["remote_host"] = LogicalType::VARCHAR;
     tunnel_create_pragma.named_parameters["remote_port"] = LogicalType::INTEGER;
     tunnel_create_pragma.named_parameters["local_port"] = LogicalType::INTEGER;
     tunnel_create_pragma.named_parameters["timeout"] = LogicalType::INTEGER;
-    
+
     return tunnel_create_pragma;
 }
 

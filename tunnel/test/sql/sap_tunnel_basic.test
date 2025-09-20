@@ -56,7 +56,7 @@ SELECT 1;
 
 # Test that the tunnels table function exists and returns empty when no tunnels
 query II
-SELECT tunnel_id, status FROM erpl_tunnels();
+SELECT tunnel_id, status FROM tunnels();
 ----
 
 # ---------------------------------------------------------------------
@@ -67,7 +67,7 @@ SELECT tunnel_id, status FROM erpl_tunnels();
 
 # Test that we get a message for non-existent tunnel
 query II
-PRAGMA erpl_tunnel_close(999);
+PRAGMA tunnel_close(999);
 ----
 999
 Tunnel not found or already closed

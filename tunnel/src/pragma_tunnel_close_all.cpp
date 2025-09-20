@@ -6,7 +6,7 @@
 namespace duckdb {
 
 string TunnelCloseAll(ClientContext &context, const FunctionParameters &parameters) {
-    PostHogTelemetry::Instance().CaptureFunctionExecution("erpl_tunnel_close_all");
+    PostHogTelemetry::Instance().CaptureFunctionExecution("tunnel_close_all");
     
     // Close all tunnels using the tunnel manager
     g_tunnel_manager->CloseAllTunnels();
@@ -16,8 +16,8 @@ string TunnelCloseAll(ClientContext &context, const FunctionParameters &paramete
 }
 
 PragmaFunction CreateTunnelCloseAllPragma() {
-    auto tunnel_close_all_pragma = PragmaFunction::PragmaCall("erpl_tunnel_close_all", TunnelCloseAll, {});
-    
+    auto tunnel_close_all_pragma = PragmaFunction::PragmaCall("tunnel_close_all", TunnelCloseAll, {});
+
     return tunnel_close_all_pragma;
 }
 
