@@ -39,12 +39,12 @@ on:
       vcpkg_commit:
         required: false
         type: string
-        default: "501db0f17ef6df184fcdbfbe0f87cde2313b6ab1"
+        default: "ce613c41372b23b1f51333815feb3edd87ef8a8b"
       # Override the default script producing the matrices. Allows specifying custom matrices.
       matrix_parse_script:
         required: false
         type: string
-        default: "./duckdb/scripts/modify_distribution_matrix.py"
+        default: "./extension-ci-tools/scripts/modify_distribution_matrix.py"
 
 jobs:
   generate_matrix:
