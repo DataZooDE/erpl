@@ -4,8 +4,15 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/main/secret/secret_manager.hpp"
 
-#include <arpa/inet.h>
-#include <netdb.h>
+#ifdef WIN32
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
+    #pragma comment(lib, "ws2_32.lib")
+#else
+    #include <arpa/inet.h>
+    #include <netdb.h>
+#endif
+
 #include <chrono>
 #include <fstream>
 #include <iostream>

@@ -2,14 +2,22 @@
 #include <string>
 #include <cstring>
 #include <cstdlib>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <fcntl.h>
-#include <signal.h>
 #include <thread>
 #include <atomic>
+
+#ifdef WIN32
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
+    #include <windows.h>
+    #pragma comment(lib, "ws2_32.lib")
+#else
+    #include <unistd.h>
+    #include <sys/socket.h>
+    #include <netinet/in.h>
+    #include <arpa/inet.h>
+    #include <fcntl.h>
+    #include <signal.h>
+#endif
 
 #include "libssh2.h"
 

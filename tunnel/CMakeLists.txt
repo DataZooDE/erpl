@@ -96,6 +96,11 @@ endif()
 target_link_libraries(${EXTENSION_NAME} erpl_rfc_extension ${OPENSSL_LIBRARIES} ${LIBSSH2_LIBRARIES})
 target_link_libraries(${LOADABLE_EXTENSION_NAME} erpl_rfc_extension ${OPENSSL_LIBRARIES} ${LIBSSH2_LIBRARIES})
 
+if(WIN32)
+    target_link_libraries(${EXTENSION_NAME} ws2_32)
+    target_link_libraries(${LOADABLE_EXTENSION_NAME} ws2_32)
+endif()
+
 # Add additional linker flags for static linking if needed (only for pkg-config)
 if(NOT libssh2_FOUND AND LIBSSH2_LDFLAGS)
     target_link_options(${EXTENSION_NAME} PRIVATE ${LIBSSH2_LDFLAGS})
