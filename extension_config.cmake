@@ -3,6 +3,7 @@ if(MSVC)
 endif()
 
 include(CheckCXXCompilerFlag)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(../scripts/functions.cmake)
 enable_mold_linker()
