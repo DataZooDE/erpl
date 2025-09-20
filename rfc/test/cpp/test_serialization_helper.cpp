@@ -20,7 +20,7 @@ TEST_CASE("Test serialize primitive types", "[duckdb_serialization_helper]")
     auto null_val = Value();
     auto date_val = Value::CreateValue(Date::FromString("2020-01-01"));
     auto dt_val = Value::CreateValue(dtime_t(123456));
-    auto ts_val = Value::CreateValue(Timestamp::FromString("2020-01-01 00:00:00"));
+    auto ts_val = Value::CreateValue(Timestamp::FromString("2020-01-01 00:00:00", false));
     
     auto json = ErplSerializer::SerializeJson(str_val);    
     REQUIRE(json == "\"TEST\"");
@@ -156,7 +156,7 @@ TEST_CASE("DeserializeJson primitive types", "[duckdb_serialization_helper]")
 
     val = ErplSerializer::DeserializeJson(ts_str);
     REQUIRE(val.type().id() == LogicalTypeId::TIMESTAMP);
-    REQUIRE(val.GetValue<timestamp_t>() == Timestamp::FromString("2020-01-01 00:00:00"));
+    REQUIRE(val.GetValue<timestamp_t>() == Timestamp::FromString("2020-01-01 00:00:00", false));
 }
 
 TEST_CASE("DeserializeJson blob type", "[duckdb_serialization_helper]") 
@@ -215,7 +215,7 @@ TEST_CASE("Serialize SQL of primitive types" "[duckdb_serialization_helper]")
     auto null_val = Value();
     auto date_val = Value::CreateValue(Date::FromString("2020-01-01"));
     auto dt_val = Value::CreateValue(dtime_t(123456));
-    auto ts_val = Value::CreateValue(Timestamp::FromString("2020-01-01 00:00:00"));
+    auto ts_val = Value::CreateValue(Timestamp::FromString("2020-01-01 00:00:00", false));
 
     auto sql = ErplSerializer::SerializeSQL(str_val);
     REQUIRE(sql == "'TEST'");
