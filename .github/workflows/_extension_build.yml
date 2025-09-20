@@ -76,9 +76,9 @@ jobs:
 
       - id: parse-matrices
         run: |
-          python3 ${{ inputs.matrix_parse_script }} --input ./.github/config/distribution_matrix.json --select_os linux --output linux_matrix.json --exclude "${{ inputs.exclude_archs }}" --pretty 
-          python3 ${{ inputs.matrix_parse_script }} --input ./.github/config/distribution_matrix.json --select_os osx --output osx_matrix.json --exclude "${{ inputs.exclude_archs }}" --pretty 
-          python3 ${{ inputs.matrix_parse_script }} --input ./.github/config/distribution_matrix.json --select_os windows --output windows_matrix.json --exclude "${{ inputs.exclude_archs }}" --pretty          
+          python3 ${{ inputs.matrix_parse_script }} --input ./.github/config/distribution_matrix.json --select_os linux --output linux_matrix.json --exclude "${{ inputs.exclude_archs }}" --reduced_ci_mode disabled --pretty 
+          python3 ${{ inputs.matrix_parse_script }} --input ./.github/config/distribution_matrix.json --select_os osx --output osx_matrix.json --exclude "${{ inputs.exclude_archs }}" --reduced_ci_mode disabled --pretty 
+          python3 ${{ inputs.matrix_parse_script }} --input ./.github/config/distribution_matrix.json --select_os windows --output windows_matrix.json --exclude "${{ inputs.exclude_archs }}" --reduced_ci_mode disabled --pretty          
 
       - id: set-matrix-linux
         run: |
