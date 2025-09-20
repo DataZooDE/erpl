@@ -45,6 +45,16 @@ void print_usage(const char* program_name) {
 }
 
 int main(int argc, char* argv[]) {
+#ifdef WIN32
+    // Initialize Windows sockets
+    WSADATA wsa_data;
+    int wsa_result = WSAStartup(MAKEWORD(2, 2), &wsa_data);
+    if (wsa_result != 0) {
+        std::cerr << "Failed to initialize Windows sockets" << std::endl;
+        return 1;
+    }
+#endif
+
     std::string ssh_host = "localhost";
     int ssh_port = 22;
     std::string ssh_user = "root";
@@ -229,8 +239,13 @@ int main(int argc, char* argv[]) {
             struct timeval tv;
             
             // Set client socket to non-blocking
+#ifdef WIN32
+            u_long non_blocking = 1;
+            ioctlsocket(client_sock, FIONBIO, &non_blocking);
+#else
             int flags = fcntl(client_sock, F_GETFL, 0);
             fcntl(client_sock, F_SETFL, flags | O_NONBLOCK);
+#endif
 
             while (g_running) {
                 FD_ZERO(&fds);
@@ -269,6 +284,11 @@ int main(int argc, char* argv[]) {
     libssh2_session_free(session);
     close(sock);
     libssh2_exit();
+
+#ifdef WIN32
+    // Cleanup Windows sockets
+    WSACleanup();
+#endif
 
     std::cout << "Tunnel closed\n";
     return 0;

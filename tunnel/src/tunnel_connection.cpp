@@ -22,6 +22,15 @@
 namespace duckdb {
 
 TunnelConnection::TunnelConnection() {
+    // Initialize Windows sockets if on Windows
+#ifdef WIN32
+    WSADATA wsa_data;
+    const int wsa_result = WSAStartup(MAKEWORD(2, 2), &wsa_data);
+    if (wsa_result != 0) {
+        throw IOException("Failed to initialize Windows sockets");
+    }
+#endif
+
     // Initialize libssh2
     const int init_result = libssh2_init(0);
     if (init_result != 0) {
@@ -32,6 +41,11 @@ TunnelConnection::TunnelConnection() {
 TunnelConnection::~TunnelConnection() {
     Close();
     libssh2_exit();
+
+    // Cleanup Windows sockets if on Windows
+#ifdef WIN32
+    WSACleanup();
+#endif
 }
 
 TunnelConnection::TunnelConnection(TunnelConnection&& other) noexcept
@@ -115,8 +129,13 @@ bool TunnelConnection::TestTunnelConnection(int32_t timeout_seconds) {
         }
         
         // Set socket to non-blocking for timeout
+#ifdef WIN32
+        u_long non_blocking = 1;
+        ioctlsocket(test_socket, FIONBIO, &non_blocking);
+#else
         const int flags = fcntl(test_socket, F_GETFL, 0);
         fcntl(test_socket, F_SETFL, flags | O_NONBLOCK);
+#endif
         
         sockaddr_in test_addr{};
         test_addr.sin_family = AF_INET;
@@ -142,10 +161,16 @@ bool TunnelConnection::TestTunnelConnection(int32_t timeout_seconds) {
             
             const int select_result = select(test_socket + 1, nullptr, &write_fds, nullptr, &tv);
             if (select_result > 0) {
-                // Check if connection was successful
-                int error = 0;
-                socklen_t len = sizeof(error);
-                if (getsockopt(test_socket, SOL_SOCKET, SO_ERROR, &error, &len) == 0 && error == 0) {
+            // Check if connection was successful
+#ifdef WIN32
+            char error = 0;
+            int len = sizeof(error);
+            if (getsockopt(test_socket, SOL_SOCKET, SO_ERROR, &error, &len) == 0 && error == 0) {
+#else
+            int error = 0;
+            socklen_t len = sizeof(error);
+            if (getsockopt(test_socket, SOL_SOCKET, SO_ERROR, &error, &len) == 0 && error == 0) {
+#endif
                     CloseSocket(test_socket);
                     return true;
                 }
@@ -185,7 +210,11 @@ void TunnelConnection::Connect(const std::string& ssh_host, int32_t ssh_port, co
     sin.sin_port = htons(ssh_port);
     
     // Convert hostname to IP address
+#ifdef WIN32
+    const unsigned long addr = inet_addr(ssh_host.c_str());
+#else
     const in_addr_t addr = inet_addr(ssh_host.c_str());
+#endif
     if (addr == INADDR_NONE) {
         // Try to resolve hostname
         struct hostent* he = gethostbyname(ssh_host.c_str());
@@ -194,7 +223,11 @@ void TunnelConnection::Connect(const std::string& ssh_host, int32_t ssh_port, co
             CloseSocket(ssh_socket_);
             throw IOException("Failed to resolve hostname '" + ssh_host + "'. Check if the host is reachable.");
         }
+#ifdef WIN32
+        sin.sin_addr.s_addr = *reinterpret_cast<unsigned long*>(he->h_addr_list[0]);
+#else
         sin.sin_addr.s_addr = *reinterpret_cast<in_addr_t*>(he->h_addr_list[0]);
+#endif
     } else {
         sin.sin_addr.s_addr = addr;
     }
@@ -434,8 +467,13 @@ void TunnelConnection::WorkerFunction() {
     }
     
     // Set socket to non-blocking to allow for graceful shutdown
+#ifdef WIN32
+    u_long non_blocking = 1;
+    ioctlsocket(listen_sock, FIONBIO, &non_blocking);
+#else
     const int flags = fcntl(listen_sock, F_GETFL, 0);
     fcntl(listen_sock, F_SETFL, flags | O_NONBLOCK);
+#endif
     
     sockaddr_in listen_addr{};
     listen_addr.sin_family = AF_INET;
@@ -520,8 +558,13 @@ void TunnelConnection::ForwardData(int32_t client_socket, LIBSSH2_CHANNEL* chann
     timeval tv;
     
     // Set client socket to non-blocking
+#ifdef WIN32
+    u_long non_blocking = 1;
+    ioctlsocket(client_socket, FIONBIO, &non_blocking);
+#else
     const int client_flags = fcntl(client_socket, F_GETFL, 0);
     fcntl(client_socket, F_SETFL, client_flags | O_NONBLOCK);
+#endif
     
     while (is_running_) {
         FD_ZERO(&fds);
