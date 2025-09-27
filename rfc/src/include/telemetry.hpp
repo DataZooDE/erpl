@@ -118,7 +118,9 @@ public:
         }
         _condition.notify_all();
         for (auto& worker : _workers) {
-            worker.join();
+            if (worker.joinable()) {
+                worker.join();
+            }
         }
     }
 };
