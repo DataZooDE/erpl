@@ -80,13 +80,7 @@ if(UNIX AND NOT APPLE)
 
         list(APPEND SAPNWRFC_LIB_OBJECTS "${OBJ_NAME}.o")
 
-        add_custom_command(
-            OUTPUT "${OBJ_NAME}.o"
-            COMMAND objcopy -I binary -O elf64-x86-64 --binary-architecture i386:x86-64 "${LIB_NAME}" "${CMAKE_CURRENT_BINARY_DIR}/${OBJ_NAME}.o"
-            DEPENDS "${LIB}"
-            COMMENT "Creating object file ${CMAKE_CURRENT_BINARY_DIR}/${OBJ_NAME}.o"
-            WORKING_DIRECTORY "${LIB_DIR}"
-        )
+        embed_binary_to_object("${LIB_DIR}" "${LIB_NAME}" "${CMAKE_CURRENT_BINARY_DIR}/${OBJ_NAME}.o" "${LIB}")
     endforeach()
 endif()
 

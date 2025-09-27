@@ -191,6 +191,18 @@ endfunction()
 
 #---------------------------------------------------------------------------------------
 
+function(embed_binary_to_object WORKING_DIR INPUT_NAME OUTPUT_PATH DEPENDS_PATH)
+    add_custom_command(
+        OUTPUT "${OUTPUT_PATH}"
+        COMMAND objcopy -I binary -O elf64-x86-64 --binary-architecture i386:x86-64 "${INPUT_NAME}" "${OUTPUT_PATH}"
+        DEPENDS "${DEPENDS_PATH}"
+        COMMENT "Creating object file ${OUTPUT_PATH}"
+        WORKING_DIRECTORY "${WORKING_DIR}"
+    )
+endfunction()
+
+#---------------------------------------------------------------------------------------
+
 function(attach_extension_as_object extension_file)
     set(OBJ_NAME "${extension_file}.o")
     get_filename_component(EXT_NAME "${extension_file}" NAME_WE)
@@ -201,13 +213,7 @@ function(attach_extension_as_object extension_file)
     if(UNIX AND APPLE)
         convert_dylib_to_object("${EXT_NAME}" "${EXT_PATH}" "${OBJ_NAME}" "${OBJ_PATH}" OFF)
     else()
-        add_custom_command(
-            OUTPUT "${OBJ_PATH}"
-            COMMAND objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 "${extension_file}" "${OBJ_PATH}"
-            DEPENDS "${EXT_PATH}"
-            COMMENT "Creating object file ${OBJ_PATH} on Linux"
-            WORKING_DIRECTORY "${EXT_DIR}"
-        )
+        embed_binary_to_object("${EXT_DIR}" "${extension_file}" "${OBJ_PATH}" "${EXT_PATH}")
     endif()
 
     set(ERPL_EXTENSION_OBJECTS ${ERPL_EXTENSION_OBJECTS} "${OBJ_NAME}" PARENT_SCOPE)
