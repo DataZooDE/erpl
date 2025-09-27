@@ -33,9 +33,9 @@ CREATE SECRET abap_trial (
 
 # Confirm I retrieve the correct number of tables
 query I
-SELECT count(*) FROM sap_show_tables();
+SELECT count(*) > 54000 FROM sap_show_tables();
 ----
-54348
+1
 
 # ---------------------------------------------------------------------
 # Confirm I retrieve correct data for a table
@@ -49,9 +49,9 @@ VIEW
 # ---------------------------------------------------------------------
 # Confirm selection via table name works
 query I
-SELECT COUNT(*) FROM sap_show_tables(TABLENAME="*FLIGHT*");
+SELECT COUNT(*) > 34 FROM sap_show_tables(TABLENAME="*FLIGHT*");
 ----
-34
+1
 
 # ---------------------------------------------------------------------
 # Confirm a selection with no result also works

@@ -105,10 +105,22 @@ public:
 private:
     std::vector<std::thread> _workers;
     std::queue< std::function<void()> > _tasks;
-    
+
     std::mutex _queue_mutex;
     std::condition_variable _condition;
     bool _stop;
+
+public:
+    void Stop() {
+        {
+            std::unique_lock<std::mutex> lock(_queue_mutex);
+            _stop = true;
+        }
+        _condition.notify_all();
+        for (auto& worker : _workers) {
+            worker.join();
+        }
+    }
 };
 
 class PostHogTelemetry 
@@ -121,6 +133,7 @@ class PostHogTelemetry
         void CaptureExtensionLoad();
         void CaptureExtensionLoad(std::string extension_name);
         void CaptureFunctionExecution(std::string function_name);
+        void EnsureQueueInitialized();
        
         bool IsEnabled();
         void SetEnabled(bool enabled);
@@ -135,11 +148,10 @@ class PostHogTelemetry
         static bool IsPhysicalDevice(const std::string& device);
         static std::string FindFirstPhysicalDevice();
 
-        TelemetryTaskQueue<PostHogEvent> _queue;
-
         bool _telemetry_enabled;
         std::string _api_key;
         std::mutex _thread_lock;
+        std::unique_ptr<TelemetryTaskQueue<PostHogEvent>> _queue;
 };
 
 } // namespace duckdb

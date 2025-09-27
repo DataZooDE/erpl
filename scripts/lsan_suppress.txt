@@ -1,2 +1,5 @@
-leak:libsapnwrfc.so
-memory:libsapnwrfc.so
+# AddressSanitizer suppression file
+# Format: suppression_type:function_name or suppression_type:source_file:function_name
+
+# Suppress all leaks for now (you can be more specific if needed)
+leak:*

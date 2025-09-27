@@ -43,6 +43,7 @@ set(EXTENSION_SOURCES
       src/pragma_set_trace.cpp
       src/pragma_ini.cpp
       src/sap_secret.cpp
+      src/erpl_tracing.cpp
       src/sap_connection.cpp
       src/sap_function.cpp
       src/sap_type_conversion.cpp

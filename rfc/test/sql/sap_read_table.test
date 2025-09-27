@@ -28,7 +28,6 @@ CREATE SECRET abap_trial (
     PASSWD '${ERPL_SAP_PASSWORD}',
     LANG '${ERPL_SAP_LANG}'
 );
-
 # ---------------------------------------------------------------------
 # Confirm I retrieve the correct row count
 query I
@@ -103,4 +102,27 @@ query I
 SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', FILTER='CARRIER_ID = ''SQ''') WHERE CONNECTION_ID = '0001';
 ----
 2
+
+# Confirm that we can join two tables (enable tracing just for this block)
+statement ok
+SET erpl_trace_output='console';
+
+statement ok
+SET erpl_trace_level='DEBUG';
+
+statement ok
+SET erpl_trace_enabled=true;
+
+query I
+SELECT COUNT(*)
+FROM sap_read_table('SFLIGHT') AS f
+JOIN sap_read_table('SPFLI') AS s 
+    ON (f.MANDT = s.MANDT AND f.CARRID = s.CARRID AND f.CONNID = s.CONNID);
+----
+94
+
+statement ok
+SET erpl_trace_enabled=false;
+
+
 

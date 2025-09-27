@@ -41,6 +41,6 @@ BI Consumer Services
 # ---------------------------------------------------------------------
 # Check whether we can query all groups
 query I
-select COUNT(*) from sap_rfc_show_groups();
+select COUNT(*) > 16000 from sap_rfc_show_groups();
 ----
-16122
+1

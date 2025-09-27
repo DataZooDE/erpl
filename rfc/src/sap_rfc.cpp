@@ -23,6 +23,7 @@
 #include "sap_rfc.hpp"
 #include "sap_function.hpp"
 #include "duckdb_argument_helper.hpp"
+#include "erpl_tracing.hpp"
 
 namespace duckdb
 {
@@ -246,10 +247,28 @@ namespace duckdb
         }
 
         vector<std::string> filter_entries;
-        for (auto &[projected_column_idx, filter] : filter_set->filters) 
+        bool pushed_filters = false;
+        bool skipped_filters = false;
+        for (auto &[projected_column_idx, filter] : filter_set->filters)
         {
             auto column_name = GetProjectedColumnName(projected_column_idx);
-            filter_entries.push_back(TransformFilter(column_name, *filter));
+            auto transformed = TransformFilter(column_name, *filter);
+            if (!transformed.empty()) {
+                filter_entries.push_back(transformed);
+                pushed_filters = true;
+            } else {
+                skipped_filters = true;
+            }
+        }
+
+        if (!pushed_filters) {
+            ERPL_TRACE_DEBUG("sap_rfc", "Skipping filter pushdown; RFC_READ_TABLE cannot represent any conditions");
+            return;
+        }
+
+        // Log if we skipped some filters but still have some to push down
+        if (skipped_filters) {
+            ERPL_TRACE_INFO("sap_rfc", "Partial filter pushdown: some predicates not supported by RFC_READ_TABLE");
         }
 
         auto filter_string = StringUtil::Join(filter_entries, " AND ");
@@ -259,26 +278,30 @@ namespace duckdb
         }   
 
         AddOptionsFromWhereClause(filter_string);
+        ERPL_TRACE_DEBUG_DATA("sap_rfc", "Filter pushdown applied", filter_string);
     }
 
-    std::string RfcReadTableBindData::TransformFilter(std::string &column_name, TableFilter &filter) 
+    std::string RfcReadTableBindData::TransformFilter(std::string &column_name, TableFilter &filter)
     {
         switch(filter.filter_type)
         {
             case TableFilterType::CONJUNCTION_AND: {
-                auto &and_filter = filter.Cast<ConjunctionAndFilter>();
-                return CreateExpression(column_name, and_filter.child_filters, " AND ");
+                // For joins, don't push down complex AND expressions - let DuckDB handle them
+                return std::string();
             }
             case TableFilterType::CONJUNCTION_OR: {
-                auto &or_filter = filter.Cast<ConjunctionAndFilter>();
-                return CreateExpression(column_name, or_filter.child_filters, " OR ");
+                // OR expressions are not supported by RFC_READ_TABLE
+                return std::string();
             }
             case TableFilterType::CONSTANT_COMPARISON: {
                 auto &const_filter = filter.Cast<ConstantFilter>();
+                if (const_filter.comparison_type != ExpressionType::COMPARE_EQUAL) {
+                    return std::string();
+                }
 
                 auto constant_string = StringUtil::Format("'%s'", const_filter.constant.ToString());
-		        auto operator_string = TransformComparision(const_filter.comparison_type);
-		        return StringUtil::Format("%s %s %s", column_name, operator_string, constant_string);
+                auto operator_string = TransformComparision(const_filter.comparison_type);
+                return StringUtil::Format("%s %s %s", column_name, operator_string, constant_string);
             }
             case TableFilterType::OPTIONAL_FILTER: {
                 auto &optional_filter = filter.Cast<OptionalFilter>();
@@ -292,6 +315,10 @@ namespace duckdb
 	        }
             case TableFilterType::IN_FILTER: {
                 auto &in_filter = filter.Cast<InFilter>();
+                // Only support IN filters with a small number of values to avoid complex ABAP
+                if (in_filter.values.size() > 5) {
+                    return std::string();
+                }
                 string in_list;
                 for(auto &val : in_filter.values) {
                     if (!in_list.empty()) {
@@ -305,13 +332,16 @@ namespace duckdb
                 return std::string();
             }
             case TableFilterType::IS_NOT_NULL: {
-                return StringUtil::Format("%s IS NOT NULL", column_name);
+                // Not supported in RFC_READ_TABLE OPTIONS; skip pushdown
+                return std::string();
             }
             case TableFilterType::IS_NULL: {
-                return StringUtil::Format("%s IS NULL", column_name);
+                // Not supported in RFC_READ_TABLE OPTIONS; skip pushdown
+                return std::string();
             }
             default: {
-                throw InternalException("Unsupported table filter type");
+                // For any other filter types, don't push down - let DuckDB handle them
+                return std::string();
             }
         }
     }
@@ -342,7 +372,14 @@ namespace duckdb
     {
         auto filter_strings = std::vector<std::string>();
         for (auto &filter : filters) {
-            filter_strings.push_back(RfcReadTableBindData::TransformFilter(column_name, *filter));
+            auto transformed = RfcReadTableBindData::TransformFilter(column_name, *filter);
+            if (!transformed.empty()) {
+                filter_strings.push_back(transformed);
+            }
+        }
+
+        if (filter_strings.empty()) {
+            return std::string();
         }
 
         return StringUtil::Join(filter_strings, filter_strings.size(), op, [](auto &s) { return s; });
@@ -490,6 +527,20 @@ namespace duckdb
     }
 
     // --------------------------------------------------------------------------------------------
+
+    static bool IsRetryableRfcError(const std::string &error_message)
+    {
+        // Errors from RfcInvocation::Invoke() include the RFC_RC on the first line
+        if (error_message.find("RFC_COMMUNICATION_FAILURE") != std::string::npos) {
+            return true;
+        }
+
+        if (error_message.find("RFC_ABAP_EXCEPTION") != std::string::npos) {
+            ERPL_TRACE_WARN_DATA("sap_rfc", "ABAP exception during sap_read_table", error_message);
+        }
+
+        return false;
+    }
 
     RfcReadColumnStateMachine::RfcReadColumnStateMachine(RfcReadTableBindData* bind_data, idx_t column_idx, unsigned int limit)
         : limit(limit), column_idx(column_idx), bind_data(bind_data)
@@ -709,8 +760,13 @@ namespace duckdb
                 return current_result_data->TotalRows();
             }
             catch (std::exception &e) {
+                std::string err_msg(e.what());
+                if (!IsRetryableRfcError(err_msg)) {
+                    throw;
+                }
+
                 int delay = initial_delay * std::pow(2, attempt);
-                std::cerr << StringUtil::Format("Warning during fetching next batch: %s. Attempt: %d, Delay: %ds. Retrying...\n", e.what(), attempt + 1, (int)(delay / 1000.));
+                ERPL_TRACE_WARN_DATA("sap_rfc", StringUtil::Format("Warning during fetching next batch. Attempt: %d, Delay: %ds", attempt + 1, (int)(delay / 1000.)), err_msg);
                 std::this_thread::sleep_for(std::chrono::milliseconds(delay));
                 attempt++;
             }
@@ -734,6 +790,11 @@ namespace duckdb
         auto actual_batch_size = limit > 0 && total_rows + desired_batch_size > limit 
                                     ? limit - total_rows 
                                     : desired_batch_size;
+
+        if (!bind_data->options.empty()) {
+            auto options_str = StringUtil::Join(bind_data->options, bind_data->options.size(), " | ", [](auto &o) { return o; });
+            ERPL_TRACE_DEBUG_DATA("sap_rfc", StringUtil::Format("sap_read_table('%s') options", table_name.c_str()), options_str);
+        }
 
         auto args = ArgBuilder()
             .Add("QUERY_TABLE", Value(table_name))

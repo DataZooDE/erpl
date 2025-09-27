@@ -95,19 +95,30 @@ void PostHogProcess(const std::string api_key, const PostHogEvent &event)
 
 // PostHogProcess ----------------------------------------------------------------
 
-PostHogTelemetry::PostHogTelemetry() 
-    : _queue(TelemetryTaskQueue<PostHogEvent>()),
-      _telemetry_enabled(true),
-      _api_key("phc_t3wwRLtpyEmLHYaZCSszG0MqVr74J6wnCrj9D41zk2t")
+PostHogTelemetry::PostHogTelemetry()
+    : _telemetry_enabled(true),
+      _api_key("phc_t3wwRLtpyEmLHYaZCSszG0MqVr74J6wnCrj9D41zk2t"),
+      _queue(nullptr)
 {  }
 
-PostHogTelemetry::~PostHogTelemetry() 
-{ }
+PostHogTelemetry::~PostHogTelemetry()
+{
+    if (_queue) {
+        _queue->Stop();
+    }
+}
 
-PostHogTelemetry& PostHogTelemetry::Instance() 
+PostHogTelemetry& PostHogTelemetry::Instance()
 {
     static PostHogTelemetry instance;
     return instance;
+}
+
+void PostHogTelemetry::EnsureQueueInitialized()
+{
+    if (!_queue) {
+        _queue = std::make_unique<TelemetryTaskQueue<PostHogEvent>>();
+    }
 }
 
 void PostHogTelemetry::CaptureExtensionLoad()
@@ -131,10 +142,11 @@ void PostHogTelemetry::CaptureExtensionLoad(std::string extension_name)
         }
     };
     auto api_key = this->_api_key;
-    _queue.EnqueueTask([api_key](auto event) { PostHogProcess(api_key, event); }, event);
+    EnsureQueueInitialized();
+    _queue->EnqueueTask([api_key](auto event) { PostHogProcess(api_key, event); }, event);
 }
 
-void PostHogTelemetry::CaptureFunctionExecution(std::string function_name) 
+void PostHogTelemetry::CaptureFunctionExecution(std::string function_name)
 {
     if (!_telemetry_enabled) {
         return;
@@ -149,7 +161,8 @@ void PostHogTelemetry::CaptureFunctionExecution(std::string function_name)
         }
     };
     auto api_key = this->_api_key;
-    _queue.EnqueueTask([api_key](auto event) { PostHogProcess(api_key, event); }, event);
+    EnsureQueueInitialized();
+    _queue->EnqueueTask([api_key](auto event) { PostHogProcess(api_key, event); }, event);
 }
 
 

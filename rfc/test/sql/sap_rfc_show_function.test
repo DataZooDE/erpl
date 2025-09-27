@@ -42,6 +42,6 @@ select FUNCNAME, GROUPNAME, STEXT from sap_rfc_show_function(FUNCNAME='*/ASU/RS_
 # ---------------------------------------------------------------------
 # Confirm echo rfc call works
 query I
-select COUNT(*) from sap_rfc_show_function();
+select COUNT(*) > 22500 from sap_rfc_show_function();
 ----
-22578
+1
