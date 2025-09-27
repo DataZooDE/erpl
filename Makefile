@@ -86,40 +86,52 @@ endif
 configure_ci:
 	@echo "configure_ci step is skipped for this extension build..."
 
+#### SQL Test Configuration
+# Common environment variables for all test targets
+COMMON_TEST_ENV = RFC_TRACE=0 \
+                  LSAN_OPTIONS=suppressions=../scripts/lsan_suppress.txt \
+                  ASAN_OPTIONS=detect_odr_violation=0 \
+                  LD_LIBRARY_PATH=$${LD_LIBRARY_PATH}:../nwrfcsdk/linux/lib
+
+# Common SAP connection variables
+SAP_PASSWORD = ABAPtr2023\#00
+SAP_COMMON_VARS = ERPL_SAP_ASHOST=localhost \
+                  ERPL_SAP_SYSNR=00 \
+                  ERPL_SAP_CLIENT=001 \
+                  ERPL_SAP_LANG=EN \
+                  ERPL_SAP_USER=DEVELOPER \
+                  ERPL_SAP_PASSWORD=$(SAP_PASSWORD)
+
+# SSH tunnel variables
+SSH_VARS = ERPL_SSH_HOST=localhost \
+           ERPL_SSH_PORT=2222 \
+           ERPL_SSH_USER=root \
+           ERPL_SSH_PASSWORD=testpass \
+           ERPL_SSH_PRIVATE_KEY_PATH=test/integration/test_key
+
+# Common test execution logic
+define RUN_SQL_TESTS
+	cd $(1) && $(COMMON_TEST_ENV) $(2) bash -c 'if [ -n "$(TEST_FILE)" ]; then \
+		echo "Running test: test/sql/$(TEST_FILE)" && \
+		../build/debug/test/unittest --test-dir . "test/sql/$(TEST_FILE)"; \
+	else \
+		for test_file in test/sql/*.test; do \
+			echo "Running test: $$test_file"; \
+			../build/debug/test/unittest --test-dir . "$$test_file"; \
+		done; \
+	fi'
+endef
+
 #### SQL Test targets
 
 sql_tests_rfc: debug
-	cd ./rfc && RFC_TRACE=0 LSAN_OPTIONS=suppressions=../scripts/lsan_suppress.txt ASAN_OPTIONS=detect_odr_violation=0 ERPL_SAP_ASHOST=localhost ERPL_SAP_SYSNR=00 ERPL_SAP_CLIENT=001 ERPL_SAP_LANG=EN ERPL_SAP_USER=DEVELOPER ERPL_SAP_PASSWORD=ABAPtr2023#00 LD_LIBRARY_PATH=$${LD_LIBRARY_PATH}:../nwrfcsdk/linux/lib bash -c 'if [ -n "$(TEST_FILE)" ]; then \
-		echo "Running test: test/sql/$(TEST_FILE)" && \
-		../build/debug/test/unittest --test-dir . "test/sql/$(TEST_FILE)"; \
-	else \
-		for test_file in test/sql/*.test; do \
-			echo "Running test: $$test_file"; \
-			../build/debug/test/unittest --test-dir . "$$test_file"; \
-		done; \
-	fi'
+	$(call RUN_SQL_TESTS,./rfc,$(SAP_COMMON_VARS))
 
 sql_tests_bics: debug
-	cd ./bics && RFC_TRACE=0 LSAN_OPTIONS=suppressions=../scripts/lsan_suppress.txt ASAN_OPTIONS=detect_odr_violation=0 ERPL_SAP_ASHOST=localhost ERPL_SAP_SYSNR=00 ERPL_SAP_CLIENT=001 ERPL_SAP_LANG=EN ERPL_SAP_USER=DEVELOPER ERPL_SAP_PASSWORD=ABAPtr2023#00 LD_LIBRARY_PATH=$${LD_LIBRARY_PATH}:../nwrfcsdk/linux/lib bash -c 'if [ -n "$(TEST_FILE)" ]; then \
-		echo "Running test: test/sql/$(TEST_FILE)" && \
-		../build/debug/test/unittest --test-dir . "test/sql/$(TEST_FILE)"; \
-	else \
-		for test_file in test/sql/*.test; do \
-			echo "Running test: $$test_file"; \
-			../build/debug/test/unittest --test-dir . "$$test_file"; \
-		done; \
-	fi'
+	$(call RUN_SQL_TESTS,./bics,$(SAP_COMMON_VARS))
 
 sql_tests_odp: debug
-	cd ./odp && RFC_TRACE=0 LSAN_OPTIONS=suppressions=../scripts/lsan_suppress.txt ASAN_OPTIONS=detect_odr_violation=0 ERPL_SAP_ASHOST=localhost ERPL_SAP_SYSNR=00 ERPL_SAP_CLIENT=001 ERPL_SAP_LANG=EN ERPL_SAP_USER=DEVELOPER ERPL_SAP_PASSWORD=ABAPtr2022#00 LD_LIBRARY_PATH=$${LD_LIBRARY_PATH}:../nwrfcsdk/linux/lib bash -c 'if [ -n "$(TEST_FILE)" ]; then \
-		echo "Running test: test/sql/$(TEST_FILE)" && \
-		../build/debug/test/unittest --test-dir . "test/sql/$(TEST_FILE)"; \
-	else \
-		for test_file in test/sql/*.test; do \
-			echo "Running test: $$test_file"; \
-			../build/debug/test/unittest --test-dir . "$$test_file"; \
-		done; \
-	fi'
+	$(call RUN_SQL_TESTS,./odp,$(SAP_COMMON_VARS))
 
 sql_tests_tunnel: debug
 	@echo "Starting SSH mock server via docker-compose..."
@@ -132,15 +144,7 @@ sql_tests_tunnel: debug
 	@echo "Waiting for SSH key setup..."
 	@sleep 5
 	@echo "Running tunnel SQL tests..."
-	-cd ./tunnel && ERPL_SSH_HOST=localhost ERPL_SSH_PORT=2222 ERPL_SSH_USER=root ERPL_SSH_PASSWORD=testpass ERPL_SSH_PRIVATE_KEY_PATH=test/integration/test_key LSAN_OPTIONS=suppressions=../scripts/lsan_suppress.txt ASAN_OPTIONS=detect_odr_violation=0 bash -c 'if [ -n "$(TEST_FILE)" ]; then \
-		echo "Running test: test/sql/$(TEST_FILE)" && \
-		../build/debug/test/unittest --test-dir . "test/sql/$(TEST_FILE)"; \
-	else \
-		for test_file in test/sql/*.test; do \
-			echo "Running test: $$test_file"; \
-			../build/debug/test/unittest --test-dir . "$$test_file"; \
-		done; \
-	fi'
+	$(call RUN_SQL_TESTS,./tunnel,$(SSH_VARS))
 	@echo "Stopping SSH mock server..."
 	cd ./tunnel/test/integration && docker-compose down
 	@echo "Static SSH keys are preserved for future tests..."
