@@ -6,7 +6,7 @@ FROM alpine:3
 
 # Setup the basic necessities
 RUN apk update -q
-RUN apk add -qq ccache cmake git ninja ninja-build clang19 gcc libssl3 wget bash zip gettext unzip build-base curl make libffi-dev zlib openssh autoconf linux-headers
+RUN apk add -qq ccache cmake git ninja ninja-build clang19 gcc libssl3 wget bash zip gettext unzip build-base curl make libffi-dev zlib openssh autoconf linux-headers libunwind-dev jq libtool
 RUN wget https://dl-cdn.alpinelinux.org/alpine/v3.21/community/x86_64/aws-cli-2.22.10-r0.apk
 RUN apk add --allow-untrusted aws-cli-2.22.10-r0.apk
 
@@ -22,6 +22,10 @@ RUN mkdir /vcpkg && \
     VCPKG_FORCE_SYSTEM_BINARIES=1 ./bootstrap-vcpkg.sh
 ENV VCPKG_ROOT=/vcpkg
 ENV VCPKG_TOOLCHAIN_PATH=/vcpkg/scripts/buildsystems/vcpkg.cmake
+ENV PATH="${VCPKG_ROOT}:${PATH}"
+
+# Add ninja to path
+ENV PATH="/usr/lib/ninja-build/bin:${PATH}"
 
 # Common environment variables
 ENV GEN=ninja
@@ -38,6 +42,9 @@ ENV CCACHE_DIR=/ccache_dir
 ENV CCACHE_COMPRESS=TRUE
 ENV CCACHE_COMPRESSLEVEL=6
 ENV CCACHE_MAXSIZE=400M
+
+# Allow git access to the mounted volume
+RUN git config --global --add safe.directory "*"
 
 ###
 # Conditionally configure some extra dependencies

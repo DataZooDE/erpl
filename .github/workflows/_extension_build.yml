@@ -200,10 +200,10 @@ jobs:
           ACTIONS_CACHE_URL=$ACTIONS_CACHE_URL
           ACTIONS_RUNTIME_TOKEN=$ACTIONS_RUNTIME_TOKEN
           VCPKG_BINARY_SOURCES=clear;x-gha,readwrite
-          VCPKG_TARGET_TRIPLET=${{ matrix.vcpkg_target_triplet }}
+          VCPKG_TARGET_TRIPLET=${{ matrix.vcpkg_triplet }}
           BUILD_SHELL=${{ inputs.build_duckdb_shell && '1' || '0' }}
-          OPENSSL_ROOT_DIR=/duckdb_build_dir/build/release/vcpkg_installed/${{ matrix.vcpkg_target_triplet }}
-          OPENSSL_DIR=/duckdb_build_dir/build/release/vcpkg_installed/${{ matrix.vcpkg_target_triplet }}
+          OPENSSL_ROOT_DIR=/duckdb_build_dir/build/release/vcpkg_installed/${{ matrix.vcpkg_triplet }}
+          OPENSSL_DIR=/duckdb_build_dir/build/release/vcpkg_installed/${{ matrix.vcpkg_triplet }}
           OPENSSL_USE_STATIC_LIBS=true
           DUCKDB_PLATFORM=${{ matrix.duckdb_arch }}
           DUCKDB_GIT_VERSION=${{ inputs.duckdb_version }}

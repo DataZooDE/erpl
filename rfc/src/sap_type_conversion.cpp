@@ -47,7 +47,10 @@ namespace duckdb
                 i--;
             }
 
-            utf8[i+1] = '\0';
+            // Set null terminator within bounds
+            if (i + 1 < static_cast<int>(utf8_size)) {
+                utf8[i+1] = '\0';
+            }
             result_len = i+1;
         }
 

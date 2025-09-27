@@ -543,16 +543,12 @@ namespace duckdb
         return current_state == ReadTableStates::FINISHED;
     }
 
-    duckdb::unique_ptr<RfcReadColumnTask> RfcReadColumnStateMachine::CreateTaskForNextStep(duckdb::TaskExecutor &executor, duckdb::Vector &column_output) 
+    duckdb::unique_ptr<RfcReadColumnTask> RfcReadColumnStateMachine::CreateTaskForNextStep(duckdb::TaskExecutor &executor, duckdb::Vector &column_output)
     {
         std::lock_guard<mutex> t(thread_lock);
-        
-        #if ((DUCKDB_MAJOR_VERSION>0) || (DUCKDB_MAJOR_VERSION==0 && DUCKDB_MINOR_VERSION>10) || (DUCKDB_MAJOR_VERSION==0 && DUCKDB_MINOR_VERSION==10 && DUCKDB_PATCH_VERSION>=3))
-            auto task = duckdb::make_uniq<RfcReadColumnTask>(this, executor, column_output);
-        #else
-            auto task = duckdb::make_shared<RfcReadColumnTask>(this, client_context, column_output);
-        #endif
-        
+
+        auto task = duckdb::make_uniq<RfcReadColumnTask>(this, executor, column_output);
+
         return task;
     }
 
