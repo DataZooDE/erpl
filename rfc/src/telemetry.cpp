@@ -1,6 +1,20 @@
 #define NOMINMAX
 
 #include "telemetry.hpp"
+#include "duckdb/common/string_util.hpp"
+
+#include <algorithm>
+#include <ctime>
+#include <fstream>
+#include <string>
+#include <vector>
+#ifdef __linux__
+#include <unistd.h>
+#endif
+#ifdef _WIN32
+#include <iomanip>
+#include <sstream>
+#endif
 
 #ifdef __linux__
 
@@ -138,7 +152,7 @@ void PostHogTelemetry::CaptureExtensionLoad(std::string extension_name)
         {
             {"extension_name", extension_name},
             {"extension_version", "0.1.0"},
-            {"extension_platform", DuckDB::Platform() }
+            {"extension_platform", "linux" }
         }
     };
     auto api_key = this->_api_key;

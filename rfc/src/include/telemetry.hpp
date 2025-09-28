@@ -1,18 +1,15 @@
 #pragma once
 
-#include <chrono>
 #include <condition_variable>
-#include <fstream>
 #include <functional>
 #include <future>
-#include <iostream>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <queue>
+#include <string>
 #include <thread>
 #include <vector>
-
-#include "duckdb.hpp"
 
 namespace duckdb {
 
@@ -70,14 +67,7 @@ public:
 
     ~TelemetryTaskQueue()
     {
-        {
-            std::unique_lock<std::mutex> lock(_queue_mutex);
-            _stop = true;
-        }
-        _condition.notify_all();
-        for (auto &worker : _workers) {
-            worker.detach();
-        }
+        Stop();
     }
 
     template<class F, class... Args>

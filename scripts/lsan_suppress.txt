@@ -1,5 +1,13 @@
 # AddressSanitizer suppression file
 # Format: suppression_type:function_name or suppression_type:source_file:function_name
 
-# Suppress all leaks for now (you can be more specific if needed)
+# Suppress SAP NW RFC SDK library leaks
+# These are from the SAP library initialization and are not actual leaks
+leak:libsapnwrfc.so:_STL::_STLP_mutex_indirect::_M_initialize
+leak:libsapnwrfc.so:_STL::basic_streambuf
+leak:libsapnwrfc.so:_SgI::stdio_streambuf_base::stdio_streambuf_base
+leak:libsapnwrfc.so:_STL::ios_base::_S_initialize
+leak:libsapnwrfc.so:_GLOBAL__sub_I_nrfc.cpp
+
+# Suppress all other leaks for now (you can be more specific if needed)
 leak:*
