@@ -284,6 +284,7 @@ namespace duckdb
             SaveResourceToFile(TEXT("LIBSAPUCUM"), StringUtil::Format("%s\\libsapucum.dll", ext_path));
             SaveResourceToFile(TEXT("LIBCRYPTO-3-x64"), StringUtil::Format("%s\\libcrypto-3-x64.dll", ext_path));
             SaveResourceToFile(TEXT("LIBSSL-3-x64"), StringUtil::Format("%s\\libssl-3-x64.dll", ext_path));
+            SaveResourceToFile(TEXT("LIBSSH2"), StringUtil::Format("%s\\libssh2.dll", ext_path));
             std::cout << StringUtil::Format("ERPL dependencies extracted and saved to %s.", ext_path) << std::endl;
             
             SaveResourceToFile(TEXT("ERPL_RFC"), StringUtil::Format("%s\\erpl_rfc.duckdb_extension", ext_path));
