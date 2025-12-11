@@ -7,9 +7,8 @@ FROM alpine:3
 # Setup the basic necessities
 RUN apk update -q
 RUN apk add -qq ccache cmake git ninja ninja-build clang19 gcc libssl3 wget bash zip gettext unzip build-base curl make libffi-dev zlib openssh autoconf linux-headers libunwind-dev jq libtool
-RUN apk add py3-prompt_toolkit
-RUN wget https://dl-cdn.alpinelinux.org/alpine/v3.21/community/x86_64/aws-cli-2.22.10-r0.apk
-RUN apk add --allow-untrusted aws-cli-2.22.10-r0.apk
+RUN apk add python3 py3-pip
+RUN pip3 install awscli --break-system-packages
 
 # Setup VCPKG n a mounted volume TODO: figure out how to cache this
 ARG vcpkg_url
