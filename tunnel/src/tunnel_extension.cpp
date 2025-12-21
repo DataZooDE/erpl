@@ -54,8 +54,8 @@ static void RegisterTunnelFunctions(ExtensionLoader &loader) {
 
 static void LoadInternal(ExtensionLoader &loader)
 {
-    PostHogTelemetry::Instance().CaptureExtensionLoad();
-    
+    PostHogTelemetry::Instance().CaptureExtensionLoad("erpl_tunnel");
+
     RegisterConfiguration(loader);
     RegisterTunnelFunctions(loader);
 }

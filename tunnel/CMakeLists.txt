@@ -50,6 +50,7 @@ endif()
 
 include_directories(src/include
                     ../rfc/src/include
+                    ${CMAKE_SOURCE_DIR}/third_party/posthog-telemetry/include
                     ${OPENSSL_INCLUDE_DIR}
                     ${LIBSSH2_INCLUDE_DIRS}
 )

@@ -148,8 +148,8 @@ namespace duckdb {
     
     static void LoadInternal(ExtensionLoader &loader)
     {
-        PostHogTelemetry::Instance().CaptureExtensionLoad();
-        
+        PostHogTelemetry::Instance().CaptureExtensionLoad("erpl_rfc");
+
         RegisterConfiguration(loader);
         RegisterRfcFunctions(loader);
     }

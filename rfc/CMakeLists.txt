@@ -27,10 +27,24 @@ endif()
 
 find_package(OpenSSL REQUIRED)
 
+# Add posthog-telemetry submodule
+# Disable posthog-telemetry's own tests - we use erpl's tests instead
+set(POSTHOG_BUILD_UNITTESTS_SAVED ${BUILD_UNITTESTS})
+set(BUILD_UNITTESTS OFF CACHE BOOL "" FORCE)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../third_party/posthog-telemetry ${CMAKE_BINARY_DIR}/posthog-telemetry)
+set(BUILD_UNITTESTS ${POSTHOG_BUILD_UNITTESTS_SAVED} CACHE BOOL "" FORCE)
+
+# Add DuckDB httplib includes to posthog_telemetry target (it needs httplib.hpp for HTTP requests)
+target_include_directories(posthog_telemetry PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../duckdb/third_party/
+    ${CMAKE_CURRENT_SOURCE_DIR}/../duckdb/third_party/httplib
+)
+
 include_directories(src/include
                     ../duckdb/third_party/
                     ../duckdb/third_party/httplib
                     ../duckdb/third_party/miniz
+                    ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/posthog-telemetry/include
                     ${SAPNWRFC_HOME}/include
                     ${OPENSSL_INCLUDE_DIR}
 )
@@ -58,7 +72,6 @@ set(EXTENSION_SOURCES
       src/scanner_describe_fields.cpp
       src/scanner_describe_references.cpp
       src/scanner_read_table.cpp
-      src/telemetry.cpp
       ${YYJSON_OBJECT_FILES}
       ${SAPNWRFC_LIB_OBJECTS}
 )
@@ -83,13 +96,8 @@ if(UNIX AND APPLE)
       default_osx_definitions(${LOADABLE_EXTENSION_NAME})
 endif()
 
-target_link_libraries(${EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
-target_link_libraries(${LOADABLE_EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
-
-if (WIN32)
-      target_link_libraries(${EXTENSION_NAME} iphlpapi)
-      target_link_libraries(${LOADABLE_EXTENSION_NAME} iphlpapi)
-endif()
+target_link_libraries(${EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES} posthog_telemetry)
+target_link_libraries(${LOADABLE_EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES} posthog_telemetry)
 
 if(MINGW)
    target_link_libraries(${EXTENSION_NAME} -lcrypt32)

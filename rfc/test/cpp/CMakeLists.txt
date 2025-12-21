@@ -5,6 +5,7 @@ include_directories(./include
                     ../../src/include
                     ../../src/bics/include
                     ../../src/odp/include
+                    ${CMAKE_SOURCE_DIR}/third_party/posthog-telemetry/include
                     ../../../duckdb/third_party/catch/
                     ../../../duckdb/third_party/httplib/
                     ../../../duckdb/test/include
