@@ -61,3 +61,22 @@ SELECT COUNT(*) > 0 FROM sap_describe_fields('/DMO/R_Booking_D');
 ----
 1
 
+# ---------------------------------------------------------------------
+# /DMO/TRAVEL: should contain SSTR-typed fields
+query I
+SELECT COUNT(*) > 0 FROM sap_describe_fields('/DMO/TRAVEL') WHERE sap_type = 'SSTR';
+----
+1
+
+# /DMO/AGENCY: should contain STRG-typed fields
+query I
+SELECT COUNT(*) > 0 FROM sap_describe_fields('/DMO/AGENCY') WHERE sap_type = 'STRG';
+----
+1
+
+# T002: should contain LANG-typed fields
+query I
+SELECT COUNT(*) > 0 FROM sap_describe_fields('T002') WHERE sap_type = 'LANG';
+----
+1
+
