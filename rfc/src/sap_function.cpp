@@ -880,6 +880,10 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         return known_types.count(type_name) > 0;
     }
 
+    bool RfcType::IsStringType() const {
+        return _rfc_type == RFCTYPE_STRING;
+    }
+
     // RfcType ------------------------------------------------------
 
     RfcFunctionParameterDesc::RfcFunctionParameterDesc(const RFC_PARAMETER_DESC& sap_desc) : _desc_handle(sap_desc)

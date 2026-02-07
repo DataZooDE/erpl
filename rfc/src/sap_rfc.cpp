@@ -751,27 +751,38 @@ namespace duckdb
     }
 
     
-    unsigned int RfcReadColumnTask::ExecuteNextTableReadForColumn() 
+    unsigned int RfcReadColumnTask::ExecuteNextTableReadForColumn()
     {
+        auto bind_data = owning_state_machine->bind_data;
+        auto rfc_type = bind_data->GetColumnType(owning_state_machine->column_idx);
+        // Use ET_DATA for string types (SAP Note 2246160, NW 7.40+)
+        auto data_path = rfc_type.IsStringType() ? std::string("/ET_DATA") : std::string("/DATA");
+
         int attempt = 0;
         int max_attempts = 5;
         int initial_delay = 10000; // milliseconds
         while (attempt < max_attempts) {
             try {
-                auto bind_data = owning_state_machine->bind_data;
                 auto &current_result_data = owning_state_machine->current_result_data;
-                //auto connection = owning_state_machine->GetConnection();
                 auto connection = bind_data->OpenNewConnection();
                 auto func = std::make_shared<RfcFunction>(connection, "RFC_READ_TABLE");
                 auto func_args = CreateFunctionArguments();
                 auto invocation = func->BeginInvocation(func_args);
-                current_result_data = invocation->Invoke("/DATA");
+                current_result_data = invocation->Invoke(data_path);
                 connection->Close();
                 return current_result_data->TotalRows();
             }
             catch (std::exception &e) {
                 std::string err_msg(e.what());
                 if (!IsRetryableRfcError(err_msg)) {
+                    if (rfc_type.IsStringType() && err_msg.find("TABLE_WITHOUT_DATA") != std::string::npos) {
+                        auto col_name = bind_data->GetRfcColumnNames()[owning_state_machine->column_idx];
+                        throw std::runtime_error(StringUtil::Format(
+                            "Cannot read string-type column '%s' from table '%s'. "
+                            "RFC_READ_TABLE does not support string types on this SAP system. "
+                            "Ensure SAP Note 2246160 is applied (requires NW 7.40+).",
+                            col_name, bind_data->table_name));
+                    }
                     throw;
                 }
 

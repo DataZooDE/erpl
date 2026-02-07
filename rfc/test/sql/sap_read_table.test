@@ -145,9 +145,6 @@ SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/R_Booking_D', COLUMNS=['BOOKINGID
 
 # ---------------------------------------------------------------------
 # /DMO/TRAVEL: covers CURR, CUKY, DEC, DATS, NUMC, CHAR
-# (SSTR field DESCRIPTION exists but RFC_READ_TABLE cannot read
-#  variable-length string types — the full-table scan still exercises
-#  the metadata filtering for SSTR)
 query I
 SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/TRAVEL');
 ----
@@ -159,10 +156,20 @@ SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/TRAVEL', COLUMNS=['TRAVEL_ID', 'T
 ----
 1
 
+# /DMO/TRAVEL: SSTR column via ET_DATA (SAP Note 2246160)
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/TRAVEL', COLUMNS=['DESCRIPTION']);
+----
+1
+
+# /DMO/TRAVEL: mixed string + fixed-length columns
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/TRAVEL', COLUMNS=['TRAVEL_ID', 'DESCRIPTION', 'BEGIN_DATE']);
+----
+1
+
 # ---------------------------------------------------------------------
-# /DMO/AGENCY: contains STRG (EMAIL_ADDRESS, WEB_ADDRESS) and RSTR
-# (ATTACHMENT). RFC_READ_TABLE cannot read variable-length string types,
-# but the full-table scan exercises the metadata filtering.
+# /DMO/AGENCY: contains STRG (EMAIL_ADDRESS, WEB_ADDRESS) and RSTR (ATTACHMENT)
 query I
 SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/AGENCY');
 ----
@@ -171,6 +178,12 @@ SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/AGENCY');
 # /DMO/AGENCY: explicit fixed-length column selection
 query I
 SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/AGENCY', COLUMNS=['AGENCY_ID', 'NAME', 'CITY']);
+----
+1
+
+# /DMO/AGENCY: STRG column via ET_DATA (SAP Note 2246160)
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/AGENCY', COLUMNS=['EMAIL_ADDRESS']);
 ----
 1
 

@@ -357,3 +357,14 @@ TEST_CASE("Test IsKnownDataType with unsupported types", "[sap_function]") {
     REQUIRE(RfcType::IsKnownDataType("") == false);
     REQUIRE(RfcType::IsKnownDataType("UNKNOWN") == false);
 }
+
+TEST_CASE("Test IsStringType identifies string ABAP types", "[sap_function]") {
+    REQUIRE(RfcType::FromTypeName("SSTR", 256, 0).IsStringType() == true);
+    REQUIRE(RfcType::FromTypeName("STRG", 0, 0).IsStringType() == true);
+    REQUIRE(RfcType::FromTypeName("RSTR", 0, 0).IsStringType() == true);
+    REQUIRE(RfcType::FromTypeName("STRING", 0, 0).IsStringType() == true);
+    REQUIRE(RfcType::FromTypeName("LCHR", 100, 0).IsStringType() == true);
+    REQUIRE(RfcType::FromTypeName("CHAR", 10, 0).IsStringType() == false);
+    REQUIRE(RfcType::FromTypeName("NUMC", 10, 0).IsStringType() == false);
+    REQUIRE(RfcType::FromTypeName("INT4", 4, 0).IsStringType() == false);
+}
