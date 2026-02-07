@@ -1,0 +1,87 @@
+# name: test/sql/sap_rfc_attach.test
+# description: test ATTACH syntax for SAP RFC connections
+# group: [rfc]
+
+# Require the RFC extension
+require erpl_rfc
+
+# Configure connection ------------------------------------------------
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
+
+statement ok
+CREATE SECRET abap_trial (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}'
+);
+
+# ---------------------------------------------------------------------
+# Test 1: Basic ATTACH with SECRET succeeds
+statement ok
+ATTACH '' AS sap (TYPE sap_rfc, SECRET 'abap_trial');
+
+# ---------------------------------------------------------------------
+# Test 2: Query a table through the attached catalog
+query I
+SELECT COUNT(*) > 0 FROM sap."/DMO/FLIGHT";
+----
+true
+
+# ---------------------------------------------------------------------
+# Test 3: DETACH works
+statement ok
+DETACH sap;
+
+# ---------------------------------------------------------------------
+# Test 4: ATTACH with TABLES list - only listed tables are accessible
+statement ok
+ATTACH '' AS sap2 (TYPE sap_rfc, SECRET 'abap_trial', TABLES '/DMO/FLIGHT,/DMO/CARRIER');
+
+query I
+SELECT COUNT(*) > 0 FROM sap2."/DMO/FLIGHT";
+----
+true
+
+# ---------------------------------------------------------------------
+# Test 5: ATTACH with TABLES - unlisted table returns error
+statement error
+SELECT * FROM sap2.T001;
+----
+Catalog Error
+
+statement ok
+DETACH sap2;
+
+# ---------------------------------------------------------------------
+# Test 6: ATTACH without SECRET uses default secret
+statement ok
+ATTACH '' AS sap3 (TYPE sap_rfc);
+
+query I
+SELECT COUNT(*) > 0 FROM sap3."/DMO/FLIGHT";
+----
+true
+
+statement ok
+DETACH sap3;
+
+# ---------------------------------------------------------------------
+# Test 7: ATTACH with non-existent secret name errors
+statement error
+ATTACH '' AS sap4 (TYPE sap_rfc, SECRET 'nonexistent_secret');
+----
+Invalid Input Error

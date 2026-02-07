@@ -20,6 +20,7 @@
 #include "telemetry.hpp"
 #include "sap_connection.hpp"
 #include "sap_secret.hpp"
+#include "sap_storage.hpp"
 #include "erpl_tracing.hpp"
 
 namespace duckdb {
@@ -152,6 +153,7 @@ namespace duckdb {
 
         RegisterConfiguration(loader);
         RegisterRfcFunctions(loader);
+        RegisterSapStorageExtension(loader);
     }
 
     void ErplRfcExtension::Load(ExtensionLoader &loader) 
