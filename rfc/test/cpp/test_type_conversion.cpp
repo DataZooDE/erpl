@@ -4,6 +4,7 @@
 #include "duckdb.hpp"
 #include "sapnwrfc.h"
 #include "sap_type_conversion.hpp"
+#include "sap_function.hpp"
 
 using namespace duckdb;
 using namespace std;
@@ -336,4 +337,23 @@ TEST_CASE("Test rfcdirection2std", "[sap_type_conversion]") {
     REQUIRE(rfcdirection2std(RFC_IMPORT) == "RFC_IMPORT");
     REQUIRE(rfcdirection2std(RFC_EXPORT) == "RFC_EXPORT");
     REQUIRE(rfcdirection2std(RFC_CHANGING, true) == "CHANGING");
+}
+
+TEST_CASE("Test IsKnownDataType with known ABAP types", "[sap_function]") {
+    REQUIRE(RfcType::IsKnownDataType("CHAR") == true);
+    REQUIRE(RfcType::IsKnownDataType("INT4") == true);
+    REQUIRE(RfcType::IsKnownDataType("DATS") == true);
+    REQUIRE(RfcType::IsKnownDataType("TIMS") == true);
+    REQUIRE(RfcType::IsKnownDataType("FLTP") == true);
+    REQUIRE(RfcType::IsKnownDataType("STRING") == true);
+    REQUIRE(RfcType::IsKnownDataType("DEC") == true);
+    REQUIRE(RfcType::IsKnownDataType("NUMC") == true);
+    REQUIRE(RfcType::IsKnownDataType("RAW") == true);
+}
+
+TEST_CASE("Test IsKnownDataType with unsupported types", "[sap_function]") {
+    REQUIRE(RfcType::IsKnownDataType("NODE") == false);
+    REQUIRE(RfcType::IsKnownDataType("STRU") == false);
+    REQUIRE(RfcType::IsKnownDataType("") == false);
+    REQUIRE(RfcType::IsKnownDataType("UNKNOWN") == false);
 }

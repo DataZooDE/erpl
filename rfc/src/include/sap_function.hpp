@@ -89,6 +89,7 @@ namespace duckdb {
         public:
             static RfcType FromTypeName(const std::string &type_name);
             static RfcType FromTypeName(const std::string &type_name, const unsigned int length, const unsigned int decimals);
+            static bool IsKnownDataType(const std::string &type_name);
     };
 
 

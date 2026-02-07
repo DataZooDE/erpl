@@ -54,3 +54,10 @@ SEATS_MAX
 SEATS_OCCUPIED
 (empty)
 
+# ---------------------------------------------------------------------
+# CDS View: should return field metadata (including NODE-type entries)
+query I
+SELECT COUNT(*) > 0 FROM sap_describe_fields('/DMO/R_Booking_D');
+----
+1
+

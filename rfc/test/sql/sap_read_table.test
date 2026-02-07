@@ -124,5 +124,18 @@ JOIN sap_read_table('SPFLI') AS s
 statement ok
 SET erpl_trace_enabled=false;
 
+# ---------------------------------------------------------------------
+# CDS View: sap_read_table should handle CDS views with NODE-type entries
+# (Issue #42: "Unsupported SAP table type name: NODE")
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/R_Booking_D');
+----
+1
 
+# ---------------------------------------------------------------------
+# CDS View: explicit column selection should work
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/R_Booking_D', COLUMNS=['BOOKINGID']);
+----
+1
 

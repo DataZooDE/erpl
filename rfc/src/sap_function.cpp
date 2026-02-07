@@ -1,3 +1,4 @@
+#include <set>
 #include <stdexcept>
 
 #include "sapnwrfc.h"
@@ -860,12 +861,23 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
 
             return RfcType(it->second, nullptr, abap_internal_lenght, decimals);
         } else {
-            throw std::runtime_error(StringUtil::Format("Unsupported SAP table type name: %s", type_name));
+            throw std::runtime_error(StringUtil::Format(
+                "Unsupported SAP data type: %s. Use sap_describe_fields() to inspect available columns.", type_name));
         }
     }
 
     RfcType RfcType::FromTypeName(const std::string &type_name) {
         return FromTypeName(type_name, 0, 0);
+    }
+
+    bool RfcType::IsKnownDataType(const std::string &type_name) {
+        static const std::set<std::string> known_types = {
+            "ACCP", "CHAR", "CLNT", "CURR", "CUKY", "DATS", "DEC", "FLTP",
+            "INT1", "INT2", "INT4", "LANG", "LCHR", "LRAW", "NUMC", "PREC",
+            "QUAN", "RAW", "RAWSTRING", "RSTR", "STRING", "STRG", "SSTR",
+            "TIMS", "UNIT"
+        };
+        return known_types.count(type_name) > 0;
     }
 
     // RfcType ------------------------------------------------------

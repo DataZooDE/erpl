@@ -412,7 +412,17 @@ namespace duckdb
         auto invocation = func->BeginInvocation(func_args);
         auto result_set = invocation->Invoke();
 
-        auto field_metas = ListValue::GetChildren(result_set->GetResultValue("/DFIES_TAB"));
+        auto all_field_metas = ListValue::GetChildren(result_set->GetResultValue("/DFIES_TAB"));
+
+        // Filter out non-data fields (e.g., NODE entries from CDS view compositions)
+        std::vector<Value> field_metas;
+        for (auto &fm : all_field_metas) {
+            auto type_name = ValueHelper(fm)["DATATYPE"].ToString();
+            if (RfcType::IsKnownDataType(type_name)) {
+                field_metas.push_back(fm);
+            }
+        }
+
         return field_metas;
     }
 
