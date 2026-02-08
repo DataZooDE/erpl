@@ -1,3 +1,4 @@
+#include <set>
 #include <stdexcept>
 
 #include "sapnwrfc.h"
@@ -819,10 +820,8 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         return ss.str();
     }
 
-    RfcType RfcType::FromTypeName(const std::string &type_name, const unsigned int length, const unsigned int decimals) 
+    static const std::map<std::string, RFCTYPE> &GetTypeMap()
     {
-        // https://learn.microsoft.com/en-us/biztalk/adapters-and-accelerators/adapter-sap/basic-sap-data-types
-
         static const std::map<std::string, RFCTYPE> type_map = {
             {"ACCP",        RFCTYPE_NUM},
             {"CHAR",        RFCTYPE_CHAR},
@@ -842,7 +841,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             {"PREC",        RFCTYPE_INT2},
             {"QUAN",        RFCTYPE_BCD},
             {"RAW",         RFCTYPE_BYTE},
-            {"RAWSTRING",   RFCTYPE_BYTE},
+            {"RAWSTRING",   RFCTYPE_XSTRING},
             {"RSTR",        RFCTYPE_STRING},
             {"STRING",      RFCTYPE_STRING},
             {"STRG",        RFCTYPE_STRING},
@@ -851,8 +850,15 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             {"UNIT",        RFCTYPE_CHAR}
         };
 
-        auto it = type_map.find(type_name);
-        if (it != type_map.end()) {
+        return type_map;
+    }
+
+    RfcType RfcType::FromTypeName(const std::string &type_name, const unsigned int length, const unsigned int decimals) 
+    {
+        // https://learn.microsoft.com/en-us/biztalk/adapters-and-accelerators/adapter-sap/basic-sap-data-types
+
+        auto it = GetTypeMap().find(type_name);
+        if (it != GetTypeMap().end()) {
             auto abap_internal_lenght = length;
             if (it->second == RFCTYPE_BCD) {
                 abap_internal_lenght = (length + 1) / 2;
@@ -860,12 +866,21 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
 
             return RfcType(it->second, nullptr, abap_internal_lenght, decimals);
         } else {
-            throw std::runtime_error(StringUtil::Format("Unsupported SAP table type name: %s", type_name));
+            throw std::runtime_error(StringUtil::Format(
+                "Unsupported SAP data type: %s. Use sap_describe_fields() to inspect available columns.", type_name));
         }
     }
 
     RfcType RfcType::FromTypeName(const std::string &type_name) {
         return FromTypeName(type_name, 0, 0);
+    }
+
+    bool RfcType::IsKnownDataType(const std::string &type_name) {
+        return GetTypeMap().find(type_name) != GetTypeMap().end();
+    }
+
+    bool RfcType::IsStringType() const {
+        return _rfc_type == RFCTYPE_STRING || _rfc_type == RFCTYPE_XSTRING;
     }
 
     // RfcType ------------------------------------------------------

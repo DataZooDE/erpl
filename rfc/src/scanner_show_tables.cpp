@@ -43,7 +43,9 @@ static unique_ptr<FunctionData> RfcShowTablesBind(ClientContext &context,
     );
 
     auto fields =  std::vector<std::string>({ "TABNAME", "DDTEXT", "TABCLASS" });
-    auto result = make_uniq<RfcReadTableBindData>("DD02V", max_read_threads, 0, &DefaultRfcConnectionFactory, context);
+    auto result = make_uniq<RfcReadTableBindData>("DD02V", max_read_threads, 0,
+                                                  "RFC_READ_TABLE", "", false,
+                                                  &DefaultRfcConnectionFactory, context);
     result->InitOptionsFromWhereClause(where_clause);
     result->InitAndVerifyFields(fields);
 

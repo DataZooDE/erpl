@@ -87,8 +87,11 @@ namespace duckdb {
             Value ConvertRfcTable(RFC_TABLE_HANDLE &table_handle);
 
         public:
+            bool IsStringType() const;
+
             static RfcType FromTypeName(const std::string &type_name);
             static RfcType FromTypeName(const std::string &type_name, const unsigned int length, const unsigned int decimals);
+            static bool IsKnownDataType(const std::string &type_name);
     };
 
 

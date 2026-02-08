@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mutex>
+#include <optional>
 
 #include "duckdb.hpp"
 #include "duckdb/parallel/base_pipeline_event.hpp"
@@ -29,7 +30,15 @@ namespace duckdb
 			RfcReadTableBindData(std::string table_name, 
 								 int max_read_threads,
 								 unsigned int limit, 
+								 std::string read_table_function,
+								 std::string read_table_delimiter,
+								 bool read_table_function_user_set,
 								 RfcConnectionFactory_t connection_factory, 
+								 ClientContext &context);
+			RfcReadTableBindData(std::string table_name,
+								 int max_read_threads,
+								 unsigned int limit,
+								 RfcConnectionFactory_t connection_factory,
 								 ClientContext &context);
 
 			void InitOptionsFromWhereClause(std::string &where_clause);
@@ -46,6 +55,18 @@ namespace duckdb
 			RfcType GetColumnType(unsigned int column_idx);
 			duckdb::vector<Value> GetOptions();
 			std::shared_ptr<RfcConnection> OpenNewConnection();
+			std::string GetReadTableFunctionName();
+			std::string GetReadTableDelimiter();
+			bool IsReadTableFunctionUserSet();
+			bool ReadTableFunctionSupportsEtData(std::shared_ptr<RfcConnection> connection, const std::string &function_name);
+			bool ReadTableSupportsEtDataSwitch(std::shared_ptr<RfcConnection> connection, const std::string &function_name);
+			void ValidateReadTableFunctionName();
+			void ResolveReadTableFunctionForStringTypes(std::shared_ptr<RfcConnection> connection);
+			bool ReadTableSupportsEtData();
+			bool TrySelectFallbackReadTableFunction(std::shared_ptr<RfcConnection> connection);
+			void ResolveReadTableResultPath(std::shared_ptr<RfcConnection> connection);
+			void ResolveReadTableImportParams(std::shared_ptr<RfcConnection> connection);
+			bool ReadTableHasParam(const std::string &param_name);
 			
 			bool HasMoreResults();
 			void Step(ClientContext &context, DataChunk &output);
@@ -58,6 +79,13 @@ namespace duckdb
 			std::vector<std::string> options;
 			unsigned int limit = 0;
 			unsigned int max_threads = 0;
+			std::string read_table_function;
+			std::string read_table_delimiter;
+			bool read_table_function_user_set = false;
+			std::optional<bool> read_table_supports_et_data;
+			std::optional<bool> read_table_supports_et_data_switch;
+			std::string read_table_result_path;
+			std::set<std::string> read_table_import_params;
 			
 		private:
 			RfcConnectionFactory_t connection_factory;
@@ -144,7 +172,7 @@ namespace duckdb
 			
 		private:
 			unsigned int ExecuteNextTableReadForColumn();
-			std::vector<Value> CreateFunctionArguments();
+			std::vector<Value> CreateFunctionArguments(const std::string &delimiter, bool use_et_data);
 
 			unsigned int LoadNextBatchToDuckDBColumn();
 			Value ParseCsvValue(Value &orig);

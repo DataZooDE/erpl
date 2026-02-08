@@ -124,5 +124,105 @@ JOIN sap_read_table('SPFLI') AS s
 statement ok
 SET erpl_trace_enabled=false;
 
+# ---------------------------------------------------------------------
+# CDS View: sap_read_table should handle CDS views with NODE-type entries
+# (Issue #42: "Unsupported SAP table type name: NODE")
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/R_Booking_D');
+----
+1
 
+# ---------------------------------------------------------------------
+# CDS View: explicit column selection should work
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/R_Booking_D', COLUMNS=['BOOKINGID']);
+----
+1
 
+# =====================================================================
+# Additional data type coverage (Flight Reference Scenario tables)
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# /DMO/TRAVEL: covers CURR, CUKY, DEC, DATS, NUMC, CHAR
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/TRAVEL');
+----
+1
+
+# /DMO/TRAVEL: explicit fixed-length column selection
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/TRAVEL', COLUMNS=['TRAVEL_ID', 'TOTAL_PRICE', 'CURRENCY_CODE', 'BEGIN_DATE']);
+----
+1
+
+# /DMO/TRAVEL: SSTR column via ET_DATA (SAP Note 2246160)
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/TRAVEL', COLUMNS=['DESCRIPTION'], READ_TABLE_FUNCTION='RFC_READ_TABLE', READ_TABLE_DELIMITER='~');
+----
+1
+
+# /DMO/TRAVEL: mixed string + fixed-length columns
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/TRAVEL', COLUMNS=['TRAVEL_ID', 'DESCRIPTION', 'BEGIN_DATE'], READ_TABLE_FUNCTION='RFC_READ_TABLE', READ_TABLE_DELIMITER='~');
+----
+1
+
+# ---------------------------------------------------------------------
+# /DMO/AGENCY: contains STRG (EMAIL_ADDRESS, WEB_ADDRESS) and RSTR (ATTACHMENT)
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/AGENCY');
+----
+1
+
+# /DMO/AGENCY: explicit fixed-length column selection
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/AGENCY', COLUMNS=['AGENCY_ID', 'NAME', 'CITY']);
+----
+1
+
+# /DMO/AGENCY: STRG column via ET_DATA (SAP Note 2246160)
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/AGENCY', COLUMNS=['EMAIL_ADDRESS'], READ_TABLE_FUNCTION='RFC_READ_TABLE', READ_TABLE_DELIMITER='~');
+----
+1
+
+# ---------------------------------------------------------------------
+# T002: covers LANG type via SPRAS (language key, fixed 1-byte)
+query I
+SELECT COUNT(*) > 0 FROM sap_read_table('T002');
+----
+1
+
+# T002: read LANG-typed column explicitly
+query I
+SELECT COUNT(*) > 0 FROM sap_read_table('T002', COLUMNS=['SPRAS']);
+----
+1
+
+# ---------------------------------------------------------------------
+# Verify supported READ_TABLE_FUNCTION values
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_TABLE_FUNCTION='RFC_READ_TABLE');
+----
+1
+
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_TABLE_FUNCTION='/BODS/RFC_READ_TABLE');
+----
+1
+
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_TABLE_FUNCTION='/SAPDS/RFC_READ_TABLE');
+----
+1
+
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_TABLE_FUNCTION='/BODS/RFC_READ_TABLE2', READ_TABLE_DELIMITER='~');
+----
+1
+
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_TABLE_FUNCTION='/SAPDS/RFC_READ_TABLE2', READ_TABLE_DELIMITER='~');
+----
+1

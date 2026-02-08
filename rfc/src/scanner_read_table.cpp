@@ -28,12 +28,21 @@ namespace duckdb
         auto where_clause = named_params.find("FILTER") != named_params.end() 
                                 ? named_params["FILTER"].ToString()
                                 : "";
+        auto read_table_function = named_params.find("READ_TABLE_FUNCTION") != named_params.end()
+                                ? named_params["READ_TABLE_FUNCTION"].ToString()
+                                : "RFC_READ_TABLE";
+        auto read_table_delimiter = named_params.find("READ_TABLE_DELIMITER") != named_params.end()
+                                ? named_params["READ_TABLE_DELIMITER"].ToString()
+                                : "";
+        auto read_table_function_user_set = named_params.find("READ_TABLE_FUNCTION") != named_params.end();
         
         auto fields = named_params.find("COLUMNS") != named_params.end() 
                             ? ConvertListValueToVector<std::string>(named_params["COLUMNS"])
                             : std::vector<std::string>();
 
-        auto bind_data = make_uniq<RfcReadTableBindData>(table_name, max_read_threads, limit, &DefaultRfcConnectionFactory, context);
+        auto bind_data = make_uniq<RfcReadTableBindData>(table_name, max_read_threads, limit, 
+                                                         read_table_function, read_table_delimiter, read_table_function_user_set,
+                                                         &DefaultRfcConnectionFactory, context);
         bind_data->InitOptionsFromWhereClause(where_clause);
         bind_data->InitAndVerifyFields(fields);
 
@@ -88,6 +97,8 @@ namespace duckdb
         fun.named_parameters["COLUMNS"] = LogicalType::LIST(LogicalType::VARCHAR);
         fun.named_parameters["FILTER"] = LogicalType::VARCHAR;
         fun.named_parameters["MAX_ROWS"] = LogicalType::UINTEGER;
+        fun.named_parameters["READ_TABLE_FUNCTION"] = LogicalType::VARCHAR;
+        fun.named_parameters["READ_TABLE_DELIMITER"] = LogicalType::VARCHAR;
         fun.table_scan_progress = RfcReadTableProgress;
         fun.projection_pushdown = true;
         fun.filter_pushdown = true;
