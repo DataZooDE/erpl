@@ -820,10 +820,8 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         return ss.str();
     }
 
-    RfcType RfcType::FromTypeName(const std::string &type_name, const unsigned int length, const unsigned int decimals) 
+    static const std::map<std::string, RFCTYPE> &GetTypeMap()
     {
-        // https://learn.microsoft.com/en-us/biztalk/adapters-and-accelerators/adapter-sap/basic-sap-data-types
-
         static const std::map<std::string, RFCTYPE> type_map = {
             {"ACCP",        RFCTYPE_NUM},
             {"CHAR",        RFCTYPE_CHAR},
@@ -843,7 +841,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             {"PREC",        RFCTYPE_INT2},
             {"QUAN",        RFCTYPE_BCD},
             {"RAW",         RFCTYPE_BYTE},
-            {"RAWSTRING",   RFCTYPE_BYTE},
+            {"RAWSTRING",   RFCTYPE_XSTRING},
             {"RSTR",        RFCTYPE_STRING},
             {"STRING",      RFCTYPE_STRING},
             {"STRG",        RFCTYPE_STRING},
@@ -852,8 +850,15 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             {"UNIT",        RFCTYPE_CHAR}
         };
 
-        auto it = type_map.find(type_name);
-        if (it != type_map.end()) {
+        return type_map;
+    }
+
+    RfcType RfcType::FromTypeName(const std::string &type_name, const unsigned int length, const unsigned int decimals) 
+    {
+        // https://learn.microsoft.com/en-us/biztalk/adapters-and-accelerators/adapter-sap/basic-sap-data-types
+
+        auto it = GetTypeMap().find(type_name);
+        if (it != GetTypeMap().end()) {
             auto abap_internal_lenght = length;
             if (it->second == RFCTYPE_BCD) {
                 abap_internal_lenght = (length + 1) / 2;
@@ -871,17 +876,11 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
     }
 
     bool RfcType::IsKnownDataType(const std::string &type_name) {
-        static const std::set<std::string> known_types = {
-            "ACCP", "CHAR", "CLNT", "CURR", "CUKY", "DATS", "DEC", "FLTP",
-            "INT1", "INT2", "INT4", "LANG", "LCHR", "LRAW", "NUMC", "PREC",
-            "QUAN", "RAW", "RAWSTRING", "RSTR", "STRING", "STRG", "SSTR",
-            "TIMS", "UNIT"
-        };
-        return known_types.count(type_name) > 0;
+        return GetTypeMap().find(type_name) != GetTypeMap().end();
     }
 
     bool RfcType::IsStringType() const {
-        return _rfc_type == RFCTYPE_STRING;
+        return _rfc_type == RFCTYPE_STRING || _rfc_type == RFCTYPE_XSTRING;
     }
 
     // RfcType ------------------------------------------------------

@@ -158,13 +158,13 @@ SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/TRAVEL', COLUMNS=['TRAVEL_ID', 'T
 
 # /DMO/TRAVEL: SSTR column via ET_DATA (SAP Note 2246160)
 query I
-SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/TRAVEL', COLUMNS=['DESCRIPTION']);
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/TRAVEL', COLUMNS=['DESCRIPTION'], READ_TABLE_FUNCTION='RFC_READ_TABLE', READ_TABLE_DELIMITER='~');
 ----
 1
 
 # /DMO/TRAVEL: mixed string + fixed-length columns
 query I
-SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/TRAVEL', COLUMNS=['TRAVEL_ID', 'DESCRIPTION', 'BEGIN_DATE']);
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/TRAVEL', COLUMNS=['TRAVEL_ID', 'DESCRIPTION', 'BEGIN_DATE'], READ_TABLE_FUNCTION='RFC_READ_TABLE', READ_TABLE_DELIMITER='~');
 ----
 1
 
@@ -183,7 +183,7 @@ SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/AGENCY', COLUMNS=['AGENCY_ID', 'N
 
 # /DMO/AGENCY: STRG column via ET_DATA (SAP Note 2246160)
 query I
-SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/AGENCY', COLUMNS=['EMAIL_ADDRESS']);
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/AGENCY', COLUMNS=['EMAIL_ADDRESS'], READ_TABLE_FUNCTION='RFC_READ_TABLE', READ_TABLE_DELIMITER='~');
 ----
 1
 
@@ -200,3 +200,29 @@ SELECT COUNT(*) > 0 FROM sap_read_table('T002', COLUMNS=['SPRAS']);
 ----
 1
 
+# ---------------------------------------------------------------------
+# Verify supported READ_TABLE_FUNCTION values
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_TABLE_FUNCTION='RFC_READ_TABLE');
+----
+1
+
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_TABLE_FUNCTION='/BODS/RFC_READ_TABLE');
+----
+1
+
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_TABLE_FUNCTION='/SAPDS/RFC_READ_TABLE');
+----
+1
+
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_TABLE_FUNCTION='/BODS/RFC_READ_TABLE2', READ_TABLE_DELIMITER='~');
+----
+1
+
+query I
+SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_TABLE_FUNCTION='/SAPDS/RFC_READ_TABLE2', READ_TABLE_DELIMITER='~');
+----
+1
