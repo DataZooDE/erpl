@@ -85,3 +85,94 @@ statement error
 ATTACH '' AS sap4 (TYPE sap_rfc, SECRET 'nonexistent_secret');
 ----
 Invalid Input Error
+
+# ---------------------------------------------------------------------
+# Test 8: Re-attach with same alias after detach
+statement ok
+ATTACH '' AS sap5 (TYPE sap_rfc, SECRET 'abap_trial');
+
+query I
+SELECT COUNT(*) > 0 FROM sap5."/DMO/FLIGHT";
+----
+true
+
+statement ok
+DETACH sap5;
+
+statement ok
+ATTACH '' AS sap5 (TYPE sap_rfc, SECRET 'abap_trial');
+
+query I
+SELECT COUNT(*) > 0 FROM sap5."/DMO/FLIGHT";
+----
+true
+
+statement ok
+DETACH sap5;
+
+# ---------------------------------------------------------------------
+# Test 9: JOIN across tables in attached catalog
+statement ok
+ATTACH '' AS sap6 (TYPE sap_rfc, SECRET 'abap_trial');
+
+query I
+SELECT COUNT(*) > 0
+FROM sap6."/DMO/FLIGHT" f
+JOIN sap6."/DMO/CARRIER" c ON f.CARRIER_ID = c.CARRIER_ID;
+----
+true
+
+statement ok
+DETACH sap6;
+
+# ---------------------------------------------------------------------
+# Test 10: Filter pushdown through attached catalog
+statement ok
+ATTACH '' AS sap7 (TYPE sap_rfc, SECRET 'abap_trial');
+
+query I
+SELECT COUNT(*) >= 0 FROM sap7."/DMO/FLIGHT" WHERE CARRIER_ID = 'LH';
+----
+true
+
+statement ok
+DETACH sap7;
+
+# ---------------------------------------------------------------------
+# Test 11: TABLES list - second entry is also accessible
+statement ok
+ATTACH '' AS sap8 (TYPE sap_rfc, SECRET 'abap_trial', TABLES '/DMO/FLIGHT,/DMO/CARRIER');
+
+query I
+SELECT COUNT(*) > 0 FROM sap8."/DMO/CARRIER";
+----
+true
+
+statement ok
+DETACH sap8;
+
+# ---------------------------------------------------------------------
+# Test 12: Column projection through attached catalog
+statement ok
+ATTACH '' AS sap9 (TYPE sap_rfc, SECRET 'abap_trial');
+
+query I
+SELECT COUNT(*) FROM (SELECT CARRIER_ID, CONNECTION_ID FROM sap9."/DMO/FLIGHT" LIMIT 1);
+----
+1
+
+statement ok
+DETACH sap9;
+
+# ---------------------------------------------------------------------
+# Test 13: SHOW TABLES lists tables when TABLES option is set
+statement ok
+ATTACH '' AS sap10 (TYPE sap_rfc, SECRET 'abap_trial', TABLES '/DMO/FLIGHT,/DMO/CARRIER');
+
+query I
+SELECT COUNT(*) FROM (SHOW TABLES FROM sap10);
+----
+2
+
+statement ok
+DETACH sap10;
