@@ -74,7 +74,7 @@ namespace duckdb
 			std::string ToString();
 			double GetProgress();
 
-		public: 
+		public:
 			std::string table_name;
 			std::vector<std::string> options;
 			unsigned int limit = 0;
@@ -86,8 +86,12 @@ namespace duckdb
 			std::optional<bool> read_table_supports_et_data_switch;
 			std::string read_table_result_path;
 			std::set<std::string> read_table_import_params;
-			
+
+			void SetSecretName(const std::string &name) { secret_name = name; }
+			const std::string &GetSecretName() const { return secret_name; }
+
 		private:
+			std::string secret_name;
 			RfcConnectionFactory_t connection_factory;
 			ClientContext &client_context;
 			std::vector<std::string> column_names;

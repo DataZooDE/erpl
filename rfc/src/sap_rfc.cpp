@@ -155,6 +155,9 @@ namespace duckdb
 
     std::shared_ptr<RfcConnection> RfcReadTableBindData::OpenNewConnection()
     {
+        if (!secret_name.empty()) {
+            return RfcAuthParams::FromContext(client_context, secret_name).Connect();
+        }
         return connection_factory(client_context);
     }
 

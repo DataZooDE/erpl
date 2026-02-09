@@ -40,9 +40,16 @@ namespace duckdb
                             ? ConvertListValueToVector<std::string>(named_params["COLUMNS"])
                             : std::vector<std::string>();
 
-        auto bind_data = make_uniq<RfcReadTableBindData>(table_name, max_read_threads, limit, 
+        auto secret_name = named_params.find("SECRET") != named_params.end()
+                                ? named_params["SECRET"].ToString()
+                                : "";
+
+        auto bind_data = make_uniq<RfcReadTableBindData>(table_name, max_read_threads, limit,
                                                          read_table_function, read_table_delimiter, read_table_function_user_set,
                                                          &DefaultRfcConnectionFactory, context);
+        if (!secret_name.empty()) {
+            bind_data->SetSecretName(secret_name);
+        }
         bind_data->InitOptionsFromWhereClause(where_clause);
         bind_data->InitAndVerifyFields(fields);
 
@@ -99,6 +106,7 @@ namespace duckdb
         fun.named_parameters["MAX_ROWS"] = LogicalType::UINTEGER;
         fun.named_parameters["READ_TABLE_FUNCTION"] = LogicalType::VARCHAR;
         fun.named_parameters["READ_TABLE_DELIMITER"] = LogicalType::VARCHAR;
+        fun.named_parameters["SECRET"] = LogicalType::VARCHAR;
         fun.table_scan_progress = RfcReadTableProgress;
         fun.projection_pushdown = true;
         fun.filter_pushdown = true;
