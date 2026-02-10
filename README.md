@@ -202,6 +202,27 @@ The output of this query will provide a comprehensive view of the flights, inclu
 
 This example can also be found in its [Python](./examples/flight_demo_python.ipynb), [R](./examples/flight_demo_r.ipynb), or [NODEJS](./examples/flight_demo_node.ipynb) version in the `examples` folder.
 
+### Using ATTACH for Catalog-Style Access
+
+Instead of calling `sap_read_table()` directly, you can attach an SAP system as a DuckDB catalog. This lets you query SAP tables with standard SQL syntax:
+
+```sql
+ATTACH '' AS sap (TYPE sap_rfc, SECRET 'abap_trial');
+
+-- Query tables directly via catalog
+SELECT * FROM sap."/DMO/FLIGHT";
+
+-- Join across SAP tables
+SELECT f.CARRID, f.CONNID, f.FLDATE
+FROM sap."/DMO/FLIGHT" AS f
+JOIN sap."/DMO/CARRIER" AS c ON f.CARRID = c.CARRIER_ID;
+```
+
+You can optionally restrict which tables are accessible using the `TABLES` option:
+```sql
+ATTACH '' AS sap (TYPE sap_rfc, SECRET 'abap_trial', TABLES '/DMO/FLIGHT,/DMO/CARRIER');
+```
+
 [Back to Top](#top)
 
 ## ➜ Obtaining the ERPL Extension
@@ -247,7 +268,7 @@ Choose the binary that matches your usage scenario. The table below summarizes t
 ## 💻 Installing the ERPL Binaries
 
 ### Introduction
-Installation of the ERPL extension is straightforward. Please note that this extension is independent of the [DuckDB Foundation](https://duckdb.org/foundation/) and [DuckDB Labs](https://duckdblabs.com/), meaning the binaries are unsigned. Consequently, DuckDB must be initiated with the `-unsigned` flag. Detailed instructions on this process can be found in the [DuckDB documentation](https://duckdb.org/docs/archive/0.9.2/extensions/overview#ensuring-the-integrity-of-extensions).
+Installation of the ERPL extension is straightforward. Please note that this extension is independent of the [DuckDB Foundation](https://duckdb.org/foundation/) and [DuckDB Labs](https://duckdblabs.com/), meaning the binaries are unsigned. Consequently, DuckDB must be initiated with the `-unsigned` flag. Detailed instructions on this process can be found in the [DuckDB documentation](https://duckdb.org/docs/extensions/overview#unsigned-extensions).
 
 ### Installation Steps
 1. **Enable Unsigned Extensions in DuckDB**: Set the `-unsigned` flag as described in the DuckDB documentation.
@@ -261,8 +282,8 @@ Installation of the ERPL extension is straightforward. Please note that this ext
 Upon successful installation and loading, the extension will output the following message:
 ```
 -- Loading ERPL Trampoline Extension. --
-(Saves ERPL SAP dependencies to '/home/jr/.duckdb/extensions/v0.9.2/linux_amd64' and loads them)
-ERPL extension saved and loaded from /home/jr/.duckdb/extensions/v0.9.2/linux_amd64/erpl_impl.duckdb_extension.
+(Saves ERPL SAP dependencies to '/home/jr/.duckdb/extensions/v1.4.4/linux_amd64' and loads them)
+ERPL extension saved and loaded from /home/jr/.duckdb/extensions/v1.4.4/linux_amd64/erpl_impl.duckdb_extension.
 For usage instructions, visit https://erpl.io
 ```
 
@@ -271,7 +292,7 @@ The ERPL extension is composed of two parts:
 1. **Trampoline Extension**: Extracts SAP Netweaver RFC SDK and SAP Business Warehouse BICS libraries from the binary.
 2. **Implementation Extension**: The actual functional part of the extension.
 
-The `erpl_init` function in the trampoline extension bundles and extracts dependencies into the DuckDB extension folder. Post-installation, the directory `~/.duckdb/extensions/v0.9.2/linux_amd64` should contain the following files:
+The `erpl_init` function in the trampoline extension bundles and extracts dependencies into the DuckDB extension folder. Post-installation, the directory `~/.duckdb/extensions/v1.4.4/linux_amd64` should contain the following files:
 ```
 -rw-r--r-- 1 jr jr 110M 26. Nov 10:23 erpl.duckdb_extension
 -rw-r--r-- 1 jr jr  34M 26. Nov 10:35 erpl_impl.duckdb_extension
@@ -294,13 +315,12 @@ This revised section aims for a clearer, more structured presentation of the ins
 |--------------|---------------|-------------|------------|-----------------|-------------|
 | sap_rfc_ping | Pragma | BOOLEAN | - | - | Tests the connection to the SAP system |
 | sap_rfc_invoke | Table | TABLE | function_name, parameters | VARCHAR, JSON | Invokes an RFC function with the given parameters |
-| sap_rfc_show | Table | TABLE | - | - | Lists all available RFC functions |
-| sap_rfc_show_function | Table | TABLE | - | - | Shows details about a specific RFC function |
+| sap_rfc_show_function | Table | TABLE | - | - | Lists all available RFC functions |
 | sap_rfc_show_groups | Table | TABLE | - | - | Lists all RFC function groups |
 | sap_rfc_describe_function | Table | TABLE | function_name | VARCHAR | Describes the parameters of an RFC function |
-| sap_rfc_describe_fields | Table | TABLE | table_name | VARCHAR | Describes the fields of a table |
-| sap_rfc_describe_references | Table | TABLE | - | - | Lists all referenced tables |
-| sap_read_table | Table | TABLE | table_name | VARCHAR | Reads data from a table |
+| sap_describe_fields | Table | TABLE | table_name | VARCHAR | Describes the fields of a table |
+| sap_describe_references | Table | TABLE | - | - | Lists all referenced tables |
+| sap_read_table | Table | TABLE | table_name | VARCHAR | Reads data from a table (supports CDS views and variable-length string columns) |
 | sap_show_tables | Table | TABLE | - | - | Lists all available tables |
 | sap_rfc_set_trace_level | Pragma | - | level | VARCHAR | Sets the trace level for RFC calls |
 | sap_rfc_set_trace_dir | Pragma | - | directory | VARCHAR | Sets the directory for trace files |
