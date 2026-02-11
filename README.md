@@ -38,13 +38,18 @@ We focus predominantly on two main use cases:
 
 Please be aware that DataZoo GmbH is the independent developer of this extension and does not hold any affiliation with DuckDB Labs or the DuckDB Foundation. "DuckDB" is a trademark registered by the DuckDB Foundation.
 
-Our development journey is underway, with a functioning prototype available that facilitates:
-- Data queries from SAP ERP tables.
-- Execution of RFC functions.
+The extension suite currently supports:
+- Data queries from SAP ERP tables and CDS views (via RFC)
+- Execution of arbitrary RFC function modules
+- SAP BW cube and query execution via BICS protocol
+- BW hierarchy extraction, metadata views, and lineage analysis
+- Data extraction and replication via SAP ODP (full and delta)
+- SSH tunneling for secure SAP connections
+- Virtual catalog mounting of SAP systems via ATTACH
 
 Transparency is our ethos, and in line with this, we are planning a commercial trajectory for the extension, structured as follows:
 - **Community Edition**: A gratis version for individual users, both private and commercial, enabling queries from SAP ERP tables.
-- **Commercial License**: Designed for businesses developing services or products leveraging our extension. More details can be found in [our BSL v1. License](./LICENSE.md).
+- **Commercial License**: Designed for businesses developing services or products leveraging our extension. More details can be found in [our BSL v1. License](./LICENSE).
 - **Enterprise Edition**: A premium version offering additional capabilities to query data from SAP Business Warehouse and data replication via SAP ODP.
 
 For inquiries, potential collaborations, or if your curiosity is piqued, connect with us at [https://erpl.io](https://erpl.io).
@@ -58,7 +63,7 @@ To start with, we assume you have setup DuckDB and already installed the ERPL ex
 
 First we start DuckDB with the `-unsigned` - flag set. Then we load the extension and configure the necessary credentials to connect to the SAP system:
 ```sql
-LOAD `erpl`;
+LOAD 'erpl';
 
 CREATE PERSISTENT SECRET abap_trial (
     TYPE sap_rfc, 
@@ -165,7 +170,7 @@ This SQL query performs the following operations:
 - Again using ERPL's `sap_read_table` we join `SPFLI` (aliased as `s`) on `MANDT`, `CARRID`, and `CONNID` to get the flight's city of origin and destination.
 - Incorporates two instances of an external weather data CSV file, `w_from` and `w_to`, matching on flight date and respective cities' country and name for departure and arrival.
 - Rounds the temperature data to one decimal place for readability.
-- Orders the results by `CARRIER_ID`, `CONNECTION_ID`, and `FLIGHT_DATE`.
+- Orders the results by `CARRID`, `CONNID`, and `FLDATE`.
 - Limits the output to the first 25 rows for a concise view.
 
 The output of this query will provide a comprehensive view of the flights, including their departure and arrival cities, and the corresponding temperatures, thus offering valuable insights for flight operations analysis.
@@ -279,78 +284,69 @@ Installation of the ERPL extension is straightforward. Please note that this ext
    ```
 
 ### Confirmation of Successful Installation
-Upon successful installation and loading, the extension will output the following message:
+Upon successful installation and loading, the extension will output messages similar to:
 ```
 -- Loading ERPL Trampoline Extension. --
-(Saves ERPL SAP dependencies to '/home/jr/.duckdb/extensions/v1.4.4/linux_amd64' and loads them)
-ERPL extension saved and loaded from /home/jr/.duckdb/extensions/v1.4.4/linux_amd64/erpl_impl.duckdb_extension.
-For usage instructions, visit https://erpl.io
+(The purpose of the extension is to extract dependencies and load the ERPL implementation)
+Saving ERPL SAP dependencies to '/home/user/.duckdb/extensions/v1.2.0/linux_amd64' and loading them ... done
+ERPL RFC extension extracted and saved to /home/user/.duckdb/extensions/v1.2.0/linux_amd64.
+ERPL Tunnel extension extracted and saved to /home/user/.duckdb/extensions/v1.2.0/linux_amd64.
+ERPL BICS extension extracted and saved to /home/user/.duckdb/extensions/v1.2.0/linux_amd64.
+ERPL ODP extension extracted and saved to /home/user/.duckdb/extensions/v1.2.0/linux_amd64.
+ERPL RFC extension installed and loaded.
+ERPL TUNNEL extension installed and loaded.
+ERPL BICS extension installed and loaded.
+ERPL ODP extension installed and loaded.
+ERPL extensions loaded. For instructions on how to use them, visit https://erpl.io
 ```
 
 ### Understanding the Extension Loading Process
-The ERPL extension is composed of two parts:
-1. **Trampoline Extension**: Extracts SAP Netweaver RFC SDK and SAP Business Warehouse BICS libraries from the binary.
-2. **Implementation Extension**: The actual functional part of the extension.
+The ERPL extension is composed of a **trampoline** and multiple **sub-extensions**:
+1. **Trampoline Extension** (`erpl`): Extracts SAP NetWeaver RFC SDK libraries and the sub-extension binaries from its embedded payload.
+2. **Sub-extensions**: The actual functional parts — `erpl_rfc` (RFC connectivity), `erpl_tunnel` (SSH tunneling), and optionally `erpl_bics` (SAP BW) and `erpl_odp` (data replication).
 
-The `erpl_init` function in the trampoline extension bundles and extracts dependencies into the DuckDB extension folder. Post-installation, the directory `~/.duckdb/extensions/v1.4.4/linux_amd64` should contain the following files:
+The trampoline extracts dependencies into the DuckDB extension folder, then installs and loads each sub-extension. Post-installation, the directory `~/.duckdb/extensions/<version>/<platform>` will contain:
 ```
--rw-r--r-- 1 jr jr 110M 26. Nov 10:23 erpl.duckdb_extension
--rw-r--r-- 1 jr jr  34M 26. Nov 10:35 erpl_impl.duckdb_extension
--rw-r--r-- 1 jr jr  20M 26. Nov 10:35 libicudata.so.50
--rw-r--r-- 1 jr jr  12M 26. Nov 10:35 libicui18n.so.50
--rw-r--r-- 1 jr jr 8,4M 26. Nov 10:35 libicuuc.so.50
--rw-r--r-- 1 jr jr 9,5M 26. Nov 10:35 libsapnwrfc.so
--rw-r--r-- 1 jr jr 1,1M 26. Nov 10:35 libsapucum.so
+erpl.duckdb_extension         # Trampoline
+erpl_rfc.duckdb_extension     # RFC connectivity
+erpl_tunnel.duckdb_extension  # SSH tunneling
+erpl_bics.duckdb_extension    # SAP BW (Enterprise Edition)
+erpl_odp.duckdb_extension     # ODP replication (Enterprise Edition)
+libicudata.so.50              # SAP SDK dependencies
+libicui18n.so.50
+libicuuc.so.50
+libsapnwrfc.so
+libsapucum.so
 ```
-
-This revised section aims for a clearer, more structured presentation of the installation process, ensuring users can easily understand and follow the steps.
 
 [Back to Top](#top)
 
 ## Function Reference
 
-### RFC Functions
+The complete API reference is in [API_REFERENCE.md](./API_REFERENCE.md). Below is a summary.
 
-| Function Name | Function Type | Return Type | Parameters | Parameter Types | Description |
-|--------------|---------------|-------------|------------|-----------------|-------------|
-| sap_rfc_ping | Pragma | BOOLEAN | - | - | Tests the connection to the SAP system |
-| sap_rfc_invoke | Table | TABLE | function_name, parameters | VARCHAR, JSON | Invokes an RFC function with the given parameters |
-| sap_rfc_show_function | Table | TABLE | - | - | Lists all available RFC functions |
-| sap_rfc_show_groups | Table | TABLE | - | - | Lists all RFC function groups |
-| sap_rfc_describe_function | Table | TABLE | function_name | VARCHAR | Describes the parameters of an RFC function |
-| sap_describe_fields | Table | TABLE | table_name | VARCHAR | Describes the fields of a table |
-| sap_describe_references | Table | TABLE | - | - | Lists all referenced tables |
-| sap_read_table | Table | TABLE | table_name | VARCHAR | Reads data from a table (supports CDS views and variable-length string columns) |
-| sap_show_tables | Table | TABLE | - | - | Lists all available tables |
-| sap_rfc_set_trace_level | Pragma | - | level | VARCHAR | Sets the trace level for RFC calls |
-| sap_rfc_set_trace_dir | Pragma | - | directory | VARCHAR | Sets the directory for trace files |
-| sap_rfc_set_maximum_trace_file_size | Pragma | - | size | VARCHAR | Sets the maximum size for trace files |
-| sap_rfc_set_maximum_stored_trace_files | Pragma | - | count | VARCHAR | Sets the maximum number of stored trace files |
-| sap_rfc_set_ini_path | Pragma | - | path | VARCHAR | Sets the path to the RFC ini file |
-| sap_rfc_reload_ini_file | Pragma | - | - | - | Reloads the RFC ini file |
+### Overview by Extension
 
-### BICS Functions
+| Extension | Functions | Description |
+|-----------|-----------|-------------|
+| **erpl_rfc** | `sap_read_table`, `sap_rfc_invoke`, `sap_show_tables`, `sap_describe_fields`, `sap_rfc_describe_function`, `ATTACH ... TYPE sap_rfc`, and more | SAP RFC connectivity, table reads, function calls, metadata, ATTACH catalog |
+| **erpl_bics** | `sap_bics_show*`, `sap_bics_begin/rows/columns/filter/result`, `sap_bics_hierarchy`, `sap_bics_meta_*`, `sap_bics_lineage_*` | SAP BW queries, hierarchies, metadata views, lineage analysis |
+| **erpl_odp** | `sap_odp_show*`, `sap_odp_describe`, `sap_odp_read_full`, `sap_odp_preview` | SAP ODP data extraction and replication |
+| **erpl_tunnel** | `tunnel_create`, `tunnel_close`, `tunnel_close_all`, `tunnels()` | SSH tunneling for secure SAP connections |
 
-| Function Name | Function Type | Return Type | Parameters | Parameter Types | Description |
-|--------------|---------------|-------------|------------|-----------------|-------------|
-| sap_bics_show | Table | TABLE | - | - | Lists all available InfoProviders |
-| sap_bics_show_cubes | Table | TABLE | - | - | Lists all available cubes |
-| sap_bics_show_queries | Table | TABLE | - | - | Lists all available queries |
-| sap_bics_describe | Table | TABLE | info_provider | VARCHAR | Describes an InfoProvider |
-| sap_bics_begin | Table | TABLE | query_name | VARCHAR | Begins a BICS query |
-| sap_bics_columns | Table | TABLE | query_name | VARCHAR | Sets the columns for a BICS query |
-| sap_bics_rows | Table | TABLE | query_name | VARCHAR | Sets the rows for a BICS query |
-| sap_bics_filter | Table | TABLE | query_name | VARCHAR | Sets filters for a BICS query |
-| sap_bics_result | Table | TABLE | query_name | VARCHAR | Executes a BICS query and returns results |
+### Common Functions Quick Reference
 
-### ODP Functions
+| Function | Example | Description |
+|----------|---------|-------------|
+| `sap_read_table` | `SELECT * FROM sap_read_table('SFLIGHT')` | Read SAP table data with filter/column pushdown |
+| `sap_rfc_invoke` | `SELECT * FROM sap_rfc_invoke('STFC_CONNECTION', {'REQUTEXT': 'Hi'})` | Call any RFC function module |
+| `sap_show_tables` | `SELECT * FROM sap_show_tables(TABLENAME='*FLIGHT*')` | Search SAP tables by name/description |
+| `sap_describe_fields` | `SELECT * FROM sap_describe_fields('SFLIGHT')` | Get field metadata for an SAP table |
+| `sap_bics_show_cubes` | `SELECT * FROM sap_bics_show_cubes()` | List available SAP BW cubes |
+| `sap_odp_read_full` | `SELECT * FROM sap_odp_read_full('BW', 'MY_ODP')` | Full extraction from ODP source |
+| `ATTACH` | `ATTACH '' AS sap (TYPE sap_rfc)` | Mount SAP system as virtual DuckDB database |
 
-| Function Name | Function Type | Return Type | Parameters | Parameter Types | Description |
-|--------------|---------------|-------------|------------|-----------------|-------------|
-| sap_odp_describe | Table | TABLE | source_name, source_type | VARCHAR, VARCHAR | Describes an ODP source |
-| sap_odp_show_cursors | Table | TABLE | - | - | Lists all available ODP cursors |
-| sap_odp_show_subscriptions | Table | TABLE | - | - | Lists all ODP subscriptions |
-| sap_odp_read_full | Table | TABLE | source_name, source_type | VARCHAR, VARCHAR | Reads data from an ODP source |
+For full parameter details, return types, and advanced usage see [API_REFERENCE.md](./API_REFERENCE.md).
 
 [Back to Top](#top)
 
@@ -391,7 +387,7 @@ This approach ensures transparency about data collection while offering users co
 [Back to Top](#top)
 
 ## License
-The ERPL extension is licensed under the [Business Source License (BSL) Version 1.1](./LICENSE.md). The BSL is a source-available license that gives you the following permissions:
+The ERPL extension is licensed under the [Business Source License (BSL) Version 1.1](./LICENSE). The BSL is a source-available license that gives you the following permissions:
 
 ### Allowed:
 1. **Copy, Modify, and Create Derivative Works**: You have the right to copy the software, modify it, and create derivative works based on it.
