@@ -119,10 +119,10 @@ void RegisterSapStorageExtension(ExtensionLoader &loader) {
 	auto &instance = loader.GetDatabaseInstance();
 	auto &config = DBConfig::GetConfig(instance);
 
-	auto storage_ext = make_uniq<StorageExtension>();
+	auto storage_ext = make_shared_ptr<StorageExtension>();
 	storage_ext->attach = SapStorageAttach;
 	storage_ext->create_transaction_manager = SapStorageTransactionManager;
-	config.storage_extensions["sap_rfc"] = std::move(storage_ext);
+	StorageExtension::Register(config, "sap_rfc", std::move(storage_ext));
 }
 
 } // namespace duckdb
