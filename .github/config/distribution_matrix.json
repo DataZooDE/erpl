@@ -4,12 +4,16 @@
         {
           "duckdb_arch": "linux_amd64",
           "container": "quay.io/pypa/manylinux_2_28_x86_64",
-          "vcpkg_triplet": "x64-linux"
+          "vcpkg_triplet": "x64-linux",
+          "run_in_reduced_ci_mode": true,
+          "opt_in": false
         },
         {
           "duckdb_arch": "linux_amd64_musl",
           "container": "alpine:3",
-          "vcpkg_triplet": "x64-linux"
+          "vcpkg_triplet": "x64-linux",
+          "run_in_reduced_ci_mode": false,
+          "opt_in": false
         }
       ]
     },
@@ -18,12 +22,16 @@
         {
           "duckdb_arch": "osx_amd64",
           "osx_build_arch": "x86_64",
-          "vcpkg_triplet": "x64-osx"
+          "vcpkg_triplet": "x64-osx",
+          "run_in_reduced_ci_mode": false,
+          "opt_in": false
         },
         {
-            "duckdb_arch": "osx_arm64",
-            "osx_build_arch": "arm64",
-            "vcpkg_triplet": "arm64-osx"
+          "duckdb_arch": "osx_arm64",
+          "osx_build_arch": "arm64",
+          "vcpkg_triplet": "arm64-osx",
+          "run_in_reduced_ci_mode": true,
+          "opt_in": false
         }
       ]
     },
@@ -31,7 +39,9 @@
       "include": [
         {
           "duckdb_arch": "windows_amd64",
-          "vcpkg_triplet": "x64-windows"
+          "vcpkg_triplet": "x64-windows",
+          "run_in_reduced_ci_mode": true,
+          "opt_in": false
         }
       ]
     }
