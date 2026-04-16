@@ -161,9 +161,13 @@ Follow the erpl-web conventions (see `../erpl-web/CLAUDE.md` for full details). 
 
 ## Git Commit Style
 
-Use conventional commits without AI attribution:
+Use conventional commits. **Never add AI attribution** (`Co-Authored-By: Claude`, `Generated with Claude Code`, or similar) to any commit message:
 ```
 feat: add BICS hierarchy support
 fix: resolve type conversion for CURR fields
 test: add coverage for ODP delta extraction
 ```
+
+## API Reference Maintenance
+
+`API_REFERENCE.md` is the authoritative public API reference. When changing the public API (adding/removing/modifying functions, pragmas, secret types, configuration options, or type mappings), update `API_REFERENCE.md` to match. If the change is non-trivial, create a beads task to track the documentation update.

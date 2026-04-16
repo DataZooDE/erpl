@@ -4,6 +4,7 @@
 
 #include "duckdb/catalog/catalog.hpp"
 #include "duckdb/main/extension/extension_loader.hpp"
+#include "duckdb/parser/parsed_data/create_table_function_info.hpp"
 
 #include "erpl_rfc_extension.hpp"
 #include "pragma_ping.hpp"
@@ -132,13 +133,90 @@ namespace duckdb {
     static void RegisterRfcFunctions(ExtensionLoader &loader)
     {
         loader.RegisterFunction(CreateRfcPingPragma());
-        loader.RegisterFunction(CreateRfcInvokeScanFunction());
-        loader.RegisterFunction(CreateRfcShowFunctionScanFunction());
-        loader.RegisterFunction(CreateRfcShowGroupScanFunction());
-        loader.RegisterFunction(CreateRfcDescribeFunctionScanFunction());
-        loader.RegisterFunction(CreateRfcShowTablesScanFunction());
-        loader.RegisterFunction(CreateRfcDescribeFieldsScanFunction());
-        loader.RegisterFunction(CreateRfcReadTableScanFunction());
+
+        {
+            CreateTableFunctionInfo info(CreateRfcReadTableScanFunction());
+            FunctionDescription desc;
+            desc.description = "Read data from an SAP table or CDS view using RFC_READ_TABLE. Supports projection pushdown, filter pushdown, and parallel reads via THREADS.";
+            desc.examples    = {"SELECT * FROM sap_read_table('SFLIGHT')",
+                                "SELECT * FROM sap_read_table('SFLIGHT', FILTER='CARRID = ''LH''', THREADS=4)"};
+            desc.categories  = {"sap"};
+            desc.parameter_names = {"table_name"};
+            desc.parameter_types = {LogicalType::VARCHAR};
+            info.descriptions.push_back(std::move(desc));
+            loader.RegisterFunction(std::move(info));
+        }
+
+        {
+            CreateTableFunctionInfo info(CreateRfcInvokeScanFunction());
+            FunctionDescription desc;
+            desc.description = "Call any RFC-enabled SAP function module and return its result as a table. Additional named arguments are forwarded as function parameters.";
+            desc.examples    = {"SELECT * FROM sap_rfc_invoke('STFC_CONNECTION', REQUTEXT='Hello')",
+                                "SELECT * FROM sap_rfc_invoke('RFC_READ_TABLE', QUERY_TABLE='SFLIGHT', DELIMITER='|')"};
+            desc.categories  = {"sap"};
+            desc.parameter_names = {"function_name"};
+            desc.parameter_types = {LogicalType::VARCHAR};
+            info.descriptions.push_back(std::move(desc));
+            loader.RegisterFunction(std::move(info));
+        }
+
+        {
+            CreateTableFunctionInfo info(CreateRfcShowFunctionScanFunction());
+            FunctionDescription desc;
+            desc.description = "Search for RFC-enabled function modules in the SAP function library. Filter by FUNCNAME or GROUPNAME patterns using wildcards (*).";
+            desc.examples    = {"SELECT * FROM sap_rfc_show_functions()",
+                                "SELECT * FROM sap_rfc_show_functions(FUNCNAME='RFC_READ*')"};
+            desc.categories  = {"sap"};
+            info.descriptions.push_back(std::move(desc));
+            loader.RegisterFunction(std::move(info));
+        }
+
+        {
+            CreateTableFunctionInfo info(CreateRfcShowGroupScanFunction());
+            FunctionDescription desc;
+            desc.description = "List SAP function groups that contain RFC-enabled function modules.";
+            desc.examples    = {"SELECT * FROM sap_rfc_show_groups()",
+                                "SELECT * FROM sap_rfc_show_groups(GROUPNAME='BASIS*')"};
+            desc.categories  = {"sap"};
+            info.descriptions.push_back(std::move(desc));
+            loader.RegisterFunction(std::move(info));
+        }
+
+        {
+            CreateTableFunctionInfo info(CreateRfcDescribeFunctionScanFunction());
+            FunctionDescription desc;
+            desc.description = "Return the full parameter interface of an RFC-enabled function module, including parameter names, types, and directions (import/export/table).";
+            desc.examples    = {"SELECT * FROM sap_rfc_describe_function('RFC_READ_TABLE')"};
+            desc.categories  = {"sap"};
+            desc.parameter_names = {"function_name"};
+            desc.parameter_types = {LogicalType::VARCHAR};
+            info.descriptions.push_back(std::move(desc));
+            loader.RegisterFunction(std::move(info));
+        }
+
+        {
+            CreateTableFunctionInfo info(CreateRfcShowTablesScanFunction());
+            FunctionDescription desc;
+            desc.description = "List SAP tables and views from the data dictionary (DD02V). Filter by TABLENAME or TEXT patterns using wildcards (*).";
+            desc.examples    = {"SELECT * FROM sap_show_tables()",
+                                "SELECT * FROM sap_show_tables(TABLENAME='*FLIGHT*')"};
+            desc.categories  = {"sap"};
+            info.descriptions.push_back(std::move(desc));
+            loader.RegisterFunction(std::move(info));
+        }
+
+        {
+            CreateTableFunctionInfo info(CreateRfcDescribeFieldsScanFunction());
+            FunctionDescription desc;
+            desc.description = "Return field metadata (name, ABAP type, length, description) for an SAP table or structure.";
+            desc.examples    = {"SELECT * FROM sap_describe_fields('SFLIGHT')"};
+            desc.categories  = {"sap"};
+            desc.parameter_names = {"table_name"};
+            desc.parameter_types = {LogicalType::VARCHAR};
+            info.descriptions.push_back(std::move(desc));
+            loader.RegisterFunction(std::move(info));
+        }
+
         loader.RegisterFunction(CreateRfcSetTraceLevelPragma());
         loader.RegisterFunction(CreateRfcSetTraceDirPragma());
         loader.RegisterFunction(CreateRfcSetMaximumTraceFileSizePragma());
@@ -149,6 +227,8 @@ namespace duckdb {
     
     static void LoadInternal(ExtensionLoader &loader)
     {
+        loader.SetDescription("SAP RFC connectivity for DuckDB — read tables, invoke function modules, and browse SAP metadata directly via the RFC protocol.");
+
         PostHogTelemetry::Instance().CaptureExtensionLoad("erpl_rfc");
 
         RegisterConfiguration(loader);

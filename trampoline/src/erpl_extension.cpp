@@ -468,7 +468,9 @@ static std::string Separator() {
 
     static void LoadInternal(ExtensionLoader &loader)
     {
-       std::cout << "-- Loading ERPL Trampoline Extension. --" << std::endl 
+       loader.SetDescription("ERPL bootstrap extension — bundles the SAP NetWeaver RFC SDK and installs the erpl_rfc, erpl_bics, erpl_odp, and erpl_tunnel extensions.");
+
+       std::cout << "-- Loading ERPL Trampoline Extension. --" << std::endl
                  << "(The purpose of the extension is to extract dependencies and load the ERPL implementation)" << std::endl;
        ExtractExtensionsAndSapLibs();
        LoadExtensions(loader.GetDatabaseInstance());

@@ -2,6 +2,7 @@
 
 #include "duckdb.hpp"
 #include "duckdb/main/extension/extension_loader.hpp"
+#include "duckdb/parser/parsed_data/create_table_function_info.hpp"
 #include "tunnel_manager.hpp"
 #include "tunnel_secret.hpp"
 #include "erpl_tunnel_extension.hpp"
@@ -39,21 +40,30 @@ static void RegisterConfiguration(ExtensionLoader &loader)
 static void RegisterTunnelFunctions(ExtensionLoader &loader) {
     // Register tunnel secret type
     RegisterTunnelSecretType(loader);
-    
+
     // Initialize tunnel manager
     g_tunnel_manager = std::make_unique<TunnelManager>();
-    
+
     // Register pragma functions
     loader.RegisterFunction(CreateTunnelCreatePragma());
     loader.RegisterFunction(CreateTunnelClosePragma());
     loader.RegisterFunction(CreateTunnelCloseAllPragma());
 
-    // Register table function for listing tunnels
-    loader.RegisterFunction(CreateTunnelsTableFunction());
+    {
+        CreateTableFunctionInfo info(CreateTunnelsTableFunction());
+        FunctionDescription desc;
+        desc.description = "List all active SSH tunnels with their connection details and status.";
+        desc.examples    = {"SELECT * FROM tunnels()"};
+        desc.categories  = {"tunnel", "ssh"};
+        info.descriptions.push_back(std::move(desc));
+        loader.RegisterFunction(std::move(info));
+    }
 }
 
 static void LoadInternal(ExtensionLoader &loader)
 {
+    loader.SetDescription("SSH tunnel management for DuckDB — create and manage SSH tunnels to securely reach SAP systems behind firewalls.");
+
     PostHogTelemetry::Instance().CaptureExtensionLoad("erpl_tunnel");
 
     RegisterConfiguration(loader);

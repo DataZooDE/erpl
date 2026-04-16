@@ -24,8 +24,12 @@ set(TEST_SOURCES
 )
 
 add_executable(erpl_rfc_tests ${TEST_SOURCES})
+target_link_libraries(erpl_rfc_tests ${EXTENSION_NAME} duckdb_static test_helpers ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
+# DuckDB v1.5+ requires dummy_static_extension_loader for LoadAllExtensions.
+# The target is defined in duckdb/extension/CMakeLists.txt which is processed
+# AFTER this file due to cmake ordering, so defer the link to the top-level scope.
 if(TARGET dummy_static_extension_loader)
-    target_link_libraries(erpl_rfc_tests ${EXTENSION_NAME} duckdb_static dummy_static_extension_loader test_helpers ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
+    target_link_libraries(erpl_rfc_tests dummy_static_extension_loader)
 else()
-    target_link_libraries(erpl_rfc_tests ${EXTENSION_NAME} duckdb_static test_helpers ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
+    cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}" CALL target_link_libraries erpl_rfc_tests dummy_static_extension_loader)
 endif()
