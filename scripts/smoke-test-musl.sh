@@ -55,7 +55,7 @@ docker run --rm \
     alpine:3 /bin/sh -c '
 set -e
 apk add -q python3 py3-pip 2>/dev/null
-pip3 install --quiet "duckdb==${DUCKDB_VERSION}"
+pip3 install --quiet --break-system-packages "duckdb==${DUCKDB_VERSION}"
 python3 << PYEOF
 import duckdb, sys, os
 
