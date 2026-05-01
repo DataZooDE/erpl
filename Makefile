@@ -2,7 +2,7 @@ PROJ_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 EXT_CONFIG=${PROJ_DIR}extension_config.cmake
 
-.PHONY: all clean format debug release pull update wasm_mvp wasm_eh wasm_threads sql_tests_rfc sql_tests_bics sql_tests_odp sql_tests_tunnel
+.PHONY: all clean format debug release pull update wasm_mvp wasm_eh wasm_threads sql_tests_rfc sql_tests_bics sql_tests_odp sql_tests_tunnel smoke_test smoke_test_musl
 
 # Test file argument - if provided, run only that specific test
 TEST_FILE ?=
@@ -156,3 +156,22 @@ sql_tests_tunnel: debug
 #   make sql_tests_odp TEST_FILE=sap_odp_describe.test     # Run only ODP describe test
 #   make sql_tests_tunnel                  # Run all tunnel tests
 #   make sql_tests_tunnel TEST_FILE=sap_tunnel_basic.test  # Run only basic tunnel test
+
+#### Smoke test — verifies the release extension installs and loads correctly
+# Downloads the official DuckDB CLI for the built version; no SAP connection required.
+# Usage:
+#   make smoke_test                         # Linux (glibc) or macOS
+#   make smoke_test_musl                    # linux_amd64_musl (requires Docker)
+#   DUCKDB_GIT_VERSION=v1.5.1 make smoke_test  # Override version if not on a tagged commit
+
+SMOKE_EXT ?= build/release/extension/erpl/erpl.duckdb_extension
+
+smoke_test: release
+ifeq ($(OS),Windows_NT)
+	powershell.exe -ExecutionPolicy Bypass -File scripts\smoke-test.ps1 -ExtensionPath "$(PROJ_DIR)$(SMOKE_EXT)"
+else
+	./scripts/smoke-test.sh "$(PROJ_DIR)$(SMOKE_EXT)"
+endif
+
+smoke_test_musl: release
+	./scripts/smoke-test-musl.sh "$(PROJ_DIR)$(SMOKE_EXT)"
