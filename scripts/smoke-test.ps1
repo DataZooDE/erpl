@@ -92,6 +92,8 @@ Write-Host ""
 # ── 5. Run DuckDB with isolated APPDATA ──────────────────────────────────────
 $PrevAppData = $env:APPDATA
 $env:APPDATA = $SmokeAppData
+$PrevDisableTelemetry = $env:DATAZOO_DISABLE_TELEMETRY
+$env:DATAZOO_DISABLE_TELEMETRY = "1"
 $ExitCode = 0
 $OutputStr = ""
 try {
@@ -101,6 +103,8 @@ try {
     Write-Host $OutputStr
 } finally {
     $env:APPDATA = $PrevAppData
+    if ($null -eq $PrevDisableTelemetry) { Remove-Item Env:DATAZOO_DISABLE_TELEMETRY -ErrorAction SilentlyContinue }
+    else { $env:DATAZOO_DISABLE_TELEMETRY = $PrevDisableTelemetry }
     Remove-Item $SmokeAppData -Recurse -Force -ErrorAction SilentlyContinue
 }
 

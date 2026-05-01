@@ -110,7 +110,7 @@ run_step() {
     step_out="$(mktemp /tmp/erpl-smoke-step-XXXXXX.txt)"
     echo "[smoke-test] $step"
     # Use a temp file AND tee so the output is both shown and captured for validation.
-    HOME="$SMOKE_HOME" "${RUN_CLI[@]}" -c "$sql" 2>&1 | tee "$step_out"
+    HOME="$SMOKE_HOME" DATAZOO_DISABLE_TELEMETRY=1 "${RUN_CLI[@]}" -c "$sql" 2>&1 | tee "$step_out"
     local rc="${PIPESTATUS[0]}"
     # Return the captured output path via a global so callers can read it.
     STEP_OUTPUT="$step_out"
