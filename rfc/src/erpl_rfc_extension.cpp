@@ -142,7 +142,6 @@ namespace duckdb {
                                 "SELECT * FROM sap_read_table('SFLIGHT', FILTER='CARRID = ''LH''', THREADS=4)"};
             desc.categories  = {"sap"};
             desc.parameter_names = {"table_name"};
-            desc.parameter_types = {LogicalType::VARCHAR};
             info.descriptions.push_back(std::move(desc));
             loader.RegisterFunction(std::move(info));
         }
@@ -155,7 +154,6 @@ namespace duckdb {
                                 "SELECT * FROM sap_rfc_invoke('RFC_READ_TABLE', QUERY_TABLE='SFLIGHT', DELIMITER='|')"};
             desc.categories  = {"sap"};
             desc.parameter_names = {"function_name"};
-            desc.parameter_types = {LogicalType::VARCHAR};
             info.descriptions.push_back(std::move(desc));
             loader.RegisterFunction(std::move(info));
         }
@@ -189,7 +187,6 @@ namespace duckdb {
             desc.examples    = {"SELECT * FROM sap_rfc_describe_function('RFC_READ_TABLE')"};
             desc.categories  = {"sap"};
             desc.parameter_names = {"function_name"};
-            desc.parameter_types = {LogicalType::VARCHAR};
             info.descriptions.push_back(std::move(desc));
             loader.RegisterFunction(std::move(info));
         }
@@ -212,7 +209,6 @@ namespace duckdb {
             desc.examples    = {"SELECT * FROM sap_describe_fields('SFLIGHT')"};
             desc.categories  = {"sap"};
             desc.parameter_names = {"table_name"};
-            desc.parameter_types = {LogicalType::VARCHAR};
             info.descriptions.push_back(std::move(desc));
             loader.RegisterFunction(std::move(info));
         }

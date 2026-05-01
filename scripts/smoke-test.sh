@@ -101,43 +101,68 @@ echo "Extension: $EXTENSION_PATH"
 echo "DuckDB:    ${DUCKDB_VERSION_TAG} (${CLI_SLUG})"
 echo ""
 
-# ── 7. Run smoke test ────────────────────────────────────────────────────────
-OUTPUT_FILE="$(mktemp /tmp/erpl-smoke-output-XXXXXX.txt)"
-trap 'rm -rf "$SMOKE_HOME" "$OUTPUT_FILE"' EXIT INT TERM
+# Helper: run one duckdb step, print output immediately (not buffered), and return its exit code.
+# Each step is a separate process so stdout is always flushed on exit (even on crash).
+run_step() {
+    local step="$1"
+    local sql="$2"
+    local step_out
+    step_out="$(mktemp /tmp/erpl-smoke-step-XXXXXX.txt)"
+    echo "[smoke-test] $step"
+    # Use a temp file AND tee so the output is both shown and captured for validation.
+    HOME="$SMOKE_HOME" "${RUN_CLI[@]}" -c "$sql" 2>&1 | tee "$step_out"
+    local rc="${PIPESTATUS[0]}"
+    # Return the captured output path via a global so callers can read it.
+    STEP_OUTPUT="$step_out"
+    return "$rc"
+}
 
-HOME="$SMOKE_HOME" "${RUN_CLI[@]}" -c "
-INSTALL '${EXTENSION_PATH}';
-LOAD erpl;
+# ── 7. Step 1: Install extension ─────────────────────────────────────────────
+run_step "Step 1/4: Installing extension..." \
+    "INSTALL '${EXTENSION_PATH}';"
+rm -f "$STEP_OUTPUT"
+
+# ── 8. Step 2: Load and check duckdb_extensions() ────────────────────────────
+run_step "Step 2/4: Loading extension and checking duckdb_extensions()..." \
+    "LOAD erpl;
 SELECT extension_name, loaded
   FROM duckdb_extensions()
   WHERE extension_name LIKE 'erpl%'
-  ORDER BY extension_name;
+  ORDER BY extension_name;"
+EXT_OUTPUT="$STEP_OUTPUT"
+
+if ! grep -q "erpl.*true" "$EXT_OUTPUT"; then
+    echo "ERROR: erpl extension is not showing as loaded in duckdb_extensions()" >&2
+    rm -f "$EXT_OUTPUT"
+    exit 1
+fi
+rm -f "$EXT_OUTPUT"
+
+# ── 9. Step 3: Count sap_* functions via duckdb_functions() ──────────────────
+run_step "Step 3/4: Counting sap_* functions in duckdb_functions()..." \
+    "LOAD erpl;
 SELECT count(*) AS sap_function_count
   FROM duckdb_functions()
-  WHERE function_name LIKE 'sap_%';
+  WHERE function_name LIKE 'sap_%';"
+rm -f "$STEP_OUTPUT"
+
+# ── 10. Step 4: Verify specific function names ────────────────────────────────
+run_step "Step 4/4: Verifying specific SAP function names..." \
+    "LOAD erpl;
 SELECT function_name
   FROM duckdb_functions()
   WHERE function_name IN ('sap_read_table', 'sap_rfc_invoke', 'sap_show_tables')
-  ORDER BY function_name;
-" 2>&1 | tee "$OUTPUT_FILE"
-DUCK_EXIT="${PIPESTATUS[0]}"
+  ORDER BY function_name;"
+FUNC_OUTPUT="$STEP_OUTPUT"
 
-if [[ $DUCK_EXIT -ne 0 ]]; then
-    echo "ERROR: DuckDB exited with code $DUCK_EXIT" >&2
-    exit "$DUCK_EXIT"
-fi
-
-# ── 8. Validate output ───────────────────────────────────────────────────────
-if ! grep -q "erpl.*true" "$OUTPUT_FILE"; then
-    echo "ERROR: erpl extension is not showing as loaded in duckdb_extensions()" >&2
-    exit 1
-fi
 for FUNC in sap_read_table sap_rfc_invoke sap_show_tables; do
-    if ! grep -q "$FUNC" "$OUTPUT_FILE"; then
+    if ! grep -q "$FUNC" "$FUNC_OUTPUT"; then
         echo "ERROR: Expected function '$FUNC' not found in duckdb_functions()" >&2
+        rm -f "$FUNC_OUTPUT"
         exit 1
     fi
 done
+rm -f "$FUNC_OUTPUT"
 
 echo ""
 echo "=== Smoke test PASSED ==="

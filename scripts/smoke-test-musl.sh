@@ -55,7 +55,10 @@ docker run --rm \
     alpine:3 /bin/sh -c '
 set -e
 apk add -q python3 py3-pip 2>/dev/null
-pip3 install --quiet --break-system-packages "duckdb==${DUCKDB_VERSION}"
+if ! pip3 install --quiet --break-system-packages --only-binary=:all: "duckdb==${DUCKDB_VERSION}"; then
+    echo "[smoke-test] SKIP: No musllinux binary wheel for duckdb==${DUCKDB_VERSION} — skipping musl smoke test"
+    exit 0
+fi
 python3 << PYEOF
 import duckdb, sys, os
 
