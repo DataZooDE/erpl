@@ -24,6 +24,34 @@
 #include "sap_storage.hpp"
 #include "erpl_tracing.hpp"
 
+// Needed for OPENSSL_init_ssl / OPENSSL_INIT_NO_ATEXIT
+#include <openssl/ssl.h>
+
+// Windows headers may redefine macros after our tracing.hpp include
+#ifdef _WIN32
+#ifdef DEBUG
+    #undef DEBUG
+#endif
+#ifdef INFO
+    #undef INFO
+#endif
+#ifdef WARN
+    #undef WARN
+#endif
+#ifdef ERROR
+    #undef ERROR
+#endif
+#ifdef TRACE
+    #undef TRACE
+#endif
+#ifdef NONE
+    #undef NONE
+#endif
+#ifdef CONSOLE
+    #undef CONSOLE
+#endif
+#endif
+
 namespace duckdb {
 
 
@@ -142,7 +170,6 @@ namespace duckdb {
                                 "SELECT * FROM sap_read_table('SFLIGHT', FILTER='CARRID = ''LH''', THREADS=4)"};
             desc.categories  = {"sap"};
             desc.parameter_names = {"table_name"};
-            desc.parameter_types = {LogicalType::VARCHAR};
             info.descriptions.push_back(std::move(desc));
             loader.RegisterFunction(std::move(info));
         }
@@ -155,7 +182,6 @@ namespace duckdb {
                                 "SELECT * FROM sap_rfc_invoke('RFC_READ_TABLE', QUERY_TABLE='SFLIGHT', DELIMITER='|')"};
             desc.categories  = {"sap"};
             desc.parameter_names = {"function_name"};
-            desc.parameter_types = {LogicalType::VARCHAR};
             info.descriptions.push_back(std::move(desc));
             loader.RegisterFunction(std::move(info));
         }
@@ -189,7 +215,6 @@ namespace duckdb {
             desc.examples    = {"SELECT * FROM sap_rfc_describe_function('RFC_READ_TABLE')"};
             desc.categories  = {"sap"};
             desc.parameter_names = {"function_name"};
-            desc.parameter_types = {LogicalType::VARCHAR};
             info.descriptions.push_back(std::move(desc));
             loader.RegisterFunction(std::move(info));
         }
@@ -212,7 +237,6 @@ namespace duckdb {
             desc.examples    = {"SELECT * FROM sap_describe_fields('SFLIGHT')"};
             desc.categories  = {"sap"};
             desc.parameter_names = {"table_name"};
-            desc.parameter_types = {LogicalType::VARCHAR};
             info.descriptions.push_back(std::move(desc));
             loader.RegisterFunction(std::move(info));
         }
@@ -227,6 +251,17 @@ namespace duckdb {
     
     static void LoadInternal(ExtensionLoader &loader)
     {
+        // Suppress OpenSSL's atexit cleanup handler.
+        // The extension is a dlopen'd shared library; DuckDB calls dlclose() during
+        // shutdown before global atexit handlers run.  If OpenSSL registered an
+        // atexit pointing into our .so, it fires after the library is unmapped →
+        // SIGSEGV on Linux/macOS with DuckDB v1.5.x.  Pre-initialising with
+        // OPENSSL_INIT_NO_ATEXIT prevents that registration.  The call is idempotent
+        // and has no effect if OpenSSL was already initialised by the host process.
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+        OPENSSL_init_ssl(OPENSSL_INIT_NO_ATEXIT, nullptr);
+#endif
+
         loader.SetDescription("SAP RFC connectivity for DuckDB — read tables, invoke function modules, and browse SAP metadata directly via the RFC protocol.");
 
         PostHogTelemetry::Instance().CaptureExtensionLoad("erpl_rfc");

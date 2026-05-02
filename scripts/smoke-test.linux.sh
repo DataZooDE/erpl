@@ -1,4 +1,6 @@
 #!/bin/bash
+# DEPRECATED: Targets DuckDB v0.9.0 and requires a live SAP connection.
+# For CI smoke testing without SAP, use scripts/smoke-test.sh instead.
 
 RELEASE_URL="https://github.com/duckdb/duckdb/releases/download/v0.9.0/duckdb_cli-linux-amd64.zip"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"

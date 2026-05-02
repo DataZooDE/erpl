@@ -248,6 +248,32 @@ jobs:
         run: |
           docker run --env-file=docker_env.txt -v `pwd`:/duckdb_build_dir -v `pwd`/ccache_dir:/ccache_dir duckdb/${{ matrix.duckdb_arch }} make release
 
+      - name: Cache DuckDB CLI for smoke test
+        if: matrix.duckdb_arch == 'linux_amd64'
+        uses: actions/cache@v4
+        with:
+          path: /tmp/duckdb-cli-cache
+          key: duckdb-cli-${{ inputs.duckdb_version }}-linux-amd64
+
+      - name: Smoke test — linux_amd64
+        if: matrix.duckdb_arch == 'linux_amd64'
+        shell: bash
+        env:
+          DUCKDB_GIT_VERSION: ${{ inputs.duckdb_version }}
+          DUCKDB_CLI_CACHE_DIR: /tmp/duckdb-cli-cache
+        run: |
+          ./scripts/smoke-test.sh \
+            "$(pwd)/build/release/extension/${{ inputs.extension_name }}/${{ inputs.extension_name }}.duckdb_extension"
+
+      - name: Smoke test — linux_amd64_musl
+        if: matrix.duckdb_arch == 'linux_amd64_musl'
+        shell: bash
+        env:
+          DUCKDB_GIT_VERSION: ${{ inputs.duckdb_version }}
+        run: |
+          ./scripts/smoke-test-musl.sh \
+            "$(pwd)/build/release/extension/${{ inputs.extension_name }}/${{ inputs.extension_name }}.duckdb_extension"
+
       - uses: actions/upload-artifact@v4
         with:
           if-no-files-found: error
@@ -361,6 +387,22 @@ jobs:
           )
           make release
 
+      - name: Cache DuckDB CLI for smoke test
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TEMP }}\duckdb-cli-cache
+          key: duckdb-cli-${{ inputs.duckdb_version }}-windows-amd64
+
+      - name: Smoke test — windows_amd64
+        shell: powershell
+        env:
+          DUCKDB_GIT_VERSION: ${{ inputs.duckdb_version }}
+        run: |
+          .\scripts\smoke-test.ps1 `
+            -ExtensionPath ".\build\release\extension\${{ inputs.extension_name }}\${{ inputs.extension_name }}.duckdb_extension" `
+            -DuckdbVersion "$env:DUCKDB_GIT_VERSION" `
+            -CliCacheDir "$env:TEMP\duckdb-cli-cache"
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.extension_name }}-${{ inputs.duckdb_version }}-extension-${{matrix.duckdb_arch}}${{inputs.artifact_postfix}}
@@ -445,6 +487,33 @@ jobs:
           python -m pip install awscli
           ./scripts/download_and_extract_nwrfc.sh 's3://erpl-resources/sapnwrfc/nwrfc750P_13-80002761_osx.zip' './nwrfcsdk/osx_amd64/'
           make release
+
+      - name: Cache DuckDB CLI for smoke test
+        uses: actions/cache@v4
+        with:
+          path: /tmp/duckdb-cli-cache
+          key: duckdb-cli-${{ inputs.duckdb_version }}-osx-universal
+
+      - name: Smoke test — osx_arm64
+        if: matrix.osx_build_arch == 'arm64'
+        shell: bash
+        env:
+          DUCKDB_GIT_VERSION: ${{ inputs.duckdb_version }}
+          DUCKDB_CLI_CACHE_DIR: /tmp/duckdb-cli-cache
+        run: |
+          ./scripts/smoke-test.sh \
+            "$(pwd)/build/release/extension/${{ inputs.extension_name }}/${{ inputs.extension_name }}.duckdb_extension"
+
+      - name: Smoke test — osx_amd64 (Rosetta on arm64 runner)
+        if: matrix.osx_build_arch == 'x86_64'
+        shell: bash
+        env:
+          DUCKDB_GIT_VERSION: ${{ inputs.duckdb_version }}
+          DUCKDB_CLI_CACHE_DIR: /tmp/duckdb-cli-cache
+          OSX_BUILD_ARCH: x86_64
+        run: |
+          ./scripts/smoke-test.sh \
+            "$(pwd)/build/release/extension/${{ inputs.extension_name }}/${{ inputs.extension_name }}.duckdb_extension"
 
       - uses: actions/upload-artifact@v4
         with:

@@ -12,6 +12,34 @@
 #include "scanner_tunnels.hpp"
 #include "telemetry.hpp"
 
+// Needed for OPENSSL_init_ssl / OPENSSL_INIT_NO_ATEXIT
+#include <openssl/ssl.h>
+
+// Windows headers may redefine macros after our tracing.hpp include
+#ifdef _WIN32
+#ifdef DEBUG
+    #undef DEBUG
+#endif
+#ifdef INFO
+    #undef INFO
+#endif
+#ifdef WARN
+    #undef WARN
+#endif
+#ifdef ERROR
+    #undef ERROR
+#endif
+#ifdef TRACE
+    #undef TRACE
+#endif
+#ifdef NONE
+    #undef NONE
+#endif
+#ifdef CONSOLE
+    #undef CONSOLE
+#endif
+#endif
+
 namespace duckdb {
 
 // Global tunnel manager instance
@@ -62,6 +90,11 @@ static void RegisterTunnelFunctions(ExtensionLoader &loader) {
 
 static void LoadInternal(ExtensionLoader &loader)
 {
+    // Suppress OpenSSL's atexit cleanup handler — see erpl_rfc_extension.cpp for full rationale.
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+    OPENSSL_init_ssl(OPENSSL_INIT_NO_ATEXIT, nullptr);
+#endif
+
     loader.SetDescription("SSH tunnel management for DuckDB — create and manage SSH tunnels to securely reach SAP systems behind firewalls.");
 
     PostHogTelemetry::Instance().CaptureExtensionLoad("erpl_tunnel");
