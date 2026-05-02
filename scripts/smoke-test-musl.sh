@@ -52,7 +52,6 @@ docker run --rm \
     -v "${EXT_DIR}:/ext:ro" \
     -e DUCKDB_VERSION="$DUCKDB_VERSION" \
     -e EXT_FILE="$EXT_FILE" \
-    -e DATAZOO_DISABLE_TELEMETRY=1 \
     alpine:3 /bin/sh -c '
 set -e
 apk add -q python3 py3-pip 2>/dev/null
