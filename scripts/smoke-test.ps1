@@ -141,7 +141,7 @@ if ($LASTEXITCODE -eq 0) {
         Remove-Item $PySmokeAppData -Recurse -Force -ErrorAction SilentlyContinue
     }
 } else {
-    Write-Host "[smoke-test] WARNING: duckdb Python wheel not available for $PyVersion — skipping Step 5"
+    Write-Host "[smoke-test] WARNING: duckdb Python wheel not available for $PyVersion - skipping Step 5"
 }
 
 Write-Host ""
