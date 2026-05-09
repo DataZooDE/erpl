@@ -132,6 +132,23 @@ namespace duckdb
         return dlsym(RTLD_DEFAULT, "RfcGetVersion") != nullptr;
     }
 
+    // Retroactively mark system libssl/libcrypto as RTLD_NODELETE so their
+    // __attribute__((destructor)) never fires at process exit.
+    // Without this, libssl.so's destructor calls OPENSSL_cleanup() which resolves
+    // via RTLD_DEFAULT to the SAP SDK's implementation (RTLD_GLOBAL), corrupting the
+    // SDK's global OpenSSL state and causing SIGSEGV during Python interpreter teardown.
+    // glibc honours RTLD_NODELETE on an already-loaded library: calling dlopen with
+    // RTLD_NOLOAD|RTLD_NODELETE retroactively sets DF_1_NODELETE in its link-map.
+    static void PinSystemOpenSSL()
+    {
+        const char* ssl_names[]    = {"libssl.so.3", "libssl.so.1.1", nullptr};
+        const char* crypto_names[] = {"libcrypto.so.3", "libcrypto.so.1.1", nullptr};
+        for (int i = 0; ssl_names[i]; ++i)
+            if (dlopen(ssl_names[i], RTLD_NOW | RTLD_NOLOAD | RTLD_NODELETE) != nullptr) break;
+        for (int i = 0; crypto_names[i]; ++i)
+            if (dlopen(crypto_names[i], RTLD_NOW | RTLD_NOLOAD | RTLD_NODELETE) != nullptr) break;
+    }
+
     // Hold a permanent extra dlopen reference to this shared library.
     // glibc tracks dlopen() calls per link-map entry.  When DuckDB calls dlclose()
     // on the trampoline between connection cycles, our extra reference keeps the
@@ -183,6 +200,11 @@ namespace duckdb
             LoadLibraryFromFile(StringUtil::Format("%s/libsapucum.so", ext_path));
             
             std::cout << "done" << std::endl;
+
+            // Pin system libssl/libcrypto so their destructors never fire at process exit.
+            // Must be called after the SAP SDK (RTLD_GLOBAL) is in memory so that any
+            // subsequent OPENSSL_cleanup() calls resolve to the SDK, not the system copy.
+            PinSystemOpenSSL();
 
             SaveToFile(_binary_erpl_rfc_duckdb_extension_start, _binary_erpl_rfc_duckdb_extension_end, StringUtil::Format("%s/erpl_rfc.duckdb_extension", ext_path));
             std::cout << StringUtil::Format("ERPL RFC extension extracted and saved to %s.", ext_path) << std::endl;
