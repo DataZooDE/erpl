@@ -125,7 +125,7 @@ if ($OutputStr -notmatch 'sap_rfc_invoke') {
 # ── 7. Step 5: Double-connection regression test (issue #52) ─────────────────
 Write-Host "[smoke-test] Step 5/5: Double-connection load regression test (issue #52)..."
 $PyVersion = $DuckdbVersion.TrimStart('v')
-& pip install --quiet --only-binary=:all: "duckdb==$PyVersion" 2>&1 | Out-Null
+& pip install --quiet '--only-binary=:all:' "duckdb==$PyVersion" 2>&1 | Out-Null
 if ($LASTEXITCODE -eq 0) {
     $PySmokeAppData = Join-Path $env:TEMP "erpl-smoke-py-$([System.Guid]::NewGuid())"
     New-Item -ItemType Directory -Path $PySmokeAppData -Force | Out-Null

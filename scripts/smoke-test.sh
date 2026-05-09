@@ -167,7 +167,11 @@ rm -f "$FUNC_OUTPUT"
 # ── 11. Step 5: Double-connection regression test (issue #52) ─────────────────
 echo "[smoke-test] Step 5/5: Double-connection load regression test (issue #52)..."
 DUCKDB_PY_VERSION="${DUCKDB_VERSION_TAG#v}"   # strip leading 'v' for pip
-if command -v pip3 &>/dev/null && pip3 install --quiet --only-binary=:all: \
+if [[ "$OS" == "Darwin" && "${OSX_BUILD_ARCH:-}" == "x86_64" ]]; then
+    # The extension was built for osx_amd64 but the runner is arm64. The native
+    # Python duckdb wheel is arm64 and cannot install an osx_amd64 extension.
+    echo "[smoke-test] WARNING: skipping Step 5 on osx_amd64 cross-build (runner arch is arm64, Python duckdb is arm64)"
+elif command -v python3 &>/dev/null && python3 -m pip install --quiet --only-binary=:all: \
         "duckdb==${DUCKDB_PY_VERSION}" 2>/dev/null; then
     HOME="$SMOKE_HOME" python3 "$PROJ_DIR/trampoline/test/python/test_double_load.py" "$EXTENSION_PATH"
 else
