@@ -167,13 +167,18 @@ rm -f "$FUNC_OUTPUT"
 # ── 11. Step 5: Double-connection regression test (issue #52) ─────────────────
 echo "[smoke-test] Step 5/5: Double-connection load regression test (issue #52)..."
 DUCKDB_PY_VERSION="${DUCKDB_VERSION_TAG#v}"   # strip leading 'v' for pip
+PY_PKG_DIR="$(mktemp -d /tmp/erpl-duckdb-py-XXXXXX)"
+trap 'rm -rf "$SMOKE_HOME" "$PY_PKG_DIR"' EXIT INT TERM
 if [[ "$OS" == "Darwin" && "${OSX_BUILD_ARCH:-}" == "x86_64" ]]; then
     # The extension was built for osx_amd64 but the runner is arm64. The native
     # Python duckdb wheel is arm64 and cannot install an osx_amd64 extension.
     echo "[smoke-test] WARNING: skipping Step 5 on osx_amd64 cross-build (runner arch is arm64, Python duckdb is arm64)"
 elif command -v python3 &>/dev/null && python3 -m pip install --quiet --only-binary=:all: \
-        "duckdb==${DUCKDB_PY_VERSION}" 2>/dev/null; then
-    HOME="$SMOKE_HOME" python3 "$PROJ_DIR/trampoline/test/python/test_double_load.py" "$EXTENSION_PATH"
+        --target "$PY_PKG_DIR" "duckdb==${DUCKDB_PY_VERSION}" 2>/dev/null; then
+    # PYTHONPATH points at the --target dir so the same Python that ran pip finds duckdb,
+    # regardless of whether HOME was changed (pip --user would install under $HOME/.local).
+    PYTHONPATH="$PY_PKG_DIR" HOME="$SMOKE_HOME" \
+        python3 "$PROJ_DIR/trampoline/test/python/test_double_load.py" "$EXTENSION_PATH"
 else
     echo "[smoke-test] WARNING: duckdb Python wheel not available for ${DUCKDB_PY_VERSION} — skipping Step 5"
 fi
