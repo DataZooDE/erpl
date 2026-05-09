@@ -177,10 +177,7 @@ elif command -v python3 &>/dev/null && python3 -m pip install --quiet --only-bin
         --target "$PY_PKG_DIR" "duckdb==${DUCKDB_PY_VERSION}" 2>/dev/null; then
     # PYTHONPATH points at the --target dir so the same Python that ran pip finds duckdb,
     # regardless of whether HOME was changed (pip --user would install under $HOME/.local).
-    # DATAZOO_DISABLE_TELEMETRY prevents the PostHog background thread from making a live
-    # HTTPS call: without it, the SSL thread races with Python's interpreter teardown and
-    # the process crashes with SIGSEGV (exit 139) at shutdown, even though the test passes.
-    DATAZOO_DISABLE_TELEMETRY=1 PYTHONPATH="$PY_PKG_DIR" HOME="$SMOKE_HOME" \
+    PYTHONPATH="$PY_PKG_DIR" HOME="$SMOKE_HOME" \
         python3 "$PROJ_DIR/trampoline/test/python/test_double_load.py" "$EXTENSION_PATH"
 else
     echo "[smoke-test] WARNING: duckdb Python wheel not available for ${DUCKDB_PY_VERSION} — skipping Step 5"

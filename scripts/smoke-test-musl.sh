@@ -94,7 +94,7 @@ print(f"[smoke-test] PASSED — {count} sap_* functions registered")
 PYEOF
 
 echo "[smoke-test] Step 5/5: Double-connection load regression test (issue #52)..."
-DATAZOO_DISABLE_TELEMETRY=1 python3 /test_double_load.py "/ext/${EXT_FILE}"
+python3 /test_double_load.py "/ext/${EXT_FILE}"
 '
 
 echo ""
