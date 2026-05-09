@@ -123,7 +123,7 @@ run_step "Step 1/4: Installing extension..." \
 rm -f "$STEP_OUTPUT"
 
 # ── 8. Step 2: Load and check duckdb_extensions() ────────────────────────────
-run_step "Step 2/4: Loading extension and checking duckdb_extensions()..." \
+run_step "Step 2/5: Loading extension and checking duckdb_extensions()..." \
     "LOAD erpl;
 SELECT extension_name, loaded
   FROM duckdb_extensions()
@@ -139,7 +139,7 @@ fi
 rm -f "$EXT_OUTPUT"
 
 # ── 9. Step 3: Count sap_* functions via duckdb_functions() ──────────────────
-run_step "Step 3/4: Counting sap_* functions in duckdb_functions()..." \
+run_step "Step 3/5: Counting sap_* functions in duckdb_functions()..." \
     "LOAD erpl;
 SELECT count(*) AS sap_function_count
   FROM duckdb_functions()
@@ -147,7 +147,7 @@ SELECT count(*) AS sap_function_count
 rm -f "$STEP_OUTPUT"
 
 # ── 10. Step 4: Verify specific function names ────────────────────────────────
-run_step "Step 4/4: Verifying specific SAP function names..." \
+run_step "Step 4/5: Verifying specific SAP function names..." \
     "LOAD erpl;
 SELECT function_name
   FROM duckdb_functions()
@@ -163,6 +163,16 @@ for FUNC in sap_read_table sap_rfc_invoke sap_show_tables; do
     fi
 done
 rm -f "$FUNC_OUTPUT"
+
+# ── 11. Step 5: Double-connection regression test (issue #52) ─────────────────
+echo "[smoke-test] Step 5/5: Double-connection load regression test (issue #52)..."
+DUCKDB_PY_VERSION="${DUCKDB_VERSION_TAG#v}"   # strip leading 'v' for pip
+if command -v pip3 &>/dev/null && pip3 install --quiet --only-binary=:all: \
+        "duckdb==${DUCKDB_PY_VERSION}" 2>/dev/null; then
+    HOME="$SMOKE_HOME" python3 "$PROJ_DIR/trampoline/test/python/test_double_load.py" "$EXTENSION_PATH"
+else
+    echo "[smoke-test] WARNING: duckdb Python wheel not available for ${DUCKDB_PY_VERSION} — skipping Step 5"
+fi
 
 echo ""
 echo "=== Smoke test PASSED ==="

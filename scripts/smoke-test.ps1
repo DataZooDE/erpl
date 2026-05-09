@@ -122,5 +122,27 @@ if ($OutputStr -notmatch 'sap_rfc_invoke') {
     exit 1
 }
 
+# ── 7. Step 5: Double-connection regression test (issue #52) ─────────────────
+Write-Host "[smoke-test] Step 5/5: Double-connection load regression test (issue #52)..."
+$PyVersion = $DuckdbVersion.TrimStart('v')
+& pip install --quiet --only-binary=:all: "duckdb==$PyVersion" 2>&1 | Out-Null
+if ($LASTEXITCODE -eq 0) {
+    $PySmokeAppData = Join-Path $env:TEMP "erpl-smoke-py-$([System.Guid]::NewGuid())"
+    New-Item -ItemType Directory -Path $PySmokeAppData -Force | Out-Null
+    $env:APPDATA = $PySmokeAppData
+    try {
+        & python "$ProjDir\trampoline\test\python\test_double_load.py" $ExtensionPath
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Double-connection regression test FAILED (exit code $LASTEXITCODE)"
+            exit 1
+        }
+    } finally {
+        $env:APPDATA = $PrevAppData
+        Remove-Item $PySmokeAppData -Recurse -Force -ErrorAction SilentlyContinue
+    }
+} else {
+    Write-Host "[smoke-test] WARNING: duckdb Python wheel not available for $PyVersion — skipping Step 5"
+}
+
 Write-Host ""
 Write-Host "=== Smoke test PASSED ==="

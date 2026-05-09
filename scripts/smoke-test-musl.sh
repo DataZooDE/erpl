@@ -48,8 +48,11 @@ echo ""
 
 # Run the test inside alpine to get a musl-compatible Python duckdb wheel.
 # The extension directory is mounted read-only at /ext.
+TEST_DOUBLE_LOAD="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/trampoline/test/python/test_double_load.py"
+
 docker run --rm \
     -v "${EXT_DIR}:/ext:ro" \
+    -v "${TEST_DOUBLE_LOAD}:/test_double_load.py:ro" \
     -e DUCKDB_VERSION="$DUCKDB_VERSION" \
     -e EXT_FILE="$EXT_FILE" \
     alpine:3 /bin/sh -c '
@@ -89,6 +92,9 @@ for fn in ["sap_read_table", "sap_rfc_invoke", "sap_show_tables"]:
 
 print(f"[smoke-test] PASSED — {count} sap_* functions registered")
 PYEOF
+
+echo "[smoke-test] Step 5/5: Double-connection load regression test (issue #52)..."
+python3 /test_double_load.py "/ext/${EXT_FILE}"
 '
 
 echo ""
