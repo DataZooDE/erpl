@@ -176,3 +176,35 @@ SELECT COUNT(*) FROM (SHOW TABLES FROM sap10);
 
 statement ok
 DETACH sap10;
+
+# ---------------------------------------------------------------------
+# Test 14: Catalog scan does not permanently disable DefaultGenerator (issue #54)
+#
+# When another extension (e.g. Ducklake) is attached it may trigger a full
+# Scan() of every attached catalog's VIEW_ENTRY CatalogSet.  Before the fix,
+# CreateDefaultEntries() set created_all_entries=true even when
+# GetDefaultEntries() returned [] (the case when no TABLES option is given).
+# That permanently bypassed GetEntryDefault() so subsequent SAP table lookups
+# failed with "Catalog Error: Table … does not exist."
+#
+# With the fix, created_all_entries is only set after a non-empty
+# GetDefaultEntries() list has been fully materialised.
+
+statement ok
+ATTACH '' AS sap_issue54 (TYPE sap_rfc, SECRET 'abap_trial');
+
+# Trigger a full scan of the attached SAP catalog (simulates Ducklake attach).
+# information_schema.tables calls Scan() on VIEW_ENTRY for every catalog.
+query I
+SELECT COUNT(*) >= 0 FROM information_schema.tables WHERE table_catalog = 'sap_issue54';
+----
+true
+
+# Table lookup must still succeed after the scan (regression for issue #54).
+query I
+SELECT COUNT(*) > 0 FROM sap_issue54."/DMO/FLIGHT";
+----
+true
+
+statement ok
+DETACH sap_issue54;
