@@ -154,3 +154,4 @@ if ($pipInstallOk) {
 
 Write-Host ""
 Write-Host "=== Smoke test PASSED ==="
+exit 0
