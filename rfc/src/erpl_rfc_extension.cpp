@@ -27,6 +27,10 @@
 // Needed for OPENSSL_init_ssl / OPENSSL_INIT_NO_ATEXIT
 #include <openssl/ssl.h>
 
+#if defined(__linux__) || defined(__APPLE__)
+#include <dlfcn.h>
+#endif
+
 // Windows headers may redefine macros after our tracing.hpp include
 #ifdef _WIN32
 #ifdef DEBUG
@@ -251,6 +255,24 @@ namespace duckdb {
     
     static void LoadInternal(ExtensionLoader &loader)
     {
+        // Pin erpl_rfc permanently so DuckDB's dlclose between connection cycles
+        // cannot unmap this library.  erpl_rfc registers extension options with
+        // Value("...") defaults whose StringValueInfo vtable pointers live here.
+        // DuckDB caches these Values in a thread-local CachedGlobalSettings; if
+        // erpl_rfc were unloaded, destroying the stale cache on the next connection
+        // would call through dangling vtable pointers → SIGSEGV.
+#if defined(__linux__) || defined(__APPLE__)
+        {
+            static bool pinned = false;
+            if (!pinned) {
+                Dl_info info;
+                if (dladdr((void*)LoadInternal, &info) && info.dli_fname) {
+                    pinned = (dlopen(info.dli_fname, RTLD_NOW | RTLD_NODELETE) != nullptr);
+                }
+            }
+        }
+#endif
+
         // Suppress OpenSSL's atexit cleanup handler.
         // The extension is a dlopen'd shared library; DuckDB calls dlclose() during
         // shutdown before global atexit handlers run.  If OpenSSL registered an

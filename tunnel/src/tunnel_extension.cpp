@@ -15,6 +15,10 @@
 // Needed for OPENSSL_init_ssl / OPENSSL_INIT_NO_ATEXIT
 #include <openssl/ssl.h>
 
+#if defined(__linux__) || defined(__APPLE__)
+#include <dlfcn.h>
+#endif
+
 // Windows headers may redefine macros after our tracing.hpp include
 #ifdef _WIN32
 #ifdef DEBUG
@@ -90,6 +94,20 @@ static void RegisterTunnelFunctions(ExtensionLoader &loader) {
 
 static void LoadInternal(ExtensionLoader &loader)
 {
+    // Pin this DSO so DuckDB's dlclose between connections cannot unmap it while
+    // the PostHog background telemetry thread is still executing in its pages.
+#if defined(__linux__) || defined(__APPLE__)
+    {
+        static bool pinned = false;
+        if (!pinned) {
+            Dl_info info;
+            if (dladdr((void*)LoadInternal, &info) && info.dli_fname) {
+                pinned = (dlopen(info.dli_fname, RTLD_NOW | RTLD_NODELETE) != nullptr);
+            }
+        }
+    }
+#endif
+
     // Suppress OpenSSL's atexit cleanup handler — see erpl_rfc_extension.cpp for full rationale.
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
     OPENSSL_init_ssl(OPENSSL_INIT_NO_ATEXIT, nullptr);

@@ -117,19 +117,70 @@ namespace duckdb
         ofs.write(start, end - start);
     }
 
-    static void LoadLibraryFromFile(const std::string &filename) 
+    static void LoadLibraryFromFile(const std::string &filename)
     {
-        void* handle = dlopen(filename.c_str(), RTLD_NOW | RTLD_GLOBAL);
+        void* handle = dlopen(filename.c_str(), RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE);
         if (!handle) {
             throw std::runtime_error(StringUtil::Format("Failed to load library: %s", filename));
         }
     }
 
-    static void ExtractExtensionsAndSapLibs() 
+    // Returns true if libsapnwrfc.so is already mapped and in RTLD_DEFAULT scope.
+    // RfcGetVersion is DECL_EXP-exported from libsapnwrfc.so (sapnwrfc.h:788).
+    static bool SapLibsAlreadyLoaded()
     {
+        return dlsym(RTLD_DEFAULT, "RfcGetVersion") != nullptr;
+    }
+
+    // Retroactively mark system libssl/libcrypto as RTLD_NODELETE so their
+    // __attribute__((destructor)) never fires at process exit.
+    // Without this, libssl.so's destructor calls OPENSSL_cleanup() which resolves
+    // via RTLD_DEFAULT to the SAP SDK's implementation (RTLD_GLOBAL), corrupting the
+    // SDK's global OpenSSL state and causing SIGSEGV during Python interpreter teardown.
+    // glibc honours RTLD_NODELETE on an already-loaded library: calling dlopen with
+    // RTLD_NOLOAD|RTLD_NODELETE retroactively sets DF_1_NODELETE in its link-map.
+    static void PinSystemOpenSSL()
+    {
+        const char* ssl_names[]    = {"libssl.so.3", "libssl.so.1.1", nullptr};
+        const char* crypto_names[] = {"libcrypto.so.3", "libcrypto.so.1.1", nullptr};
+        for (int i = 0; ssl_names[i]; ++i)
+            if (dlopen(ssl_names[i], RTLD_NOW | RTLD_NOLOAD | RTLD_NODELETE) != nullptr) break;
+        for (int i = 0; crypto_names[i]; ++i)
+            if (dlopen(crypto_names[i], RTLD_NOW | RTLD_NOLOAD | RTLD_NODELETE) != nullptr) break;
+    }
+
+    // Hold a permanent extra dlopen reference to this shared library.
+    // glibc tracks dlopen() calls per link-map entry.  When DuckDB calls dlclose()
+    // on the trampoline between connection cycles, our extra reference keeps the
+    // refcount above zero so glibc never reaches the unload path, never releases
+    // the SAP SDK dlopen handles we made, and never removes them from RTLD_DEFAULT.
+    // Called once only (static flag): connection 2, 3, … are fast no-ops.
+    static void PinSelf()
+    {
+        static bool pinned = false;
+        if (pinned) return;
+        Dl_info info;
+        if (dladdr((void*)PinSelf, &info) && info.dli_fname) {
+            pinned = (dlopen(info.dli_fname, RTLD_NOW | RTLD_NODELETE) != nullptr);
+        }
+    }
+
+    static void ExtractExtensionsAndSapLibs()
+    {
+        PinSelf();
+
+        if (SapLibsAlreadyLoaded()) {
+            // SAP libs and sub-extensions are already mapped (pinned from a prior connection).
+            // The extension files are already on disk from the first load — re-writing them would
+            // truncate currently-mmap'd files and cause SIGBUS/SIGSEGV on the mapped pages.
+            // INSTALL in LoadExtensions() will be a NOP (files exist), and LOAD will reuse the
+            // already-pinned dlopen handles, so no re-save is needed here.
+            return;
+        }
+
         auto ext_path = GetExtensionDir();
 
-        try 
+        try
         {
             std::cout << StringUtil::Format("Saving ERPL SAP dependencies to '%s' and loading them ... ", ext_path);
 
@@ -150,6 +201,11 @@ namespace duckdb
             
             std::cout << "done" << std::endl;
 
+            // Pin system libssl/libcrypto so their destructors never fire at process exit.
+            // Must be called after the SAP SDK (RTLD_GLOBAL) is in memory so that any
+            // subsequent OPENSSL_cleanup() calls resolve to the SDK, not the system copy.
+            PinSystemOpenSSL();
+
             SaveToFile(_binary_erpl_rfc_duckdb_extension_start, _binary_erpl_rfc_duckdb_extension_end, StringUtil::Format("%s/erpl_rfc.duckdb_extension", ext_path));
             std::cout << StringUtil::Format("ERPL RFC extension extracted and saved to %s.", ext_path) << std::endl;
 
@@ -165,7 +221,7 @@ namespace duckdb
             SaveToFile(_binary_erpl_odp_duckdb_extension_start, _binary_erpl_odp_duckdb_extension_end, StringUtil::Format("%s/erpl_odp.duckdb_extension", ext_path));
             std::cout << StringUtil::Format("ERPL ODP extension extracted and saved to %s.", ext_path) << std::endl;
             #endif
-        } 
+        }
         catch (const std::exception& e) {
             std::cerr << std::endl << "Error: " << e.what() << std::endl;
         }
@@ -340,11 +396,32 @@ static void SaveToFile(const char* start, const unsigned int len, const std::str
     ofs.write(start, len);
 }
 
-static void LoadLibraryFromFile(const std::string &filename) 
+static void LoadLibraryFromFile(const std::string &filename)
 {
-    void* handle = dlopen(filename.c_str(), RTLD_NOW | RTLD_GLOBAL);
+    void* handle = dlopen(filename.c_str(), RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE);
     if (!handle) {
         throw std::runtime_error("Failed to load library: " + filename);
+    }
+}
+
+// Returns true if libsapnwrfc.dylib is already mapped into this process.
+static bool SapLibsAlreadyLoaded()
+{
+    return dlsym(RTLD_DEFAULT, "RfcGetVersion") != nullptr;
+}
+
+// Hold a permanent extra dlopen reference to the trampoline dylib.
+// dyld tracks dlopen() calls: when DuckDB unloads the extension between connection
+// cycles, our extra reference keeps the refcount above zero so dyld never releases
+// the SAP SDK dlopen handles and never removes them from dlsym(RTLD_DEFAULT).
+// Called once only (static flag): connection 2, 3, … are fast no-ops.
+static void PinSelf()
+{
+    static bool pinned = false;
+    if (pinned) return;
+    Dl_info info;
+    if (dladdr((void*)PinSelf, &info) && info.dli_fname) {
+        pinned = (dlopen(info.dli_fname, RTLD_NOW | RTLD_NODELETE) != nullptr);
     }
 }
 
@@ -364,11 +441,21 @@ static void ModifyDyldEnvironmentVariable(const std::string &ext_path)
     }
 }
 
-static void ExtractExtensionsAndSapLibs() 
+static void ExtractExtensionsAndSapLibs()
 {
+    PinSelf();
+
+    if (SapLibsAlreadyLoaded()) {
+        // SAP libs and sub-extensions are already mapped (pinned from a prior connection).
+        // Re-writing the extension files would truncate currently-mmap'd dylibs and cause
+        // SIGBUS on the mapped pages.  INSTALL in LoadExtensions() will be a NOP (files
+        // exist) and LOAD will reuse the already-pinned dlopen handles.
+        return;
+    }
+
     auto ext_path = GetExtensionDir();
 
-    try 
+    try
     {
         std::cout << "Saving ERPL SAP dependencies to '" << ext_path << "' and loading them ... ";
 
