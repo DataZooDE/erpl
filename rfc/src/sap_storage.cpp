@@ -7,6 +7,11 @@
 #include "duckdb/parser/parsed_data/create_view_info.hpp"
 #include "duckdb/main/config.hpp"
 
+// entry_lookup_info.hpp was introduced alongside TryLookupEntryInternal in DuckDB v1.5+
+#if DUCKDB_MINOR_VERSION >= 5
+#include "duckdb/catalog/entry_lookup_info.hpp"
+#endif
+
 #include "sap_storage.hpp"
 #include "sap_connection.hpp"
 
@@ -58,6 +63,53 @@ private:
 	vector<string> allowed_tables;
 };
 
+#if DUCKDB_MINOR_VERSION >= 5
+// SapCatalog wraps DuckCatalog and overrides the private virtual TryLookupEntryInternal
+// (the NVI hook that backs all entry lookups) to reset created_all_entries on the
+// DefaultGenerator before each lookup.
+//
+// Background: DuckDB's CatalogSet::CreateDefaultEntries() sets created_all_entries=true
+// after iterating GetDefaultEntries(), even when it returns [] (the no-TABLES case where
+// any SAP table name is valid on demand). After a Scan() — triggered e.g. by Ducklake
+// enumerating all attached catalogs — this flag is permanently true, so GetEntryDefault()
+// skips the generator and every subsequent SAP table lookup fails.
+//
+// By resetting the flag immediately before the catalog-set lookup we ensure the generator
+// stays active across Scans without requiring any change to DuckDB's own code.
+class SapCatalog : public DuckCatalog {
+public:
+	explicit SapCatalog(AttachedDatabase &db) : DuckCatalog(db), sap_generator_(nullptr) {}
+
+	void SetGenerator(SapDefaultGenerator *gen) {
+		sap_generator_ = gen;
+	}
+
+private:
+	SapDefaultGenerator *sap_generator_; // non-owning; lifetime tied to this catalog's CatalogSet
+
+	CatalogEntryLookup TryLookupEntryInternal(CatalogTransaction transaction, const string &schema_name,
+	                                          const EntryLookupInfo &lookup_info) override {
+		if (sap_generator_) {
+			sap_generator_->created_all_entries = false;
+		}
+		if (lookup_info.GetAtClause()) {
+			// SAP catalog does not support time-travel AT CLAUSE syntax
+			return {nullptr, nullptr, ErrorData(BinderException("SAP catalog does not support time travel"))};
+		}
+		auto schema_lookup = EntryLookupInfo::SchemaLookup(lookup_info, schema_name);
+		auto schema_entry = LookupSchema(transaction, schema_lookup, OnEntryNotFound::RETURN_NULL);
+		if (!schema_entry) {
+			return {nullptr, nullptr, ErrorData()};
+		}
+		auto entry = schema_entry->LookupEntry(transaction, lookup_info);
+		if (!entry) {
+			return {schema_entry, nullptr, ErrorData()};
+		}
+		return {schema_entry, entry, ErrorData()};
+	}
+};
+#endif
+
 static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> storage_info, ClientContext &context,
                                             AttachedDatabase &db, const string &name, AttachInfo &info,
                                             AttachOptions &attach_options) {
@@ -96,6 +148,22 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
 
 	// Create an in-memory catalog
 	info.path = ":memory:";
+
+#if DUCKDB_MINOR_VERSION >= 5
+	auto sap_catalog = make_uniq<SapCatalog>(db);
+	sap_catalog->Initialize(false);
+
+	auto system_transaction = CatalogTransaction::GetSystemTransaction(db.GetDatabase());
+	auto &schema = sap_catalog->GetSchema(system_transaction, DEFAULT_SCHEMA);
+	auto &duck_schema = schema.Cast<DuckSchemaEntry>();
+	auto &catalog_set = duck_schema.GetCatalogSet(CatalogType::VIEW_ENTRY);
+	auto default_generator =
+	    make_uniq<SapDefaultGenerator>(*sap_catalog, schema, std::move(secret_name), std::move(allowed_tables));
+	sap_catalog->SetGenerator(default_generator.get());
+	catalog_set.SetDefaultGenerator(std::move(default_generator));
+
+	return std::move(sap_catalog);
+#else
 	auto catalog = make_uniq<DuckCatalog>(db);
 	catalog->Initialize(false);
 
@@ -108,6 +176,7 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
 	catalog_set.SetDefaultGenerator(std::move(default_generator));
 
 	return std::move(catalog);
+#endif
 }
 
 static unique_ptr<TransactionManager> SapStorageTransactionManager(optional_ptr<StorageExtensionInfo> storage_info,
