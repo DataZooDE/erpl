@@ -1,0 +1,114 @@
+# name: test/sql/sap_rfc_catalog_functions.test
+# description: catalog-qualified SAP function calls via attached catalog (issue #55)
+# group: [rfc]
+
+require erpl_rfc
+
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
+
+statement ok
+CREATE SECRET abap_trial (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}'
+);
+
+# -----------------------------------------------------------------------
+# Feature: catalog-qualified SAP functions (issue #55)
+#
+# After ATTACH '' AS sap (TYPE sap_rfc, SECRET '...'), SAP table functions
+# should be accessible as sap.sap_rfc_invoke(...), sap.sap_read_table(...),
+# etc. The catalog qualifier implicitly selects the secret from the ATTACH,
+# enabling query federation across multiple SAP systems in one session.
+# -----------------------------------------------------------------------
+
+statement ok
+ATTACH '' AS sap_fn (TYPE sap_rfc, SECRET 'abap_trial');
+
+# -----------------------------------------------------------------------
+# Test 1: sap_rfc_invoke via catalog qualifier
+# -----------------------------------------------------------------------
+query I
+SELECT count(*) > 0 FROM sap_fn.sap_rfc_invoke('RFC_SYSTEM_INFO');
+----
+true
+
+# -----------------------------------------------------------------------
+# Test 2: sap_read_table via catalog qualifier
+# -----------------------------------------------------------------------
+query I
+SELECT count(*) > 0 FROM sap_fn.sap_read_table('/DMO/FLIGHT');
+----
+true
+
+# -----------------------------------------------------------------------
+# Test 3: sap_show_tables via catalog qualifier
+# -----------------------------------------------------------------------
+query I
+SELECT count(*) > 0 FROM sap_fn.sap_show_tables();
+----
+true
+
+# -----------------------------------------------------------------------
+# Test 4: sap_describe_fields via catalog qualifier
+# -----------------------------------------------------------------------
+query I
+SELECT count(*) > 0 FROM sap_fn.sap_describe_fields('/DMO/FLIGHT');
+----
+true
+
+# -----------------------------------------------------------------------
+# Test 5: sap_rfc_describe_function via catalog qualifier
+# -----------------------------------------------------------------------
+query I
+SELECT count(*) > 0 FROM sap_fn.sap_rfc_describe_function('RFC_SYSTEM_INFO');
+----
+true
+
+# -----------------------------------------------------------------------
+# Test 6: sap_rfc_show_function via catalog qualifier
+# -----------------------------------------------------------------------
+query I
+SELECT count(*) > 0 FROM sap_fn.sap_rfc_show_function();
+----
+true
+
+# -----------------------------------------------------------------------
+# Test 7: catalog-qualified function uses attachment secret (no explicit SECRET=)
+# A second attach with the same secret should also work independently.
+# -----------------------------------------------------------------------
+statement ok
+ATTACH '' AS sap_fn2 (TYPE sap_rfc, SECRET 'abap_trial');
+
+query I
+SELECT count(*) > 0 FROM sap_fn2.sap_rfc_invoke('RFC_SYSTEM_INFO');
+----
+true
+
+# -----------------------------------------------------------------------
+# Test 8: explicit SECRET= parameter still overrides the attachment default
+# -----------------------------------------------------------------------
+query I
+SELECT count(*) > 0 FROM sap_fn.sap_rfc_invoke('RFC_SYSTEM_INFO', SECRET='abap_trial');
+----
+true
+
+statement ok
+DETACH sap_fn;
+
+statement ok
+DETACH sap_fn2;

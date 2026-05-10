@@ -5,17 +5,29 @@
 #include "duckdb/catalog/catalog_entry/duck_schema_entry.hpp"
 #include "duckdb/catalog/catalog_entry/view_catalog_entry.hpp"
 #include "duckdb/parser/parsed_data/create_view_info.hpp"
+#include "duckdb/parser/parsed_data/create_table_function_info.hpp"
 #include "duckdb/main/config.hpp"
 
 // entry_lookup_info.hpp was introduced alongside TryLookupEntryInternal in DuckDB v1.5+
 #if DUCKDB_MINOR_VERSION >= 5
 #include "duckdb/catalog/entry_lookup_info.hpp"
+#include "scanner_invoke.hpp"
+#include "scanner_read_table.hpp"
+#include "scanner_show_functions.hpp"
+#include "scanner_show_groups.hpp"
+#include "scanner_describe_function.hpp"
+#include "scanner_show_tables.hpp"
+#include "scanner_describe_fields.hpp"
 #endif
 
 #include "sap_storage.hpp"
 #include "sap_connection.hpp"
 
 namespace duckdb {
+
+// ---------------------------------------------------------------------------
+// SapDefaultGenerator — lazy on-demand SAP table views
+// ---------------------------------------------------------------------------
 
 class SapDefaultGenerator : public DefaultGenerator {
 public:
@@ -63,37 +75,78 @@ private:
 	vector<string> allowed_tables;
 };
 
+// ---------------------------------------------------------------------------
+// SapSecretInjectorInfo / SapSecretBind — secret injection trampoline
+//
+// table_function_bind_t is a raw function pointer, so lambdas with captures
+// cannot be used.  Instead, we carry the secret and original bind through
+// function_info (a shared_ptr<TableFunctionInfo>) and forward to the original
+// bind from a static trampoline.  This is installed on every overload of each
+// SAP table function that is inserted into an attached catalog (issue #55).
+// ---------------------------------------------------------------------------
+
 #if DUCKDB_MINOR_VERSION >= 5
-// SapCatalog wraps DuckCatalog and overrides the private virtual TryLookupEntryInternal
-// (the NVI hook that backs all entry lookups) to reset created_all_entries on the
-// DefaultGenerator before each lookup.
+
+struct SapSecretInjectorInfo : public TableFunctionInfo {
+	string secret_name;
+	table_function_bind_t orig_bind;
+	SapSecretInjectorInfo(string secret, table_function_bind_t bind)
+	    : secret_name(std::move(secret)), orig_bind(bind) {
+	}
+};
+
+static unique_ptr<FunctionData> SapSecretBind(ClientContext &ctx, TableFunctionBindInput &input,
+                                              vector<LogicalType> &return_types, vector<string> &names) {
+	D_ASSERT(input.info);
+	auto &injector = input.info->Cast<SapSecretInjectorInfo>();
+	if (input.named_parameters.find("secret") == input.named_parameters.end()) {
+		input.named_parameters["secret"] = Value(injector.secret_name);
+	}
+	return injector.orig_bind(ctx, input, return_types, names);
+}
+
+// Wrap every overload in info.functions to inject the secret via the trampoline.
+static void WrapFunctionInfoWithSecret(CreateTableFunctionInfo &info, const string &secret_name) {
+	for (auto &func : info.functions.functions) {
+		if (!func.bind) {
+			continue;
+		}
+		func.function_info = make_shared_ptr<SapSecretInjectorInfo>(secret_name, func.bind);
+		func.bind = SapSecretBind;
+	}
+}
+
+// ---------------------------------------------------------------------------
+// SapCatalog — DuckCatalog subclass that keeps the view DefaultGenerator
+// active after Scan() calls (issue #54).
 //
-// Background: DuckDB's CatalogSet::CreateDefaultEntries() sets created_all_entries=true
-// after iterating GetDefaultEntries(), even when it returns [] (the no-TABLES case where
-// any SAP table name is valid on demand). After a Scan() — triggered e.g. by Ducklake
-// enumerating all attached catalogs — this flag is permanently true, so GetEntryDefault()
-// skips the generator and every subsequent SAP table lookup fails.
-//
-// By resetting the flag immediately before the catalog-set lookup we ensure the generator
-// stays active across Scans without requiring any change to DuckDB's own code.
+// DuckDB's CatalogSet::CreateDefaultEntries() sets created_all_entries=true
+// after iterating GetDefaultEntries().  When that returns [] (the no-TABLES
+// case for the view generator), this permanently disables GetEntryDefault()
+// for on-demand view creation.  Overriding TryLookupEntryInternal() to reset
+// the flag before each lookup keeps the generator alive across Scans.
+// ---------------------------------------------------------------------------
+
 class SapCatalog : public DuckCatalog {
 public:
-	explicit SapCatalog(AttachedDatabase &db) : DuckCatalog(db), sap_generator_(nullptr) {}
+	explicit SapCatalog(AttachedDatabase &db) : DuckCatalog(db), view_generator_(nullptr) {}
 
-	void SetGenerator(SapDefaultGenerator *gen) {
-		sap_generator_ = gen;
+	void SetViewGenerator(SapDefaultGenerator *gen) {
+		view_generator_ = gen;
 	}
 
 private:
-	SapDefaultGenerator *sap_generator_; // non-owning; lifetime tied to this catalog's CatalogSet
+	// Non-owning pointer; generator is owned by the CatalogSet inside this catalog.
+	SapDefaultGenerator *view_generator_;
 
 	CatalogEntryLookup TryLookupEntryInternal(CatalogTransaction transaction, const string &schema_name,
 	                                          const EntryLookupInfo &lookup_info) override {
-		if (sap_generator_) {
-			sap_generator_->created_all_entries = false;
+		// Reset so GetEntryDefault() still calls CreateDefaultEntry() even after
+		// a Scan() (e.g. from Ducklake) has set created_all_entries=true.
+		if (view_generator_) {
+			view_generator_->created_all_entries = false;
 		}
 		if (lookup_info.GetAtClause()) {
-			// SAP catalog does not support time-travel AT CLAUSE syntax
 			return {nullptr, nullptr, ErrorData(BinderException("SAP catalog does not support time travel"))};
 		}
 		auto schema_lookup = EntryLookupInfo::SchemaLookup(lookup_info, schema_name);
@@ -108,7 +161,12 @@ private:
 		return {schema_entry, entry, ErrorData()};
 	}
 };
-#endif
+
+#endif // DUCKDB_MINOR_VERSION >= 5
+
+// ---------------------------------------------------------------------------
+// SapStorageAttach
+// ---------------------------------------------------------------------------
 
 static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> storage_info, ClientContext &context,
                                             AttachedDatabase &db, const string &name, AttachInfo &info,
@@ -156,11 +214,39 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
 	auto system_transaction = CatalogTransaction::GetSystemTransaction(db.GetDatabase());
 	auto &schema = sap_catalog->GetSchema(system_transaction, DEFAULT_SCHEMA);
 	auto &duck_schema = schema.Cast<DuckSchemaEntry>();
-	auto &catalog_set = duck_schema.GetCatalogSet(CatalogType::VIEW_ENTRY);
-	auto default_generator =
-	    make_uniq<SapDefaultGenerator>(*sap_catalog, schema, std::move(secret_name), std::move(allowed_tables));
-	sap_catalog->SetGenerator(default_generator.get());
-	catalog_set.SetDefaultGenerator(std::move(default_generator));
+
+	// ── View generator (on-demand SAP table views) ────────────────────────
+	auto &view_catalog_set = duck_schema.GetCatalogSet(CatalogType::VIEW_ENTRY);
+	auto view_gen = make_uniq<SapDefaultGenerator>(*sap_catalog, schema, secret_name, allowed_tables);
+	sap_catalog->SetViewGenerator(view_gen.get());
+	view_catalog_set.SetDefaultGenerator(std::move(view_gen));
+
+	// ── SAP table functions (catalog-qualified calls, issue #55) ────────────
+	// Insert each SAP table function directly into the catalog at attach time.
+	// The bind trampoline injects the attachment secret when the caller hasn't
+	// provided one explicitly.  Using scanner factory functions avoids including
+	// table_function_catalog_entry.hpp (which causes an ODR conflict with the
+	// explicit out-of-line Name definition in libduckdb_static.a).
+	{
+		vector<CreateTableFunctionInfo> funcs;
+		funcs.emplace_back(CreateRfcInvokeScanFunction());
+		funcs.emplace_back(CreateRfcReadTableScanFunction());
+		funcs.emplace_back(CreateRfcShowFunctionScanFunction());
+		funcs.emplace_back(CreateRfcShowGroupScanFunction());
+		funcs.emplace_back(CreateRfcDescribeFunctionScanFunction());
+		funcs.emplace_back(CreateRfcShowTablesScanFunction());
+		funcs.emplace_back(CreateRfcDescribeFieldsScanFunction());
+
+		for (auto &info : funcs) {
+			// Functions registered in the system catalog are marked internal; strip
+			// that flag so DuckDB allows them to be created in the sap_rfc catalog.
+			info.internal = false;
+			if (!secret_name.empty()) {
+				WrapFunctionInfoWithSecret(info, secret_name);
+			}
+			duck_schema.CreateTableFunction(system_transaction, info);
+		}
+	}
 
 	return std::move(sap_catalog);
 #else
