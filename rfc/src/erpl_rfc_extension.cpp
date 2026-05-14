@@ -20,6 +20,7 @@
 
 #include "telemetry.hpp"
 #include "sap_connection.hpp"
+#include "sap_function.hpp"
 #include "sap_secret.hpp"
 #include "sap_storage.hpp"
 #include "erpl_tracing.hpp"
@@ -134,6 +135,10 @@ namespace duckdb {
         erpl::ErplTracer::Instance().SetRotation(parameter.GetValue<bool>());
     }
 
+    static void OnStrictTypeCheck(ClientContext &, SetScope, Value &parameter) {
+        SetRfcStrictTypeCheck(parameter.GetValue<bool>());
+    }
+
     static void RegisterConfiguration(ExtensionLoader &loader)
     {
         auto &instance = loader.GetDatabaseInstance();
@@ -155,6 +160,13 @@ namespace duckdb {
                                   LogicalType::BIGINT, Value::BIGINT(0), OnTraceMaxFileSize);
         config.AddExtensionOption("erpl_trace_rotation", "Enable ERPL RFC trace file rotation", LogicalType::BOOLEAN,
                                   Value(false), OnTraceRotation);
+
+        config.AddExtensionOption(
+            "erpl_rfc_strict_type_check",
+            "When true, throw an error on unsupported SAP RFC types instead of falling back to VARCHAR",
+            LogicalType::BOOLEAN,
+            Value(false),
+            OnStrictTypeCheck);
 
         auto provider = make_uniq<RfcEnvironmentCredentialsProvider>(config);
         provider->SetAll();

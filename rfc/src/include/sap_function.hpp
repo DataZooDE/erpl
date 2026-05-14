@@ -8,6 +8,9 @@
 
 namespace duckdb {
 
+void SetRfcStrictTypeCheck(bool strict);
+bool GetRfcStrictTypeCheck();
+
     class IConvertToSqlLiteral
     {
         public:

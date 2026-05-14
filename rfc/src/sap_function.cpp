@@ -1,3 +1,4 @@
+#include <atomic>
 #include <set>
 #include <stdexcept>
 
@@ -6,7 +7,12 @@
 #include "duckdb_argument_helper.hpp"
 #include "sap_function.hpp"
 
+static std::atomic<bool> g_rfc_strict_type_check{false};
+
 namespace duckdb {
+
+void SetRfcStrictTypeCheck(bool strict) { g_rfc_strict_type_check.store(strict, std::memory_order_relaxed); }
+bool GetRfcStrictTypeCheck()            { return g_rfc_strict_type_check.load(std::memory_order_relaxed); }
 RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_desc)
     { 
         _type = std::make_shared<RfcType>(sap_desc.type, sap_desc.typeDescHandle, GetLength(), GetDecimals());
@@ -197,8 +203,8 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             case RFCTYPE_INT2:
                 return LogicalType::SMALLINT;
                 break;
-            case RFCTYPE_INT8: 
-                return LogicalType::INTEGER;
+            case RFCTYPE_INT8:
+                return LogicalType::BIGINT;
                 break;
             case RFCTYPE_FLOAT:
                 return LogicalType::DOUBLE;
@@ -255,8 +261,10 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                 break;
             }
             default:
-                throw std::runtime_error(StringUtil::Format("Unknown RFC type: %d", _rfc_type));
-                break;
+                if (GetRfcStrictTypeCheck()) {
+                    throw InvalidInputException("Unknown SAP RFC type: %d — set erpl_rfc_strict_type_check=false to fall back to VARCHAR", _rfc_type);
+                }
+                return LogicalType::VARCHAR;
         }
     }
 
@@ -365,7 +373,9 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             }
             case RFCTYPE_XSTRING:
             {
-                throw std::logic_error("XSTRING type is not supported yet");
+                if (GetRfcStrictTypeCheck()) {
+                    throw InvalidInputException("XSTRING input is not supported — set erpl_rfc_strict_type_check=false to skip");
+                }
                 break;
             }
             // Binary types
@@ -403,9 +413,9 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             }
             case RFCTYPE_UTCLONG:
             {
-                throw std::logic_error("UTCLONG type is not supported yet");
-                auto string_value = std2uc(arg_value.GetValue<std::string>());
-                rc = RfcSetString(container_handle, sap_arg_name.get(), string_value.get(), strlenU(string_value.get()), &error_info);
+                if (GetRfcStrictTypeCheck()) {
+                    throw InvalidInputException("UTCLONG input is not supported — set erpl_rfc_strict_type_check=false to skip");
+                }
                 break;
             }
             // Complex types
@@ -435,7 +445,10 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             }
             default:
             {
-                throw std::runtime_error(StringUtil::Format("RFC type %s for argument %s is not supported", rfctype2std(_rfc_type), arg_name));
+                if (GetRfcStrictTypeCheck()) {
+                    throw InvalidInputException("SAP RFC type %s for argument %s is not supported as input — set erpl_rfc_strict_type_check=false to skip", rfctype2std(_rfc_type), arg_name);
+                }
+                break;
             }
 
             if (rc != RFC_OK) {
@@ -698,15 +711,64 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                 rc = RfcGetTable(function_handle, std2uc(field_name).get(), &table_handle, &error_info);
                 if (rc != RFC_OK)
                 {
-                    throw std::runtime_error(StringUtil::Format("Failed to get table %s: %s: %s", 
+                    throw std::runtime_error(StringUtil::Format("Failed to get table %s: %s: %s",
                                                                 rfcrc2std(error_info.code), uc2std(error_info.message)));
                 }
 
                 return ConvertRfcTable(table_handle);
             }
+            case RFCTYPE_INT8:
+            {
+                RFC_INT8 int8_value;
+                rc = RfcGetInt8(function_handle, rfc_name.get(), &int8_value, &error_info);
+                if (rc != RFC_OK) { break; }
+                return rfc2duck(int8_value);
+            }
+            case RFCTYPE_DECF16:
+            case RFCTYPE_DECF34:
+            {
+                unsigned int result_len = 0;
+                unsigned int str_len = (_rfc_type == RFCTYPE_DECF16) ? 25u : 43u;
+                SAP_UC *string_value = (RFC_CHAR *)mallocU(str_len + 1);
+                rc = RfcGetString(function_handle, rfc_name.get(), string_value, str_len + 1, &result_len, &error_info);
+                if (rc == RFC_BUFFER_TOO_SMALL) {
+                    free(string_value);
+                    str_len = result_len;
+                    string_value = (RFC_CHAR *)mallocU(str_len + 1);
+                    rc = RfcGetString(function_handle, rfc_name.get(), string_value, str_len + 1, &result_len, &error_info);
+                }
+                if (rc != RFC_OK) { free(string_value); break; }
+                auto dec_str = uc2std(string_value, str_len);
+                free(string_value);
+                return bcd2duck(dec_str, GetLength() * 2 - 1, GetDecimals());
+            }
+            case RFCTYPE_DTDAY:
+            case RFCTYPE_DTWEEK:
+            case RFCTYPE_DTMONTH:
+            case RFCTYPE_TSECOND:
+            case RFCTYPE_TMINUTE:
+            case RFCTYPE_CDAY:
+            {
+                RFC_INT int_value;
+                rc = RfcGetInt(function_handle, rfc_name.get(), &int_value, &error_info);
+                if (rc != RFC_OK) { break; }
+                return rfc2duck(int_value);
+            }
+            case RFCTYPE_UTCLONG:
+            case RFCTYPE_UTCSECOND:
+            case RFCTYPE_UTCMINUTE:
+                return Value(LogicalType::TIMESTAMP);
+            case RFCTYPE_NULL:
+                return Value(LogicalType::SQLNULL);
+            case RFCTYPE_XMLDATA:
+            case RFCTYPE_ABAPOBJECT:
+                return Value("");
             default:
             {
-                throw std::runtime_error(StringUtil::Format("Conversion of RFC type %s is not supported yet", rfctype2std(_rfc_type)));
+                if (GetRfcStrictTypeCheck()) {
+                    throw InvalidInputException("Conversion of SAP RFC type %s is not supported — set erpl_rfc_strict_type_check=false to fall back to VARCHAR", rfctype2std(_rfc_type));
+                }
+                return Value("");
             }
         }
 
