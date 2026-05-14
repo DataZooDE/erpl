@@ -707,12 +707,32 @@ SELECT * FROM sap_odp_show_cursors();
 
 ---
 
-#### `PRAGMA odp_drop(subscription_id)`
+#### `PRAGMA sap_odp_drop(odp_context, subscriber_name, subscriber_process, odp_name)`
 
-Drop/delete an ODP subscription.
+Drop an ODP subscription/cursor on the SAP system (invokes `RODPS_REPL_ODP_RESET`).
+A subsequent `sap_odp_read_full` will re-create the subscription from scratch.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `odp_context` | VARCHAR | ODP context (e.g. `'ABAP_CDS'`, `'BW'`, `'SAPI'`) |
+| `subscriber_name` | VARCHAR | Subscriber name registered against the queue |
+| `subscriber_process` | VARCHAR | Subscriber process identifier |
+| `odp_name` | VARCHAR | ODP object name |
+
+**Named parameters:** `secret` — optional secret name.
 
 ```sql
-PRAGMA odp_drop('SUB_12345');
+-- Find the subscription to drop
+SELECT queue_name, subscriber_name, subscriber_proc
+  FROM sap_odp_show_subscriptions();
+
+-- Drop it (values come from the row above)
+PRAGMA sap_odp_drop(
+    'ABAP_CDS',
+    'ERPL_BW',
+    'ERPL_ABAP_CDS_SEPM_IBUPA_4271',
+    'SEPM_IBUPA$P'
+);
 ```
 
 ---
