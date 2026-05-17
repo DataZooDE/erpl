@@ -18,10 +18,15 @@ public:
         : _function(function), _RPY_FUNCTIONMODULE_READ(RPY_FUNCTIONMODULE_READ), _done(false)
     { }
 
-    static std::unique_ptr<RfcDescribeFunctionBindData> FromFunctionHandleAndResultSet(std::shared_ptr<RfcFunction> function, 
-                                                                                       std::shared_ptr<RfcResultSet> result_set) 
+    static std::unique_ptr<RfcDescribeFunctionBindData> FromFunctionHandleAndResultSet(std::shared_ptr<RfcFunction> function,
+                                                                                       std::shared_ptr<RfcResultSet> result_set)
     {
-        auto result_value = std::make_shared<Value>(result_set->GetResultValue());
+        // result_set may be null when RPY_FUNCTIONMODULE_READ couldn't be
+        // called (e.g. FL180 "Source wider than 72 char"); in that case the
+        // metadata fields fall back to NULL/empty.
+        auto result_value = result_set != nullptr
+            ? std::make_shared<Value>(result_set->GetResultValue())
+            : std::shared_ptr<Value>();
         return std::make_unique<RfcDescribeFunctionBindData>(function, result_value);
     }
 
@@ -119,7 +124,12 @@ private:
     std::shared_ptr<Value> _RPY_FUNCTIONMODULE_READ;
     bool _done;
 
-    ValueHelper Helper() 
+    bool HasRpyMetadata() const
+    {
+        return _RPY_FUNCTIONMODULE_READ != nullptr;
+    }
+
+    ValueHelper Helper()
     {
         return ValueHelper(*_RPY_FUNCTIONMODULE_READ);
     }
@@ -173,15 +183,18 @@ private:
         return Value::STRUCT(param_value);
     }
 
-    Value ShortText() { return Helper()["SHORT_TEXT"]; }
-    Value RemoteCall() { return Helper()["REMOTE_CALL"]; }
-    Value FunctionPool() { return Helper()["FUNCTION_POOL"]; }
-    Value Source() 
+    Value ShortText()    { return HasRpyMetadata() ? Helper()["SHORT_TEXT"]    : Value(LogicalType::VARCHAR); }
+    Value RemoteCall()   { return HasRpyMetadata() ? Helper()["REMOTE_CALL"]   : Value(LogicalType::VARCHAR); }
+    Value FunctionPool() { return HasRpyMetadata() ? Helper()["FUNCTION_POOL"] : Value(LogicalType::VARCHAR); }
+    Value Source()
     {
+        if (!HasRpyMetadata()) {
+            return Value(LogicalType::VARCHAR);
+        }
         std::stringstream ss;
 
         auto source_lines = ListValue::GetChildren(Helper()["SOURCE"]);
-        for (auto &line : source_lines) 
+        for (auto &line : source_lines)
         {
             ss << ValueHelper(line)["LINE"].ToString() << std::endl;
         }
