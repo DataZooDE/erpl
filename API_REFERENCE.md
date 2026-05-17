@@ -842,12 +842,62 @@ SELECT * FROM sap_odp_show_cursors();
 
 ---
 
-#### `PRAGMA odp_drop(subscription_id)`
+#### `PRAGMA sap_odp_close_delta_cursor(odp_context, subscriber_process, odp_name [, secret=...])`
 
-Drop/delete an ODP subscription.
+Graceful counterpart to `sap_odp_drop`. Looks up the cursor for the given
+subscriber tuple and calls `RODPS_REPL_ODP_CLOSE` on its pointer. **Idempotent**:
+returns `'CLOSED'` if a cursor existed (open or already closed) and
+`'NOT_FOUND'` if no cursor of that name was found.
+
+Prefer this over `sap_odp_drop` at the end of a delta pipeline — close leaves
+the subscription registered and resumable from its last pointer; drop wipes the
+subscription so the next call performs DELTAINIT again.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `odp_context` | VARCHAR | ODP context (e.g. `'BW'`, `'ABAP_CDS'`) |
+| `subscriber_process` | VARCHAR | Subscriber process identifier (the one passed to `sap_odp_read_delta`) |
+| `odp_name` | VARCHAR | ODP object name |
+
+**Named parameters:** `secret` — optional secret name.
 
 ```sql
-PRAGMA odp_drop('SUB_12345');
+PRAGMA sap_odp_close_delta_cursor('BW', 'NIGHTLY_ETL', '0D_FC_C01$F');
+```
+
+Cleanup hygiene matters: leaked open cursors accumulate server-side. If a
+pipeline crashes mid-fetch the cursor may not be closeable via this pragma —
+fall back to `sap_odp_drop` to fully reset, accepting that the next call
+will re-snapshot via DELTAINIT.
+
+---
+
+#### `PRAGMA sap_odp_drop(odp_context, subscriber_name, subscriber_process, odp_name)`
+
+Drop an ODP subscription/cursor on the SAP system (invokes `RODPS_REPL_ODP_RESET`).
+A subsequent `sap_odp_read_full` will re-create the subscription from scratch.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `odp_context` | VARCHAR | ODP context (e.g. `'ABAP_CDS'`, `'BW'`, `'SAPI'`) |
+| `subscriber_name` | VARCHAR | Subscriber name registered against the queue |
+| `subscriber_process` | VARCHAR | Subscriber process identifier |
+| `odp_name` | VARCHAR | ODP object name |
+
+**Named parameters:** `secret` — optional secret name.
+
+```sql
+-- Find the subscription to drop
+SELECT queue_name, subscriber_name, subscriber_proc
+  FROM sap_odp_show_subscriptions();
+
+-- Drop it (values come from the row above)
+PRAGMA sap_odp_drop(
+    'ABAP_CDS',
+    'ERPL_BW',
+    'ERPL_ABAP_CDS_SEPM_IBUPA_4271',
+    'SEPM_IBUPA$P'
+);
 ```
 
 ---
