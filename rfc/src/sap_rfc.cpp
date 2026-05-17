@@ -425,6 +425,17 @@ namespace duckdb
         });
         if (needs_string_support) {
             ResolveReadTableFunctionForStringTypes(connection);
+            // Eagerly resolve the et_data switch availability on this function
+            // module so parallel column tasks don't race on it at execute
+            // time. The function signature is stable across the session, so
+            // probing once during bind is equivalent to the lazy path.
+            if (read_table_function == "RFC_READ_TABLE" && !read_table_supports_et_data_switch.has_value()) {
+                try {
+                    read_table_supports_et_data_switch = ReadTableSupportsEtDataSwitch(connection, read_table_function);
+                } catch (std::exception &) {
+                    // leave unset; execute-time path will surface the error.
+                }
+            }
         }
 
         ResolveReadTableImportParams(connection);
@@ -666,33 +677,53 @@ namespace duckdb
         return false;
     }
 
-    void RfcReadTableBindData::Step(ClientContext &context, DataChunk &output) 
+    void RfcReadTableBindData::Step(ClientContext &context, DataChunk &output)
     {
         auto &scheduler = TaskScheduler::GetScheduler(context);
-        auto executor = TaskExecutor(scheduler);
-        if (max_threads > 0) {
-            unsigned int db_num_threads = context.db->NumberOfThreads();
-            max_threads = std::min(max_threads, db_num_threads);
-            scheduler.SetThreads(max_threads, 1);
-        }
-        
+
+        // Snapshot the active state machines so we can throttle scheduling
+        // without iterating column_state_machines twice.
+        std::vector<RfcReadColumnStateMachine *> active;
+        active.reserve(column_state_machines.size());
         for (auto &sm : column_state_machines) {
-            if (! sm.Active()) {
-                continue;
+            if (sm.Active()) {
+                active.push_back(&sm);
             }
-            auto task = sm.CreateTaskForNextStep(executor, output.data[sm.GetProjectedColumnIndex()]);
-            executor.ScheduleTask(std::move(task));
         }
 
-        //auto n_active = NActiveStateMachines();
-        //scheduler.ExecuteTasks(n_active);
+        // When max_threads > 0, the user wants at most that many concurrent
+        // RFC calls. Enforce by scheduling tasks in batches. Each batch is
+        // one full TaskExecutor cycle: schedule, WorkOnTasks (which blocks
+        // until all batch tasks finish), repeat.
+        //
+        // We deliberately do NOT call scheduler.SetThreads(): that mutates
+        // the global TaskScheduler::requested_thread_count, which gets
+        // applied at end-of-query via ClientContext::CleanupInternal ->
+        // RelaunchThreads, leaking the per-query setting into the rest of
+        // the session.
+        idx_t batch_size = active.size();
+        if (max_threads > 0 && max_threads < batch_size) {
+            batch_size = max_threads;
+        }
+        if (batch_size == 0) {
+            batch_size = 1;
+        }
 
-        executor.WorkOnTasks();
-        
+        for (idx_t start = 0; start < active.size(); start += batch_size) {
+            TaskExecutor executor(scheduler);
+            idx_t end = std::min<idx_t>(start + batch_size, active.size());
+            for (idx_t i = start; i < end; i++) {
+                auto &sm = *active[i];
+                auto task = sm.CreateTaskForNextStep(executor, output.data[sm.GetProjectedColumnIndex()]);
+                executor.ScheduleTask(std::move(task));
+            }
+            executor.WorkOnTasks();
+        }
+
         if (! AreActiveStateMachineCaridnalitiesEqual()) {
             throw std::runtime_error("Cardinality of column state machines is not the same. This should not happen.");
         }
-        
+
         auto cardinality = FirstActiveStateMachineCardinality();
         output.SetCardinality(cardinality);
     }
@@ -844,15 +875,7 @@ namespace duckdb
         return projected_column_idx;
     }
 
-    std::shared_ptr<RfcConnection> RfcReadColumnStateMachine::GetConnection() 
-    {
-        if (current_connection == nullptr) {
-            current_connection = bind_data->OpenNewConnection();
-        }
-        return current_connection;
-    }
-
-    bool RfcReadColumnStateMachine::IsRowIdColumnId() 
+    bool RfcReadColumnStateMachine::IsRowIdColumnId()
     {
         std::lock_guard<mutex> t(thread_lock);
         return row_id_column_id;
@@ -1010,6 +1033,38 @@ namespace duckdb
                 auto func_args = CreateFunctionArguments(read_table_delimiter, use_et_data);
                 auto invocation = func->BeginInvocation(func_args);
                 current_result_data = invocation->Invoke(data_path);
+
+                // /SAPDS/RFC_READ_TABLE2 and /BODS/RFC_READ_TABLE2 distribute
+                // rows across multiple TBLOUTxxxx output tables based on the
+                // projected row width — the SMALLEST TBLOUTxxxx that fits
+                // gets populated, the others stay empty.
+                // ResolveReadTableResultPath picks one path at bind time, but
+                // the right size depends on the actual columns in this batch
+                // (which can differ per column-parallel task). If our chosen
+                // path is empty, walk the other TBLOUTxxxx on the SAME RFC
+                // invocation (no extra round-trip — RfcResultSet just walks
+                // the SDK handle) and use whichever has data.
+                if (current_result_data->TotalRows() == 0 &&
+                    data_path.rfind("/TBLOUT", 0) == 0) {
+                    static const std::vector<std::string> alt_paths = {
+                        "/TBLOUT128", "/TBLOUT512", "/TBLOUT2048", "/TBLOUT8192", "/TBLOUT30000"
+                    };
+                    for (auto &alt : alt_paths) {
+                        if (alt == data_path) {
+                            continue;
+                        }
+                        try {
+                            auto alt_result = std::make_shared<RfcResultSet>(invocation, alt);
+                            if (alt_result->TotalRows() > 0) {
+                                current_result_data = alt_result;
+                                break;
+                            }
+                        } catch (std::exception &) {
+                            // Path not present on this function module variant; skip.
+                        }
+                    }
+                }
+
                 connection->Close();
                 return current_result_data->TotalRows();
             }

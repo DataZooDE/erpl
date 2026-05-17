@@ -201,28 +201,31 @@ SELECT COUNT(*) > 0 FROM sap_read_table('T002', COLUMNS=['SPRAS']);
 1
 
 # ---------------------------------------------------------------------
-# Verify supported READ_TABLE_FUNCTION values
+# Verify supported READ_TABLE_FUNCTION values return the full 40 rows of /DMO/FLIGHT.
+# Previously these asserted `COUNT(*) >= 0` which passed trivially even when the
+# /SAPDS and /BODS variants silently returned 0 rows because rows landed in a
+# different TBLOUTxxxx output table than the one we read from.
 query I
-SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_TABLE_FUNCTION='RFC_READ_TABLE');
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_TABLE_FUNCTION='RFC_READ_TABLE');
 ----
-1
+40
 
 query I
-SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_TABLE_FUNCTION='/BODS/RFC_READ_TABLE');
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_TABLE_FUNCTION='/BODS/RFC_READ_TABLE');
 ----
-1
+40
 
 query I
-SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_TABLE_FUNCTION='/SAPDS/RFC_READ_TABLE');
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_TABLE_FUNCTION='/SAPDS/RFC_READ_TABLE');
 ----
-1
+40
 
 query I
-SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_TABLE_FUNCTION='/BODS/RFC_READ_TABLE2', READ_TABLE_DELIMITER='~');
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_TABLE_FUNCTION='/BODS/RFC_READ_TABLE2', READ_TABLE_DELIMITER='~');
 ----
-1
+40
 
 query I
-SELECT COUNT(*) >= 0 FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_TABLE_FUNCTION='/SAPDS/RFC_READ_TABLE2', READ_TABLE_DELIMITER='~');
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_TABLE_FUNCTION='/SAPDS/RFC_READ_TABLE2', READ_TABLE_DELIMITER='~');
 ----
-1
+40
