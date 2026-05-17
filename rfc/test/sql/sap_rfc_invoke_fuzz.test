@@ -1,0 +1,482 @@
+# name: test/sql/sap_rfc_invoke_fuzz.test
+# description: regression tests for sap_rfc_invoke across a diverse set of real
+#              SAP RFC function modules — covers no-arg, nested struct, deep
+#              table, multi-result, and synthetic-ok-column code paths.
+# group: [rfc]
+
+require erpl_rfc
+
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
+
+statement ok
+CREATE SECRET abap_trial (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}'
+);
+
+# ---------------------------------------------------------------------
+# RFC_PING — no params, no exports, no tables.
+# Regression: previously crashed bind with
+#   "Table function must return at least one column".
+# Now exposes a synthetic boolean 'ok' column.
+query I
+SELECT ok FROM sap_rfc_invoke('RFC_PING');
+----
+true
+
+# RFC_PING with star projection should also work
+query I
+SELECT COUNT(*) FROM sap_rfc_invoke('RFC_PING');
+----
+1
+
+# ---------------------------------------------------------------------
+# STFC_CONNECTION — simple scalar echo.
+query I
+SELECT ECHOTEXT FROM sap_rfc_invoke(
+    'STFC_CONNECTION', {'REQUTEXT': 'Hello SAP from DuckDB'}
+);
+----
+Hello SAP from DuckDB
+
+# ---------------------------------------------------------------------
+# RFC_SYSTEM_INFO — no args, struct return navigated by name
+query I
+SELECT (RFCSI_EXPORT).RFCSYSID FROM sap_rfc_invoke('RFC_SYSTEM_INFO');
+----
+A4H
+
+# ---------------------------------------------------------------------
+# RFC_GET_FUNCTION_INTERFACE — scalar in, table out via path navigation.
+query I
+SELECT COUNT(*) FROM sap_rfc_invoke(
+    'RFC_GET_FUNCTION_INTERFACE', {'FUNCNAME': 'STFC_CONNECTION'},
+    path := '/PARAMS'
+);
+----
+3
+
+# ---------------------------------------------------------------------
+# BAPI_FLIGHT_GETLIST — nested struct input + table output.
+query I
+SELECT COUNT(*) FROM sap_rfc_invoke('BAPI_FLIGHT_GETLIST', {
+    'AIRLINE': 'LH',
+    'DESTINATION_FROM': {'AIRPORTID': 'FRA'},
+    'DESTINATION_TO': {'AIRPORTID': 'JFK'}
+}, path := '/FLIGHT_LIST');
+----
+16
+
+# ---------------------------------------------------------------------
+# DDIF_FIELDINFO_GET — scalar in, multiple table outs; navigate to one.
+query I
+SELECT COUNT(*) FROM sap_rfc_invoke(
+    'DDIF_FIELDINFO_GET', {'TABNAME': 'SFLIGHT'},
+    path := '/DFIES_TAB'
+);
+----
+14
+
+# ---------------------------------------------------------------------
+# STFC_DEEP_STRUCTURE — round-trip a STFCCPLXT struct (INT + CHAR + STRING).
+query III
+SELECT (ECHOSTRUCT).I, (ECHOSTRUCT).C, (ECHOSTRUCT).STR
+FROM sap_rfc_invoke('STFC_DEEP_STRUCTURE', {
+    'IMPORTSTRUCT': {'I': 42, 'C': 'AB', 'STR': 'top', 'XSTR': ''}
+});
+----
+42	AB	top
+
+# ---------------------------------------------------------------------
+# STFC_DEEP_TABLE — push a list-of-struct into a table parameter, read it back.
+# STFC_DEEP_TABLE echoes IMPORT_TAB into EXPORT_TAB and may add one summary
+# row; assert that at least the two input rows came back.
+query I
+SELECT COUNT(*) >= 2 FROM sap_rfc_invoke('STFC_DEEP_TABLE', {
+    'IMPORT_TAB': [{'I': 1, 'C': 'AA', 'STR': 'a', 'XSTR': ''},
+                   {'I': 2, 'C': 'BB', 'STR': 'b', 'XSTR': ''}]
+}, path := '/EXPORT_TAB');
+----
+true
+
+# ---------------------------------------------------------------------
+# BAPI_USER_GETLIST — integer scalar param, table out
+query I
+SELECT COUNT(*) FROM sap_rfc_invoke(
+    'BAPI_USER_GETLIST', {'MAX_ROWS': 5},
+    path := '/USERLIST'
+);
+----
+5
+
+# ---------------------------------------------------------------------
+# BAPI_USER_GET_DETAIL — string in, struct return navigated by field name.
+query I
+SELECT (ADDRESS).FULLNAME FROM sap_rfc_invoke(
+    'BAPI_USER_GET_DETAIL', {'USERNAME': 'DEVELOPER'}
+);
+----
+John Doe
+
+# ---------------------------------------------------------------------
+# RFC_FUNCTION_SEARCH — pattern-match args returning a table.
+# (Just assert at least one STFC* function is found.)
+query I
+SELECT COUNT(*) > 0 FROM sap_rfc_invoke(
+    'RFC_FUNCTION_SEARCH', {'FUNCNAME': 'STFC*', 'GROUPNAME': '*'},
+    path := '/FUNCTIONS'
+);
+----
+1
+
+# ---------------------------------------------------------------------
+# RFC_GET_LOCAL_DESTINATIONS — no args, navigate to LOCALDEST table.
+query I
+SELECT COUNT(*) >= 0 FROM sap_rfc_invoke(
+    'RFC_GET_LOCAL_DESTINATIONS', path := '/LOCALDEST'
+);
+----
+1
+
+# ---------------------------------------------------------------------
+# STFC_PERFORMANCE — RFCTYPE_NUM params must be passed as numeric strings.
+# Validates that the named adapter accepts the string-coded representation.
+query I
+SELECT COUNT(*) > 0 FROM sap_rfc_invoke('STFC_PERFORMANCE', {
+    'CHECKTAB': ' ',
+    'LGET0332': '0', 'LGET1000': '0',
+    'LGIT0332': '0', 'LGIT1000': '0'
+});
+----
+1
+
+# ---------------------------------------------------------------------
+# STFC_STRUCTURE — every primitive RFC type in one struct.
+# Regression: RFCHEX3 (RFCTYPE_BYTE) was a stub that always sent zeros;
+# RFCTYPE_XSTRING write was also unimplemented. Both now round-trip.
+# Asserts each of DOUBLE/INT4/INT2/INT1/CHAR1/CHAR2/CHAR4/DATE/TIME/BYTE
+# is preserved through the SAP test echo.
+query IIIIIIIIII
+SELECT (ECHOSTRUCT).RFCFLOAT,
+       (ECHOSTRUCT).RFCINT4,
+       (ECHOSTRUCT).RFCINT2,
+       (ECHOSTRUCT).RFCINT1,
+       (ECHOSTRUCT).RFCCHAR1,
+       (ECHOSTRUCT).RFCCHAR2,
+       (ECHOSTRUCT).RFCCHAR4,
+       (ECHOSTRUCT).RFCDATE,
+       (ECHOSTRUCT).RFCTIME,
+       (ECHOSTRUCT).RFCHEX3
+FROM sap_rfc_invoke('STFC_STRUCTURE', {
+    'IMPORTSTRUCT': {
+        'RFCFLOAT':  3.14159,
+        'RFCINT4':   1234567,
+        'RFCINT2':   32000::SMALLINT,
+        'RFCINT1':   100::TINYINT,
+        'RFCCHAR1':  'A',
+        'RFCCHAR2':  'BC',
+        'RFCCHAR4':  'DUCK',
+        'RFCDATE':   '2026-05-16'::DATE,
+        'RFCTIME':   '12:34:56'::TIME,
+        'RFCHEX3':   '\xCA\xFE\xBA'::BLOB,
+        'RFCDATA1':  '',
+        'RFCDATA2':  ''
+    }
+});
+----
+3.14159	1234567	32000	100	A	BC	DUCK	2026-05-16	12:34:56	\xCA\xFE\xBA
+
+# ---------------------------------------------------------------------
+# STFC_DEEP_STRUCTURE — XSTRING (variable-length raw bytes) round-trip.
+# Regression: RFCTYPE_XSTRING was an unimplemented no-op (or a strict-mode
+# throw) before the byte-fix.
+query I
+SELECT (ECHOSTRUCT).XSTR FROM sap_rfc_invoke('STFC_DEEP_STRUCTURE', {
+    'IMPORTSTRUCT': {'I': 0, 'C': '', 'STR': '', 'XSTR': '\xDE\xAD\xBE\xEF'::BLOB}
+});
+----
+\xDE\xAD\xBE\xEF
+
+# ---------------------------------------------------------------------
+# BAPI_EXCHANGERATE_CREATE — nested struct with DATE and DECIMAL fields
+# (BAPI1093_0). Validates date and decimal marshalling end-to-end.
+# We expect a BAPIRET2 return; SAP will respond with a status message.
+# Just assert the call doesn't error and that we get a TYPE back.
+query I
+SELECT length((RETURN).TYPE) > 0
+FROM sap_rfc_invoke('BAPI_EXCHANGERATE_CREATE', {
+    'EXCH_RATE': {
+        'RATE_TYPE':     'M',
+        'FROM_CURR':     'USD',
+        'TO_CURRNCY':    'EUR',
+        'VALID_FROM':    '2026-05-16'::DATE,
+        'EXCH_RATE':     0.92::DECIMAL(9,5),
+        'FROM_FACTOR':   1::DECIMAL(9,0),
+        'TO_FACTOR':     1::DECIMAL(9,0),
+        'EXCH_RATE_V':   0::DECIMAL(9,5),
+        'FROM_FACTOR_V': 0::DECIMAL(9,0),
+        'TO_FACTOR_V':   0::DECIMAL(9,0)
+    },
+    'DEV_ALLOW': '00'
+});
+----
+true
+
+# ---------------------------------------------------------------------
+# NULL handling — both an explicit-typed NULL and a bare NULL should be
+# accepted and treated as "leave the RFC field at its default".
+# Regression: bare NULL was rejected because DuckDB infers it as INTEGER
+# and the strict IsCompatibleType check rejected the mismatch.
+query I
+SELECT ECHOTEXT FROM sap_rfc_invoke('STFC_CONNECTION', {'REQUTEXT': NULL::VARCHAR});
+----
+(empty)
+
+query I
+SELECT ECHOTEXT FROM sap_rfc_invoke('STFC_CONNECTION', {'REQUTEXT': NULL});
+----
+(empty)
+
+# ---------------------------------------------------------------------
+# UTF-8 multibyte input including emoji — exercises the SAP Unicode boundary.
+query I
+SELECT ECHOTEXT FROM sap_rfc_invoke('STFC_CONNECTION', {'REQUTEXT': 'Héllo 世界 🦆'});
+----
+Héllo 世界 🦆
+
+# ---------------------------------------------------------------------
+# STFC_STRUCTURE in a TABLE — push a list-of-RFCTEST and read it back.
+# Exercises AdaptTable with a struct of mixed types (FLOAT + INTs + CHAR
+# + DATE + TIME + BYTE).
+query I
+SELECT COUNT(*) >= 1
+FROM sap_rfc_invoke('STFC_STRUCTURE', {
+    'IMPORTSTRUCT': {
+        'RFCFLOAT': 1.0, 'RFCINT4': 1, 'RFCINT2': 1::SMALLINT, 'RFCINT1': 1::TINYINT,
+        'RFCCHAR1': 'X', 'RFCCHAR2': 'YY', 'RFCCHAR4': 'ZZZZ',
+        'RFCDATE': '2026-01-01'::DATE, 'RFCTIME': '00:00:00'::TIME,
+        'RFCHEX3': '\x01\x02\x03'::BLOB, 'RFCDATA1': '', 'RFCDATA2': ''
+    },
+    'RFCTABLE': [
+        {'RFCFLOAT': 2.0, 'RFCINT4': 2, 'RFCINT2': 2::SMALLINT, 'RFCINT1': 2::TINYINT,
+         'RFCCHAR1': 'A', 'RFCCHAR2': 'BB', 'RFCCHAR4': 'CCCC',
+         'RFCDATE': '2026-02-02'::DATE, 'RFCTIME': '01:01:01'::TIME,
+         'RFCHEX3': '\x04\x05\x06'::BLOB, 'RFCDATA1': 'r1', 'RFCDATA2': 'r1'}
+    ]
+}, path := '/RFCTABLE');
+----
+true
+
+# ---------------------------------------------------------------------
+# STFC_CHANGING — exercises an RFC_CHANGING parameter. COUNTER comes in,
+# the function modifies it in place and also returns it (along with RESULT
+# = START_VALUE + COUNTER_IN).
+query II
+SELECT COUNTER, RESULT FROM sap_rfc_invoke('STFC_CHANGING', {
+    'START_VALUE': 10,
+    'COUNTER':     5
+});
+----
+6	15
+
+# ---------------------------------------------------------------------
+# STFC_XSTRING — top-level RFCTYPE_XSTRING parameter taking a DuckDB BLOB.
+# Regression: IsCompatibleType used to reject BLOB→XSTRING (it required
+# VARCHAR), so the call failed before reaching AdaptValue. Now both
+# VARCHAR and BLOB are accepted as compatible payloads for raw-byte types.
+# Asserts only that the call succeeds and returns a non-null answer
+# (the function transforms the bytes, doesn't pure-echo).
+query I
+SELECT MYANSWER IS NOT NULL FROM sap_rfc_invoke(
+    'STFC_XSTRING', {'QUESTION': '\xDE\xAD\xBE\xEF\x00\x01\x02\x03'::BLOB}
+);
+----
+true
+
+# ---------------------------------------------------------------------
+# Path-to-scalar — navigate to a leaf field via the path parameter.
+# Regression: previously threw "Field 'X' is not a container type".
+# Now valid when the path ends at a scalar field; result has a single
+# column named after the leaf.
+query I
+SELECT RFCSYSID FROM sap_rfc_invoke('RFC_SYSTEM_INFO', path := '/RFCSI_EXPORT/RFCSYSID');
+----
+A4H
+
+# ---------------------------------------------------------------------
+# Path navigation into a STRUCT result parameter — children become columns.
+query III
+SELECT FIRSTNAME, LASTNAME, FULLNAME
+FROM sap_rfc_invoke('BAPI_USER_GET_DETAIL', {'USERNAME': 'DEVELOPER'},
+                    path := '/ADDRESS');
+----
+John	Doe	John Doe
+
+# ---------------------------------------------------------------------
+# Path navigation into a TABLE result parameter — rows stream through.
+query I
+SELECT USERNAME FROM sap_rfc_invoke(
+    'BAPI_USER_GETLIST', {'MAX_ROWS': 3}, path := '/USERLIST'
+) ORDER BY USERNAME LIMIT 1;
+----
+BWDEVELOPER
+
+# ---------------------------------------------------------------------
+# Negative integers across all integer widths must round-trip.
+query III
+SELECT (ECHOSTRUCT).RFCINT4, (ECHOSTRUCT).RFCINT2, (ECHOSTRUCT).RFCINT1
+FROM sap_rfc_invoke('STFC_STRUCTURE', {
+    'IMPORTSTRUCT': {
+        'RFCFLOAT': -3.14, 'RFCINT4': -42, 'RFCINT2': -100::SMALLINT, 'RFCINT1': -5::TINYINT,
+        'RFCCHAR1': 'N', 'RFCCHAR2': 'EG', 'RFCCHAR4': 'NEG ',
+        'RFCDATE': '1990-01-01'::DATE, 'RFCTIME': '23:59:59'::TIME,
+        'RFCHEX3': '\xFF\xFF\xFF'::BLOB, 'RFCDATA1': '', 'RFCDATA2': ''
+    }
+});
+----
+-42	-100	-5
+
+# ---------------------------------------------------------------------
+# Wrong-type argument should fail with a precise error pointing at the
+# offending parameter and types. Regression-pin the error path.
+statement error
+SELECT ECHOTEXT FROM sap_rfc_invoke('STFC_CONNECTION', {'REQUTEXT': {'x': 'y'}});
+----
+Parameter 'REQUTEXT' is of type 'RFCTYPE_CHAR' (RFC) but argument is of type 'STRUCT(x VARCHAR)' (DuckDB)
+
+# ---------------------------------------------------------------------
+# Unknown parameter should fail with the parameter name in the message.
+statement error
+SELECT ECHOTEXT FROM sap_rfc_invoke('STFC_CONNECTION', {'NO_SUCH_PARAM': 'oops'});
+----
+Parameter 'NO_SUCH_PARAM' not found
+
+# ---------------------------------------------------------------------
+# APCRFC_INT8_COMP_TEST — single-column TABLE of BIGINT (no struct wrapper).
+# Exercises a TABLE-typed import where the row element is a scalar INT8.
+# Regression-pins that BIGINT->RFCTYPE_INT8 round-trips without an
+# explicit cast (RFCTYPE_INT8 used to map to INTEGER in
+# rfctype2logicaltype, which would have rejected BIGINT for direct
+# top-level INT8 params).
+query I
+SELECT ok FROM sap_rfc_invoke('APCRFC_INT8_COMP_TEST', {
+    'IT_INT8': [1::BIGINT, 2::BIGINT, 9223372036854775807::BIGINT]
+});
+----
+true
+
+# ---------------------------------------------------------------------
+# /DMO/TRAVEL has DEC(21,7) timestamps (TIMESTAMPL) and CURR(15,2)
+# prices. Regression: the BCD precision derivation used to compute
+# DECIMAL(GetLength()*2 - 1, ...) which gave DECIMAL(41,7) for DEC(21,7)
+# in sap_rfc_invoke (Bug 7 in this round). The fix caps precision at 38.
+# Verifies the typeinfo is a valid DECIMAL and rows come back.
+query I
+SELECT COUNT(*) > 0 FROM sap_read_table('/DMO/TRAVEL',
+    COLUMNS=['TRAVEL_ID', 'CREATEDAT', 'LASTCHANGEDAT', 'TOTAL_PRICE'],
+    MAX_ROWS=3);
+----
+true
+
+# ---------------------------------------------------------------------
+# DECFLOAT34 DDIC type ('D34D', 'D34R', 'D34S') used to throw
+# "Unsupported SAP data type" because GetTypeMap omitted it. After fix,
+# the column types resolve to DECIMAL and sap_describe_fields recognises
+# the type. The actual /SAPQUERY/TA08 SELECT may still fail on the SAP
+# side, so we just assert that the schema lookup succeeds.
+query I
+SELECT COUNT(*) FROM sap_describe_fields('/SAPQUERY/TA08')
+WHERE field LIKE 'DF34%';
+----
+4
+
+# ---------------------------------------------------------------------
+# Path-to-scalar should also work on a struct field nested *one level*
+# below a top-level result struct (already covered above), and on a
+# leaf inside a list element doesn't make sense — but a leaf inside the
+# top-level struct does. This pins the path /BAPI_USER_GET_DETAIL → /ADDRESS/COUNTRY.
+query I
+SELECT COUNTRY FROM sap_rfc_invoke(
+    'BAPI_USER_GET_DETAIL', {'USERNAME': 'DEVELOPER'},
+    path := '/ADDRESS/COUNTRY'
+);
+----
+DE
+
+# ---------------------------------------------------------------------
+# Positional adapter — accept arguments by position, not just as a struct.
+# Regression: RfcInvocationPositionalAdapter used to throw
+#   "Positional adapter not implemented"
+# any time a non-struct arg was supplied; callers were forced to wrap
+# everything in a struct. Now the adapter matches positional args to the
+# function's settable parameters (IMPORT + CHANGING + TABLES) in DDIC
+# declaration order, with the same NULL-skip and IsCompatibleType rules
+# as the named adapter.
+query I
+SELECT ECHOTEXT FROM sap_rfc_invoke('STFC_CONNECTION', 'Hello positional');
+----
+Hello positional
+
+# Same positional form but with a list value (single-column TABLE param).
+query I
+SELECT ok FROM sap_rfc_invoke(
+    'APCRFC_INT8_COMP_TEST', [1::BIGINT, 2::BIGINT, 9223372036854775807::BIGINT]
+);
+----
+true
+
+# Too many positional args should fail cleanly with parameter count info.
+statement error
+SELECT MYANSWER FROM sap_rfc_invoke('STFC_STRING', 'Hello', 'extra');
+----
+Too many positional arguments: function has 1 settable parameters but got 2
+
+# ---------------------------------------------------------------------
+# describe_function fallback — RPY_FUNCTIONMODULE_READ trips
+# FL180 "Source wider than 72 char" on some older module bodies
+# (e.g. SXPG_COMMAND_EXECUTE, RFC_GET_ATTRIBUTES, IDOC_INBOUND_ASYNCHRONOUS).
+# Regression: previously the whole describe call failed. Now the bind
+# gracefully falls back to SDK-only introspection; the parameter list
+# is still complete, but the source/text/pool/remote_callable fields
+# are NULL.
+query I
+SELECT length(import) > 0
+FROM sap_rfc_describe_function('SXPG_COMMAND_EXECUTE');
+----
+true
+
+query I
+SELECT length(export) > 0
+FROM sap_rfc_describe_function('RFC_GET_ATTRIBUTES');
+----
+true
+
+# ---------------------------------------------------------------------
+# DECFLOAT16/34 precision — SDK introspection reports nucLength as the
+# storage byte count (8 / 16), DDIC introspection as the digit count
+# (up to 16 / 34). Either way the schema must report the spec-defined
+# significand width (16 / 34). Regression: previously the SDK path gave
+# DECIMAL(8,0) for DECFLOAT16 and DECIMAL(16,0) for DECFLOAT34 — losing
+# half the digits.
+query II
+SELECT
+    list_element(d.changing, list_position(list_transform(d.changing, p -> p.name), 'DECFLOAT16')).duckdb_type AS df16_type,
+    list_element(d.changing, list_position(list_transform(d.changing, p -> p.name), 'DECFLOAT34')).duckdb_type AS df34_type
+FROM sap_rfc_describe_function('S_APCRFC_ALLTYPES') d;
+----
+DECIMAL(16,0)	DECIMAL(34,0)
