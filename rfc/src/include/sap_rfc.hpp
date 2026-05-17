@@ -139,7 +139,6 @@ namespace duckdb
 			duckdb::unique_ptr<RfcReadColumnTask> CreateTaskForNextStep(duckdb::TaskExecutor &executor, duckdb::Vector &column_output);
 			unsigned int GetRfcColumnIndex();
 			unsigned int GetProjectedColumnIndex();
-			std::shared_ptr<RfcConnection> GetConnection();
 			bool IsRowIdColumnId();
 			void SetRowIdColumnId();
 			unsigned int GetCardinality();
@@ -163,7 +162,6 @@ namespace duckdb
 			RfcReadTableBindData *bind_data;
 			ReadTableStates current_state = ReadTableStates::INIT;
 			std::shared_ptr<RfcResultSet> current_result_data = nullptr;
-			std::shared_ptr<RfcConnection> current_connection = nullptr;
 
 			std::mutex thread_lock;
 	};
