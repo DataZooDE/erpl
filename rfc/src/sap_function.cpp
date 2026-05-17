@@ -209,19 +209,41 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             case RFCTYPE_FLOAT:
                 return LogicalType::DOUBLE;
                 break;
-            case RFCTYPE_BCD:
+            case RFCTYPE_BCD: {
+                // BCD: GetLength returns the byte count of the packed-decimal
+                // storage (ceil((digits+1)/2)). 2*N-1 recovers the digit count.
+                // Cap at DuckDB's DECIMAL precision limit (38) to avoid asserts
+                // on rare DEC(>=20,*) DDIC fields.
+                auto precision = std::min<unsigned int>(GetLength() * 2 - 1, 38);
+                auto scale = std::min<unsigned int>(GetDecimals(), precision);
+                return LogicalType::DECIMAL(precision, scale);
+            }
             case RFCTYPE_DECF16:
-            case RFCTYPE_DECF34:
-                return LogicalType::DECIMAL(GetLength() * 2 - 1, GetDecimals());
-                //return LogicalType::DECIMAL(GetLength(), GetDecimals());
-                break;
+            case RFCTYPE_DECF34: {
+                // DECFLOAT16/34 are IEEE 754-2008 decimal floats with fixed
+                // significand precision (16 / 34 digits). GetLength returns
+                // different things depending on the source:
+                //   - SDK introspection (RfcGetParameterDesc) -> storage byte
+                //     count (8 for DECF16, 16 for DECF34).
+                //   - DDIC introspection (DFIES_TAB) -> DDIC LENG, which can
+                //     be up to 31 for D34D.
+                // Both are *not* the digit count we need for DECIMAL(P, S).
+                // Hardcode the spec-defined precision instead.
+                unsigned int precision = (_rfc_type == RFCTYPE_DECF16) ? 16 : 34;
+                auto scale = std::min<unsigned int>(GetDecimals(), precision);
+                return LogicalType::DECIMAL(precision, scale);
+            }
             case RFCTYPE_CHAR:
             case RFCTYPE_STRING:
-            case RFCTYPE_XSTRING:
             case RFCTYPE_XMLDATA:
                 return LogicalType::VARCHAR;
                 break;
+            // RFCTYPE_XSTRING (variable-length raw bytes) and RFCTYPE_BYTE
+            // (fixed-length raw bytes) both carry binary payloads. The read
+            // path returns Value::BLOB; the schema must match or DuckDB
+            // catches it as a bind/value type mismatch.
             case RFCTYPE_BYTE:
+            case RFCTYPE_XSTRING:
                 return LogicalType::BLOB;
                 break;
             case RFCTYPE_TIME:
@@ -289,10 +311,19 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         return LogicalType::STRUCT(child_types);
     }
 
-    bool RfcType::IsCompatibleType(const LogicalTypeId type) 
+    bool RfcType::IsCompatibleType(const LogicalTypeId type)
     {
         auto compatible_type = GetCompatibleDuckDbType();
-        return type == compatible_type;
+        if (type == compatible_type) {
+            return true;
+        }
+        // BYTE and XSTRING are raw bytes. Accept either VARCHAR or BLOB as the
+        // DuckDB input — both carry binary payloads, and the marshalling code
+        // pulls the bytes via StringValue::Get which works for both.
+        if (_rfc_type == RFCTYPE_XSTRING || _rfc_type == RFCTYPE_BYTE) {
+            return type == LogicalTypeId::VARCHAR || type == LogicalTypeId::BLOB;
+        }
+        return false;
     }
 
     void RfcType::AdaptValue(RfcInvocation &invocation, string &arg_name, Value &arg_value) 
@@ -373,19 +404,32 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             }
             case RFCTYPE_XSTRING:
             {
-                if (GetRfcStrictTypeCheck()) {
-                    throw InvalidInputException("XSTRING input is not supported — set erpl_rfc_strict_type_check=false to skip");
+                // Variable-length raw bytes — take the bytes from a DuckDB BLOB (or VARCHAR for
+                // hex strings cast through ::BLOB) and push them as-is into the RFC XSTRING.
+                if (arg_value.IsNull()) {
+                    break;
                 }
+                auto bytes = StringValue::Get(arg_value);
+                rc = RfcSetXString(container_handle, sap_arg_name.get(),
+                                   reinterpret_cast<const SAP_RAW *>(bytes.data()),
+                                   static_cast<unsigned int>(bytes.size()),
+                                   &error_info);
                 break;
             }
             // Binary types
             case RFCTYPE_BYTE:
             {
-                unsigned int byte_value_len = 0;
-                SAP_RAW *byte_value = (SAP_RAW *)malloc(byte_value_len);
-
-                rc = RfcSetBytes(container_handle, sap_arg_name.get(), byte_value, byte_value_len, &error_info);
-                free(byte_value);
+                // Fixed-length raw bytes. SAP enforces the field length; we send what the user
+                // gave us. If the payload is shorter than the field width SAP will pad/truncate
+                // per its own convention — we don't second-guess it here.
+                if (arg_value.IsNull()) {
+                    break;
+                }
+                auto bytes = StringValue::Get(arg_value);
+                rc = RfcSetBytes(container_handle, sap_arg_name.get(),
+                                 reinterpret_cast<const SAP_RAW *>(bytes.data()),
+                                 static_cast<unsigned int>(bytes.size()),
+                                 &error_info);
                 break;
             }
             // Date types
@@ -412,10 +456,20 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                 break;
             }
             case RFCTYPE_UTCLONG:
+            case RFCTYPE_UTCSECOND:
+            case RFCTYPE_UTCMINUTE:
             {
-                if (GetRfcStrictTypeCheck()) {
-                    throw InvalidInputException("UTCLONG input is not supported — set erpl_rfc_strict_type_check=false to skip");
+                // SAP UTCLONG/UTCSECOND/UTCMINUTE are 8-byte integers
+                // carrying a UTC timestamp; the SDK accepts/returns them as
+                // a normalized string via RfcSetString/RfcGetString. We
+                // convert a DuckDB TIMESTAMP to SAP's "YYYYMMDDHHMMSS,ssssss"
+                // form (comma decimal separator, ABAP convention).
+                if (arg_value.IsNull()) {
+                    break;
                 }
+                auto utc_str = std2uc(timestamp2sap_utc(arg_value));
+                rc = RfcSetString(container_handle, sap_arg_name.get(),
+                                  utc_str.get(), strlenU(utc_str.get()), &error_info);
                 break;
             }
             // Complex types
@@ -586,7 +640,10 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                 auto bcd_str = uc2std(string_value, str_len);
                 free(string_value);
 
-                auto result_value = bcd2duck(bcd_str, GetLength() * 2 - 1, GetDecimals());
+                // Match CreateDuckDbType's precision cap so DECIMAL(P, S) is valid.
+                auto precision = std::min<unsigned int>(GetLength() * 2 - 1, 38);
+                auto scale = std::min<unsigned int>(GetDecimals(), precision);
+                auto result_value = bcd2duck(bcd_str, precision, scale);
                 return result_value;
             }
             // String types
@@ -740,7 +797,11 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                 if (rc != RFC_OK) { free(string_value); break; }
                 auto dec_str = uc2std(string_value, str_len);
                 free(string_value);
-                return bcd2duck(dec_str, GetLength() * 2 - 1, GetDecimals());
+                // Same precision derivation as CreateDuckDbType — hardcoded
+                // per type, ignoring GetLength's byte-vs-digit ambiguity.
+                unsigned int precision = (_rfc_type == RFCTYPE_DECF16) ? 16 : 34;
+                auto scale = std::min<unsigned int>(GetDecimals(), precision);
+                return bcd2duck(dec_str, precision, scale);
             }
             case RFCTYPE_DTDAY:
             case RFCTYPE_DTWEEK:
@@ -757,7 +818,24 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             case RFCTYPE_UTCLONG:
             case RFCTYPE_UTCSECOND:
             case RFCTYPE_UTCMINUTE:
-                return Value(LogicalType::TIMESTAMP);
+            {
+                // SDK normalizes to a 25-char "YYYYMMDDHHMMSS,sssssss" form
+                // (UTCLONG); UTCSECOND is shorter (no fractional) and
+                // UTCMINUTE shorter still. Allocate generously.
+                unsigned int result_len = 0, str_len = 30;
+                SAP_UC *str_buf = (RFC_CHAR *)mallocU(str_len + 1);
+                rc = RfcGetString(function_handle, rfc_name.get(), str_buf, str_len + 1, &result_len, &error_info);
+                if (rc == RFC_BUFFER_TOO_SMALL) {
+                    free(str_buf);
+                    str_len = result_len;
+                    str_buf = (RFC_CHAR *)mallocU(str_len + 1);
+                    rc = RfcGetString(function_handle, rfc_name.get(), str_buf, str_len + 1, &result_len, &error_info);
+                }
+                if (rc != RFC_OK) { free(str_buf); break; }
+                auto utc_str = uc2std(str_buf, str_len);
+                free(str_buf);
+                return sap_utc2timestamp(utc_str);
+            }
             case RFCTYPE_NULL:
                 return Value(LogicalType::SQLNULL);
             case RFCTYPE_XMLDATA:
@@ -892,10 +970,28 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             {"CUKY",        RFCTYPE_CHAR},
             {"DATS",        RFCTYPE_DATE},
             {"DEC",         RFCTYPE_BCD},
+            // DECFLOAT16 / DECFLOAT34 variants (S/4HANA et al.):
+            //   D16D / D34D — "DECFLOAT for date"
+            //   D16N / D34N — "DECFLOAT normalized"
+            //   D16R / D34R — "DECFLOAT raw"
+            //   D16S / D34S — "DECFLOAT scaled"
+            // All represent IEEE 754-2008 decimal floats and round-trip through
+            // RFCTYPE_DECF16 / RFCTYPE_DECF34 -> DuckDB DECIMAL.
+            {"D16D",        RFCTYPE_DECF16},
+            {"D16N",        RFCTYPE_DECF16},
+            {"D16R",        RFCTYPE_DECF16},
+            {"D16S",        RFCTYPE_DECF16},
+            {"DECF16",      RFCTYPE_DECF16},
+            {"D34D",        RFCTYPE_DECF34},
+            {"D34N",        RFCTYPE_DECF34},
+            {"D34R",        RFCTYPE_DECF34},
+            {"D34S",        RFCTYPE_DECF34},
+            {"DECF34",      RFCTYPE_DECF34},
             {"FLTP",        RFCTYPE_FLOAT},
             {"INT1",        RFCTYPE_INT1},
             {"INT2",        RFCTYPE_INT2},
             {"INT4",        RFCTYPE_INT},
+            {"INT8",        RFCTYPE_INT8},
             {"LANG",        RFCTYPE_CHAR},
             {"LCHR",        RFCTYPE_STRING},
             {"LRAW",        RFCTYPE_BYTE},
@@ -904,11 +1000,22 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             {"QUAN",        RFCTYPE_BCD},
             {"RAW",         RFCTYPE_BYTE},
             {"RAWSTRING",   RFCTYPE_XSTRING},
-            {"RSTR",        RFCTYPE_STRING},
+            // RSTR is the DDIC short name for RAWSTRING — variable-length
+            // raw bytes, not a character string. Mapping it to RFCTYPE_STRING
+            // (the previous behaviour) made the column schema VARCHAR while
+            // the actual values came back as BLOB, causing schema/value type
+            // clashes (e.g. /DMO/AGENCY.ATTACHMENT).
+            {"RSTR",        RFCTYPE_XSTRING},
             {"STRING",      RFCTYPE_STRING},
             {"STRG",        RFCTYPE_STRING},
             {"SSTR",        RFCTYPE_STRING},
             {"TIMS",        RFCTYPE_TIME},
+            // UTC long timestamp (NW 7.50+): UTCL/UTCLONG = high-precision UTC
+            // timestamp; UTCS = UTC second; UTCM = UTC minute. Map to TIMESTAMP.
+            {"UTCL",        RFCTYPE_UTCLONG},
+            {"UTCLONG",     RFCTYPE_UTCLONG},
+            {"UTCS",        RFCTYPE_UTCSECOND},
+            {"UTCM",        RFCTYPE_UTCMINUTE},
             {"UNIT",        RFCTYPE_CHAR}
         };
 
@@ -1264,13 +1371,52 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         : RfcInvocationAdapter(invocation) 
     { }
 
-    void RfcInvocationPositionalAdapter::Adapt(std::vector<RfcFunctionParameterDesc> parameter_infos, std::vector<Value> &arguments) 
+    void RfcInvocationPositionalAdapter::Adapt(std::vector<RfcFunctionParameterDesc> parameter_infos, std::vector<Value> &arguments)
     {
         if (arguments.size() == 0) {
             return;
         }
 
-        throw std::logic_error("Positional adapter not implemented");
+        // Match positional args to the function's settable parameters
+        // (IMPORT + CHANGING + TABLES, in DDIC declaration order). EXPORT
+        // params are skipped because the caller can't set them.
+        std::vector<RfcFunctionParameterDesc> settable;
+        std::copy_if(parameter_infos.begin(), parameter_infos.end(), std::back_inserter(settable),
+                     [](RfcFunctionParameterDesc &p) { return p.GetDirection() != RFC_EXPORT; });
+
+        if (arguments.size() > settable.size()) {
+            throw std::runtime_error(StringUtil::Format(
+                "Too many positional arguments: function has %u settable parameters but got %u",
+                static_cast<unsigned int>(settable.size()), static_cast<unsigned int>(arguments.size())));
+        }
+
+        for (std::size_t i = 0; i < arguments.size(); i++) {
+            auto &param = settable[i];
+            auto param_name = param.GetName();
+            auto &arg_value = arguments[i];
+
+            // NULL is universally compatible — mirror the named adapter rule.
+            if (arg_value.IsNull()) {
+                continue;
+            }
+
+            auto param_type = param.GetRfcType();
+            auto arg_type_id = arg_value.type().id();
+            if (!param_type->IsCompatibleType(arg_type_id)) {
+                throw std::runtime_error(StringUtil::Format(
+                    "Positional argument %u (parameter '%s') is of type '%s' (RFC) but value is of type '%s' (DuckDB)",
+                    static_cast<unsigned int>(i + 1), param_name,
+                    param_type->GetName(), arg_value.type().ToString()));
+            }
+
+            try {
+                param_type->AdaptValue(_invocation, param_name, arg_value);
+            } catch (std::exception &ex) {
+                throw std::runtime_error(StringUtil::Format(
+                    "Failed to adapt positional argument %u ('%s'): %s",
+                    static_cast<unsigned int>(i + 1), param_name, ex.what()));
+            }
+        }
     }
 
 
@@ -1316,8 +1462,16 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             auto child_type = child_value.type().id();
             auto param_type = parameter_info.GetRfcType();
 
+            // NULL is universally compatible: leave the RFC field at its default.
+            // This also lets callers write `{'X': NULL}` without an explicit cast
+            // (DuckDB infers a bare NULL as INTEGER, which would otherwise fail
+            // the strict IsCompatibleType check below).
+            if (child_value.IsNull()) {
+                return;
+            }
+
             if (! param_type->IsCompatibleType(child_type)) {
-                throw std::runtime_error(StringUtil::Format("Parameter '%s' is of type '%s' (RFC) but argument is of type '%s' (DuckDB)", 
+                throw std::runtime_error(StringUtil::Format("Parameter '%s' is of type '%s' (RFC) but argument is of type '%s' (DuckDB)",
                                                             child_name, param_type->GetName(), child_value.type().ToString()));
             }
 
@@ -1561,11 +1715,28 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
 
             if (field_it == field_infos.end()) {
                 auto available_names = StringUtil::Join(ExtractResultNames(field_infos), ", ");
-                throw std::runtime_error(StringUtil::Format("Field '%s' from path '%s' not found, available names are '%s'", 
+                throw std::runtime_error(StringUtil::Format("Field '%s' from path '%s' not found, available names are '%s'",
                                                             *token_it, path, available_names));
             }
 
-            field_infos = (*field_it).GetRfcType()->GetFieldInfos();
+            auto field_type = field_it->GetRfcType();
+            // A path that lands on a scalar (non-container) leaf is valid when
+            // it's the final token: return a single-column schema named after
+            // the leaf. This lets callers write
+            //   sap_rfc_invoke('RFC_SYSTEM_INFO', path := '/RFCSI_EXPORT/RFCSYSID')
+            // instead of the (RFCSI_EXPORT).RFCSYSID dot syntax.
+            if (!field_type->IsComplexType()) {
+                if (std::next(token_it) != tokens.end()) {
+                    throw std::runtime_error(StringUtil::Format(
+                        "Field '%s' from path '%s' is a scalar — cannot descend further",
+                        *token_it, path));
+                }
+                return std::make_pair(
+                    std::vector<std::string>{field_it->GetName()},
+                    std::vector<LogicalType>{field_type->CreateDuckDbType()});
+            }
+
+            field_infos = field_type->GetFieldInfos();
         }
 
         return std::make_pair(ExtractResultNames(field_infos), ExtractResultTypes(field_infos));
@@ -1662,14 +1833,20 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                 if (child_name == *token_it) {
                     auto child_value = child_values[i];
                     auto child_type = child_value.type().id();
-                    switch(child_type) 
+                    switch(child_type)
                     {
                         case LogicalTypeId::STRUCT:
                             return ConvertValuesFromStruct(child_value, vector<string>(token_it + 1, tokens.end()));
                         case LogicalTypeId::LIST:
                             return ConvertValuesFromList(child_value, vector<string>(token_it + 1, tokens.end()));
                         default:
-                            throw std::runtime_error(StringUtil::Format("Field '%s' is not a container type", *token_it));
+                            // Scalar leaf: only valid if this is the last token.
+                            if (std::next(token_it) == tokens.end()) {
+                                _total_rows = 1;
+                                return {child_value};
+                            }
+                            throw std::runtime_error(StringUtil::Format(
+                                "Field '%s' is a scalar — cannot descend further", *token_it));
                     };
                 }
             }
