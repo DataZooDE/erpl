@@ -37,9 +37,18 @@ namespace duckdb
         names = result_set->GetResultNames();
         return_types = result_set->GetResultTypes();
 
-        // Make this invocation available to the bind data
+        // DuckDB requires every table function to expose at least one column.
+        // RFC modules like RFC_PING have no export/changing/table parameters,
+        // so the natural schema is empty. Inject a synthetic BOOLEAN 'ok'
+        // column so the call is still usable as `SELECT * FROM sap_rfc_invoke(...)`.
+        // The invocation itself has already succeeded if we reached this line.
         auto bind_data = make_uniq<RfcFunctionBindData>();
         bind_data->result_set = result_set;
+        bind_data->ok_only = return_types.empty();
+        if (bind_data->ok_only) {
+            names.push_back("ok");
+            return_types.push_back(LogicalType::BOOLEAN);
+        }
 
         return std::move(bind_data);
     }
@@ -47,17 +56,29 @@ namespace duckdb
     /**
      * @brief (Step 2) Scans the function and returns the next chunk of data.
     */
-    static void RfcInvokeScan(ClientContext &context, 
-                              TableFunctionInput &data, 
-                              DataChunk &output) 
+    static void RfcInvokeScan(ClientContext &context,
+                              TableFunctionInput &data,
+                              DataChunk &output)
     {
-	    auto &bind_data = data.bind_data->Cast<RfcFunctionBindData>();
+	    auto &bind_data = data.bind_data->CastNoConst<RfcFunctionBindData>();
         auto result_set = bind_data.result_set;
+
+        if (bind_data.ok_only) {
+            // Synthetic single-row 'ok=true' for functions with no real
+            // result params. Emit once, then signal end-of-stream.
+            if (bind_data.ok_only_emitted) {
+                return;
+            }
+            bind_data.ok_only_emitted = true;
+            output.SetCardinality(1);
+            output.SetValue(0, 0, Value::BOOLEAN(true));
+            return;
+        }
 
         if (! result_set->HasMoreResults()) {
             return;
         }
-        
+
         result_set->FetchNextResult(output);
     }
 

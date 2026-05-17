@@ -26,6 +26,13 @@ namespace duckdb
     void ltrim(std::string &s);
     Value bcd2duck(std::string &bcd_str, unsigned int length, unsigned int decimals);
 
+    // SAP UTCLONG/UTCSECOND/UTCMINUTE <-> DuckDB TIMESTAMP.
+    // SAP-side format: "YYYYMMDDHHMMSS,sssssss" (UTCLONG, comma decimal
+    // separator), or shorter forms for UTCSECOND/UTCMINUTE. Empty input
+    // (or an all-zero "00000000000000" zero-timestamp) maps to NULL.
+    Value sap_utc2timestamp(std::string &utc_str);
+    std::string timestamp2sap_utc(const Value &timestamp_value);
+
     Value rfc2duck(RFC_DATE &rfc_date);
     Value rfc2duck(const RFC_DATE &rfc_date);
     Value rfc2duck(RFC_TIME &rfc_time);

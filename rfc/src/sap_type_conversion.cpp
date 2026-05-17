@@ -112,7 +112,10 @@ namespace duckdb
             case RFCTYPE_INT: return LogicalTypeId::INTEGER;
             case RFCTYPE_INT1: return LogicalTypeId::TINYINT;
             case RFCTYPE_INT2: return LogicalTypeId::SMALLINT;
-            case RFCTYPE_INT8: return LogicalTypeId::INTEGER;
+            // RFC_INT8 is an 8-byte signed integer. The natural DuckDB
+            // equivalent is BIGINT (also 8 bytes); INTEGER would lose half
+            // the range and force callers to add an explicit ::BIGINT cast.
+            case RFCTYPE_INT8: return LogicalTypeId::BIGINT;
             case RFCTYPE_FLOAT: return LogicalTypeId::DOUBLE;
             case RFCTYPE_BCD: return LogicalTypeId::DECIMAL;
             case RFCTYPE_DECF16: return LogicalTypeId::DECIMAL;
@@ -120,7 +123,9 @@ namespace duckdb
             // Character types
             case RFCTYPE_CHAR: return LogicalTypeId::VARCHAR;
             case RFCTYPE_STRING: return LogicalTypeId::VARCHAR;
-            case RFCTYPE_XSTRING: return LogicalTypeId::VARCHAR;
+            // RAW byte sequences: read path returns Value::BLOB, so the
+            // compatible DuckDB logical type is BLOB (not VARCHAR).
+            case RFCTYPE_XSTRING: return LogicalTypeId::BLOB;
             case RFCTYPE_XMLDATA: return LogicalTypeId::VARCHAR;
             // Binary types
             case RFCTYPE_BYTE: return LogicalTypeId::BLOB;
@@ -330,6 +335,82 @@ namespace duckdb
         s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) {
             return !std::isspace(ch);
         }));
+    }
+
+    // SAP-side UTCLONG/UTCSECOND/UTCMINUTE serialization.
+    //   UTCLONG:   "YYYYMMDDHHMMSS,sssssss"  (14 digits + ',' + 7 digits)
+    //   UTCSECOND: "YYYYMMDDHHMMSS"          (14 digits, no fractional)
+    //   UTCMINUTE: "YYYYMMDDHHMM"            (12 digits)
+    // The SDK normalizes via RfcGetString to one of these. An all-zero
+    // string represents an uninitialized timestamp -> NULL.
+    Value sap_utc2timestamp(std::string &utc_str)
+    {
+        // Trim trailing whitespace/null bytes the SDK may leave behind.
+        while (!utc_str.empty() && (utc_str.back() == ' ' || utc_str.back() == '\0')) {
+            utc_str.pop_back();
+        }
+        if (utc_str.empty()) {
+            return Value(LogicalType::TIMESTAMP);
+        }
+        // ABAP initial value for UTCLONG is all zeros; treat as NULL.
+        if (utc_str.find_first_not_of('0') == std::string::npos) {
+            return Value(LogicalType::TIMESTAMP);
+        }
+        // Build ISO "YYYY-MM-DD HH:MM:SS[.fffffff]" from compact SAP form.
+        if (utc_str.size() < 8) {
+            return Value(LogicalType::TIMESTAMP);
+        }
+        std::string iso;
+        iso.reserve(30);
+        iso += utc_str.substr(0, 4);
+        iso += '-';
+        iso += utc_str.substr(4, 2);
+        iso += '-';
+        iso += utc_str.substr(6, 2);
+        if (utc_str.size() >= 10) {
+            iso += ' ';
+            iso += utc_str.substr(8, 2);
+            iso += ':';
+            iso += (utc_str.size() >= 12) ? utc_str.substr(10, 2) : std::string("00");
+            iso += ':';
+            iso += (utc_str.size() >= 14) ? utc_str.substr(12, 2) : std::string("00");
+        }
+        if (utc_str.size() > 14) {
+            // Skip the SAP separator ('.' or ',') and append fractional digits.
+            std::string frac = utc_str.substr(14);
+            if (!frac.empty() && (frac[0] == ',' || frac[0] == '.')) {
+                frac[0] = '.';
+            } else {
+                frac.insert(frac.begin(), '.');
+            }
+            iso += frac;
+        }
+        try {
+            return Value(iso).DefaultCastAs(LogicalType::TIMESTAMP);
+        } catch (...) {
+            return Value(LogicalType::TIMESTAMP);
+        }
+    }
+
+    std::string timestamp2sap_utc(const Value &timestamp_value)
+    {
+        if (timestamp_value.IsNull()) {
+            return std::string();
+        }
+        // DuckDB Timestamp::ToString format: "YYYY-MM-DD HH:MM:SS[.fffffff]".
+        // Convert to SAP compact form "YYYYMMDDHHMMSS,sssssss".
+        auto cast_value = timestamp_value.type().id() == LogicalTypeId::TIMESTAMP
+            ? timestamp_value
+            : timestamp_value.DefaultCastAs(LogicalType::TIMESTAMP);
+        auto iso = cast_value.ToString();
+        std::string sap;
+        sap.reserve(iso.size());
+        for (char c : iso) {
+            if (c == '-' || c == ' ' || c == ':') continue;
+            if (c == '.') { sap += ','; continue; }   // SAP decimal separator
+            sap += c;
+        }
+        return sap;
     }
 
     Value bcd2duck(std::string &bcd_str, unsigned int length, unsigned int decimals)

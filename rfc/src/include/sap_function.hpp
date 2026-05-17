@@ -302,6 +302,11 @@ bool GetRfcStrictTypeCheck();
 
         std::shared_ptr<RfcInvocation> invocation;
         std::shared_ptr<RfcResultSet> result_set;
+        // When the called RFC has no export/changing/table parameters
+        // (e.g. RFC_PING), we synthesize a single boolean 'ok' column.
+        // `ok_only` flags that mode; `ok_only_emitted` tracks the one row.
+        bool ok_only = false;
+        bool ok_only_emitted = false;
 
         std::vector<std::string> GetFieldNames();
         std::vector<std::string> GetResultNames();
