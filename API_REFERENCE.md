@@ -67,7 +67,9 @@ SELECT * FROM sap_bics_show_cubes();
 | `sap_describe_fields` | Get table field metadata | `SELECT * FROM sap_describe_fields('SFLIGHT')` |
 | `sap_bics_show_cubes` | List BW cubes | `SELECT * FROM sap_bics_show_cubes()` |
 | `sap_bics_hierarchy` | Extract BW hierarchy | `SELECT * FROM sap_bics_hierarchy('MY_HIER')` |
-| `sap_odp_read_full` | Extract ODP data | `SELECT * FROM sap_odp_read_full('BW', 'MY_ODP')` |
+| `sap_bics_set_char_prop` | AO-style char property (Display/Sort/Totals) | `SELECT * FROM sap_bics_set_char_prop('q1', '0CNTRY', 'DISPLAY', 'TEXT')` |
+| `sap_odp_read_full` | Extract ODP data (full snapshot) | `SELECT * FROM sap_odp_read_full('BW', 'MY_ODP')` |
+| `sap_odp_read_delta` | Extract ODP data (incremental delta) | `SELECT * FROM sap_odp_read_delta('BW', 'MY_ODP', 'MY_PIPELINE')` |
 | `ATTACH` | Mount SAP as database | `ATTACH '' AS sap (TYPE sap_rfc)` |
 
 ---
@@ -503,18 +505,69 @@ Configure column axis characteristics. Same signature as `sap_bics_rows`.
 SELECT * FROM sap_bics_columns('my_session', '0AMOUNT', op='SET');
 ```
 
-#### Step 3: `sap_bics_filter(state_id, filters [, op, return])`
+#### Step 3: `sap_bics_filter(state_id, char_name, member1 [, member2, ..., op, return])`
 
-Apply filters to query.
+Restrict a characteristic to specific member values (AO "Keep Only" /
+"Exclude" gesture). Members are positional varargs after the characteristic
+name; pass zero members with `op='SET'` to clear the filter.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `state_id` | VARCHAR | *required* | State ID |
-| `filters` | varies | *required* | Filter definitions |
-| `op` | BICS_OPERATION | — | Operation type |
+| `char_name` | VARCHAR | *required* | Characteristic technical name |
+| `member1, …` | VARCHAR (varargs) | — | Member values to include (or remove with `op='REMOVE'`) |
+| `op` | BICS_OPERATION | `'ADD'` if members supplied, else `'SET'` | `'SET'`, `'ADD'`, `'REMOVE'` |
 | `return` | BICS_RETURN | `'DESCRIBE'` | Return format |
 
-#### Step 4: `sap_bics_result(state_id)`
+```sql
+-- "Keep Only Germany and France" on country
+SELECT * FROM sap_bics_filter('q1', '0D_NW_CNTRY', 'DE', 'FR', op='SET');
+-- Append USA to the existing selection
+SELECT * FROM sap_bics_filter('q1', '0D_NW_CNTRY', 'US', op='ADD');
+-- Clear the filter
+SELECT * FROM sap_bics_filter('q1', '0D_NW_CNTRY', op='SET');
+```
+
+#### Step 4 (optional): `sap_bics_set_char_prop(state_id, char_name, prop, value [, return])`
+
+Set an AO-style per-characteristic property (Display, Sort, or Totals
+visibility). Mutates `/E_TH_STATE_CHARACTERISTICS/<id>/<field>` on the
+server and the change is honoured by the next `sap_bics_result` call.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `state_id` | VARCHAR | *required* | State ID |
+| `char_name` | VARCHAR | *required* | Characteristic technical name |
+| `prop` | VARCHAR | *required* | One of `'DISPLAY'`, `'TOTALS'`, `'SORT'` |
+| `value` | VARCHAR | *required* | See table below |
+| `return` | BICS_RETURN | `'DESCRIBE'` | Return format |
+
+| `prop`    | Allowed `value`                | Server field mutated                                        |
+|-----------|--------------------------------|-------------------------------------------------------------|
+| `DISPLAY` | `'KEY'` \| `'TEXT'` \| `'BOTH'` | `RESULT_SET_PRESENTATION` + `MEMBER_ACCESS_PRESENTATION` (bitflag: KEY=4, TEXT=32) |
+| `TOTALS`  | `'SHOW'` \| `'HIDE'`            | `RESULT_VISIBILITY` ('A' / 'N')                             |
+| `SORT`    | `'ASC'` \| `'DESC'` \| `'NONE'`  | `RESULT_SET_SORTING.DIRECTION` ('A' / 'D' / '')             |
+
+```sql
+-- Show member texts instead of keys
+SELECT * FROM sap_bics_set_char_prop('q1', '0D_NW_CNTRY', 'DISPLAY', 'TEXT');
+-- Sort products descending
+SELECT * FROM sap_bics_set_char_prop('q1', '0D_NW_PROD', 'SORT', 'DESC');
+```
+
+The result-set parser is display-mode aware: when BICS returns both key and
+text presentation entries for a member, the renderer picks key / text / both
+according to the per-char setting. The DESCRIBE payload of `state_rows`,
+`state_columns`, and `state_free` now carries `{display, totals, sort}` so
+clients can read the current values without an extra round-trip.
+
+> **Note:** the grand-total "SUMME" / "Overall Result" row in `sap_bics_result`
+> is not affected by per-char `TOTALS='HIDE'` — BICS does not expose a state
+> field for grand-total visibility. The flag is applied to the server state
+> (visible in DESCRIBE) but the SUMME row still appears in the result set;
+> downstream clients can filter it out client-side. AO does the same.
+
+#### Step 5: `sap_bics_result(state_id)`
 
 Fetch result set from configured query state.
 
@@ -527,6 +580,8 @@ Fetch result set from configured query state.
 SELECT * FROM sap_bics_begin('MY_CUBE', id='q1');
 SELECT * FROM sap_bics_rows('q1', '0CALDAY', '0MATERIAL');
 SELECT * FROM sap_bics_columns('q1', '0AMOUNT');
+SELECT * FROM sap_bics_set_char_prop('q1', '0CALDAY', 'SORT', 'DESC');  -- optional
+SELECT * FROM sap_bics_filter('q1', '0MATERIAL', 'M01', 'M02', op='SET');  -- optional
 SELECT * FROM sap_bics_result('q1');
 ```
 
@@ -667,7 +722,10 @@ SELECT * FROM sap_odp_preview('BW', 'MY_ODP_SOURCE');
 
 #### `sap_odp_read_full(odp_context, odp_name [, threads, columns, filters, secret])`
 
-Full extraction of ODP provider data with parallel processing.
+Full extraction of ODP provider data with parallel processing. The cursor on
+the SAP side is opened in **FULL** mode and auto-closed when the scan ends —
+this is one-shot. For incremental extraction use
+[`sap_odp_read_delta`](#sap_odp_read_deltaodp_context-odp_name-subscriber_process).
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -675,13 +733,88 @@ Full extraction of ODP provider data with parallel processing.
 | `odp_name` | VARCHAR | *required* | ODP provider name |
 | `threads` | UINTEGER | 5 | Parallel read threads |
 | `columns` | LIST(VARCHAR) | all | Columns to extract |
-| `filters` | LIST | — | Selection filters |
+| `filters` | LIST(STRUCT) | — | Server-side selection filters (see below) |
 | `secret` | VARCHAR | — | Named secret |
 
+**`filters` shape** — `LIST<STRUCT(FIELDNAME, SIGN, OP, LOW, HIGH)>` mapped
+onto SAP's `RODPS_REPL_S_SELECTION` row type. Predicates are OR-combined
+within the list:
+
+| Field | Type | Semantics |
+|-------|------|-----------|
+| `FIELDNAME` | VARCHAR | ODP source field name |
+| `SIGN` | VARCHAR | `'I'` (include) or `'E'` (exclude) |
+| `OP` | VARCHAR | `'EQ'`, `'NE'`, `'GT'`, `'LT'`, `'GE'`, `'LE'`, `'BT'`, `'CP'`, ... |
+| `LOW` | VARCHAR | Lower / single-value comparand |
+| `HIGH` | VARCHAR | Upper comparand (only for `BT`) |
+
 ```sql
+-- Simple equality
 SELECT * FROM sap_odp_read_full('BW', 'MY_ODP_SOURCE');
 SELECT * FROM sap_odp_read_full('ABAP_CDS', 'MY_CDS_VIEW', threads=8);
+
+-- Server-side range filter (between two business partners, inclusive)
+SELECT * FROM sap_odp_read_full('ABAP_CDS', 'SEPM_IBUPA$P',
+    COLUMNS=['BUSINESSPARTNER','COMPANYNAME'],
+    FILTERS=[{
+        'FIELDNAME': 'BUSINESSPARTNER',
+        'SIGN':      'I',
+        'OP':        'BT',
+        'LOW':       '0100000000',
+        'HIGH':      '0100000099'
+    }]);
 ```
+
+---
+
+#### `sap_odp_read_delta(odp_context, odp_name, subscriber_process [, …])`
+
+Incremental delta extraction. The first call with a given `subscriber_process`
+performs SAP's **auto-DELTAINIT** — returns the full current snapshot AND
+registers a server-side delta pointer keyed by the subscriber tuple. Subsequent
+calls with the same `subscriber_process` resume from the previous pointer and
+return only the changes since then.
+
+The cursor persists across calls (FULL cursors auto-close on scan completion;
+DELTA cursors do not). Close them explicitly with
+[`PRAGMA sap_odp_close_delta_cursor`](#pragma-sap_odp_close_delta_cursor) when
+your pipeline is done.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `odp_context` | VARCHAR | *required* | ODP context (e.g. `'BW'`, `'ABAP_CDS'`) |
+| `odp_name` | VARCHAR | *required* | ODP provider name |
+| `subscriber_process` | VARCHAR | *required* | **Stable** identifier that keys the server-side delta pointer across calls. Choose a deterministic name per pipeline (e.g. `'MY_ETL_BUPA_DAILY'`). |
+| `threads` | UINTEGER | 5 | Parallel read threads |
+| `columns` | LIST(VARCHAR) | all | Columns to extract |
+| `filters` | LIST(STRUCT) | — | Server-side selection predicates (same shape as `sap_odp_read_full`) |
+| `recover` | BOOLEAN | `false` | When true, re-stream the last unconfirmed packet (`I_EXTRACTION_MODE='R'`) without advancing the pointer. Useful after a fetch was interrupted. |
+| `secret` | VARCHAR | — | Named secret |
+
+**Concurrency note:** do not run two `sap_odp_read_delta` calls with the same
+`subscriber_process` in parallel — they will race the server-side pointer.
+
+```sql
+-- First call: SAP auto-DELTAINIT — returns full current snapshot, registers
+-- a server-side delta pointer under subscriber_process 'NIGHTLY_ETL'.
+SELECT * FROM sap_odp_read_delta('BW', '0D_FC_C01$F', 'NIGHTLY_ETL');
+
+-- Run the same call later (e.g. next day): returns only the rows that
+-- changed in the cube since the previous call.
+SELECT * FROM sap_odp_read_delta('BW', '0D_FC_C01$F', 'NIGHTLY_ETL');
+
+-- If a previous DELTA call was interrupted, re-stream its last packet:
+SELECT * FROM sap_odp_read_delta('BW', '0D_FC_C01$F', 'NIGHTLY_ETL',
+                                 recover=true);
+
+-- Release the cursor when done:
+PRAGMA sap_odp_close_delta_cursor('BW', 'NIGHTLY_ETL', '0D_FC_C01$F');
+```
+
+Delta-capable sources are identified by `supports_delta=true` in
+[`sap_odp_describe`](#sap_odp_describe). Not every CDS view is delta-capable —
+the underlying DDL must carry the `@Analytics.dataExtraction.delta.byElement`
+annotation; BW fact tables (`*$F`) are typically delta-capable.
 
 ---
 
@@ -699,11 +832,43 @@ SELECT * FROM sap_odp_show_subscriptions();
 
 #### `sap_odp_show_cursors([secret])`
 
-List ODP extraction cursors for delta tracking.
+List ODP extraction cursors for delta tracking. Cursors created by
+`sap_odp_read_delta` appear here with `is_delta_extension=true`; their
+`subscriber_proc` column matches the `subscriber_process` argument you passed.
 
 ```sql
 SELECT * FROM sap_odp_show_cursors();
 ```
+
+---
+
+#### `PRAGMA sap_odp_close_delta_cursor(odp_context, subscriber_process, odp_name [, secret=...])`
+
+Graceful counterpart to `sap_odp_drop`. Looks up the cursor for the given
+subscriber tuple and calls `RODPS_REPL_ODP_CLOSE` on its pointer. **Idempotent**:
+returns `'CLOSED'` if a cursor existed (open or already closed) and
+`'NOT_FOUND'` if no cursor of that name was found.
+
+Prefer this over `sap_odp_drop` at the end of a delta pipeline — close leaves
+the subscription registered and resumable from its last pointer; drop wipes the
+subscription so the next call performs DELTAINIT again.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `odp_context` | VARCHAR | ODP context (e.g. `'BW'`, `'ABAP_CDS'`) |
+| `subscriber_process` | VARCHAR | Subscriber process identifier (the one passed to `sap_odp_read_delta`) |
+| `odp_name` | VARCHAR | ODP object name |
+
+**Named parameters:** `secret` — optional secret name.
+
+```sql
+PRAGMA sap_odp_close_delta_cursor('BW', 'NIGHTLY_ETL', '0D_FC_C01$F');
+```
+
+Cleanup hygiene matters: leaked open cursors accumulate server-side. If a
+pipeline crashes mid-fetch the cursor may not be closeable via this pragma —
+fall back to `sap_odp_drop` to fully reset, accepting that the next call
+will re-snapshot via DELTAINIT.
 
 ---
 
@@ -888,35 +1053,45 @@ CREATE SECRET my_ssh_key (
 
 ### SAP ↔ DuckDB Type Mapping
 
-| SAP RFC Type | DuckDB Type | Notes |
-|-------------|-------------|-------|
-| CHAR | VARCHAR | Fixed-length, right-trimmed |
-| NUM (NUMC) | VARCHAR | Numeric characters, preserves leading zeros |
-| INT | INTEGER | 4-byte integer |
-| INT1 | TINYINT | 1-byte integer |
-| INT2 | SMALLINT | 2-byte integer |
-| INT8 | INTEGER | 8-byte mapped to INTEGER |
-| FLOAT | DOUBLE | Floating point |
-| BCD | DECIMAL | Binary coded decimal |
-| DECF16 | DECIMAL | Decimal floating point 16 |
-| DECF34 | DECIMAL | Decimal floating point 34 |
-| STRING | VARCHAR | Variable-length string |
-| XSTRING | VARCHAR | Hex string |
-| XMLDATA | VARCHAR | XML data |
-| BYTE | BLOB | Raw bytes |
-| DATE | DATE | Format YYYYMMDD |
-| TIME | TIME | Format HHMMSS |
-| UTCLONG | TIMESTAMP | UTC timestamp (long) |
-| UTCSECOND | TIMESTAMP | UTC timestamp (seconds) |
-| UTCMINUTE | TIMESTAMP | UTC timestamp (minutes) |
-| DTDAY | INTEGER | Date duration in days |
-| DTWEEK | INTEGER | Date duration in weeks |
-| DTMONTH | INTEGER | Date duration in months |
-| TSECOND | INTEGER | Time duration in seconds |
-| TMINUTE | INTEGER | Time duration in minutes |
-| CDAY | INTEGER | Calendar day |
-| STRUCTURE | STRUCT | Nested structure |
-| TABLE | LIST | Table parameter |
+The DDIC name on the left is what `sap_describe_fields()` reports; the RFCTYPE
+shown in parentheses is the internal RFC-SDK type the ERPL scanners use.
+
+| DDIC type | RFCTYPE | DuckDB type | Notes |
+|-----------|---------|-------------|-------|
+| CHAR / CLNT / LANG / CUKY / UNIT | RFCTYPE_CHAR | VARCHAR | Fixed-length, right-trimmed |
+| NUMC / ACCP | RFCTYPE_NUM | VARCHAR | Numeric characters; preserves leading zeros |
+| INT4 | RFCTYPE_INT | BIGINT | 4-byte integer (signed) |
+| INT1 | RFCTYPE_INT1 | TINYINT | 1-byte integer |
+| INT2 / PREC | RFCTYPE_INT2 | SMALLINT | 2-byte integer (PREC is a DDIC alias) |
+| INT8 | RFCTYPE_INT8 | BIGINT | 8-byte integer (signed) |
+| FLTP | RFCTYPE_FLOAT | DOUBLE | IEEE 754 floating point |
+| DEC / CURR / QUAN | RFCTYPE_BCD | DECIMAL(min(2N-1,38), S) | Packed-decimal; precision capped at DuckDB's max |
+| DECF16 / D16D / D16N / D16R / D16S | RFCTYPE_DECF16 | DECIMAL(min(LENG,16), S) | IEEE 754-2008 decimal floating point (16 digit) |
+| DECF34 / D34D / D34N / D34R / D34S | RFCTYPE_DECF34 | DECIMAL(min(LENG,34), S) | IEEE 754-2008 decimal floating point (34 digit) |
+| STRING / STRG / SSTR / LCHR | RFCTYPE_STRING | VARCHAR | Variable-length character data |
+| XMLDATA | RFCTYPE_XMLDATA | VARCHAR | XML payload (text) |
+| RAW / LRAW | RFCTYPE_BYTE | BLOB | Fixed-length raw bytes (incl. RAW(16) UUIDs) |
+| RAWSTRING / RSTR | RFCTYPE_XSTRING | BLOB | Variable-length raw bytes |
+| DATS | RFCTYPE_DATE | DATE | Format YYYYMMDD |
+| TIMS | RFCTYPE_TIME | TIME | Format HHMMSS |
+| UTCLONG / UTCL | RFCTYPE_UTCLONG | TIMESTAMP | UTC timestamp, microsecond precision |
+| UTCS | RFCTYPE_UTCSECOND | TIMESTAMP | UTC timestamp, second precision |
+| UTCM | RFCTYPE_UTCMINUTE | TIMESTAMP | UTC timestamp, minute precision |
+| (n/a — RFC parameter only) | RFCTYPE_DTDAY / DTWEEK / DTMONTH | INTEGER | Date durations (days / weeks / months) |
+| (n/a — RFC parameter only) | RFCTYPE_TSECOND / TMINUTE | INTEGER | Time durations (seconds / minutes) |
+| (n/a — RFC parameter only) | RFCTYPE_CDAY | INTEGER | Calendar day |
+| (n/a — RFC parameter only) | RFCTYPE_STRUCTURE | STRUCT | Nested structure |
+| (n/a — RFC parameter only) | RFCTYPE_TABLE | LIST | Table parameter (each row is a STRUCT) |
+| (any unrecognized RFCTYPE, with `erpl_rfc_strict_type_check=false`) | — | VARCHAR | Lenient fallback (issue #53) |
+
+Notes:
+- The same mapping applies to `sap_read_table`, `sap_rfc_invoke`, and `sap_odp_*`
+  scanners because they share `RfcType::CreateDuckDbType()`. BICS characteristic
+  axes use the equivalent `bicstype2rfctype → rfctype2logicaltype` path.
+- DDIC `CLNT`, `LANG`, `CUKY`, and `UNIT` are CHAR aliases — they surface as
+  VARCHAR with a fixed width, not as a dedicated type.
+- BCD precision is capped at DuckDB's `DECIMAL(38)` maximum; SAP fields wider
+  than `DEC(20)` will be reported with `precision=38` and scale clamped to it.
 
 ---
 
