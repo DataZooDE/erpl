@@ -1,0 +1,99 @@
+# name: test/sql/sap_rfc_type_coverage.test
+# description: Systematic DDIC type coverage for sap_read_table / RFC layer.
+#              Asserts every DDIC type observed in the trial /DMO/ schema maps
+#              to the correct DuckDB logical type via CreateDuckDbType().
+# group: [rfc]
+
+require erpl_rfc
+
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
+
+statement ok
+CREATE SECRET abap_trial (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}'
+);
+
+# -------------------------------------------------------------------------
+# /DMO/FLIGHT — common DDIC types: CLNT, CHAR, NUMC, DATS, CURR, CUKY, INT4
+# -------------------------------------------------------------------------
+query TTTTTTT
+SELECT
+    typeof(CLIENT),         -- CLNT(3)
+    typeof(CARRIER_ID),     -- CHAR(3)
+    typeof(CONNECTION_ID),  -- NUMC(4)
+    typeof(FLIGHT_DATE),    -- DATS
+    typeof(PRICE),          -- CURR(8,2)
+    typeof(CURRENCY_CODE),  -- CUKY(5)
+    typeof(SEATS_MAX)       -- INT4
+FROM sap_read_table('/DMO/FLIGHT', SECRET='abap_trial', MAX_ROWS=1)
+LIMIT 1;
+----
+VARCHAR	VARCHAR	VARCHAR	DATE	DECIMAL(15,2)	VARCHAR	BIGINT
+
+# -------------------------------------------------------------------------
+# /DMO/A_BOOKING_D — RAW(16) ABAP UUID must surface as DuckDB BLOB.
+# -------------------------------------------------------------------------
+query T
+SELECT typeof(BOOKING_UUID)
+FROM sap_read_table('/DMO/A_BOOKING_D', COLUMNS=['BOOKING_UUID'],
+                    SECRET='abap_trial', MAX_ROWS=1)
+LIMIT 1;
+----
+BLOB
+
+# -------------------------------------------------------------------------
+# /DMO/FSA_ROOT_A — FLTP → DOUBLE, QUAN → DECIMAL.
+# -------------------------------------------------------------------------
+query TT
+SELECT typeof(STARS_VALUE), typeof(FIELD_WITH_QUANTITY)
+FROM sap_read_table('/DMO/FSA_ROOT_A',
+                    COLUMNS=['STARS_VALUE','FIELD_WITH_QUANTITY'],
+                    SECRET='abap_trial', MAX_ROWS=1)
+LIMIT 1;
+----
+DOUBLE	DECIMAL(15,3)
+
+# -------------------------------------------------------------------------
+# /DMO/AGENCY — STRG (variable-length text) → VARCHAR;
+#               RSTR (RAWSTRING, variable-length bytes) → BLOB.
+#
+# Before the type-coverage fix RSTR mapped to VARCHAR which is wrong:
+# RAWSTRING carries arbitrary bytes (rfc2duck for SAP_RAW returns Value::BLOB)
+# but the column schema claimed VARCHAR, causing a bind-vs-value type clash.
+# -------------------------------------------------------------------------
+query TT
+SELECT typeof(EMAIL_ADDRESS), typeof(ATTACHMENT)
+FROM sap_read_table('/DMO/AGENCY',
+                    COLUMNS=['EMAIL_ADDRESS','ATTACHMENT'],
+                    SECRET='abap_trial', MAX_ROWS=1)
+LIMIT 1;
+----
+VARCHAR	BLOB
+
+# -------------------------------------------------------------------------
+# Round-trip: actually fetch a UUID row and verify it is a non-empty BLOB.
+# Confirms the value-conversion path agrees with the bind schema.
+# -------------------------------------------------------------------------
+query I
+SELECT (octet_length(BOOKING_UUID) > 0)::INTEGER
+FROM sap_read_table('/DMO/A_BOOKING_D', COLUMNS=['BOOKING_UUID'],
+                    SECRET='abap_trial', MAX_ROWS=1)
+LIMIT 1;
+----
+1
