@@ -6,8 +6,10 @@
 #include "sap_type_conversion.hpp"
 
 
-namespace duckdb 
+namespace duckdb
 {
+    bool IsValidTime(const int32_t hour, const int32_t minute, const int32_t second);
+
     /**
      * @brief Converts a SAP_UC string to a std::string.
      * 
@@ -290,20 +292,37 @@ namespace duckdb
      * @note The SAP date is expected to be in the format YYYYMMDD.
      * @note If the date is invalid a default DuckDB date is returned.
     */
-    Value dats2duck(std::string &dats_str) 
+    Value dats2duck(std::string &dats_str)
     {
-        if (dats_str.empty()) {
-            return Value();
+        // Trim trailing whitespace/null bytes the SDK may leave behind.
+        auto trimmed = dats_str;
+        while (!trimmed.empty() && (trimmed.back() == ' ' || trimmed.back() == '\0')) {
+            trimmed.pop_back();
+        }
+        if (trimmed.empty()) {
+            return Value(LogicalType::DATE);
+        }
+        // ABAP initial value for DATS is all zeros; treat as NULL.
+        if (trimmed.find_first_not_of('0') == std::string::npos) {
+            return Value(LogicalType::DATE);
+        }
+        if (trimmed.size() < 8) {
+            return Value(LogicalType::DATE);
         }
 
-        int32_t year, month, day;
-
-        std::istringstream(dats_str.substr(0, 4)) >> year;
-        std::istringstream(dats_str.substr(4, 2)) >> month;
-        std::istringstream(dats_str.substr(6, 2)) >> day;
+        int32_t year = 0, month = 0, day = 0;
+        try {
+            year  = std::stoi(trimmed.substr(0, 4));
+            month = std::stoi(trimmed.substr(4, 2));
+            day   = std::stoi(trimmed.substr(6, 2));
+        } catch (...) {
+            return Value(LogicalType::DATE);
+        }
 
         date_t duck_date;
-        Date::TryFromDate(year, month, day, duck_date);
+        if (!Date::TryFromDate(year, month, day, duck_date)) {
+            return Value(LogicalType::DATE);
+        }
         return Value::CreateValue(duck_date);
     }
 
@@ -317,15 +336,33 @@ namespace duckdb
     */
     Value tims2duck(std::string &tims_str)
     {
-        if (tims_str.empty()) {
-            return Value();
+        // Trim trailing whitespace/null bytes the SDK may leave behind.
+        auto trimmed = tims_str;
+        while (!trimmed.empty() && (trimmed.back() == ' ' || trimmed.back() == '\0')) {
+            trimmed.pop_back();
+        }
+        if (trimmed.empty()) {
+            return Value(LogicalType::TIME);
+        }
+        // ABAP initial value for TIMS is all zeros; treat as NULL.
+        if (trimmed.find_first_not_of('0') == std::string::npos) {
+            return Value(LogicalType::TIME);
+        }
+        if (trimmed.size() < 6) {
+            return Value(LogicalType::TIME);
         }
 
-        int32_t hour, minute, second;
-
-        std::istringstream(tims_str.substr(0, 2)) >> hour;
-        std::istringstream(tims_str.substr(2, 2)) >> minute;
-        std::istringstream(tims_str.substr(4, 2)) >> second;
+        int32_t hour = 0, minute = 0, second = 0;
+        try {
+            hour   = std::stoi(trimmed.substr(0, 2));
+            minute = std::stoi(trimmed.substr(2, 2));
+            second = std::stoi(trimmed.substr(4, 2));
+        } catch (...) {
+            return Value(LogicalType::TIME);
+        }
+        if (!IsValidTime(hour, minute, second)) {
+            return Value(LogicalType::TIME);
+        }
 
         dtime_t duck_time = Time::FromTime(hour, minute, second, 0);
         return Value::CreateValue(duck_time);
@@ -474,21 +511,10 @@ namespace duckdb
      * @note The SAP time is expected to be in the format HHMMSS.
      * @note If the input time is invalid, a default time value is returned.
      */
-    Value rfc2duck(RFC_TIME &rfc_time) 
+    Value rfc2duck(RFC_TIME &rfc_time)
     {
         auto time_str = uc2std(rfc_time, SAP_TIME_LN);
-        int32_t hour, minute, second;
-
-        std::istringstream(time_str.substr(0, 2)) >> hour;
-        std::istringstream(time_str.substr(2, 2)) >> minute;
-        std::istringstream(time_str.substr(4, 2)) >> second;
-
-        if (!IsValidTime(hour, minute, second)) {
-            return Value::CreateValue((dtime_t()));
-        }
-
-        dtime_t duck_time = Time::FromTime(hour, minute, second, 0);
-        return Value::CreateValue(duck_time);
+        return tims2duck(time_str);
     }
 
     /**
