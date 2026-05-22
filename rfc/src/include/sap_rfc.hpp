@@ -2,6 +2,7 @@
 
 #include <mutex>
 #include <optional>
+#include <thread>
 
 #include "duckdb.hpp"
 #include "duckdb/parallel/base_pipeline_event.hpp"
@@ -164,7 +165,8 @@ namespace duckdb
 			// InvalidateCachedConnection drops both — call on any RFC error so
 			// the next batch starts from a clean state.
 			std::shared_ptr<RfcConnection> AcquireConnection();
-			std::shared_ptr<RfcFunction> AcquireFunction(const std::string &function_name);
+			std::shared_ptr<RfcFunction> AcquireFunction(std::shared_ptr<RfcConnection> connection,
+			                                             const std::string &function_name);
 			void InvalidateCachedConnection();
 
 		public:
@@ -177,6 +179,24 @@ namespace duckdb
 			// queries terminate before paying for a full SDK buffer.  Cap
 			// is a power-of-two so the doubling sequence reaches it cleanly.
 			static constexpr unsigned int MAX_BATCH_SIZE = 16 * STANDARD_VECTOR_SIZE;
+
+			// Pure helpers that encode the two ABAP-divisibility-preserving
+			// rules used inside the state machine.  Exposed so they can be
+			// tested without driving a live RFC scan.
+			//
+			//   NextDesiredBatchSize: the size to use for the *next* RFC call
+			//     after a successful EXTRACT.  Doubles the current size only
+			//     when total_rows is already a multiple of the larger size,
+			//     so ROWSKIPS % ROWCOUNT stays valid forever.
+			//
+			//   TrimmedActualBatchSize: the ROWCOUNT to send when MAX_ROWS
+			//     would otherwise force the final batch below desired_batch_size.
+			//     Returns the desired size unchanged when trimming would
+			//     produce an illegal (non-divisor) ROWCOUNT — in that case
+			//     we over-fetch and rely on LoadNextBatchToDuckDBColumn() to
+			//     clip the surplus client-side.
+			static unsigned int NextDesiredBatchSize(unsigned int current, unsigned int total_rows_after);
+			static unsigned int TrimmedActualBatchSize(unsigned int desired, unsigned int total_rows, unsigned int limit);
 
 		private:
 			bool active = true;
@@ -191,6 +211,13 @@ namespace duckdb
 			std::shared_ptr<RfcConnection> cached_connection;
 			std::shared_ptr<RfcFunction> cached_function;
 			std::string cached_function_name;
+			// The SAP NW RFC SDK requires that any one RFC_CONNECTION_HANDLE
+			// be used by at most one thread.  DuckDB's TaskExecutor pumps
+			// tasks from a shared worker pool, so a single state machine's
+			// successive batches can land on different worker threads.
+			// When that happens we drop the cached handle and open a fresh
+			// one on the new thread.
+			std::optional<std::thread::id> cached_connection_thread;
 
 			idx_t column_idx;
 			idx_t projected_column_idx = DConstants::INVALID_INDEX;

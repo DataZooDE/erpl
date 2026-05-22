@@ -16,6 +16,15 @@ SapTableEntry::SapTableEntry(Catalog &catalog, SchemaCatalogEntry &schema, Creat
 TableFunction SapTableEntry::GetScanFunction(ClientContext &context, unique_ptr<FunctionData> &bind_data) {
 	auto fn = CreateRfcReadTableScanFunction();
 
+	// We deliberately bind with limit=0 even when the wrapping SQL has a
+	// LIMIT N clause.  DuckDB's TableCatalogEntry::GetScanFunction hook does
+	// not expose the parent LogicalLimit; the only adjacent signal is
+	// PhysicalOperator::estimated_cardinality reachable from
+	// TableFunctionInitInput::op, but it returns 1 in this code path
+	// regardless of the actual LIMIT (verified empirically on DuckDB 1.5).
+	// We therefore rely on (a) the divisibility-preserving warm-up starting
+	// at STANDARD_VECTOR_SIZE for cheap first batches and (b) DuckDB's LIMIT
+	// operator stopping pulls from the scan.  Do not guess a limit here.
 	auto data = make_uniq<RfcReadTableBindData>(sap_table_name, /*max_read_threads=*/0,
 	                                            /*limit=*/0, "RFC_READ_TABLE", "",
 	                                            /*read_table_function_user_set=*/false,

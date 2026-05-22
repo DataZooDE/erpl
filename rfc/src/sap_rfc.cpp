@@ -443,7 +443,11 @@ namespace duckdb
                 try {
                     read_table_supports_et_data_switch = ReadTableSupportsEtDataSwitch(connection, read_table_function);
                 } catch (std::exception &) {
-                    // leave unset; execute-time path will surface the error.
+                    // Probe failed (e.g. transient metadata fetch error).  Store
+                    // a definite `false` so parallel column tasks at execute time
+                    // never race to write this optional; the existing
+                    // !value() branch below will surface the capability error.
+                    read_table_supports_et_data_switch = false;
                 }
             }
         }
@@ -815,7 +819,13 @@ namespace duckdb
     RfcReadColumnStateMachine::RfcReadColumnStateMachine(RfcReadTableBindData* bind_data, idx_t column_idx, unsigned int limit)
         : limit(limit), column_idx(column_idx), bind_data(bind_data)
     {
-        if (limit > 0 && limit < desired_batch_size) {
+        // When an explicit MAX_ROWS limit is supplied, fit it into a single
+        // batch whenever the SAP-side cap allows — that keeps ROWSKIPS=0,
+        // ROWCOUNT=limit on the only call, so the server-side
+        // ROWSKIPS % ROWCOUNT == 0 invariant is satisfied trivially.  For
+        // limits larger than MAX_BATCH_SIZE we keep the warm-up start and
+        // rely on the divisibility-aware trim in CreateFunctionArguments.
+        if (limit > 0 && limit <= RfcReadColumnStateMachine::MAX_BATCH_SIZE) {
             desired_batch_size = limit;
         }
     }
@@ -915,38 +925,68 @@ namespace duckdb
         return desired_batch_size;
     }
 
+    unsigned int RfcReadColumnStateMachine::NextDesiredBatchSize(unsigned int current,
+                                                                 unsigned int total_rows_after)
+    {
+        if (current >= MAX_BATCH_SIZE) {
+            return current;
+        }
+        unsigned int next_size = current * 2u;
+        if (next_size > MAX_BATCH_SIZE) {
+            next_size = MAX_BATCH_SIZE;
+        }
+        return (total_rows_after % next_size == 0) ? next_size : current;
+    }
+
+    unsigned int RfcReadColumnStateMachine::TrimmedActualBatchSize(unsigned int desired,
+                                                                   unsigned int total_rows,
+                                                                   unsigned int limit)
+    {
+        if (limit == 0 || total_rows + desired <= limit) {
+            return desired;
+        }
+        unsigned int remaining = limit - total_rows;
+        if (remaining > 0 && (total_rows == 0 || total_rows % remaining == 0)) {
+            return remaining;
+        }
+        return desired;
+    }
+
     std::shared_ptr<RfcConnection> RfcReadColumnStateMachine::AcquireConnection()
     {
         // Caller already holds thread_lock (we only get here from ExecuteTask).
         if (!GetRfcPersistentConnections()) {
             return bind_data->OpenNewConnection();
         }
-        if (cached_connection && cached_connection->handle != NULL) {
+        auto self = std::this_thread::get_id();
+        if (cached_connection && cached_connection->handle != NULL &&
+            cached_connection_thread.has_value() && *cached_connection_thread == self) {
             return cached_connection;
         }
-        // Stale or absent — open a fresh one and cache it.
-        cached_function.reset();
-        cached_function_name.clear();
+        // Stale handle, different worker thread, or no cache yet — drop any
+        // existing cache (re-using a connection across threads violates the
+        // SDK contract) and open a fresh one for this thread.
+        InvalidateCachedConnection();
         cached_connection = bind_data->OpenNewConnection();
+        cached_connection_thread = self;
         return cached_connection;
     }
 
-    std::shared_ptr<RfcFunction> RfcReadColumnStateMachine::AcquireFunction(const std::string &function_name)
+    std::shared_ptr<RfcFunction> RfcReadColumnStateMachine::AcquireFunction(
+        std::shared_ptr<RfcConnection> connection, const std::string &function_name)
     {
-        // Caller already holds thread_lock.
+        // Caller already holds thread_lock and has just called AcquireConnection
+        // — `connection` is the live handle to use for this batch.  In
+        // non-persistent mode that's a fresh connection the caller will close;
+        // in persistent mode it's our cached one.
         if (!GetRfcPersistentConnections()) {
-            auto conn = cached_connection ? cached_connection : bind_data->OpenNewConnection();
-            return std::make_shared<RfcFunction>(conn, function_name);
+            return std::make_shared<RfcFunction>(connection, function_name);
         }
         if (cached_function && cached_function_name == function_name &&
             cached_connection && cached_connection->handle != NULL) {
             return cached_function;
         }
-        // Connection might be fresh — make sure we have one before constructing.
-        if (!cached_connection || cached_connection->handle == NULL) {
-            cached_connection = bind_data->OpenNewConnection();
-        }
-        cached_function = std::make_shared<RfcFunction>(cached_connection, function_name);
+        cached_function = std::make_shared<RfcFunction>(connection, function_name);
         cached_function_name = function_name;
         return cached_function;
     }
@@ -964,6 +1004,7 @@ namespace duckdb
             }
             cached_connection.reset();
         }
+        cached_connection_thread.reset();
     }
 
     std::string RfcReadColumnStateMachine::ToString()
@@ -1020,22 +1061,11 @@ namespace duckdb
                                         ? ReadTableStates::FINAL_LOAD_TO_DUCKDB
                                         : ReadTableStates::LOAD_TO_DUCKDB;
 
-                    // Divisibility-preserving warm-up (issue #63).  RFC_READ_TABLE
-                    // requires ROWSKIPS % ROWCOUNT == 0 server-side, so we can only
-                    // grow the batch size at moments when the running offset would
-                    // remain a clean multiple of the larger size.  Always doubling
-                    // satisfies that whenever total_rows itself is a multiple of
-                    // (current_size * 2) — true after every second batch at the
-                    // current size, naturally walking the size up STANDARD_VECTOR_SIZE
-                    // → 2× → 4× → … → MAX_BATCH_SIZE within ~log2(MAX/SV) round-trips.
-                    if (limit == 0 && desired_batch_size < RfcReadColumnStateMachine::MAX_BATCH_SIZE) {
-                        unsigned int next_size = desired_batch_size * 2u;
-                        if (next_size > RfcReadColumnStateMachine::MAX_BATCH_SIZE) {
-                            next_size = RfcReadColumnStateMachine::MAX_BATCH_SIZE;
-                        }
-                        if ((total_rows + extracted_from_sap) % next_size == 0) {
-                            desired_batch_size = next_size;
-                        }
+                    // Divisibility-preserving warm-up (issue #63).  See
+                    // RfcReadColumnStateMachine::NextDesiredBatchSize for the rule.
+                    if (limit == 0) {
+                        desired_batch_size = RfcReadColumnStateMachine::NextDesiredBatchSize(
+                            desired_batch_size, total_rows + extracted_from_sap);
                     }
                     break;
                 }
@@ -1121,7 +1151,7 @@ namespace duckdb
                     }
                 }
 
-                auto func = owning_state_machine->AcquireFunction(read_table_function);
+                auto func = owning_state_machine->AcquireFunction(connection, read_table_function);
                 auto func_args = CreateFunctionArguments(read_table_delimiter, use_et_data);
                 auto invocation = func->BeginInvocation(func_args);
                 current_result_data = invocation->Invoke(data_path);
@@ -1207,9 +1237,12 @@ namespace duckdb
         auto &total_rows = owning_state_machine->total_rows;
         auto &limit = owning_state_machine->limit;
 
-        auto actual_batch_size = limit > 0 && total_rows + desired_batch_size > limit
-                                    ? limit - total_rows
-                                    : desired_batch_size;
+        // Divisibility-aware trim — see RfcReadColumnStateMachine::TrimmedActualBatchSize.
+        // When MAX_ROWS would force a final batch with an illegal ROWCOUNT,
+        // we over-fetch and let LoadNextBatchToDuckDBColumn() clip the
+        // surplus client-side.
+        auto actual_batch_size = RfcReadColumnStateMachine::TrimmedActualBatchSize(
+            desired_batch_size, total_rows, limit);
 
         if (!bind_data->options.empty()) {
             auto options_str = StringUtil::Join(bind_data->options, bind_data->options.size(), " | ", [](auto &o) { return o; });
