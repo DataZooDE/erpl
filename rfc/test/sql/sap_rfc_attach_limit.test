@@ -1,0 +1,66 @@
+# name: test/sql/sap_rfc_attach_limit.test
+# description: Regression coverage for issue #63 (very high memory usage during
+#              querying).  ATTACHed SAP tables must be real TABLE entries
+#              (not views) so the optimizer can push LIMIT/projection/filter
+#              directly into the sap_read_table scan; a `SELECT ... LIMIT N`
+#              from the user must not require a full-table fetch.
+# group: [rfc]
+
+require erpl_rfc
+
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
+
+statement ok
+CREATE OR REPLACE SECRET abap_trial (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}'
+);
+
+# ---------------------------------------------------------------------
+# Test 1 — architectural: an ATTACHed SAP table reports as BASE TABLE in
+# information_schema (i.e. it is a real TableCatalogEntry, not a view).
+# Pre-fix this returned 'VIEW' because SapDefaultGenerator wrapped every
+# table in `SELECT * FROM sap_read_table(...)`.
+statement ok
+ATTACH '' AS sap_issue63 (TYPE sap_rfc, SECRET 'abap_trial', TABLES '/DMO/FLIGHT');
+
+query I
+SELECT table_type FROM information_schema.tables
+WHERE table_catalog = 'sap_issue63' AND table_name = '/DMO/FLIGHT';
+----
+BASE TABLE
+
+# ---------------------------------------------------------------------
+# Test 2 — behavioural: LIMIT through the ATTACHed catalog still returns
+# the requested number of rows.  This was correct pre-fix but happened
+# to OOM for wide tables like BSEG; the test guards against regressions
+# in the new SapTableEntry path.
+query I
+SELECT COUNT(*) FROM (SELECT * FROM sap_issue63."/DMO/FLIGHT" LIMIT 5);
+----
+5
+
+# ---------------------------------------------------------------------
+# Test 3 — projection still flows through the new entry type.
+query I
+SELECT COUNT(*) FROM (SELECT CARRIER_ID FROM sap_issue63."/DMO/FLIGHT" LIMIT 3);
+----
+3
+
+statement ok
+DETACH sap_issue63;

@@ -5,7 +5,9 @@
 #include "duckdb/catalog/catalog_entry/duck_schema_entry.hpp"
 #include "duckdb/catalog/catalog_entry/view_catalog_entry.hpp"
 #include "duckdb/parser/parsed_data/create_view_info.hpp"
+#include "duckdb/parser/parsed_data/create_table_info.hpp"
 #include "duckdb/parser/parsed_data/create_table_function_info.hpp"
+#include "duckdb/parser/column_definition.hpp"
 #include "duckdb/main/config.hpp"
 
 // entry_lookup_info.hpp was introduced alongside TryLookupEntryInternal in DuckDB v1.5+
@@ -18,6 +20,9 @@
 #include "scanner_describe_function.hpp"
 #include "scanner_show_tables.hpp"
 #include "scanner_describe_fields.hpp"
+#include "sap_table_entry.hpp"
+#include "sap_rfc.hpp"
+#include "erpl_tracing.hpp"
 #endif
 
 #include "sap_storage.hpp"
@@ -26,9 +31,87 @@
 namespace duckdb {
 
 // ---------------------------------------------------------------------------
-// SapDefaultGenerator — lazy on-demand SAP table views
+// SapDefaultGenerator — lazy on-demand SAP table entries
+//
+// Each ATTACHed SAP table is exposed as a real TableCatalogEntry
+// (SapTableEntry), not a view.  This lets DuckDB plan a direct
+// LOGICAL_GET over `sap_read_table` so projection / filter pushdown and
+// LIMIT early-termination operate without a view-expansion layer in
+// between.  See issue #63 for the OOM the view wrapper caused.
 // ---------------------------------------------------------------------------
 
+#if DUCKDB_MINOR_VERSION >= 5
+
+class SapDefaultGenerator : public DefaultGenerator {
+public:
+	SapDefaultGenerator(Catalog &catalog, SchemaCatalogEntry &schema, string secret_name,
+	                    vector<string> allowed_tables)
+	    : DefaultGenerator(catalog), schema(schema), secret_name(std::move(secret_name)),
+	      allowed_tables(std::move(allowed_tables)) {
+	}
+
+	unique_ptr<CatalogEntry> CreateDefaultEntry(ClientContext &context, const string &entry_name) override {
+		if (!allowed_tables.empty()) {
+			bool found = false;
+			for (auto &table : allowed_tables) {
+				if (StringUtil::CIEquals(entry_name, table)) {
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				return nullptr;
+			}
+		}
+
+		// Discover the SAP table's column schema via DDIC so the catalog
+		// entry knows its return types up front.  If discovery fails
+		// (table unknown, connection problem, …) fall through to a
+		// nullptr return so DuckDB surfaces a normal CatalogException
+		// instead of leaking an RFC error here.
+		vector<string> names;
+		vector<LogicalType> types;
+		try {
+			auto bind_data = make_uniq<RfcReadTableBindData>(
+			    entry_name, /*max_read_threads=*/0, /*limit=*/0, "RFC_READ_TABLE", "",
+			    /*read_table_function_user_set=*/false, &DefaultRfcConnectionFactory, context);
+			if (!secret_name.empty()) {
+				bind_data->SetSecretName(secret_name);
+			}
+			bind_data->InitAndVerifyFields({});
+			names = bind_data->GetRfcColumnNames();
+			types = bind_data->GetReturnTypes();
+		} catch (std::exception &ex) {
+			ERPL_TRACE_DEBUG_DATA("sap_storage",
+			                      StringUtil::Format("Could not discover schema for '%s'", entry_name),
+			                      ex.what());
+			return nullptr;
+		}
+
+		CreateTableInfo info;
+		info.catalog = catalog.GetName();
+		info.schema = DEFAULT_SCHEMA;
+		info.table = entry_name;
+		for (idx_t i = 0; i < names.size(); i++) {
+			info.columns.AddColumn(ColumnDefinition(names[i], types[i]));
+		}
+
+		return make_uniq_base<CatalogEntry, SapTableEntry>(catalog, schema, info, entry_name, secret_name);
+	}
+
+	vector<string> GetDefaultEntries() override {
+		return allowed_tables;
+	}
+
+private:
+	SchemaCatalogEntry &schema;
+	string secret_name;
+	vector<string> allowed_tables;
+};
+
+#else
+
+// Pre-1.5 legacy view-based generator (kept for old DuckDB versions).
 class SapDefaultGenerator : public DefaultGenerator {
 public:
 	SapDefaultGenerator(Catalog &catalog, SchemaCatalogEntry &schema, string secret_name,
@@ -75,6 +158,8 @@ private:
 	vector<string> allowed_tables;
 };
 
+#endif
+
 // ---------------------------------------------------------------------------
 // SapSecretInjectorInfo / SapSecretBind — secret injection trampoline
 //
@@ -117,14 +202,17 @@ static void WrapFunctionInfoWithSecret(CreateTableFunctionInfo &info, const stri
 }
 
 // ---------------------------------------------------------------------------
-// SapCatalog — DuckCatalog subclass that keeps the view DefaultGenerator
-// active after Scan() calls (issue #54).
+// SapCatalog — DuckCatalog subclass that keeps the SAP DefaultGenerator
+// active after Scan() calls (issue #54; same logic applies for both the
+// pre-1.5 view-based generator and the 1.5+ SapTableEntry generator
+// introduced for issue #63).
 //
 // DuckDB's CatalogSet::CreateDefaultEntries() sets created_all_entries=true
 // after iterating GetDefaultEntries().  When that returns [] (the no-TABLES
-// case for the view generator), this permanently disables GetEntryDefault()
-// for on-demand view creation.  Overriding TryLookupEntryInternal() to reset
-// the flag before each lookup keeps the generator alive across Scans.
+// case for our generator), this permanently disables GetEntryDefault()
+// for on-demand entry creation.  Overriding TryLookupEntryInternal() to
+// reset the flag before each lookup keeps the generator alive across
+// Scans (e.g. from Ducklake or `information_schema.tables`).
 // ---------------------------------------------------------------------------
 
 class SapCatalog : public DuckCatalog {
@@ -215,11 +303,11 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
 	auto &schema = sap_catalog->GetSchema(system_transaction, DEFAULT_SCHEMA);
 	auto &duck_schema = schema.Cast<DuckSchemaEntry>();
 
-	// ── View generator (on-demand SAP table views) ────────────────────────
-	auto &view_catalog_set = duck_schema.GetCatalogSet(CatalogType::VIEW_ENTRY);
-	auto view_gen = make_uniq<SapDefaultGenerator>(*sap_catalog, schema, secret_name, allowed_tables);
-	sap_catalog->SetViewGenerator(view_gen.get());
-	view_catalog_set.SetDefaultGenerator(std::move(view_gen));
+	// ── Table generator (on-demand SapTableEntry per SAP table, issue #63) ─
+	auto &table_catalog_set = duck_schema.GetCatalogSet(CatalogType::TABLE_ENTRY);
+	auto table_gen = make_uniq<SapDefaultGenerator>(*sap_catalog, schema, secret_name, allowed_tables);
+	sap_catalog->SetViewGenerator(table_gen.get());
+	table_catalog_set.SetDefaultGenerator(std::move(table_gen));
 
 	// ── SAP table functions (catalog-qualified calls, issue #55) ────────────
 	// Insert each SAP table function directly into the catalog at attach time.

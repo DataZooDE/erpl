@@ -143,12 +143,20 @@ namespace duckdb
 			void SetRowIdColumnId();
 			unsigned int GetCardinality();
 			unsigned int GetBatchCount();
+			unsigned int GetDesiredBatchSize();
 			std::string ToString();
+
+		public:
+			// Hard cap on the per-RFC batch size.  Adaptive batching starts at
+			// STANDARD_VECTOR_SIZE and doubles per successful EXTRACT_FROM_SAP
+			// up to this ceiling so that LIMIT N queries do not pay for a
+			// 40k-row fetch before the LIMIT operator can early-terminate.
+			static constexpr unsigned int MAX_BATCH_SIZE = 20 * STANDARD_VECTOR_SIZE;
 
 		private:
 			bool active = true;
 			bool row_id_column_id = false;
-			unsigned int desired_batch_size = 20*STANDARD_VECTOR_SIZE;
+			unsigned int desired_batch_size = STANDARD_VECTOR_SIZE;
 			unsigned int pending_records = 0;
 			unsigned int cardinality = 0;
 			unsigned int batch_count = 0;

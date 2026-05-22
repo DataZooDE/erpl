@@ -73,6 +73,7 @@ set(EXTENSION_SOURCES
       src/scanner_describe_references.cpp
       src/scanner_read_table.cpp
       src/sap_storage.cpp
+      src/sap_table_entry.cpp
       ${YYJSON_OBJECT_FILES}
       ${SAPNWRFC_LIB_OBJECTS}
 )
