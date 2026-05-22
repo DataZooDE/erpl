@@ -240,7 +240,7 @@ namespace duckdb
 			std::vector<Value> CreateFunctionArguments(const std::string &delimiter, bool use_et_data);
 
 			unsigned int LoadNextBatchToDuckDBColumn();
-			Value ParseCsvValue(Value &orig);
+			Value ParseCsvValue(const RfcType &rfc_type, const Value &orig) const;
 
 		private:
 			RfcReadColumnStateMachine *owning_state_machine;

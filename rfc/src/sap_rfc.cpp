@@ -1284,7 +1284,7 @@ namespace duckdb
         return args.BuildArgList();
     }
 
-    unsigned int RfcReadColumnTask::LoadNextBatchToDuckDBColumn() 
+    unsigned int RfcReadColumnTask::LoadNextBatchToDuckDBColumn()
     {
         auto &current_result_data = owning_state_machine->current_result_data;
         auto &duck_count = owning_state_machine->duck_count;
@@ -1295,32 +1295,40 @@ namespace duckdb
             return 0;
         }
 
-        auto result_vec = ListValue::GetChildren(current_result_data->GetResultValue(0));
+        // Hot loop: keep the LIST<VARCHAR> Value alive in this scope so we
+        // can bind the children vector by const ref instead of copying the
+        // whole batch on every LOAD step (LoadNextBatchToDuckDBColumn fires
+        // once per STANDARD_VECTOR_SIZE chunk, so for desired_batch_size =
+        // MAX_BATCH_SIZE this used to copy ~16x the same vector).  Also
+        // hoist the per-cell rfc_type lookup out of the loop and iterate in
+        // place to drop the second vector copy.
+        auto list_value = current_result_data->GetResultValue(0);
+        const auto &result_vec = ListValue::GetChildren(list_value);
+
         auto batch_start = result_vec.begin() + duck_count * STANDARD_VECTOR_SIZE;
-        auto batch_end = batch_start + STANDARD_VECTOR_SIZE > result_vec.end() 
-                            ? result_vec.end() 
+        auto batch_end = batch_start + STANDARD_VECTOR_SIZE > result_vec.end()
+                            ? result_vec.end()
                             : batch_start + STANDARD_VECTOR_SIZE;
         if (limit > 0 && total_rows + batch_end - batch_start > limit) {
             batch_end = batch_start + (limit - total_rows);
         }
 
-        auto batch = duckdb::vector<Value>(batch_start, batch_end);
-        
-        for (idx_t row_idx = 0; row_idx < batch.size(); row_idx++) {
-            auto val = ParseCsvValue(batch[row_idx]);
+        const auto &rfc_type = owning_state_machine->bind_data->GetColumnType(
+            owning_state_machine->column_idx);
+
+        idx_t row_idx = 0;
+        for (auto it = batch_start; it != batch_end; ++it, ++row_idx) {
+            auto val = ParseCsvValue(rfc_type, *it);
             current_column_output.SetValue(row_idx, val);
         }
-        return batch.size();
+        return row_idx;
     }
 
-    Value RfcReadColumnTask::ParseCsvValue(Value &orig)
+    Value RfcReadColumnTask::ParseCsvValue(const RfcType &rfc_type, const Value &orig) const
     {
         if (owning_state_machine->row_id_column_id) {
             return Value::BIGINT(42);
         }
-
-        auto bind_data = owning_state_machine->bind_data;
-        auto rfc_type = bind_data->GetColumnType(owning_state_machine->column_idx);
         return rfc_type.ConvertCsvValue(orig);
     }
     
