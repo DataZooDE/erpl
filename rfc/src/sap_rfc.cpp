@@ -958,19 +958,6 @@ namespace duckdb
                     current_state = (extracted_from_sap < desired_batch_size) || (limit > 0 && (total_rows + extracted_from_sap) == limit)
                                         ? ReadTableStates::FINAL_LOAD_TO_DUCKDB
                                         : ReadTableStates::LOAD_TO_DUCKDB;
-
-                    // Adaptive ramp-up (issue #63).  When no explicit limit
-                    // bounds the scan, double the batch size after each
-                    // successful round-trip up to MAX_BATCH_SIZE.  Bulk
-                    // scans converge to the old throughput within a few
-                    // iterations; LIMIT N queries pay at most one small
-                    // round-trip before the LIMIT operator stops the scan.
-                    if (limit == 0 && desired_batch_size < RfcReadColumnStateMachine::MAX_BATCH_SIZE) {
-                        auto grown = desired_batch_size * 2u;
-                        desired_batch_size = grown > RfcReadColumnStateMachine::MAX_BATCH_SIZE
-                                                 ? RfcReadColumnStateMachine::MAX_BATCH_SIZE
-                                                 : grown;
-                    }
                     break;
                 }
                 case ReadTableStates::LOAD_TO_DUCKDB: {
@@ -1122,11 +1109,12 @@ namespace duckdb
         auto fields = bind_data->GetRfcColumnName(owning_state_machine->column_idx);
 
         auto &desired_batch_size = owning_state_machine->desired_batch_size;
+        auto &batch_count = owning_state_machine->batch_count;
         auto &total_rows = owning_state_machine->total_rows;
         auto &limit = owning_state_machine->limit;
 
-        auto actual_batch_size = limit > 0 && total_rows + desired_batch_size > limit 
-                                    ? limit - total_rows 
+        auto actual_batch_size = limit > 0 && total_rows + desired_batch_size > limit
+                                    ? limit - total_rows
                                     : desired_batch_size;
 
         if (!bind_data->options.empty()) {
@@ -1139,9 +1127,10 @@ namespace duckdb
             args.Add("QUERY_TABLE", Value(table_name));
         }
         if (bind_data->ReadTableHasParam("ROWSKIPS")) {
-            // Use the running row offset so an adaptive desired_batch_size
-            // (issue #63) does not skew the SAP cursor.
-            args.Add("ROWSKIPS", Value::CreateValue<int32_t>(total_rows));
+            // RFC_READ_TABLE requires ROWSKIPS to be an integer multiple of
+            // ROWCOUNT.  Since desired_batch_size is constant for the whole
+            // scan, batch_count * desired_batch_size is always such a multiple.
+            args.Add("ROWSKIPS", Value::CreateValue<int32_t>(batch_count * desired_batch_size));
         }
         if (bind_data->ReadTableHasParam("ROWCOUNT")) {
             args.Add("ROWCOUNT", Value::CreateValue<int32_t>(actual_batch_size));
