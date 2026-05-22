@@ -68,7 +68,7 @@ bool GetRfcStrictTypeCheck();
             void AdaptValue(DATA_CONTAINER_HANDLE &container_handle, string &arg_name, Value &arg_value);
             Value ConvertRfcValue(RfcInvocation &invocation, string &field_name);
             Value ConvertRfcValue(std::shared_ptr<RfcInvocation> invocation, string &field_name);
-            Value ConvertCsvValue(Value &csv_value);
+            Value ConvertCsvValue(const Value &csv_value) const;
             
             virtual std::string ToSqlLiteral();
 

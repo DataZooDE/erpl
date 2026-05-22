@@ -83,7 +83,7 @@ Execute_17 = immediate $(DIR_CT_RUN)/sapcpe$(FT_EXE) pf=$(_PF) $(_CPARG0)
 #-----------------------------------------------------------------------
 Execute_18 = immediate $(DIR_CT_RUN)/startdb
 exe/saposcol = $(DIR_CT_RUN)/saposcol
-rdisp/wp_no_dia = 7
+rdisp/wp_no_dia = 24
 rdisp/wp_no_btc = 5
 rdisp/wp_no_vb = 1
 rdisp/wp_no_vb2 = 1

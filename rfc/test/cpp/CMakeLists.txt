@@ -20,6 +20,7 @@ set(TEST_SOURCES
     test_value_helper.cpp
     test_table_wrapper.cpp
     test_telemetry.cpp
+    test_read_table_batching.cpp
     test_main.cpp
 )
 

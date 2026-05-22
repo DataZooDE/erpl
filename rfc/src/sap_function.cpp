@@ -908,30 +908,33 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         return Value::LIST(child_type, row_values);
     }
 
-    Value RfcType::ConvertCsvValue(Value &csv_value)
+    Value RfcType::ConvertCsvValue(const Value &csv_value) const
     {
-        auto str_value = csv_value.GetValue<std::string>();
+        // Fast path: the input is already a VARCHAR Value from the SDK CSV
+        // payload, so for non-special types we can hand it through unchanged
+        // and avoid one std::string extraction + one StringValueInfo
+        // allocation per cell.  Only the DATE / TIME / BCD branches need the
+        // raw string for type-specific parsing.
         switch(_rfc_type)
         {
             case RFCTYPE_DATE:
             {
+                auto str_value = csv_value.GetValue<std::string>();
                 return dats2duck(str_value);
             }
             case RFCTYPE_TIME:
             {
+                auto str_value = csv_value.GetValue<std::string>();
                 return tims2duck(str_value);
             }
             case RFCTYPE_BCD:
             {
+                auto str_value = csv_value.GetValue<std::string>();
                 return bcd2duck(str_value, GetLength() * 2 - 1, GetDecimals());
             }
             default:
-            {
-                return Value(str_value);
-            }
+                return csv_value;
         }
-
-        return Value(csv_value);
     }
 
     std::string RfcType::ToSqlLiteral() 
