@@ -148,17 +148,19 @@ namespace duckdb
 
 		public:
 			// Per-RFC batch size.  RFC_READ_TABLE enforces server-side that
-			// ROWSKIPS is an integer multiple of ROWCOUNT, so the batch size
-			// must stay constant for the lifetime of a scan.  Default to this
-			// ceiling for throughput; the constructor trims it down when an
-			// explicit MAX_ROWS limit is supplied so LIMIT N still fits in a
-			// single small round-trip.
-			static constexpr unsigned int MAX_BATCH_SIZE = 20 * STANDARD_VECTOR_SIZE;
+			// ROWSKIPS must be an integer multiple of ROWCOUNT.  We start
+			// each scan at a small STANDARD_VECTOR_SIZE batch and double
+			// after each round-trip — but only at moments when total_rows
+			// is divisible by the larger size.  That preserves the ABAP
+			// invariant while keeping the first batch cheap so LIMIT N
+			// queries terminate before paying for a full SDK buffer.  Cap
+			// is a power-of-two so the doubling sequence reaches it cleanly.
+			static constexpr unsigned int MAX_BATCH_SIZE = 16 * STANDARD_VECTOR_SIZE;
 
 		private:
 			bool active = true;
 			bool row_id_column_id = false;
-			unsigned int desired_batch_size = MAX_BATCH_SIZE;
+			unsigned int desired_batch_size = STANDARD_VECTOR_SIZE;
 			unsigned int pending_records = 0;
 			unsigned int cardinality = 0;
 			unsigned int batch_count = 0;

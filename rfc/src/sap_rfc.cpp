@@ -958,6 +958,24 @@ namespace duckdb
                     current_state = (extracted_from_sap < desired_batch_size) || (limit > 0 && (total_rows + extracted_from_sap) == limit)
                                         ? ReadTableStates::FINAL_LOAD_TO_DUCKDB
                                         : ReadTableStates::LOAD_TO_DUCKDB;
+
+                    // Divisibility-preserving warm-up (issue #63).  RFC_READ_TABLE
+                    // requires ROWSKIPS % ROWCOUNT == 0 server-side, so we can only
+                    // grow the batch size at moments when the running offset would
+                    // remain a clean multiple of the larger size.  Always doubling
+                    // satisfies that whenever total_rows itself is a multiple of
+                    // (current_size * 2) — true after every second batch at the
+                    // current size, naturally walking the size up STANDARD_VECTOR_SIZE
+                    // → 2× → 4× → … → MAX_BATCH_SIZE within ~log2(MAX/SV) round-trips.
+                    if (limit == 0 && desired_batch_size < RfcReadColumnStateMachine::MAX_BATCH_SIZE) {
+                        unsigned int next_size = desired_batch_size * 2u;
+                        if (next_size > RfcReadColumnStateMachine::MAX_BATCH_SIZE) {
+                            next_size = RfcReadColumnStateMachine::MAX_BATCH_SIZE;
+                        }
+                        if ((total_rows + extracted_from_sap) % next_size == 0) {
+                            desired_batch_size = next_size;
+                        }
+                    }
                     break;
                 }
                 case ReadTableStates::LOAD_TO_DUCKDB: {
@@ -1109,7 +1127,6 @@ namespace duckdb
         auto fields = bind_data->GetRfcColumnName(owning_state_machine->column_idx);
 
         auto &desired_batch_size = owning_state_machine->desired_batch_size;
-        auto &batch_count = owning_state_machine->batch_count;
         auto &total_rows = owning_state_machine->total_rows;
         auto &limit = owning_state_machine->limit;
 
@@ -1127,10 +1144,11 @@ namespace duckdb
             args.Add("QUERY_TABLE", Value(table_name));
         }
         if (bind_data->ReadTableHasParam("ROWSKIPS")) {
-            // RFC_READ_TABLE requires ROWSKIPS to be an integer multiple of
-            // ROWCOUNT.  Since desired_batch_size is constant for the whole
-            // scan, batch_count * desired_batch_size is always such a multiple.
-            args.Add("ROWSKIPS", Value::CreateValue<int32_t>(batch_count * desired_batch_size));
+            // RFC_READ_TABLE requires ROWSKIPS % ROWCOUNT == 0 server-side.
+            // We satisfy that by only doubling desired_batch_size when
+            // total_rows is divisible by the new size, so total_rows is
+            // always a valid (multiple-of-current-ROWCOUNT) offset.
+            args.Add("ROWSKIPS", Value::CreateValue<int32_t>(total_rows));
         }
         if (bind_data->ReadTableHasParam("ROWCOUNT")) {
             args.Add("ROWCOUNT", Value::CreateValue<int32_t>(actual_batch_size));

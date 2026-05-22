@@ -8,36 +8,39 @@ using namespace duckdb;
 
 // Issue #63: very high memory usage during querying.
 //
-// `SELECT * FROM sap.<wide_table> LIMIT 10` against an ATTACHed SAP catalog
-// used >16 GB of RAM and OOMed.  Two factors combined:
+// Two design constraints:
 //
-//  1. The ATTACH layer exposed each SAP table as a VIEW whose body was
-//     `SELECT * FROM sap_read_table(...)`, hiding the underlying table
-//     function from the optimizer and preventing column/filter/limit
-//     pushdown into the scan (architectural fix lives in sap_storage.cpp /
-//     SapTableEntry).
+//  1. RFC_READ_TABLE enforces server-side that ROWSKIPS % ROWCOUNT == 0.
+//     Doubling the batch size between successive round-trips violates this
+//     invariant unless we wait for the running total_rows to be divisible
+//     by the larger size.  The state machine walks the batch size up
+//     STANDARD_VECTOR_SIZE → 2× → 4× → … → MAX_BATCH_SIZE only at those
+//     safe moments (logic in RfcReadColumnTask::ExecuteTask).
 //
-//  2. `RfcReadColumnStateMachine::desired_batch_size` must stay constant
-//     for the whole scan: RFC_READ_TABLE rejects any call where
-//     ROWSKIPS is not an integer multiple of ROWCOUNT, so we cannot
-//     adaptively grow the batch size between successive round-trips.
-//     When the user provides an explicit MAX_ROWS the constructor trims
-//     the batch size down so LIMIT N still fits in one small fetch.
+//  2. The first batch dominates peak RSS for `LIMIT N` queries — DuckDB
+//     stops pulling once N rows arrive, so any SDK buffer pre-allocated
+//     for a larger batch is wasted memory.  We therefore start small
+//     by default so LIMIT N pays for at most STANDARD_VECTOR_SIZE rows.
+//
+// These tests pin down the constructor side of (2); the divisibility
+// behaviour of (1) is covered by sap_read_table.test against a live SAP
+// system.
 
-TEST_CASE("desired_batch_size defaults to MAX_BATCH_SIZE without an explicit limit",
+TEST_CASE("desired_batch_size starts at STANDARD_VECTOR_SIZE without an explicit limit",
           "[erpl_rfc][batching]") {
 	RfcReadColumnStateMachine sm(/*bind_data=*/nullptr, /*column_idx=*/0, /*limit=*/0);
-	REQUIRE(sm.GetDesiredBatchSize() == RfcReadColumnStateMachine::MAX_BATCH_SIZE);
+	REQUIRE(sm.GetDesiredBatchSize() == STANDARD_VECTOR_SIZE);
 }
 
-TEST_CASE("Explicit MAX_ROWS limit caps batch size", "[erpl_rfc][batching]") {
+TEST_CASE("Explicit MAX_ROWS limit below the warm-up start caps batch size",
+          "[erpl_rfc][batching]") {
 	RfcReadColumnStateMachine sm(/*bind_data=*/nullptr, /*column_idx=*/0, /*limit=*/7);
 	REQUIRE(sm.GetDesiredBatchSize() == 7u);
 }
 
-TEST_CASE("Explicit MAX_ROWS limit larger than the ceiling leaves batch size at MAX_BATCH_SIZE",
+TEST_CASE("Explicit MAX_ROWS limit above the warm-up start leaves it at STANDARD_VECTOR_SIZE",
           "[erpl_rfc][batching]") {
 	RfcReadColumnStateMachine sm(/*bind_data=*/nullptr, /*column_idx=*/0,
-	                             /*limit=*/RfcReadColumnStateMachine::MAX_BATCH_SIZE * 2);
-	REQUIRE(sm.GetDesiredBatchSize() == RfcReadColumnStateMachine::MAX_BATCH_SIZE);
+	                             /*limit=*/STANDARD_VECTOR_SIZE * 3);
+	REQUIRE(sm.GetDesiredBatchSize() == STANDARD_VECTOR_SIZE);
 }
