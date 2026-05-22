@@ -28,6 +28,16 @@
 
 namespace duckdb
 {
+    // Persistent-connection toggle.  Default true: the scan path caches one
+    // RFC connection + function descriptor per RfcReadColumnStateMachine for
+    // the lifetime of the scan instead of opening + RfcGetFunctionDesc'ing on
+    // every batch.  Toggle via `SET erpl_rfc_persistent_connections=false`
+    // to fall back to per-batch open/close (useful for A/B benchmarking or
+    // working around SDK regressions).
+    static std::atomic<bool> g_rfc_persistent_connections{true};
+    void SetRfcPersistentConnections(bool enabled) { g_rfc_persistent_connections.store(enabled, std::memory_order_relaxed); }
+    bool GetRfcPersistentConnections()             { return g_rfc_persistent_connections.load(std::memory_order_relaxed); }
+
     string RfcFunctionDesc(ClientContext &context, const FunctionParameters &parameters)
     {
         auto auth_params = RfcAuthParams::FromContext(context);
@@ -905,7 +915,58 @@ namespace duckdb
         return desired_batch_size;
     }
 
-    std::string RfcReadColumnStateMachine::ToString() 
+    std::shared_ptr<RfcConnection> RfcReadColumnStateMachine::AcquireConnection()
+    {
+        // Caller already holds thread_lock (we only get here from ExecuteTask).
+        if (!GetRfcPersistentConnections()) {
+            return bind_data->OpenNewConnection();
+        }
+        if (cached_connection && cached_connection->handle != NULL) {
+            return cached_connection;
+        }
+        // Stale or absent — open a fresh one and cache it.
+        cached_function.reset();
+        cached_function_name.clear();
+        cached_connection = bind_data->OpenNewConnection();
+        return cached_connection;
+    }
+
+    std::shared_ptr<RfcFunction> RfcReadColumnStateMachine::AcquireFunction(const std::string &function_name)
+    {
+        // Caller already holds thread_lock.
+        if (!GetRfcPersistentConnections()) {
+            auto conn = cached_connection ? cached_connection : bind_data->OpenNewConnection();
+            return std::make_shared<RfcFunction>(conn, function_name);
+        }
+        if (cached_function && cached_function_name == function_name &&
+            cached_connection && cached_connection->handle != NULL) {
+            return cached_function;
+        }
+        // Connection might be fresh — make sure we have one before constructing.
+        if (!cached_connection || cached_connection->handle == NULL) {
+            cached_connection = bind_data->OpenNewConnection();
+        }
+        cached_function = std::make_shared<RfcFunction>(cached_connection, function_name);
+        cached_function_name = function_name;
+        return cached_function;
+    }
+
+    void RfcReadColumnStateMachine::InvalidateCachedConnection()
+    {
+        // Caller already holds thread_lock.
+        cached_function.reset();
+        cached_function_name.clear();
+        if (cached_connection) {
+            try {
+                cached_connection->Close();
+            } catch (...) {
+                // Close on a broken connection may itself fail; best-effort.
+            }
+            cached_connection.reset();
+        }
+    }
+
+    std::string RfcReadColumnStateMachine::ToString()
     {
         return StringUtil::Format("ReadColumn(\n\tcolumn_idx=%d, \n\tcurrent_state=%s, \n\tdesired_batch_size=%d, \n\tpending_records=%d, \n\tcardinality=%d, \n\tbatch_count=%d, \n\tduck_count=%d\n)\n", 
                                     column_idx, 
@@ -1001,6 +1062,13 @@ namespace duckdb
                                         ? ReadTableStates::FINAL_LOAD_TO_DUCKDB
                                         : ReadTableStates::FINISHED;
 
+                    if (current_state == ReadTableStates::FINISHED) {
+                        // No more batches will run on this state machine — release
+                        // the cached RFC connection so we don't hold a SAP work
+                        // process reservation until query teardown.
+                        owning_state_machine->InvalidateCachedConnection();
+                    }
+
                     return_control_to_duck = true;
                     break;
                 }
@@ -1026,11 +1094,12 @@ namespace duckdb
         int attempt = 0;
         int max_attempts = 5;
         int initial_delay = 10000; // milliseconds
+        const bool persistent = GetRfcPersistentConnections();
         while (attempt < max_attempts) {
             std::shared_ptr<RfcConnection> connection;
             try {
                 auto &current_result_data = owning_state_machine->current_result_data;
-                connection = bind_data->OpenNewConnection();
+                connection = owning_state_machine->AcquireConnection();
 
                 auto read_table_function = bind_data->GetReadTableFunctionName();
                 auto read_table_delimiter = bind_data->GetReadTableDelimiter();
@@ -1052,7 +1121,7 @@ namespace duckdb
                     }
                 }
 
-                auto func = std::make_shared<RfcFunction>(connection, read_table_function);
+                auto func = owning_state_machine->AcquireFunction(read_table_function);
                 auto func_args = CreateFunctionArguments(read_table_delimiter, use_et_data);
                 auto invocation = func->BeginInvocation(func_args);
                 current_result_data = invocation->Invoke(data_path);
@@ -1088,12 +1157,20 @@ namespace duckdb
                     }
                 }
 
-                connection->Close();
+                if (!persistent) {
+                    // Non-persistent mode keeps the original per-batch close.
+                    connection->Close();
+                }
                 return current_result_data->TotalRows();
             }
             catch (std::exception &e) {
-                if (connection) {
-                    connection->Close();
+                // Drop the cached connection / function on any error so the
+                // next attempt opens a clean one.  This also handles the
+                // RfcGetFunctionDesc failure case where the cached descriptor
+                // could be stale on the next batch.
+                owning_state_machine->InvalidateCachedConnection();
+                if (!persistent && connection) {
+                    try { connection->Close(); } catch (...) {}
                 }
                 std::string err_msg(e.what());
                 if (!IsRetryableRfcError(err_msg)) {

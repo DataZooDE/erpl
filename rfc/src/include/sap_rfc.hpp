@@ -14,6 +14,12 @@ namespace duckdb
 {
 	string RfcFunctionDesc(ClientContext &context, const FunctionParameters &parameters);
 
+	// Toggle for caching one RFC connection + function descriptor per
+	// RfcReadColumnStateMachine across all batches of a scan.  Default true.
+	// Wired to the `erpl_rfc_persistent_connections` extension option.
+	void SetRfcPersistentConnections(bool enabled);
+	bool GetRfcPersistentConnections();
+
 	//struct RfcReadTableGlobalState; // forward declaration
 	//struct RfcReadTableLocalState; // forward declaration
 	class RfcReadColumnStateMachine; // forward declaration
@@ -146,6 +152,21 @@ namespace duckdb
 			unsigned int GetDesiredBatchSize();
 			std::string ToString();
 
+			// Persistent-connection cache (issue #63 throughput follow-up).
+			// Each state machine owns one RFC connection and one cached
+			// RfcFunction descriptor for the duration of a scan, instead of
+			// opening + logging on + RfcGetFunctionDesc'ing on every batch.
+			// AcquireConnection returns the cached connection if alive, else
+			// opens a fresh one via bind_data->OpenNewConnection().
+			// AcquireFunction does the same for the function descriptor,
+			// rebuilding it whenever the function name changes (RFC_READ_TABLE
+			// fallback path) or the connection has been invalidated.
+			// InvalidateCachedConnection drops both — call on any RFC error so
+			// the next batch starts from a clean state.
+			std::shared_ptr<RfcConnection> AcquireConnection();
+			std::shared_ptr<RfcFunction> AcquireFunction(const std::string &function_name);
+			void InvalidateCachedConnection();
+
 		public:
 			// Per-RFC batch size.  RFC_READ_TABLE enforces server-side that
 			// ROWSKIPS must be an integer multiple of ROWCOUNT.  We start
@@ -167,6 +188,9 @@ namespace duckdb
 			unsigned int duck_count = 0;
 			unsigned int total_rows = 0;
 			unsigned int limit;
+			std::shared_ptr<RfcConnection> cached_connection;
+			std::shared_ptr<RfcFunction> cached_function;
+			std::string cached_function_name;
 
 			idx_t column_idx;
 			idx_t projected_column_idx = DConstants::INVALID_INDEX;

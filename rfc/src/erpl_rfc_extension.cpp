@@ -17,6 +17,7 @@
 #include "scanner_show_tables.hpp"
 #include "scanner_describe_fields.hpp"
 #include "scanner_read_table.hpp"
+#include "sap_rfc.hpp"
 
 #include "telemetry.hpp"
 #include "sap_connection.hpp"
@@ -139,6 +140,10 @@ namespace duckdb {
         SetRfcStrictTypeCheck(parameter.GetValue<bool>());
     }
 
+    static void OnPersistentConnections(ClientContext &, SetScope, Value &parameter) {
+        SetRfcPersistentConnections(parameter.GetValue<bool>());
+    }
+
     static void RegisterConfiguration(ExtensionLoader &loader)
     {
         auto &instance = loader.GetDatabaseInstance();
@@ -167,6 +172,17 @@ namespace duckdb {
             LogicalType::BOOLEAN,
             Value(false),
             OnStrictTypeCheck);
+
+        config.AddExtensionOption(
+            "erpl_rfc_persistent_connections",
+            "When true (default), the sap_read_table scan caches one RFC connection and "
+            "one RfcGetFunctionDesc descriptor per column for the duration of a scan, "
+            "instead of opening + logging on + re-fetching the descriptor on every batch. "
+            "Set to false to fall back to per-batch open/close for benchmarking or "
+            "compatibility.",
+            LogicalType::BOOLEAN,
+            Value(true),
+            OnPersistentConnections);
 
         auto provider = make_uniq<RfcEnvironmentCredentialsProvider>(config);
         provider->SetAll();
