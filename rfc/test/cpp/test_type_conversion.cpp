@@ -158,13 +158,29 @@ TEST_CASE("Test rfc2duck with RFC date", "[sap_type_conversion]") {
 TEST_CASE("Test rfc2duck with empty date", "[sap_type_conversion]") {
     RFC_DATE date = {'0', '0', '0', '0', '0', '0', '0', '0'};
     Value result = rfc2duck(date);
-    REQUIRE(DateValue::Get(result) == date_t());
+    REQUIRE(result.IsNull());
+    REQUIRE(result.type().id() == LogicalTypeId::DATE);
 }
 
-TEST_CASE("Test rfc2duck with invalid date", "[sap_type_conversion]") {
+TEST_CASE("Test dats2duck with all-spaces date returns NULL", "[sap_type_conversion]") {
+    std::string dats_str = "        ";
+    Value result = dats2duck(dats_str);
+    REQUIRE(result.IsNull());
+    REQUIRE(result.type().id() == LogicalTypeId::DATE);
+}
+
+TEST_CASE("Test dats2duck with empty string returns NULL", "[sap_type_conversion]") {
+    std::string dats_str = "";
+    Value result = dats2duck(dats_str);
+    REQUIRE(result.IsNull());
+    REQUIRE(result.type().id() == LogicalTypeId::DATE);
+}
+
+TEST_CASE("Test rfc2duck with invalid date returns NULL", "[sap_type_conversion]") {
     RFC_DATE date = {'2', '0', '2', '0', '1', '3', '6', '4'};
     Value result = rfc2duck(date);
-    REQUIRE(DateValue::Get(result) == date_t());
+    REQUIRE(result.IsNull());
+    REQUIRE(result.type().id() == LogicalTypeId::DATE);
 }
 
 TEST_CASE("TEST rfc2duck with RFC time", "[sap_type_conversion]") {
@@ -176,13 +192,29 @@ TEST_CASE("TEST rfc2duck with RFC time", "[sap_type_conversion]") {
 TEST_CASE("TEST rfc2duck with empty time", "[sap_type_conversion]") {
     RFC_TIME time = {'0', '0', '0', '0', '0', '0'};
     Value result = rfc2duck(time);
-    REQUIRE(TimeValue::Get(result) == dtime_t());
+    REQUIRE(result.IsNull());
+    REQUIRE(result.type().id() == LogicalTypeId::TIME);
+}
+
+TEST_CASE("Test tims2duck with all-spaces time returns NULL", "[sap_type_conversion]") {
+    std::string tims_str = "      ";
+    Value result = tims2duck(tims_str);
+    REQUIRE(result.IsNull());
+    REQUIRE(result.type().id() == LogicalTypeId::TIME);
+}
+
+TEST_CASE("Test tims2duck with empty string returns NULL", "[sap_type_conversion]") {
+    std::string tims_str = "";
+    Value result = tims2duck(tims_str);
+    REQUIRE(result.IsNull());
+    REQUIRE(result.type().id() == LogicalTypeId::TIME);
 }
 
 TEST_CASE("TEST rfc2duck with invalid time", "[sap_type_conversion]") {
     RFC_TIME time = {'2', '6', '0', '0', '0', '0'};
     Value result = rfc2duck(time);
-    REQUIRE(TimeValue::Get(result) == dtime_t());
+    REQUIRE(result.IsNull());
+    REQUIRE(result.type().id() == LogicalTypeId::TIME);
 }
 
 TEST_CASE("Test rfc2duck for float", "[sap_type_conversion]") {

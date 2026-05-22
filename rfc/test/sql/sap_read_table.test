@@ -229,3 +229,33 @@ query I
 SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_TABLE_FUNCTION='/SAPDS/RFC_READ_TABLE2', READ_TABLE_DELIMITER='~');
 ----
 40
+
+# ---------------------------------------------------------------------
+# Issue #64: NULL / initial DATS and TIMS columns must round-trip as
+# DuckDB NULL, not silently materialize as 1970-01-01 / 00:00:00 (the
+# all-zeros initial value) or wild garbage dates like 1439716-08-13
+# (the all-spaces RFC_READ_TABLE form). USR02 contains at least one
+# row whose TRDAT/LTIME are initial — the trial ships with the SAP*
+# user that never logged on. The fix in dats2duck/tims2duck must keep
+# those rows non-empty in the result set but report them as NULL.
+query II
+SELECT
+    SUM(CASE WHEN TRDAT IS NULL THEN 1 ELSE 0 END) > 0 AS has_null_dats,
+    SUM(CASE WHEN LTIME IS NULL THEN 1 ELSE 0 END) > 0 AS has_null_tims
+FROM sap_read_table('USR02', COLUMNS=['TRDAT','LTIME']);
+----
+true	true
+
+# The legacy buggy behaviour materialised initial DATS as 1970-01-01
+# (the all-zeros case) or wild garbage dates above year 9999 (the
+# all-spaces case). Aggregate over the full result so the predicates
+# stay client-side — pushing TRDAT = DATE '1970-01-01' down to SAP
+# fails because D(8,0) cannot represent that literal.
+query III
+SELECT
+    SUM(CASE WHEN TRDAT = DATE '1970-01-01' THEN 1 ELSE 0 END) AS epoch_dats_rows,
+    SUM(CASE WHEN extract(year FROM TRDAT) > 9999 THEN 1 ELSE 0 END) AS overflow_dats_rows,
+    SUM(CASE WHEN TRDAT IS NOT NULL AND extract(year FROM TRDAT) < 1900 THEN 1 ELSE 0 END) AS prehistoric_dats_rows
+FROM sap_read_table('USR02', COLUMNS=['TRDAT']);
+----
+0	0	0
