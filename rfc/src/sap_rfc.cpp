@@ -38,6 +38,18 @@ namespace duckdb
     void SetRfcPersistentConnections(bool enabled) { g_rfc_persistent_connections.store(enabled, std::memory_order_relaxed); }
     bool GetRfcPersistentConnections()             { return g_rfc_persistent_connections.load(std::memory_order_relaxed); }
 
+    // Hard ceiling on persistent connections per scan.  Wide tables (BSEG,
+    // ACDOCA) have more columns than realistic SAP-side resources can
+    // serve in parallel (CPIC default 200, gateway max_conn ~500, DWP pool,
+    // HANA worker limits).  State machines past the cap fall back to
+    // per-batch open/close.  See [[project_rfc_intra_process_throughput_cap]]
+    // — effective concurrency against the SAP gateway tops out around 3-4
+    // even with unlimited connections, so 16 leaves ample headroom while
+    // staying well under any plausible SAP-side limit.
+    static std::atomic<unsigned int> g_rfc_max_persistent_connections{16};
+    void SetRfcMaxPersistentConnections(unsigned int n) { g_rfc_max_persistent_connections.store(n, std::memory_order_relaxed); }
+    unsigned int GetRfcMaxPersistentConnections()       { return g_rfc_max_persistent_connections.load(std::memory_order_relaxed); }
+
     string RfcFunctionDesc(ClientContext &context, const FunctionParameters &parameters)
     {
         auto auth_params = RfcAuthParams::FromContext(context);
@@ -184,6 +196,25 @@ namespace duckdb
     bool RfcReadTableBindData::IsReadTableFunctionUserSet()
     {
         return read_table_function_user_set;
+    }
+
+    bool RfcReadTableBindData::TryReservePersistentSlot()
+    {
+        // Lock-free fetch-and-cap.  Each caller atomically increments the
+        // counter; the first MAX callers see a previous value below the
+        // cap and win the slot, the rest see a value at-or-above the cap
+        // and lose.  We deliberately do not decrement on failure (so the
+        // global counter remains monotonically tracking attempted slots
+        // and stays a clean ceiling without an ABA window).
+        auto cap = GetRfcMaxPersistentConnections();
+        if (cap == 0) {
+            return false;
+        }
+        auto previous = persistent_slots_used.fetch_add(1, std::memory_order_relaxed);
+        if (previous >= cap) {
+            return false;
+        }
+        return true;
     }
 
     void RfcReadTableBindData::ValidateReadTableFunctionName()
@@ -958,6 +989,19 @@ namespace duckdb
         if (!GetRfcPersistentConnections()) {
             return bind_data->OpenNewConnection();
         }
+        // On first use, ask the bind-data budget whether this state machine
+        // is allowed to cache a connection.  Wide-table scans (BSEG, ACDOCA)
+        // have more columns than realistic SAP-side resources can serve in
+        // parallel — state machines past the cap fall back to per-batch
+        // open/close, which is correct (just slower) for the overflow.
+        if (persistent_decision == PersistentDecision::UNDECIDED) {
+            persistent_decision = bind_data->TryReservePersistentSlot()
+                                      ? PersistentDecision::APPROVED
+                                      : PersistentDecision::DENIED;
+        }
+        if (persistent_decision == PersistentDecision::DENIED) {
+            return bind_data->OpenNewConnection();
+        }
         auto self = std::this_thread::get_id();
         if (cached_connection && cached_connection->handle != NULL &&
             cached_connection_thread.has_value() && *cached_connection_thread == self) {
@@ -976,10 +1020,13 @@ namespace duckdb
         std::shared_ptr<RfcConnection> connection, const std::string &function_name)
     {
         // Caller already holds thread_lock and has just called AcquireConnection
-        // — `connection` is the live handle to use for this batch.  In
-        // non-persistent mode that's a fresh connection the caller will close;
-        // in persistent mode it's our cached one.
-        if (!GetRfcPersistentConnections()) {
+        // — `connection` is the live handle to use for this batch.  Only state
+        // machines that won the persistent-slot reservation cache the
+        // RfcFunction descriptor; the others build a transient one bound to
+        // the per-batch connection the caller will close.
+        const bool persistent = GetRfcPersistentConnections() &&
+                                persistent_decision == PersistentDecision::APPROVED;
+        if (!persistent) {
             return std::make_shared<RfcFunction>(connection, function_name);
         }
         if (cached_function && cached_function_name == function_name &&
@@ -1124,12 +1171,20 @@ namespace duckdb
         int attempt = 0;
         int max_attempts = 5;
         int initial_delay = 10000; // milliseconds
-        const bool persistent = GetRfcPersistentConnections();
         while (attempt < max_attempts) {
             std::shared_ptr<RfcConnection> connection;
+            // Whether this batch's connection is owned by the state machine
+            // (don't close on success) vs. per-batch (close on success).
+            // Decided after AcquireConnection() so we observe the live
+            // persistent_decision — the bind-data slot reservation only
+            // resolves on first AcquireConnection() call.
+            bool persistent_for_this_batch = false;
             try {
                 auto &current_result_data = owning_state_machine->current_result_data;
                 connection = owning_state_machine->AcquireConnection();
+                persistent_for_this_batch =
+                    GetRfcPersistentConnections() &&
+                    owning_state_machine->HasApprovedPersistentSlot();
 
                 auto read_table_function = bind_data->GetReadTableFunctionName();
                 auto read_table_delimiter = bind_data->GetReadTableDelimiter();
@@ -1187,8 +1242,10 @@ namespace duckdb
                     }
                 }
 
-                if (!persistent) {
-                    // Non-persistent mode keeps the original per-batch close.
+                if (!persistent_for_this_batch) {
+                    // Per-batch open/close — either the user disabled the
+                    // cache, or this state machine didn't win a persistent
+                    // slot from the bind-data budget (wide-table overflow).
                     connection->Close();
                 }
                 return current_result_data->TotalRows();
@@ -1199,7 +1256,7 @@ namespace duckdb
                 // RfcGetFunctionDesc failure case where the cached descriptor
                 // could be stale on the next batch.
                 owning_state_machine->InvalidateCachedConnection();
-                if (!persistent && connection) {
+                if (!persistent_for_this_batch && connection) {
                     try { connection->Close(); } catch (...) {}
                 }
                 std::string err_msg(e.what());

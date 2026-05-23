@@ -78,42 +78,65 @@ DEVELOPER user (`ABAPtr2023#00`).
 
 ## Result on the `a4h` trial against `v2026.05.22`
 
-| Cols | Rows                       | Query                       | Wall  |
-|-----:|---------------------------:|----------------------------:|------:|
-| 31   | 1.9M (DD03L)               | `SELECT * … LIMIT 10`       | <1s   |
-| 156  | 403 (RSDCUBE)              | `SELECT * … LIMIT 10`       | 0.37s |
-| 361  | 0 (DDDDLQUANTYPES)         | `SELECT * … LIMIT 10`       | 0.50s |
-| 395  | 50 000 (simple types)      | `SELECT * … LIMIT 10`       | 0.56s |
-| 395  | 50 000 (simple types)      | with `erpl_rfc_persistent_connections=false` | 0.54s |
-| **400** | **100 000 (23 type families)** | **`SELECT * … LIMIT 10`** | **0.56s** |
-| 400  | 100 000 (23 type families) | `SELECT * … LIMIT 10000`    | 0.76s |
-| 400  | 100 000 (23 type families) | `SELECT COUNT(*)`           | 1.93s |
+| Cols | Rows                       | Query                              | Wall      | Outcome     |
+|-----:|---------------------------:|-----------------------------------:|----------:|------------:|
+| 31   | 1.9M (DD03L)               | `SELECT * … LIMIT 10`              | <1s       | passes      |
+| 156  | 403 (RSDCUBE)              | `SELECT * … LIMIT 10`              | 0.37s     | passes      |
+| 361  | 0 (DDDDLQUANTYPES)         | `SELECT * … LIMIT 10`              | 0.50s     | passes      |
+| 395  | 50 000 (simple types)      | `SELECT * … LIMIT 10`              | 0.56s     | passes      |
+| 400  | 100 000 (23 type families) | `SELECT * … LIMIT 10`              | 0.56s     | passes      |
+| 400  | 100 000 (23 type families) | `SELECT * … LIMIT 10000`           | 0.76s     | passes      |
+| 400  | 100 000 (23 type families) | `SELECT COUNT(*)`                  | 1.93s     | passes      |
+| **400** | **100 000 (23 type families)** | **`SELECT *` (no LIMIT)**     | **hang / "Could not complete read task after 5 attempts"** | **REPRODUCES** |
 
-The reporter's `Could not complete read task after 5 attempts` symptom
-**does not reproduce on the trial at any column/row combination** we
-could materialise, including the widest type-varied 400-col × 100k row
-configuration. The trigger query (`SELECT * FROM <attached> LIMIT 10`)
-returns in under a second in every variant we tried.
+`LIMIT N` keeps the scan narrow (only as many state machines as needed
+for the projected columns + budget), so the LIMIT variants stayed
+healthy.  The full-table form unmasks the bug: ERPL spins up one RFC
+state machine per active column for column-parallel scan.  At 400
+columns each opening a persistent connection, the SAP SDK's
+`MAX_CPIC_CONVERSATIONS=200` ceiling is exceeded; the SDK fails further
+opens with `RFC_COMMUNICATION_FAILURE "max no of 200 conversations
+exceeded"`; ERPL's retry loop (5×, exponential backoff) eventually
+gives up with the reporter's exact message.
 
-We attempted 1 000 000 rows but the populator class hits an ABAP
-`rdisp/max_wprun_time`-driven HTTP 500 at ~33 s, so the harness caps at
-100 000 rows on the trial. That's still 3 × the depth at which the
-reporter says DD03L works, with 13 × the column count.
+## Root cause
 
-Most plausible explanations, in order:
+`ExecuteNextTableReadForColumn` retries on `RFC_COMMUNICATION_FAILURE`
+because most comm failures are transient.  But CPIC-cap exhaustion
+**is not transient** — every column state machine in the same process
+shares the same 200-conversation budget, so the failure persists for
+the full 5 × 10s/20s/40s/80s/160s = ~5min retry envelope.
 
-1. The reporter's installed ERPL binary pre-dates `v2026.05.22`. The
-   warm-up batching + persistent-connection caching that shipped in
-   v2026.05.22 are the most likely fix for an RFC-comm-failure-driven
-   retry exhaustion.
-2. The bug requires a real production S/4 backend (real BSEG /
-   ACDOCA data, real `rdisp/max_wprun_time`, real cluster-table
-   semantics on the FI tables) that the lightweight `a4h` trial
-   cannot approximate.
+`v2026.05.22` made it slightly worse: persistent-connection caching
+holds connections open for the whole scan, so the cap is hit faster
+and held longer.
 
-The next step on this issue is therefore to ask the reporter to confirm
-their installed `extension_version` and, if it pre-dates `v2026.05.22`,
-to `FORCE INSTALL erpl FROM 'http://get.erpl.io'` and re-test.
+## Fix
+
+A second commit on this branch caps the persistent-connection pool to
+**16** per scan via the new `erpl_rfc_max_persistent_connections`
+extension option.  State machines past the cap fall back to per-batch
+open/close — slower than caching but never starves the CPIC budget.
+16 is chosen with headroom: intra-process effective concurrency
+against the SAP gateway plateaus around 3-4 anyway (see
+`project_rfc_intra_process_throughput_cap` in memory), so 16 leaves
+4× headroom while staying well clear of any plausible SAP-side limit.
+
+Result on the same query that previously hung:
+
+| Query                                              | Before                                  | After     |
+|---------------------------------------------------:|----------------------------------------:|----------:|
+| `COPY (SELECT * FROM ZWIDE_BSEG) TO '/dev/null'`   | 5min hang → "Could not complete..."     | **111s** ✓ |
+| `SELECT * FROM ZWIDE_BSEG LIMIT 10`                | 0.56s                                   | 0.58s     |
+
+LIMIT-shaped scans are unaffected because they never exceed the cap;
+narrow-table scans see the full v2026.05.22 caching benefit.
+
+We attempted 1 000 000 rows on the populator but ABAP
+`rdisp/max_wprun_time` caps the trial run at ~33 s of work-process
+time, so the harness materialises 100 000 rows.  That's still 13 ×
+the column count and 3 × the depth at which DD03L behaved healthily
+in the reporter's testimony.
 
 ## Clean-up
 

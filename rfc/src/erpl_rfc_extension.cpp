@@ -144,6 +144,10 @@ namespace duckdb {
         SetRfcPersistentConnections(parameter.GetValue<bool>());
     }
 
+    static void OnMaxPersistentConnections(ClientContext &, SetScope, Value &parameter) {
+        SetRfcMaxPersistentConnections(parameter.GetValue<unsigned int>());
+    }
+
     static void RegisterConfiguration(ExtensionLoader &loader)
     {
         auto &instance = loader.GetDatabaseInstance();
@@ -183,6 +187,19 @@ namespace duckdb {
             LogicalType::BOOLEAN,
             Value(true),
             OnPersistentConnections);
+
+        config.AddExtensionOption(
+            "erpl_rfc_max_persistent_connections",
+            "Upper bound on the number of RFC connections the sap_read_table scan "
+            "may cache concurrently within one process (issue #67).  Wide tables have "
+            "more columns than realistic SAP-side resources (CPIC, gateway max_conn, "
+            "DWP pool) can serve in parallel; column state machines beyond this cap "
+            "fall back to per-batch open/close.  Default 16, matching the ~4x intra-"
+            "process effective-concurrency ceiling observed against the SAP gateway "
+            "with headroom for short bursts.",
+            LogicalType::UINTEGER,
+            Value::UINTEGER(16),
+            OnMaxPersistentConnections);
 
         auto provider = make_uniq<RfcEnvironmentCredentialsProvider>(config);
         provider->SetAll();
