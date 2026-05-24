@@ -23,6 +23,46 @@ LOAD erpl;
 
 ---
 
+## v2026.05.24 — Wide-table CPIC exhaustion fix
+
+Targeted follow-up to [#67](https://github.com/DataZooDE/erpl/issues/67), reported
+two days after v2026.05.22 against BSEG (~401 cols) and ACDOCA (~511 cols) on a
+real S/4 system. `SELECT * FROM <attached> LIMIT 10` hung ~5 min then failed with
+`Could not complete read task after 5 attempts`.
+
+### SAP scan path
+
+- **[rfc]** Cap the persistent-connection pool to 16 per scan (configurable
+  via the new `erpl_rfc_max_persistent_connections` extension option, default
+  16, set to 0 to disable persistent caching entirely). Wide-table scans
+  previously opened one persistent RFC connection per column state machine
+  and exhausted the SAP SDK's `MAX_CPIC_CONVERSATIONS=200` ceiling; the SDK
+  then returned `RFC_COMMUNICATION_FAILURE "max no of 200 conversations
+  exceeded"` and ERPL's retry loop (5×, exponential backoff) bailed out.
+  State machines beyond the cap now fall back to per-batch open/close —
+  slower than caching but never starves the CPIC budget. 16 leaves ~4×
+  headroom over the ~3-4 effective intra-process concurrency the SAP gateway
+  can sustain, while staying well clear of any plausible SAP-side limit
+  (gateway `max_conn` ~500, DWP pool, HANA worker limits). Verified on a
+  400-col × 100k-row synthetic wide table on the `a4h` trial: full
+  `COPY (SELECT *) TO '/dev/null'` went from a 5-min hang to 111s clean.
+
+### Errors and diagnostics
+
+- **[rfc]** Cleaner error message when an `ATTACH ... TYPE sap_rfc` reference
+  cannot be resolved — actionable hints for the four most common causes
+  (no secret, bad secret, table missing from DDIC, server-side timeout) in
+  place of the previous bare INTERNAL Error stack.
+
+### Tooling
+
+- **[rfc]** New reproduction harness under `tools/issue-67-repro/` (CDS DDL
+  generator, populator ABAP class, end-to-end recipe via `erpl-adt`). 400
+  columns × 23 type families × 100 000 rows on the `a4h` trial. Reusable for
+  any future wide-table regression coverage.
+
+---
+
 ## v2026.05.22 — DuckDB 1.5.3 support, wide-table memory fix, NULL date handling
 
 First tagged release. Aggregates work landed on `master` over the past month,
