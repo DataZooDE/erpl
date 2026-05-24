@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <mutex>
 #include <optional>
 #include <thread>
@@ -20,6 +21,16 @@ namespace duckdb
 	// Wired to the `erpl_rfc_persistent_connections` extension option.
 	void SetRfcPersistentConnections(bool enabled);
 	bool GetRfcPersistentConnections();
+
+	// Upper bound on the number of persistent RFC connections that may be
+	// cached concurrently within one process.  Wide-table scans have more
+	// columns than realistic SAP-side resources can serve in parallel
+	// (CPIC default 200, gateway max_conn ~500, DWP pool, HANA worker
+	// limits), so state machines beyond this cap fall back to per-batch
+	// open/close.  Wired to the `erpl_rfc_max_persistent_connections`
+	// extension option.
+	void SetRfcMaxPersistentConnections(unsigned int n);
+	unsigned int GetRfcMaxPersistentConnections();
 
 	//struct RfcReadTableGlobalState; // forward declaration
 	//struct RfcReadTableLocalState; // forward declaration
@@ -97,6 +108,15 @@ namespace duckdb
 			void SetSecretName(const std::string &name) { secret_name = name; }
 			const std::string &GetSecretName() const { return secret_name; }
 
+			// Persistent-connection budget shared across all state machines
+			// of this scan.  Each state machine that wants to cache a
+			// connection calls TryReservePersistentSlot() once on first use;
+			// success means it can keep a persistent connection, failure
+			// means it must use per-batch open/close.  Slots are NOT
+			// released until the bind data dies (the connections live for
+			// the whole scan), so the counter is monotonically increasing.
+			bool TryReservePersistentSlot();
+
 		private:
 			std::string secret_name;
 			RfcConnectionFactory_t connection_factory;
@@ -104,6 +124,7 @@ namespace duckdb
 			std::vector<std::string> column_names;
 			std::vector<RfcType> column_types;
 			std::vector<RfcReadColumnStateMachine> column_state_machines;
+			std::atomic<unsigned int> persistent_slots_used{0};
 
 			std::vector<RfcReadColumnStateMachine> CreateReadColumnStateMachines();
 			unsigned int NActiveStateMachines();
@@ -169,6 +190,14 @@ namespace duckdb
 			                                             const std::string &function_name);
 			void InvalidateCachedConnection();
 
+			// True once AcquireConnection has confirmed this state machine
+			// won a persistent slot from the bind-data budget.  Used by
+			// ExecuteNextTableReadForColumn to decide whether to close the
+			// connection at the end of a successful batch.
+			bool HasApprovedPersistentSlot() const {
+				return persistent_decision == PersistentDecision::APPROVED;
+			}
+
 		public:
 			// Per-RFC batch size.  RFC_READ_TABLE enforces server-side that
 			// ROWSKIPS must be an integer multiple of ROWCOUNT.  We start
@@ -218,6 +247,13 @@ namespace duckdb
 			// When that happens we drop the cached handle and open a fresh
 			// one on the new thread.
 			std::optional<std::thread::id> cached_connection_thread;
+			// Tri-state: not yet decided / approved by the bind-data budget /
+			// denied by the bind-data budget.  Once approved or denied the
+			// answer never flips, so we only consult
+			// RfcReadTableBindData::TryReservePersistentSlot() once per
+			// state machine (the bind-data counter is monotonic).
+			enum class PersistentDecision { UNDECIDED, APPROVED, DENIED };
+			PersistentDecision persistent_decision = PersistentDecision::UNDECIDED;
 
 			idx_t column_idx;
 			idx_t projected_column_idx = DConstants::INVALID_INDEX;

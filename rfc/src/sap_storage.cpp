@@ -65,10 +65,21 @@ public:
 		}
 
 		// Discover the SAP table's column schema via DDIC so the catalog
-		// entry knows its return types up front.  If discovery fails
-		// (table unknown, connection problem, …) fall through to a
-		// nullptr return so DuckDB surfaces a normal CatalogException
-		// instead of leaking an RFC error here.
+		// entry knows its return types up front.  Two failure modes to
+		// distinguish:
+		//
+		//   - "Table not in DDIC" (RFC_ABAP_EXCEPTION NOT_FOUND): only
+		//     return nullptr when the lookup was a wildcard (no `TABLES`
+		//     whitelist), so the user gets DuckDB's regular "table not
+		//     found" error.  If the user listed this name explicitly in
+		//     `TABLES`, the mismatch is interesting enough to surface.
+		//   - Anything else (auth / connection / secret missing / socket
+		//     error): surface an IOException with the underlying message
+		//     and an actionable hint.  Silently returning nullptr here
+		//     either masks the real problem ("table not found" when the
+		//     truth is "no auth") or violates DuckDB's contract when the
+		//     name is in our explicit GetDefaultEntries() list, which
+		//     surfaces as an INTERNAL assertion further up the stack.
 		vector<string> names;
 		vector<LogicalType> types;
 		try {
@@ -82,10 +93,38 @@ public:
 			names = bind_data->GetRfcColumnNames();
 			types = bind_data->GetReturnTypes();
 		} catch (std::exception &ex) {
+			const std::string err_msg(ex.what());
 			ERPL_TRACE_DEBUG_DATA("sap_storage",
 			                      StringUtil::Format("Could not discover schema for '%s'", entry_name),
-			                      ex.what());
-			return nullptr;
+			                      err_msg);
+			const bool not_found_in_ddic = err_msg.find("NOT_FOUND") != std::string::npos;
+			const bool listed_explicitly = !allowed_tables.empty();
+			if (not_found_in_ddic && !listed_explicitly) {
+				// Wildcard lookup against an unknown table — let DuckDB
+				// raise its standard "table … does not exist" error.
+				return nullptr;
+			}
+			std::string hint;
+			if (secret_name.empty()) {
+				hint = " Hint: pass SECRET='<name>' on ATTACH so the SAP RFC connection "
+				       "can authenticate, or set SAP_ASHOST / SAP_USER / SAP_PASSWORD "
+				       "environment variables. Example: "
+				       "ATTACH '' AS sap (TYPE sap_rfc, SECRET 'my_secret', TABLES 'BSEG');";
+			} else if (not_found_in_ddic) {
+				hint = StringUtil::Format(
+				    " Hint: '%s' was listed in TABLES but the attached SAP system reports "
+				    "it does not exist in DDIC. Check the spelling, the client, or whether "
+				    "the table is deployed on this system.",
+				    entry_name);
+			} else {
+				hint = StringUtil::Format(
+				    " Hint: verify the SECRET '%s' has valid ASHOST / SYSNR / CLIENT / "
+				    "USER / PASSWD entries and the SAP system is reachable.",
+				    secret_name);
+			}
+			throw IOException(
+			    "Cannot resolve SAP table '%s' on the attached connection: %s.%s",
+			    entry_name, err_msg, hint);
 		}
 
 		CreateTableInfo info;
