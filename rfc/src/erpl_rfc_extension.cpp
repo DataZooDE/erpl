@@ -148,6 +148,10 @@ namespace duckdb {
         SetRfcMaxPersistentConnections(parameter.GetValue<unsigned int>());
     }
 
+    static void OnReadTableBatchBudget(ClientContext &, SetScope, Value &parameter) {
+        SetRfcReadTableBatchBudget(parameter.GetValue<unsigned int>());
+    }
+
     static void RegisterConfiguration(ExtensionLoader &loader)
     {
         auto &instance = loader.GetDatabaseInstance();
@@ -200,6 +204,21 @@ namespace duckdb {
             LogicalType::UINTEGER,
             Value::UINTEGER(16),
             OnMaxPersistentConnections);
+
+        config.AddExtensionOption(
+            "erpl_rfc_read_table_batch_budget",
+            "Target upper bound on concurrent result rows (projected columns x "
+            "per-column batch size) held by a sap_read_table scan (issue #69).  "
+            "RFC_READ_TABLE materialises every row's fixed-width work area inside "
+            "the SAP SDK, and all projected columns read in parallel, so this "
+            "bounds peak memory on wide tables (BSEG, ACDOCA).  Lower it to cap "
+            "memory harder (at the cost of more RFC round-trips / slower wall "
+            "time); raise it for fewer round-trips on narrow tables.  The "
+            "per-column batch is clamped to [STANDARD_VECTOR_SIZE, 16x] and "
+            "warms up by power-of-two doubling.  0 disables the cap.",
+            LogicalType::UINTEGER,
+            Value::UINTEGER(RfcReadColumnStateMachine::DEFAULT_READ_TABLE_BATCH_BUDGET),
+            OnReadTableBatchBudget);
 
         auto provider = make_uniq<RfcEnvironmentCredentialsProvider>(config);
         provider->SetAll();

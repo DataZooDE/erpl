@@ -259,3 +259,38 @@ SELECT
 FROM sap_read_table('USR02', COLUMNS=['TRDAT']);
 ----
 0	0	0
+
+# ---------------------------------------------------------------------
+# Issue #69: the erpl_rfc_read_table_batch_budget option bounds the SDK
+# result buffer on wide scans by capping the per-column batch size.  A
+# tiny budget forces the STANDARD_VECTOR_SIZE batch floor and many
+# round-trips; the result must stay identical to the default.
+statement ok
+SET erpl_rfc_read_table_batch_budget = 4096;
+
+query I
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT');
+----
+40
+
+query II
+SELECT CARRIER_ID, CONNECTION_ID FROM sap_read_table('/DMO/FLIGHT') ORDER BY 1, 2 LIMIT 3;
+----
+AA
+0015
+AA
+0015
+AA
+0017
+
+# A zero budget disables the cap (full warm-up to MAX_BATCH_SIZE).
+statement ok
+SET erpl_rfc_read_table_batch_budget = 0;
+
+query I
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT');
+----
+40
+
+statement ok
+RESET erpl_rfc_read_table_batch_budget;

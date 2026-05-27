@@ -68,8 +68,14 @@ bool GetRfcStrictTypeCheck();
             void AdaptValue(DATA_CONTAINER_HANDLE &container_handle, string &arg_name, Value &arg_value);
             Value ConvertRfcValue(RfcInvocation &invocation, string &field_name);
             Value ConvertRfcValue(std::shared_ptr<RfcInvocation> invocation, string &field_name);
+            // Reads `field_name` directly from an already-positioned SDK
+            // container (a structure/row handle), reusing the exact same
+            // per-type conversion as ConvertRfcValue.  Used by the read-table
+            // column scanner to stream rows straight from the SDK result
+            // table without materialising the whole batch as duckdb::Value.
+            Value ConvertRfcValueFromContainer(DATA_CONTAINER_HANDLE container_handle, const std::string &field_name);
             Value ConvertCsvValue(const Value &csv_value) const;
-            
+
             virtual std::string ToSqlLiteral();
 
         private:
@@ -200,6 +206,10 @@ bool GetRfcStrictTypeCheck();
             std::shared_ptr<RfcConnection> GetConnection() const;
             std::shared_ptr<RfcResultSet> Invoke(std::string path);
             std::shared_ptr<RfcResultSet> Invoke();
+            // Executes the RFC call (RfcInvoke) without materialising a
+            // RfcResultSet.  Callers that stream results straight from the
+            // SDK handles use this together with GetFunctionHandle().
+            void Execute();
 
             void DeactivateResult(std::string &param_name);
             void DeactivateResult(unsigned int col_idx);

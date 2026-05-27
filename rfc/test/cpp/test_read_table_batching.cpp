@@ -78,6 +78,52 @@ TEST_CASE("NextDesiredBatchSize doubles geometrically while keeping ROWSKIPS val
 	REQUIRE(size == SM::MAX_BATCH_SIZE);
 }
 
+TEST_CASE("MaxBatchSizeForColumnCount bounds the SDK buffer on wide scans",
+          "[erpl_rfc][batching]") {
+	using SM = RfcReadColumnStateMachine;
+	// Use an explicit budget so the test is independent of the runtime default.
+	constexpr unsigned int BUDGET = 256u * 1024u;
+
+	// Narrow scans keep the full batch for throughput.
+	REQUIRE(SM::MaxBatchSizeForColumnCount(0, BUDGET) == SM::MAX_BATCH_SIZE);
+	REQUIRE(SM::MaxBatchSizeForColumnCount(1, BUDGET) == SM::MAX_BATCH_SIZE);
+	REQUIRE(SM::MaxBatchSizeForColumnCount(2, BUDGET) == SM::MAX_BATCH_SIZE);
+	// A zero budget disables the cap.
+	REQUIRE(SM::MaxBatchSizeForColumnCount(153, 0) == SM::MAX_BATCH_SIZE);
+
+	// Always a power of two within [STANDARD_VECTOR_SIZE, MAX_BATCH_SIZE], and
+	// monotonically non-increasing as the column count grows.
+	unsigned int prev = SM::MAX_BATCH_SIZE;
+	for (unsigned int cols = 1; cols <= 512; cols++) {
+		auto cap = SM::MaxBatchSizeForColumnCount(cols, BUDGET);
+		REQUIRE(cap >= (unsigned int)STANDARD_VECTOR_SIZE);
+		REQUIRE(cap <= SM::MAX_BATCH_SIZE);
+		REQUIRE((cap & (cap - 1)) == 0u); // power of two
+		REQUIRE(cap <= prev);
+		prev = cap;
+		// The whole point: keep columns x batch within the budget (with the
+		// STANDARD_VECTOR_SIZE floor as the only exception for very wide scans).
+		REQUIRE((cap == (unsigned int)STANDARD_VECTOR_SIZE ||
+		         (uint64_t)cols * cap <= (uint64_t)BUDGET));
+	}
+
+	// A BSEG-shaped wide scan collapses to the per-batch floor under a 256k
+	// budget.
+	REQUIRE(SM::MaxBatchSizeForColumnCount(153, BUDGET) == (unsigned int)STANDARD_VECTOR_SIZE);
+
+	// The warm-up doubling respects a lowered cap and never overshoots it.
+	unsigned int cap = SM::MaxBatchSizeForColumnCount(8, BUDGET);
+	unsigned int size = STANDARD_VECTOR_SIZE;
+	unsigned int total = 0;
+	for (int i = 0; i < 32; i++) {
+		REQUIRE(total % size == 0);
+		total += size;
+		size = SM::NextDesiredBatchSize(size, total, cap);
+		REQUIRE(size <= cap);
+	}
+	REQUIRE(size == cap);
+}
+
 TEST_CASE("TrimmedActualBatchSize preserves ROWSKIPS % ROWCOUNT == 0",
           "[erpl_rfc][batching]") {
 	using SM = RfcReadColumnStateMachine;

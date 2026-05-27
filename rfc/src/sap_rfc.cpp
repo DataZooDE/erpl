@@ -50,6 +50,12 @@ namespace duckdb
     void SetRfcMaxPersistentConnections(unsigned int n) { g_rfc_max_persistent_connections.store(n, std::memory_order_relaxed); }
     unsigned int GetRfcMaxPersistentConnections()       { return g_rfc_max_persistent_connections.load(std::memory_order_relaxed); }
 
+    // Concurrent-row budget that bounds the SAP SDK result buffer on wide
+    // sap_read_table scans (issue #69).  See MaxBatchSizeForColumnCount.
+    static std::atomic<unsigned int> g_rfc_read_table_batch_budget{RfcReadColumnStateMachine::DEFAULT_READ_TABLE_BATCH_BUDGET};
+    void SetRfcReadTableBatchBudget(unsigned int n) { g_rfc_read_table_batch_budget.store(n, std::memory_order_relaxed); }
+    unsigned int GetRfcReadTableBatchBudget()       { return g_rfc_read_table_batch_budget.load(std::memory_order_relaxed); }
+
     string RfcFunctionDesc(ClientContext &context, const FunctionParameters &parameters)
     {
         auto auth_params = RfcAuthParams::FromContext(context);
@@ -736,6 +742,13 @@ namespace duckdb
             }
         }
 
+        // Bound the SAP SDK result buffer on wide scans by capping the warm-up
+        // batch size to the active column count (issue #69).  Computed here —
+        // outside any per-state-machine lock — and read locklessly by the
+        // tasks scheduled below; the active set is fixed for the whole scan.
+        effective_max_batch_size = RfcReadColumnStateMachine::MaxBatchSizeForColumnCount(
+            (unsigned int)active.size(), GetRfcReadTableBatchBudget());
+
         // When max_threads > 0, the user wants at most that many concurrent
         // RFC calls. Enforce by scheduling tasks in batches. Each batch is
         // one full TaskExecutor cycle: schedule, WorkOnTasks (which blocks
@@ -957,16 +970,39 @@ namespace duckdb
     }
 
     unsigned int RfcReadColumnStateMachine::NextDesiredBatchSize(unsigned int current,
-                                                                 unsigned int total_rows_after)
+                                                                 unsigned int total_rows_after,
+                                                                 unsigned int max_batch_size)
     {
-        if (current >= MAX_BATCH_SIZE) {
+        if (current >= max_batch_size) {
             return current;
         }
         unsigned int next_size = current * 2u;
-        if (next_size > MAX_BATCH_SIZE) {
-            next_size = MAX_BATCH_SIZE;
+        if (next_size > max_batch_size) {
+            next_size = max_batch_size;
         }
         return (total_rows_after % next_size == 0) ? next_size : current;
+    }
+
+    unsigned int RfcReadColumnStateMachine::MaxBatchSizeForColumnCount(unsigned int num_columns,
+                                                                       unsigned int concurrent_row_budget)
+    {
+        // Cap the SAP SDK-side RFC_READ_TABLE result buffer (issue #69).  Each
+        // result row carries a fixed-width CHAR work area inside libsapnwrfc,
+        // and every projected column reads in parallel and holds its batch
+        // resident across all of its LOAD steps — so the peak SDK buffer
+        // scales as (columns x batch_size).  Keep that product within the
+        // concurrent-row budget, floored to a power of two in
+        // [STANDARD_VECTOR_SIZE, MAX_BATCH_SIZE] so the doubling warm-up still
+        // reaches the cap cleanly and ROWSKIPS % ROWCOUNT stays valid.
+        if (num_columns <= 1 || concurrent_row_budget == 0) {
+            return MAX_BATCH_SIZE;
+        }
+        unsigned int per_col = concurrent_row_budget / num_columns;
+        unsigned int cap = STANDARD_VECTOR_SIZE;
+        while (cap * 2u <= per_col && cap * 2u <= MAX_BATCH_SIZE) {
+            cap *= 2u;
+        }
+        return cap;
     }
 
     unsigned int RfcReadColumnStateMachine::TrimmedActualBatchSize(unsigned int desired,
@@ -1112,7 +1148,8 @@ namespace duckdb
                     // RfcReadColumnStateMachine::NextDesiredBatchSize for the rule.
                     if (limit == 0) {
                         desired_batch_size = RfcReadColumnStateMachine::NextDesiredBatchSize(
-                            desired_batch_size, total_rows + extracted_from_sap);
+                            desired_batch_size, total_rows + extracted_from_sap,
+                            owning_state_machine->bind_data->GetEffectiveMaxBatchSize());
                     }
                     break;
                 }
@@ -1144,6 +1181,12 @@ namespace duckdb
                         // the cached RFC connection so we don't hold a SAP work
                         // process reservation until query teardown.
                         owning_state_machine->InvalidateCachedConnection();
+                        // Drop the last batch's SDK function handle now so its
+                        // (potentially large) result-table buffer is freed at
+                        // end-of-column instead of at query teardown (#69).
+                        owning_state_machine->current_invocation.reset();
+                        owning_state_machine->current_table_handle = nullptr;
+                        owning_state_machine->current_batch_rows = 0;
                     }
 
                     return_control_to_duck = true;
@@ -1180,7 +1223,6 @@ namespace duckdb
             // resolves on first AcquireConnection() call.
             bool persistent_for_this_batch = false;
             try {
-                auto &current_result_data = owning_state_machine->current_result_data;
                 connection = owning_state_machine->AcquireConnection();
                 persistent_for_this_batch =
                     GetRfcPersistentConnections() &&
@@ -1209,46 +1251,24 @@ namespace duckdb
                 auto func = owning_state_machine->AcquireFunction(connection, read_table_function);
                 auto func_args = CreateFunctionArguments(read_table_delimiter, use_et_data);
                 auto invocation = func->BeginInvocation(func_args);
-                current_result_data = invocation->Invoke(data_path);
-
-                // /SAPDS/RFC_READ_TABLE2 and /BODS/RFC_READ_TABLE2 distribute
-                // rows across multiple TBLOUTxxxx output tables based on the
-                // projected row width — the SMALLEST TBLOUTxxxx that fits
-                // gets populated, the others stay empty.
-                // ResolveReadTableResultPath picks one path at bind time, but
-                // the right size depends on the actual columns in this batch
-                // (which can differ per column-parallel task). If our chosen
-                // path is empty, walk the other TBLOUTxxxx on the SAME RFC
-                // invocation (no extra round-trip — RfcResultSet just walks
-                // the SDK handle) and use whichever has data.
-                if (current_result_data->TotalRows() == 0 &&
-                    data_path.rfind("/TBLOUT", 0) == 0) {
-                    static const std::vector<std::string> alt_paths = {
-                        "/TBLOUT128", "/TBLOUT512", "/TBLOUT2048", "/TBLOUT8192", "/TBLOUT30000"
-                    };
-                    for (auto &alt : alt_paths) {
-                        if (alt == data_path) {
-                            continue;
-                        }
-                        try {
-                            auto alt_result = std::make_shared<RfcResultSet>(invocation, alt);
-                            if (alt_result->TotalRows() > 0) {
-                                current_result_data = alt_result;
-                                break;
-                            }
-                        } catch (std::exception &) {
-                            // Path not present on this function module variant; skip.
-                        }
-                    }
-                }
+                // Execute the RFC call but do NOT materialise the result as a
+                // duckdb::Value tree (issue #69 — that layer drove ~95% of all
+                // heap allocations).  Resolve the SDK result-table handle
+                // instead and stream rows straight into the output Vector
+                // during LoadNextBatchToDuckDBColumn.
+                invocation->Execute();
+                auto extracted = ResolveResultTable(invocation, data_path);
 
                 if (!persistent_for_this_batch) {
                     // Per-batch open/close — either the user disabled the
                     // cache, or this state machine didn't win a persistent
                     // slot from the bind-data budget (wide-table overflow).
+                    // Safe to close now: the response data lives in the
+                    // function handle (kept alive via current_invocation),
+                    // not the connection.
                     connection->Close();
                 }
-                return current_result_data->TotalRows();
+                return extracted;
             }
             catch (std::exception &e) {
                 // Drop the cached connection / function on any error so the
@@ -1341,42 +1361,144 @@ namespace duckdb
         return args.BuildArgList();
     }
 
-    unsigned int RfcReadColumnTask::LoadNextBatchToDuckDBColumn()
+    unsigned int RfcReadColumnTask::ResolveResultTable(std::shared_ptr<RfcInvocation> invocation, std::string data_path)
     {
-        auto &current_result_data = owning_state_machine->current_result_data;
-        auto &duck_count = owning_state_machine->duck_count;
-        auto &total_rows = owning_state_machine->total_rows;
-        auto &limit = owning_state_machine->limit;
+        auto sm = owning_state_machine;
+        // Keep the invocation alive: it owns the SDK function handle, and the
+        // result-table handle resolved below points into that handle's
+        // memory.  It must outlive every LoadNextBatchToDuckDBColumn call for
+        // this batch.
+        sm->current_invocation = invocation;
+        sm->current_table_handle = nullptr;
+        sm->current_batch_rows = 0;
 
-        if (current_result_data->TotalRows() == 0) {
+        auto func = invocation->GetFunction();
+        auto fh = invocation->GetFunctionHandle();
+        RFC_ERROR_INFO error_info;
+
+        auto strip_slash = [](const std::string &path) -> std::string {
+            auto pos = path.find_first_not_of('/');
+            return (pos == std::string::npos) ? std::string() : path.substr(pos);
+        };
+        auto resolve = [&](const std::string &path, RFC_TABLE_HANDLE &out_tbl, unsigned int &out_rows) -> bool {
+            auto param = strip_slash(path);
+            if (param.empty()) {
+                return false;
+            }
+            RFC_TABLE_HANDLE tbl = nullptr;
+            auto rc = RfcGetTable(fh, std2uc(param).get(), &tbl, &error_info);
+            if (rc != RFC_OK || tbl == nullptr) {
+                return false;
+            }
+            unsigned int rows = 0;
+            rc = RfcGetRowCount(tbl, &rows, &error_info);
+            if (rc != RFC_OK) {
+                return false;
+            }
+            out_tbl = tbl;
+            out_rows = rows;
+            return true;
+        };
+
+        std::string chosen_path = data_path;
+        RFC_TABLE_HANDLE tbl = nullptr;
+        unsigned int rows = 0;
+        if (!resolve(data_path, tbl, rows)) {
             return 0;
         }
 
-        // Hot loop: keep the LIST<VARCHAR> Value alive in this scope so we
-        // can bind the children vector by const ref instead of copying the
-        // whole batch on every LOAD step (LoadNextBatchToDuckDBColumn fires
-        // once per STANDARD_VECTOR_SIZE chunk, so for desired_batch_size =
-        // MAX_BATCH_SIZE this used to copy ~16x the same vector).  Also
-        // hoist the per-cell rfc_type lookup out of the loop and iterate in
-        // place to drop the second vector copy.
-        auto list_value = current_result_data->GetResultValue(0);
-        const auto &result_vec = ListValue::GetChildren(list_value);
+        // /SAPDS/RFC_READ_TABLE2 and /BODS/RFC_READ_TABLE2 distribute rows
+        // across multiple TBLOUTxxxx output tables based on the projected row
+        // width — the SMALLEST TBLOUTxxxx that fits gets populated, the others
+        // stay empty.  ResolveReadTableResultPath picks one path at bind time,
+        // but the right size depends on this batch's columns.  If our chosen
+        // path is empty, probe the other TBLOUTxxxx on the SAME function
+        // handle (no extra round-trip) and use whichever has rows.
+        if (rows == 0 && data_path.rfind("/TBLOUT", 0) == 0) {
+            static const std::vector<std::string> alt_paths = {
+                "/TBLOUT128", "/TBLOUT512", "/TBLOUT2048", "/TBLOUT8192", "/TBLOUT30000"
+            };
+            for (auto &alt : alt_paths) {
+                if (alt == data_path) {
+                    continue;
+                }
+                RFC_TABLE_HANDLE alt_tbl = nullptr;
+                unsigned int alt_rows = 0;
+                if (resolve(alt, alt_tbl, alt_rows) && alt_rows > 0) {
+                    chosen_path = alt;
+                    tbl = alt_tbl;
+                    rows = alt_rows;
+                    break;
+                }
+            }
+        }
 
-        auto batch_start = result_vec.begin() + duck_count * STANDARD_VECTOR_SIZE;
-        auto batch_end = batch_start + STANDARD_VECTOR_SIZE > result_vec.end()
-                            ? result_vec.end()
-                            : batch_start + STANDARD_VECTOR_SIZE;
-        if (limit > 0 && total_rows + batch_end - batch_start > limit) {
+        // The result row carries the requested column's CSV payload in a
+        // single field (e.g. "WA").  Resolve its name + SDK type once from the
+        // chosen table param's line structure so the per-row read in
+        // LoadNextBatchToDuckDBColumn reuses the exact same conversion the
+        // old RfcResultSet path applied.
+        auto result_info = func->GetResultInfo(strip_slash(chosen_path));
+        auto field_infos = result_info.GetRfcType()->GetFieldInfos();
+        if (field_infos.empty()) {
+            return 0;
+        }
+        sm->wa_field_name = field_infos[0].GetName();
+        sm->wa_field_type = field_infos[0].GetRfcType();
+        sm->current_table_handle = tbl;
+        sm->current_batch_rows = rows;
+        return rows;
+    }
+
+    unsigned int RfcReadColumnTask::LoadNextBatchToDuckDBColumn()
+    {
+        auto sm = owning_state_machine;
+        auto &duck_count = sm->duck_count;
+        auto &total_rows = sm->total_rows;
+        auto &limit = sm->limit;
+
+        auto table_handle = sm->current_table_handle;
+        auto batch_rows = sm->current_batch_rows;
+        if (batch_rows == 0 || table_handle == nullptr) {
+            return 0;
+        }
+
+        idx_t batch_start = (idx_t)duck_count * STANDARD_VECTOR_SIZE;
+        if (batch_start >= batch_rows) {
+            return 0;
+        }
+        idx_t batch_end = std::min<idx_t>(batch_start + STANDARD_VECTOR_SIZE, batch_rows);
+        if (limit > 0 && total_rows + (batch_end - batch_start) > limit) {
             batch_end = batch_start + (limit - total_rows);
         }
 
-        const auto &rfc_type = owning_state_machine->bind_data->GetColumnType(
-            owning_state_machine->column_idx);
+        // Hoist per-cell lookups out of the loop.  rfc_type is the column's
+        // real DDIC type (drives DATE/TIME/BCD parsing in ConvertCsvValue);
+        // wa_type/wa_name name the SDK result field carrying the CSV payload.
+        const auto rfc_type = sm->bind_data->GetColumnType(sm->column_idx);
+        auto wa_type = sm->wa_field_type;
+        const auto wa_name = sm->wa_field_name;
+        const bool is_row_id = sm->row_id_column_id;
 
+        RFC_ERROR_INFO error_info;
         idx_t row_idx = 0;
-        for (auto it = batch_start; it != batch_end; ++it, ++row_idx) {
-            auto val = ParseCsvValue(rfc_type, *it);
-            current_column_output.SetValue(row_idx, val);
+        for (idx_t i = batch_start; i < batch_end; ++i, ++row_idx) {
+            if (is_row_id) {
+                // Synthetic rowid column — no SAP payload to read.
+                current_column_output.SetValue(row_idx, Value::BIGINT(42));
+                continue;
+            }
+            auto rc = RfcMoveTo(table_handle, (unsigned int)i, &error_info);
+            if (rc != RFC_OK) {
+                throw std::runtime_error(StringUtil::Format("Failed to move to row %d: %s: %s",
+                                                            (int)i, rfcrc2std(error_info.code), uc2std(error_info.message)));
+            }
+            auto row_handle = RfcGetCurrentRow(table_handle, &error_info);
+            // Stream straight from the SDK handle: read the CSV field, parse
+            // it to the column's type, write into the output Vector.  No
+            // whole-batch duckdb::Value materialisation (issue #69).
+            auto wa_value = wa_type->ConvertRfcValueFromContainer(row_handle, wa_name);
+            current_column_output.SetValue(row_idx, ParseCsvValue(rfc_type, wa_value));
         }
         return row_idx;
     }

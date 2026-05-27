@@ -564,6 +564,16 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         return ConvertRfcValue(function_handle, field_name);
     }
 
+    Value RfcType::ConvertRfcValueFromContainer(DATA_CONTAINER_HANDLE container_handle, const std::string &field_name)
+    {
+        // RFC_FUNCTION_HANDLE / RFC_STRUCTURE_HANDLE / DATA_CONTAINER_HANDLE
+        // are the same opaque SDK handle type; the per-type RfcGet* accessors
+        // work against any of them, so we reuse the function-handle overload.
+        RFC_FUNCTION_HANDLE handle = (RFC_FUNCTION_HANDLE)container_handle;
+        std::string name = field_name;
+        return ConvertRfcValue(handle, name);
+    }
+
     Value RfcType::ConvertRfcValue(RFC_FUNCTION_HANDLE &function_handle, string &field_name)
     {
         RFC_RC rc = RFC_OK;
@@ -1563,19 +1573,20 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         return GetFunction()->GetConnection();
     }
 
-    std::shared_ptr<RfcResultSet> RfcInvocation::Invoke(std::string path) 
+    void RfcInvocation::Execute()
     {
         RFC_ERROR_INFO error_info;
-        RFC_RC rc = RFC_OK;
+        auto connection = GetFunction()->GetConnection();
 
-        auto function = GetFunction();
-        auto connection = function->GetConnection();
-
-        rc = RfcInvoke(connection->handle, _handle, &error_info);
+        RFC_RC rc = RfcInvoke(connection->handle, _handle, &error_info);
         if (rc != RFC_OK) {
             throw std::runtime_error(StringUtil::Format("Failed to invoke function:\n%s", rfcerrorinfo2std(error_info)));
         }
+    }
 
+    std::shared_ptr<RfcResultSet> RfcInvocation::Invoke(std::string path)
+    {
+        Execute();
         return std::make_shared<RfcResultSet>(shared_from_this(), path);
     }
     

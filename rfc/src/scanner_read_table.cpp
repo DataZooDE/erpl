@@ -1,4 +1,7 @@
 #include <regex>
+#ifdef __GLIBC__
+#include <malloc.h>
+#endif
 
 #include "duckdb/parallel/pipeline.hpp"
 #include "duckdb/parallel/event.hpp"
@@ -77,6 +80,13 @@ namespace duckdb
     {
         auto &bind_data = data.bind_data->CastNoConst<RfcReadTableBindData>();
         if (! bind_data.HasMoreResults()) {
+#ifdef __GLIBC__
+            // Scan finished: per-column SDK handles were released at FINISHED
+            // and the streaming reader holds no whole-batch buffers, so hand
+            // the emptied allocator arenas back to the OS instead of letting
+            // RSS linger as glibc free-list fragmentation (issue #69).
+            malloc_trim(0);
+#endif
             return;
         }
 
