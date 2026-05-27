@@ -23,6 +23,26 @@ LOAD erpl;
 
 ---
 
+## v2026.05.29 — BICS result: NULL date marshalling fix
+
+Fixes [#72](https://github.com/DataZooDE/erpl/issues/72): `sap_bics_result` failed with
+`Failed to adapt field 'HIERARCHY_DUEDATE' in structure 'I_TH_CHARACTERISTICS': Calling
+GetValueInternal on a value that is NULL`. A recent SAP BW addition put a `HIERARCHY_DUEDATE`
+(DATE) field into the characteristics structure that `sap_bics_result` round-trips back to SAP via
+`BICS_PROV_SET_STATE`; it is NULL for non-hierarchy characteristics.
+
+### SAP scan path
+
+- **[rfc]** Harden the RFC argument marshaller (`RfcType::AdaptValue`): a NULL DuckDB value for a
+  scalar field is now left at the SDK's initial value, instead of crashing. The `DATE`, `TIME`,
+  `NUM`, `INT`/`INT1`/`INT2`/`INT8`, `BCD`/`DECF16`/`DECF34` and `FLOAT` branches previously called
+  the value converter on the NULL without a guard (throwing `Calling GetValueInternal on a value
+  that is NULL`), whereas `CHAR`/`STRING`/`XSTRING`/`BYTE`/`UTCLONG` already skipped NULLs — this
+  closes that gap with a single guard. Because the fix is in the shared `erpl_rfc` marshalling
+  layer, it also hardens **[bics]** `sap_bics_result` (the reported case) and any `sap_rfc_invoke`
+  / **[odp]** call that passes a NULL date/time/number inside a structure or table parameter.
+  Covered by an offline regression test (no live SAP needed) plus the full RFC and BICS SQL suites.
+
 ## v2026.05.28 — Wide-scan memory: stream RFC results, bound the SDK buffer
 
 Continuation of [#63](https://github.com/DataZooDE/erpl/issues/63), addressing
