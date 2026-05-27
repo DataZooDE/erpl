@@ -23,6 +23,24 @@ LOAD erpl;
 
 ---
 
+## v2026.05.27 — `SHOW TABLES` on attached catalogs
+
+Fixes [#70](https://github.com/DataZooDE/erpl/issues/70): `SHOW TABLES FROM <attached
+sap catalog>` returned no rows. A SAP system exposes tens of thousands of tables
+(~55k on the ABAP trial), and each catalog entry needs a per-table dictionary
+roundtrip to discover its schema, so the catalog cannot eagerly enumerate everything.
+
+### SAP scan path
+
+- **[rfc]** The `TABLES` ATTACH option now accepts glob patterns (`*`, `?`) in
+  addition to exact names, e.g. `ATTACH '' AS sap (TYPE sap_rfc, TABLES '/DMO/*,Z*')`.
+  Patterns are resolved once, at ATTACH time, against `DD02V` (the same dictionary
+  view `sap_show_tables()` uses). `SHOW TABLES` and `information_schema.tables` then
+  list the resolved, bounded set, and tables outside it are not exposed through the
+  catalog. A safety cap (5000 tables) rejects unbounded patterns with an actionable
+  hint. Without `TABLES`, tables remain resolvable on demand by name and `SHOW TABLES`
+  stays empty by design — use `sap_show_tables()` to browse the full catalog.
+
 ## v2026.05.24 — Wide-table CPIC exhaustion fix
 
 Targeted follow-up to [#67](https://github.com/DataZooDE/erpl/issues/67), reported
