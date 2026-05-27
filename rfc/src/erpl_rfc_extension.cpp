@@ -17,6 +17,7 @@
 #include "scanner_show_tables.hpp"
 #include "scanner_describe_fields.hpp"
 #include "scanner_read_table.hpp"
+#include "scanner_rfc_authorizations.hpp"
 #include "sap_rfc.hpp"
 
 #include "telemetry.hpp"
@@ -305,6 +306,18 @@ namespace duckdb {
             desc.examples    = {"SELECT * FROM sap_describe_fields('SFLIGHT')"};
             desc.categories  = {"sap"};
             desc.parameter_names = {"table_name"};
+            info.descriptions.push_back(std::move(desc));
+            loader.RegisterFunction(std::move(info));
+        }
+
+        {
+            CreateTableFunctionInfo info(CreateRfcAuthorizationsScanFunction());
+            FunctionDescription desc;
+            desc.description = "List which SAP RFC function modules each ERPL function invokes, so an admin can scope the S_RFC authorization object for the ERPL service user. Static reference; needs no SAP connection.";
+            desc.examples    = {"SELECT * FROM sap_rfc_authorizations()",
+                                "SELECT DISTINCT rfc_function_module FROM sap_rfc_authorizations() WHERE extension = 'erpl_rfc'"};
+            desc.categories  = {"sap"};
+            desc.parameter_names = {};
             info.descriptions.push_back(std::move(desc));
             loader.RegisterFunction(std::move(info));
         }
