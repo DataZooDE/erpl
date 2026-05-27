@@ -338,7 +338,19 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         RFC_ERROR_INFO error_info;
         auto sap_arg_name = std2uc(arg_name);
 
-        switch(_rfc_type) 
+        // A NULL DuckDB value means "leave this field at the SDK's initial
+        // value" — exactly what the CHAR/STRING/XSTRING/BYTE/UTC branches below
+        // already do explicitly.  Without this guard the scalar branches
+        // (DATE/TIME/NUM/INT*/BCD/FLOAT) call duck2rfc()/GetValue<>() on a NULL
+        // and throw "Calling GetValueInternal on a value that is NULL"
+        // (issue #72: a NULL HIERARCHY_DUEDATE in the BICS I_TH_CHARACTERISTICS
+        // table).  Containers (STRUCTURE/TABLE) are not scalars, so they still
+        // recurse — their child fields are guarded by this same check.
+        if (arg_value.IsNull() && _rfc_type != RFCTYPE_STRUCTURE && _rfc_type != RFCTYPE_TABLE) {
+            return;
+        }
+
+        switch(_rfc_type)
         {
             // Numeric types
             case RFCTYPE_NUM:

@@ -293,6 +293,30 @@ TEST_CASE("Test duck2rfc for RFC_Time", "[sap_type_conversion]") {
     REQUIRE(rfc_time[5] == '0');
 }
 
+TEST_CASE("AdaptValue skips a NULL scalar instead of crashing (issue #72)", "[sap_type_conversion]") {
+    // Regression for #72: a NULL HIERARCHY_DUEDATE (DATE) in the BICS
+    // I_TH_CHARACTERISTICS table crashed sap_bics_result with
+    // "Calling GetValueInternal on a value that is NULL", because AdaptValue's
+    // DATE/TIME/numeric branches called duck2rfc()/GetValue<>() without a NULL
+    // guard (unlike CHAR/STRING/UTC). A NULL scalar must be left at the SDK's
+    // initial value. For a NULL scalar AdaptValue returns before touching the
+    // container handle, so a nullptr handle is safe here (no live SAP needed).
+    DATA_CONTAINER_HANDLE container = nullptr;
+    std::string field = "HIERARCHY_DUEDATE";
+
+    RfcType date_type(RFCTYPE_DATE, nullptr, 8, 0);
+    Value null_date(LogicalType::DATE);
+    REQUIRE_NOTHROW(date_type.AdaptValue(container, field, null_date));
+
+    RfcType time_type(RFCTYPE_TIME, nullptr, 6, 0);
+    Value null_time(LogicalType::TIME);
+    REQUIRE_NOTHROW(time_type.AdaptValue(container, field, null_time));
+
+    RfcType int_type(RFCTYPE_INT, nullptr, 4, 0);
+    Value null_int(LogicalType::INTEGER);
+    REQUIRE_NOTHROW(int_type.AdaptValue(container, field, null_int));
+}
+
 TEST_CASE("Test duck2rfc for RFC_Float", "[sap_type_conversion]") {
     auto value = Value::DOUBLE(42.5);
     RFC_FLOAT rfc_float;
