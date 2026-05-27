@@ -23,6 +23,26 @@ LOAD erpl;
 
 ---
 
+## v2026.05.30 — RFC authorization reference: `sap_rfc_authorizations()`
+
+Addresses [#71](https://github.com/DataZooDE/erpl/issues/71): there was no documentation of which
+SAP RFC function modules ERPL invokes, which an admin needs to grant least-privilege `S_RFC`
+authorizations to the ERPL service user.
+
+### Discovery & metadata
+
+- **[rfc]** New table function `sap_rfc_authorizations()` — a static, **connection-free** reference
+  (no secret required, makes no RFC calls) listing which RFC function modules each ERPL function
+  invokes, across `erpl_rfc`, `erpl_bics` and `erpl_odp`. Columns: `extension`, `duckdb_function`,
+  `rfc_function_module`, `invocation` (`always` / `fallback` / `optional` / `metadata` /
+  `user-specified`), and `purpose`. Use it to scope `S_RFC`, e.g.
+  `SELECT DISTINCT rfc_function_module FROM sap_rfc_authorizations() WHERE rfc_function_module NOT LIKE '<%>'`.
+  The mapping accounts for the runtime nuances — `sap_read_table`'s capability-dependent
+  `RFC_READ_TABLE` fallback chain, the optional `RPY_FUNCTIONMODULE_READ`, shared
+  `DDIF_FIELDINFO_GET`, and `sap_rfc_invoke`'s caller-supplied module. (DuckDB's function `comment`
+  and `tags` fields can't be set for C++ functions in v1.5.3, so a queryable table is used — which
+  also documents pragmas uniformly.)
+
 ## v2026.05.29 — BICS result: NULL date marshalling fix
 
 Fixes [#72](https://github.com/DataZooDE/erpl/issues/72): `sap_bics_result` failed with
