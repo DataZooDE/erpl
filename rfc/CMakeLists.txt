@@ -71,6 +71,7 @@ set(EXTENSION_SOURCES
       src/scanner_show_tables.cpp
       src/scanner_describe_fields.cpp
       src/scanner_describe_references.cpp
+      src/scanner_rfc_authorizations.cpp
       src/scanner_read_table.cpp
       src/sap_storage.cpp
       src/sap_table_entry.cpp

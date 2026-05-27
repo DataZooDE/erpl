@@ -65,6 +65,7 @@ SELECT * FROM sap_bics_show_cubes();
 | `sap_rfc_invoke` | Call any RFC function | `SELECT * FROM sap_rfc_invoke('STFC_CONNECTION', {'REQUTEXT': 'Hi'})` |
 | `sap_show_tables` | Search SAP tables | `SELECT * FROM sap_show_tables(TABLENAME='*FLIGHT*')` |
 | `sap_describe_fields` | Get table field metadata | `SELECT * FROM sap_describe_fields('SFLIGHT')` |
+| `sap_rfc_authorizations` | List RFC modules each function uses (for S_RFC) | `SELECT * FROM sap_rfc_authorizations()` |
 | `sap_bics_show_cubes` | List BW cubes | `SELECT * FROM sap_bics_show_cubes()` |
 | `sap_bics_hierarchy` | Extract BW hierarchy | `SELECT * FROM sap_bics_hierarchy('MY_HIER')` |
 | `sap_bics_set_char_prop` | AO-style char property (Display/Sort/Totals) | `SELECT * FROM sap_bics_set_char_prop('q1', '0CNTRY', 'DISPLAY', 'TEXT')` |
@@ -222,6 +223,32 @@ Get detailed metadata about an RFC function module (parameters, types, structure
 
 ```sql
 SELECT * FROM sap_rfc_describe_function('STFC_CONNECTION');
+```
+
+---
+
+#### `sap_rfc_authorizations()`
+
+List which SAP RFC function modules each ERPL function invokes, so an SAP admin can scope the
+`S_RFC` authorization object for the ERPL service user to least privilege. This is a **static
+reference** — it needs no SAP connection (no secret required) and makes no RFC calls.
+
+**Returns:** `extension`, `duckdb_function`, `rfc_function_module`, `invocation`, `purpose`
+
+`invocation` is one of: `always` (called every time), `fallback` (one of a runtime-selected,
+capability-dependent chain — e.g. the `RFC_READ_TABLE` variants), `optional` (attempted, skipped
+gracefully on failure), `metadata` (a secondary DDIC/describe call), or `user-specified` (the FM is
+the one you pass to `sap_rfc_invoke`). Note: opening a connection and `sap_rfc_ping` use the SDK
+directly and invoke no function module.
+
+```sql
+-- All RFC modules to authorize for the whole ERPL suite
+SELECT DISTINCT rfc_function_module FROM sap_rfc_authorizations()
+WHERE rfc_function_module NOT IN ('<user-specified>', '<none>') ORDER BY 1;
+
+-- Just what sap_read_table needs
+SELECT rfc_function_module, invocation, purpose
+FROM sap_rfc_authorizations() WHERE duckdb_function = 'sap_read_table';
 ```
 
 ---

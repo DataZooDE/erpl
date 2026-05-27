@@ -1,0 +1,66 @@
+# name: test/sql/sap_rfc_authorizations.test
+# description: sap_rfc_authorizations() static RFC-usage reference (#71) — needs no SAP connection
+# group: [rfc]
+
+require erpl_rfc
+
+# Validates all five column names bind, and that the reference is non-empty.
+# No CREATE SECRET / require-env: this function is pure static documentation.
+query I
+SELECT count(*) > 0
+FROM (SELECT extension, duckdb_function, rfc_function_module, invocation, purpose
+      FROM sap_rfc_authorizations());
+----
+true
+
+# invocation is constrained to the documented vocabulary
+query I
+SELECT count(*)
+FROM sap_rfc_authorizations()
+WHERE invocation NOT IN ('always','fallback','optional','metadata','user-specified');
+----
+0
+
+# Spot-check representative rows across all three extensions
+query I
+SELECT count(*) FROM sap_rfc_authorizations()
+WHERE duckdb_function = 'sap_read_table' AND rfc_function_module = 'RFC_READ_TABLE' AND invocation = 'always';
+----
+1
+
+# The read-table fallback variants are documented
+query I
+SELECT count(*) FROM sap_rfc_authorizations()
+WHERE duckdb_function = 'sap_read_table' AND rfc_function_module LIKE '%RFC_READ_TABLE%' AND invocation = 'fallback';
+----
+4
+
+# sap_rfc_invoke is flagged as user-specified
+query I
+SELECT count(*) FROM sap_rfc_authorizations()
+WHERE duckdb_function = 'sap_rfc_invoke' AND rfc_function_module = '<user-specified>' AND invocation = 'user-specified';
+----
+1
+
+# BICS provider FMs present
+query I
+SELECT count(*) > 0 FROM sap_rfc_authorizations() WHERE rfc_function_module LIKE 'BICS_PROV_%';
+----
+true
+
+# ODP replication FMs present
+query I
+SELECT count(*) > 0 FROM sap_rfc_authorizations() WHERE rfc_function_module LIKE 'RODPS_REPL_%';
+----
+true
+
+# Completeness: every registered erpl_rfc sap_* function is documented here,
+# so a newly added RFC function can't silently miss the authorization reference.
+query I
+SELECT count(*) FROM (VALUES
+    ('sap_read_table'), ('sap_rfc_invoke'), ('sap_rfc_show_functions'),
+    ('sap_rfc_show_groups'), ('sap_rfc_describe_function'), ('sap_show_tables'),
+    ('sap_describe_fields'), ('sap_rfc_ping')) v(fn)
+WHERE fn NOT IN (SELECT duckdb_function FROM sap_rfc_authorizations() WHERE extension = 'erpl_rfc');
+----
+0
