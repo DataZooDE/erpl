@@ -23,6 +23,42 @@ LOAD erpl;
 
 ---
 
+## v2026.05.28 — Wide-scan memory: stream RFC results, bound the SDK buffer
+
+Continuation of [#63](https://github.com/DataZooDE/erpl/issues/63), addressing
+[#69](https://github.com/DataZooDE/erpl/issues/69): a full `SELECT *` over a wide
+table (BSEG, ACDOCA — hundreds of columns, ~75k+ rows) climbed to **>8 GB**, ran
+slowly, and the memory was never released after the connection closed. This is
+**not** a regression of the #63 `LIMIT`-path fix — that work (warm-up batching,
+`ROWCOUNT` cap, persistent connections, LOAD copy-elision) stays intact. #69 was a
+distinct, never-addressed layer. heaptrack on a 100k-row × 153-column scan
+attributed the 8.2 GB peak to two separate causes, each fixed below.
+
+### SAP scan path
+
+- **[rfc]** The `sap_read_table` scan now **streams rows straight from the SAP SDK
+  result-table handle into the output vector**, instead of first materializing each
+  batch as a tree of `duckdb::Value` objects. That intermediate representation was
+  responsible for ~95% of all heap allocations (285 M allocations on the test scan)
+  — the real driver of the high CPU and of the heap fragmentation that kept RSS
+  elevated after the query. The conversion reuses the exact same per-cell logic as
+  before, so results are byte-for-byte identical; `sap_rfc_invoke` and other callers
+  of the materializing path are unchanged. A `malloc_trim` at scan teardown returns
+  freed arenas to the OS on glibc.
+
+- **[rfc]** New `erpl_rfc_read_table_batch_budget` extension option (UINTEGER,
+  default `1310720`) bounds the **SAP SDK's own result buffer**, which dominated the
+  remaining peak (~6.7 GB): RFC_READ_TABLE materializes every row's fixed-width work
+  area inside `libsapnwrfc`, and every projected column reads in parallel. The option
+  is a *concurrent-row* budget — a cap on `columns × per-column batch size` — so it
+  self-adapts to table width: wider tables automatically use smaller batches, while
+  narrow tables keep the full batch for throughput. Lower it to cap memory harder (at
+  the cost of more RFC round-trips); raise it for fewer round-trips; `0` disables the
+  cap. The `ROWSKIPS % ROWCOUNT == 0` invariant from #63 is preserved (power-of-two
+  cap). On the 100k × 153-col scan, peak RSS dropped **8.2 GB → 1.78 GB** at the
+  default (≈0.9 GB on a 340-column BSEG; 0.55 GB at a 256k budget), with the memory
+  ↔ round-trip tradeoff now under user control.
+
 ## v2026.05.27 — `SHOW TABLES` on attached catalogs
 
 Fixes [#70](https://github.com/DataZooDE/erpl/issues/70): `SHOW TABLES FROM <attached
