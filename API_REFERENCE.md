@@ -327,6 +327,10 @@ ATTACH '' AS sap (TYPE sap_rfc, SECRET 'my_sap');
 -- Restrict to specific tables
 ATTACH '' AS sap (TYPE sap_rfc, TABLES 'SFLIGHT,SPFLI,SCARR');
 
+-- Scope to tables matching a glob pattern (resolved against the dictionary at ATTACH)
+ATTACH '' AS sap (TYPE sap_rfc, TABLES '/DMO/*,Z*');
+SHOW TABLES FROM sap;   -- lists the resolved set
+
 -- Detach
 DETACH sap;
 ```
@@ -335,7 +339,21 @@ DETACH sap;
 |--------|------|-------------|
 | `TYPE` | — | Must be `sap_rfc` |
 | `SECRET` | VARCHAR | Named secret for SAP connection |
-| `TABLES` | VARCHAR | Comma-separated list of tables to expose (empty = on-demand) |
+| `TABLES` | VARCHAR | Comma-separated list of exact table names and/or glob patterns (`*`, `?`) to expose. Empty = on-demand lookup. |
+
+**`SHOW TABLES` and table enumeration.** A SAP system exposes tens of thousands of
+tables, so an attached catalog does **not** list them all. `SHOW TABLES FROM <catalog>`
+(and `information_schema.tables`) reflect only the tables named or matched by `TABLES`:
+
+- With `TABLES` (exact names and/or patterns) → those tables are listed and queryable;
+  tables outside the set are not accessible through the catalog.
+- Without `TABLES` → tables are resolved **on demand** when referenced by name
+  (`SELECT * FROM sap."SFLIGHT"`), and `SHOW TABLES` is **empty by design**.
+
+Patterns use `*` (any run of characters) and `?` (single character) and are resolved once,
+at `ATTACH` time, against the data dictionary (`DD02V`, the same source as
+`sap_show_tables()`). To browse the full catalog without scoping, use
+[`sap_show_tables()`](#sap_show_tablestablename-text-threads).
 
 ---
 

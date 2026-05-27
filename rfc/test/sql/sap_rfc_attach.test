@@ -208,3 +208,61 @@ true
 
 statement ok
 DETACH sap_issue54;
+
+# ---------------------------------------------------------------------
+# Test 15: TABLES wildcard pattern populates SHOW TABLES (issue #70)
+#
+# Without TABLES, SHOW TABLES on an attached SAP catalog was empty because
+# the catalog cannot enumerate the tens of thousands of SAP tables.  TABLES
+# now accepts glob patterns (`*`, `?`); SHOW TABLES then lists exactly the
+# resolved set, scoped to a bounded, meaningful subset.
+
+statement ok
+ATTACH '' AS sap_pat (TYPE sap_rfc, SECRET 'abap_trial', TABLES '/DMO/*');
+
+# The pattern resolves to many tables (48 on the ABAP trial); assert it is
+# non-empty rather than an exact count so the test stays portable.
+query I
+SELECT COUNT(*) >= 2 FROM (SHOW TABLES FROM sap_pat);
+----
+true
+
+# A specific known table is present in the listing.
+query I
+SELECT COUNT(*) FROM (SHOW TABLES FROM sap_pat) WHERE "name" = '/DMO/FLIGHT';
+----
+1
+
+# A pattern-matched table is queryable through the attached catalog.
+query I
+SELECT COUNT(*) > 0 FROM sap_pat."/DMO/FLIGHT";
+----
+true
+
+# A table outside the pattern is NOT accessible (the pattern scopes the catalog).
+statement error
+SELECT * FROM sap_pat."DD02L";
+----
+Catalog Error
+
+statement ok
+DETACH sap_pat;
+
+# ---------------------------------------------------------------------
+# Test 16: TABLES mixes exact names and patterns; duplicates collapse
+statement ok
+ATTACH '' AS sap_mix (TYPE sap_rfc, SECRET 'abap_trial', TABLES '/DMO/CARRIER,/DMO/*');
+
+# /DMO/CARRIER is matched by both the exact entry and the pattern but appears once.
+query I
+SELECT COUNT(*) FROM (SHOW TABLES FROM sap_mix) WHERE "name" = '/DMO/CARRIER';
+----
+1
+
+query I
+SELECT COUNT(*) >= 2 FROM (SHOW TABLES FROM sap_mix);
+----
+true
+
+statement ok
+DETACH sap_mix;

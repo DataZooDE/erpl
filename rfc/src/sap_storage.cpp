@@ -10,6 +10,12 @@
 #include "duckdb/parser/column_definition.hpp"
 #include "duckdb/main/config.hpp"
 
+// sap_rfc.hpp / erpl_tracing.hpp are version-independent and are needed by the
+// TABLES pattern-expansion helper (ResolveTablePatterns), which runs for every
+// DuckDB version.
+#include "sap_rfc.hpp"
+#include "erpl_tracing.hpp"
+
 // entry_lookup_info.hpp was introduced alongside TryLookupEntryInternal in DuckDB v1.5+
 #if DUCKDB_MINOR_VERSION >= 5
 #include "duckdb/catalog/entry_lookup_info.hpp"
@@ -21,8 +27,6 @@
 #include "scanner_show_tables.hpp"
 #include "scanner_describe_fields.hpp"
 #include "sap_table_entry.hpp"
-#include "sap_rfc.hpp"
-#include "erpl_tracing.hpp"
 #endif
 
 #include "sap_storage.hpp"
@@ -292,6 +296,77 @@ private:
 #endif // DUCKDB_MINOR_VERSION >= 5
 
 // ---------------------------------------------------------------------------
+// TABLES pattern expansion
+//
+// The `TABLES` ATTACH option accepts a comma-separated mix of exact table
+// names and glob patterns (`*` → any run, `?` → single char).  Patterns are
+// resolved here, at attach time, against DD02V (the same data-dictionary view
+// `sap_show_tables()` uses) and expanded into concrete names.  Those names
+// then populate the catalog's allow-list so `SHOW TABLES`, information_schema
+// and named lookups all reflect the scoped set — without ERPL having to
+// enumerate (and DDIC-discover) the tens of thousands of tables a real SAP
+// system exposes.  See issue #70.
+// ---------------------------------------------------------------------------
+
+// Upper bound on how many tables a TABLES pattern set may resolve to.  Each
+// resolved table becomes a catalog entry whose schema is discovered via an RFC
+// roundtrip on first catalog scan; an unbounded pattern (e.g. `TABLES '*'`)
+// would otherwise turn the first `SHOW TABLES` into tens of thousands of RFC
+// calls.  Narrow the pattern or use `sap_show_tables()` to browse instead.
+static constexpr idx_t MAX_ATTACH_TABLE_EXPANSION = 5000;
+
+static bool IsTablePattern(const string &token) {
+	return token.find('*') != string::npos || token.find('?') != string::npos ||
+	       token.find('%') != string::npos;
+}
+
+static vector<string> ResolveTablePatterns(ClientContext &context, const string &secret_name,
+                                           const vector<string> &patterns) {
+	vector<string> out;
+	for (auto pattern : patterns) {
+		// glob → SQL LIKE, then guard the literal against quote injection.
+		pattern = StringUtil::Replace(pattern, "*", "%");
+		pattern = StringUtil::Replace(pattern, "?", "_");
+		pattern = StringUtil::Replace(pattern, "'", "''");
+
+		auto where_clause = StringUtil::Format(
+		    "DDLANGUAGE = 'E' AND TABNAME LIKE '%s' AND "
+		    "( TABCLASS = 'VIEW' OR TABCLASS = 'TRANSP' OR TABCLASS = 'POOL' OR TABCLASS = 'CLUSTER' )",
+		    pattern);
+
+		auto bind_data = make_uniq<RfcReadTableBindData>("DD02V", /*max_read_threads=*/0, /*limit=*/0,
+		                                                 "RFC_READ_TABLE", "", false,
+		                                                 &DefaultRfcConnectionFactory, context);
+		if (!secret_name.empty()) {
+			bind_data->SetSecretName(secret_name);
+		}
+		bind_data->InitOptionsFromWhereClause(where_clause);
+		bind_data->InitAndVerifyFields({"TABNAME"});
+		vector<column_t> column_ids = {0};
+		bind_data->ActivateColumns(column_ids);
+
+		DataChunk chunk;
+		chunk.Initialize(Allocator::Get(context), bind_data->GetReturnTypes());
+		while (bind_data->HasMoreResults()) {
+			chunk.Reset();
+			bind_data->Step(context, chunk);
+			for (idx_t i = 0; i < chunk.size(); i++) {
+				auto val = chunk.GetValue(0, i);
+				if (val.IsNull()) {
+					continue;
+				}
+				auto name = val.ToString();
+				StringUtil::Trim(name);
+				if (!name.empty()) {
+					out.push_back(std::move(name));
+				}
+			}
+		}
+	}
+	return out;
+}
+
+// ---------------------------------------------------------------------------
 // SapStorageAttach
 // ---------------------------------------------------------------------------
 
@@ -300,6 +375,7 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
                                             AttachOptions &attach_options) {
 	string secret_name;
 	vector<string> allowed_tables;
+	vector<string> table_patterns;
 
 	for (auto &entry : attach_options.options) {
 		auto lower_name = StringUtil::Lower(entry.first);
@@ -310,7 +386,12 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
 			auto split = StringUtil::Split(tables_str, ',');
 			for (auto &s : split) {
 				StringUtil::Trim(s);
-				if (!s.empty()) {
+				if (s.empty()) {
+					continue;
+				}
+				if (IsTablePattern(s)) {
+					table_patterns.push_back(s);
+				} else {
 					allowed_tables.push_back(s);
 				}
 			}
@@ -328,6 +409,34 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
 		auto secret_entry = secret_manager.GetSecretByName(transaction, secret_name);
 		if (!secret_entry) {
 			throw InvalidInputException("Secret '%s' not found", secret_name);
+		}
+	}
+
+	// Expand any glob patterns in TABLES into concrete table names (issue #70).
+	if (!table_patterns.empty()) {
+		auto resolved = ResolveTablePatterns(context, secret_name, table_patterns);
+		for (auto &name : resolved) {
+			allowed_tables.push_back(std::move(name));
+		}
+	}
+
+	// De-duplicate the allow-list case-insensitively, preserving first occurrence.
+	if (!allowed_tables.empty()) {
+		vector<string> deduped;
+		case_insensitive_set_t seen;
+		for (auto &name : allowed_tables) {
+			if (seen.insert(name).second) {
+				deduped.push_back(name);
+			}
+		}
+		allowed_tables = std::move(deduped);
+
+		if (allowed_tables.size() > MAX_ATTACH_TABLE_EXPANSION) {
+			throw InvalidInputException(
+			    "ATTACH TABLES resolved to %llu tables, exceeding the limit of %llu. "
+			    "Narrow the pattern (e.g. TABLES '/DMO/*' or 'Z*'), or omit TABLES and use "
+			    "sap_show_tables() to browse the full catalog.",
+			    (idx_t)allowed_tables.size(), MAX_ATTACH_TABLE_EXPANSION);
 		}
 	}
 
