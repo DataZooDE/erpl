@@ -1128,6 +1128,9 @@ Notes:
 | `erpl_trace_max_file_size` | BIGINT | 0 (unlimited) | Max trace file size in bytes |
 | `erpl_trace_rotation` | BOOLEAN | `false` | Enable trace file rotation |
 | `erpl_rfc_strict_type_check` | BOOLEAN | `false` | When true, throw an error on unsupported SAP RFC types instead of falling back to VARCHAR |
+| `erpl_rfc_persistent_connections` | BOOLEAN | `true` | Cache one RFC connection + function descriptor per column for a `sap_read_table` scan instead of reopening per batch |
+| `erpl_rfc_max_persistent_connections` | UINTEGER | 16 | Upper bound on RFC connections a scan caches concurrently (issue #67); columns past the cap use per-batch open/close |
+| `erpl_rfc_read_table_batch_budget` | UINTEGER | 1310720 | Target max concurrent result rows (projected columns × per-column batch) for `sap_read_table`; bounds peak memory on wide tables (issue #69). Lower = less memory but more RFC round-trips; `0` disables the cap |
 
 ```sql
 SET erpl_trace_enabled = TRUE;

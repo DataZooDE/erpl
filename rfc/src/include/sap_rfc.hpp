@@ -32,6 +32,12 @@ namespace duckdb
 	void SetRfcMaxPersistentConnections(unsigned int n);
 	unsigned int GetRfcMaxPersistentConnections();
 
+	// Concurrent-row budget for sap_read_table: caps (projected columns x
+	// batch_size) to bound the SAP SDK result buffer on wide scans (#69).
+	// Wired to the `erpl_rfc_read_table_batch_budget` extension option.
+	void SetRfcReadTableBatchBudget(unsigned int n);
+	unsigned int GetRfcReadTableBatchBudget();
+
 	//struct RfcReadTableGlobalState; // forward declaration
 	//struct RfcReadTableLocalState; // forward declaration
 	class RfcReadColumnStateMachine; // forward declaration
@@ -89,6 +95,13 @@ namespace duckdb
 			bool HasMoreResults();
 			void Step(ClientContext &context, DataChunk &output);
 
+			// Per-scan ceiling for the warm-up batch doubling, capped so that
+			// (projected columns x batch_size) stays within a fixed row budget
+			// — bounds the SAP SDK result buffer on wide scans (issue #69).
+			// Computed in Step() from the active column count; defaults to the
+			// absolute MAX_BATCH_SIZE for narrow scans.
+			unsigned int GetEffectiveMaxBatchSize() const { return effective_max_batch_size; }
+
 			std::string ToString();
 			double GetProgress();
 
@@ -125,6 +138,10 @@ namespace duckdb
 			std::vector<RfcType> column_types;
 			std::vector<RfcReadColumnStateMachine> column_state_machines;
 			std::atomic<unsigned int> persistent_slots_used{0};
+			// Defaults to RfcReadColumnStateMachine::MAX_BATCH_SIZE (that class
+			// is defined later in this header, so we can't name the constant
+			// here); Step() overwrites this with the column-count-aware cap.
+			unsigned int effective_max_batch_size = 16u * STANDARD_VECTOR_SIZE;
 
 			std::vector<RfcReadColumnStateMachine> CreateReadColumnStateMachines();
 			unsigned int NActiveStateMachines();
@@ -209,6 +226,14 @@ namespace duckdb
 			// is a power-of-two so the doubling sequence reaches it cleanly.
 			static constexpr unsigned int MAX_BATCH_SIZE = 16 * STANDARD_VECTOR_SIZE;
 
+			// Default concurrent-row budget for MaxBatchSizeForColumnCount: the
+			// target upper bound on (projected columns x batch_size), which
+			// bounds the SAP SDK result buffer on wide scans (issue #69).
+			// ~1.25M rows keeps a BSEG-shaped (~150 col) scan near an 8k batch
+			// — a balance between peak memory and RFC round-trip count.
+			// Overridable at runtime via erpl_rfc_read_table_batch_budget.
+			static constexpr unsigned int DEFAULT_READ_TABLE_BATCH_BUDGET = 1280u * 1024u;
+
 			// Pure helpers that encode the two ABAP-divisibility-preserving
 			// rules used inside the state machine.  Exposed so they can be
 			// tested without driving a live RFC scan.
@@ -224,8 +249,17 @@ namespace duckdb
 			//     produce an illegal (non-divisor) ROWCOUNT — in that case
 			//     we over-fetch and rely on LoadNextBatchToDuckDBColumn() to
 			//     clip the surplus client-side.
-			static unsigned int NextDesiredBatchSize(unsigned int current, unsigned int total_rows_after);
+			static unsigned int NextDesiredBatchSize(unsigned int current, unsigned int total_rows_after,
+			                                         unsigned int max_batch_size = MAX_BATCH_SIZE);
 			static unsigned int TrimmedActualBatchSize(unsigned int desired, unsigned int total_rows, unsigned int limit);
+
+			//   MaxBatchSizeForColumnCount: the per-scan warm-up ceiling that
+			//     keeps (projected columns x batch_size) within a fixed row
+			//     budget, bounding the SAP SDK result buffer on wide scans
+			//     (issue #69).  Returns a power of two in
+			//     [STANDARD_VECTOR_SIZE, MAX_BATCH_SIZE].
+			static unsigned int MaxBatchSizeForColumnCount(unsigned int num_columns,
+			                                               unsigned int concurrent_row_budget = DEFAULT_READ_TABLE_BATCH_BUDGET);
 
 		private:
 			bool active = true;
@@ -260,7 +294,21 @@ namespace duckdb
 
 			RfcReadTableBindData *bind_data;
 			ReadTableStates current_state = ReadTableStates::INIT;
-			std::shared_ptr<RfcResultSet> current_result_data = nullptr;
+
+			// Streaming read path (issue #69): instead of materialising the
+			// whole RFC batch as a duckdb::Value tree (RfcResultSet), we keep
+			// the live invocation — which owns the SDK function/result-table
+			// handle — and walk its rows straight into the output Vector one
+			// STANDARD_VECTOR_SIZE window at a time.  current_invocation must
+			// outlive every LoadNextBatchToDuckDBColumn call for the batch, so
+			// the SDK handle (and therefore current_table_handle) stays valid.
+			std::shared_ptr<RfcInvocation> current_invocation = nullptr;
+			RFC_TABLE_HANDLE current_table_handle = nullptr;
+			unsigned int current_batch_rows = 0;
+			// The single result-row field carrying the column's CSV payload
+			// (e.g. "WA"), resolved per batch from the result-table metadata.
+			std::shared_ptr<RfcType> wa_field_type = nullptr;
+			std::string wa_field_name;
 
 			std::mutex thread_lock;
 	};
@@ -274,6 +322,12 @@ namespace duckdb
 		private:
 			unsigned int ExecuteNextTableReadForColumn();
 			std::vector<Value> CreateFunctionArguments(const std::string &delimiter, bool use_et_data);
+
+			// Resolves the SDK result-table handle + its CSV-carrying field for
+			// the just-executed invocation, storing them on the state machine
+			// for streaming.  Returns the batch row count.  Handles the
+			// /TBLOUTxxxx size-bucket fallback used by /SAPDS RFC_READ_TABLE2.
+			unsigned int ResolveResultTable(std::shared_ptr<RfcInvocation> invocation, std::string data_path);
 
 			unsigned int LoadNextBatchToDuckDBColumn();
 			Value ParseCsvValue(const RfcType &rfc_type, const Value &orig) const;
