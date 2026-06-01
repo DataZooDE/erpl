@@ -141,7 +141,7 @@ bool GetRfcStrictTypeCheck();
     {
         public:
             RfcFunction(std::shared_ptr<RfcConnection> &connection, std::string function_name);
-            ~RfcFunction() noexcept(false);
+            ~RfcFunction() noexcept;
 
             RFC_FUNCTION_DESC_HANDLE GetDescriptionHandle() const;
 
@@ -200,7 +200,7 @@ bool GetRfcStrictTypeCheck();
     {
         public:
             RfcInvocation(std::shared_ptr<RfcFunction> function, std::vector<Value> &arguments);
-            ~RfcInvocation() noexcept(false);
+            ~RfcInvocation() noexcept;
 
             std::shared_ptr<RfcFunction> GetFunction() const;
             std::shared_ptr<RfcConnection> GetConnection() const;

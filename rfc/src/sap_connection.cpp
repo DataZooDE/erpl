@@ -195,22 +195,36 @@ namespace duckdb
 
     RfcConnection::~RfcConnection()
     {
-        Close();
+        // A destructor must never throw: an escaping exception calls
+        // std::terminate and aborts the host process (issue #78, where a
+        // stale/already-closed handle made Close() throw RFC_INVALID_HANDLE
+        // during teardown).
+        try {
+            Close();
+        } catch (...) {
+            // best-effort cleanup; swallow.
+        }
     }
-    
+
     void RfcConnection::Close()
     {
         if (handle == NULL)
             return;
-        
+
         RFC_RC rc = RFC_OK;
         RFC_ERROR_INFO error_info;
 
         rc = RfcCloseConnection(handle, &error_info);
-        if (rc != RFC_OK) {
+        // Regardless of the outcome the handle must not be reused: a second
+        // RfcCloseConnection on the same handle yields RFC_INVALID_HANDLE.
+        // Nulling here prevents the double-close path (issue #78).
+        handle = NULL;
+        // RFC_INVALID_HANDLE means the handle is already gone (the SAP gateway
+        // dropped the connection, or it was closed elsewhere) — nothing left
+        // to close, so treat it as benign rather than an error.
+        if (rc != RFC_OK && rc != RFC_INVALID_HANDLE) {
             throw IOException(StringUtil::Format("Error during SAP RFC connection closing: %s: %s",rfcrc2std(error_info.code), uc2std(error_info.message)));
         }
-        handle = NULL;
     }
 
     void RfcConnection::Ping()
