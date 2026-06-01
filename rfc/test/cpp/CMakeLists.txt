@@ -21,6 +21,7 @@ set(TEST_SOURCES
     test_table_wrapper.cpp
     test_telemetry.cpp
     test_read_table_batching.cpp
+    test_connection_close.cpp
     test_main.cpp
 )
 

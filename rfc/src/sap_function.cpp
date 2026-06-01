@@ -6,6 +6,7 @@
 #include "duckdb.hpp"
 #include "duckdb_argument_helper.hpp"
 #include "sap_function.hpp"
+#include "erpl_tracing.hpp"
 
 static std::atomic<bool> g_rfc_strict_type_check{false};
 
@@ -1206,7 +1207,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         }
     }
 
-    RfcFunction::~RfcFunction() noexcept(false)
+    RfcFunction::~RfcFunction() noexcept
     {
         if (_desc_handle == NULL)
             return;
@@ -1519,7 +1520,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         adapter->Adapt(function->GetParameterInfos(), arguments);
     }
 
-    RfcInvocation::~RfcInvocation() noexcept(false) 
+    RfcInvocation::~RfcInvocation() noexcept
     {
         if (_handle == NULL) {
             return;
@@ -1528,10 +1529,14 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         RFC_RC rc = RFC_OK;
         RFC_ERROR_INFO error_info;
         rc = RfcDestroyFunction(_handle, &error_info);
+        // A destructor must never throw: an escaping exception calls
+        // std::terminate and aborts the host process (issue #78). On the rare
+        // RfcDestroyFunction failure, log and swallow instead of throwing.
         if (rc != RFC_OK) {
-            throw std::runtime_error(StringUtil::Format("Error destroying function: %s: %s "  
-                                                        "(This is indicates a serious error in the SAP NW RFC library.)",
-                                                        rfcrc2std(error_info.code), uc2std(error_info.message)));
+            ERPL_TRACE_ERROR("RfcInvocation",
+                             StringUtil::Format("Error destroying function: %s: %s "
+                                                "(indicates a serious error in the SAP NW RFC library.)",
+                                                rfcrc2std(error_info.code), uc2std(error_info.message)));
         }
         _handle = NULL;
     }
