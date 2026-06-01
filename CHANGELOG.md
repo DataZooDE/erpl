@@ -23,6 +23,40 @@ LOAD erpl;
 
 ---
 
+## v2026.06.01 — RFC connection teardown no longer crashes the host process
+
+Fixes [#78](https://github.com/DataZooDE/erpl/issues/78): a long-running process (reported in a
+container) crashed with `terminate called after throwing an instance of 'duckdb::IOException'` and
+`Error during SAP RFC connection closing: RFC_INVALID_HANDLE`. This is a hard `std::terminate`
+abort — not an out-of-memory kill — so it takes down the **entire host process**, not just the
+query.
+
+### SAP scan path
+
+- **[rfc]** `RfcConnection`'s destructor no longer throws. Root cause: `RfcConnection::Close()`
+  raised a `duckdb::IOException` whenever `RfcCloseConnection` returned anything other than
+  `RFC_OK`, and the destructor called it with no guard. A C++ destructor is implicitly `noexcept`,
+  so an escaping exception goes straight to `std::terminate`. On **long-running sessions** the
+  cached connection handle can become invalid — the SAP gateway drops an idle/long-lived
+  connection, or a failed first close left the handle non-NULL and the destructor closed it a
+  second time — and the resulting `RFC_INVALID_HANDLE` aborted the process.
+- **[rfc]** `Close()` now clears the handle immediately after `RfcCloseConnection` regardless of
+  outcome (eliminating the double-close path) and treats `RFC_INVALID_HANDLE` as benign — the
+  handle is already gone, so there is nothing left to close. Genuinely unexpected RFC return codes
+  still raise for explicit callers.
+- **[rfc]** The same hardening was applied to the `RfcInvocation` / `RfcFunction` destructors,
+  which carried the identical latent `std::terminate` risk (`RfcDestroyFunction` failures are now
+  traced via `ERPL_TRACE_ERROR` instead of thrown), and both are now correctly marked `noexcept`.
+- Note: this stops the crash, but the underlying connection drop (most often an idle gateway
+  timeout) still occurs — it is now handled gracefully instead of aborting. Keepalive/reconnect on
+  cached connections is a possible follow-up.
+
+### Build & CI
+
+- **[rfc]** Added a regression test (`rfc/test/cpp/test_connection_close.cpp`) that reproduces the
+  exact precondition against the live trial system — open a connection, invalidate its handle
+  out-of-band, then assert close/teardown no longer throw.
+
 ## v2026.05.30 — RFC authorization reference: `sap_rfc_authorizations()`
 
 Addresses [#71](https://github.com/DataZooDE/erpl/issues/71): there was no documentation of which
