@@ -1,5 +1,9 @@
 #pragma once
 
+#include <set>
+#include <string>
+#include <vector>
+
 #include "duckdb.hpp"
 
 namespace duckdb
@@ -60,6 +64,27 @@ private:
 
 bool HasParam(named_parameter_map_t &named_params, const std::string &name);
 Value ConvertBoolArgument(named_parameter_map_t &named_params, const std::string &name, const bool default_value);
+
+// Returns a copy of `named_args` (a single STRUCT Value as produced by
+// ArgBuilder::Build) with version-specific optional fields removed when the
+// target system does not define them.
+//
+// A field is dropped only when it is BOTH absent from `supported_names` AND
+// present in `droppable_names`. Any other unsupported field is kept untouched so
+// that a genuine mistake (e.g. a misspelled required parameter) still surfaces
+// as a clear "Parameter not found" error during argument adaptation rather than
+// being silently swallowed. Name comparisons are case-insensitive; SAP RFC
+// parameter names are upper-case. The names of dropped fields are appended to
+// `out_dropped` when it is non-null.
+//
+// This lets internal callers send a hard-coded optional RFC import parameter
+// (e.g. I_CONFIRM_AUTORETRY, which only exists on newer SAP BW releases) without
+// breaking older systems. If `named_args` is not a STRUCT it is returned
+// unchanged.
+Value SelectSupportedNamedArgs(const Value &named_args,
+                               const std::set<std::string> &supported_names,
+                               const std::set<std::string> &droppable_names,
+                               std::vector<std::string> *out_dropped = nullptr);
 
 template<typename T>
 std::vector<T> ConvertListValueToVector(Value &value) {

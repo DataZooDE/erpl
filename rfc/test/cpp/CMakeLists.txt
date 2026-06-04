@@ -22,6 +22,7 @@ set(TEST_SOURCES
     test_telemetry.cpp
     test_read_table_batching.cpp
     test_connection_close.cpp
+    test_select_supported_args.cpp
     test_main.cpp
 )
 

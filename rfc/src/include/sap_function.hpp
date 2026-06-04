@@ -1,5 +1,7 @@
 #pragma once
 
+#include <set>
+
 #include "duckdb.hpp"
 #include "sapnwrfc.h"
 
@@ -148,6 +150,10 @@ bool GetRfcStrictTypeCheck();
             std::string GetName();
             std::vector<RfcFunctionParameterDesc> GetParameterInfos();
             RfcFunctionParameterDesc GetParameterInfo(std::string name);
+            // Names of all parameters (any direction) the target system defines
+            // for this function. Used to skip optional import parameters that a
+            // given SAP release does not expose.
+            std::set<std::string> GetParameterNames();
             std::vector<LogicalType> GetResultTypes();
             std::vector<string> GetResultNames();
             std::vector<RfcFunctionParameterDesc> GetResultInfos();
