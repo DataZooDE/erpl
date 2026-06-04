@@ -23,6 +23,50 @@ LOAD erpl;
 
 ---
 
+## v2026.06.04 — BICS: actionable open errors and cross-release result fetch
+
+Two SAP BW (BICS) reliability fixes, both reported against live customer systems.
+
+### Clearer errors when opening a BW data provider
+
+Fixes [#80](https://github.com/DataZooDE/erpl/issues/80): `sap_bics_describe` / `sap_bics_begin`
+occasionally failed with the opaque `Failed to open data provider on the BW server, giving up!`,
+which gave no way to tell *why* the open was rejected (authorization, query not active in the
+requested version, a transient server condition, …).
+
+- **[bics]** BICS RFC modules report failures through `E_MAX_MESSAGE_TYPE` (the highest message
+  severity) and an `E_T_MESSAGE` table (the individual `BICS_PROV_MESSAGE` rows). ERPL ignored both
+  and only noticed the sentinel handle `0000`. `BICS_PROV_OPEN` and `BICS_CONS_CREATE_DATA_AREA`
+  now surface the info provider, the query name, the message severity and the actual SAP message
+  text in the thrown error, e.g. `… for info provider '0D_NW_C01' (query '0D_FC_NW_C01_Q0008'),
+  giving up! (max message type 'E'): [E BRAIN 299] Query … is not available in version A`. A new
+  `FormatBicsMessages()` helper renders the message table and is covered by offline unit tests.
+  Diagnostics gathering is best-effort and never throws while building the exception.
+
+### Result fetch works across BW releases
+
+Fixes [#81](https://github.com/DataZooDE/erpl/issues/81): `sap_bics_result` failed on some BW
+systems with `Failed to adapt value for invocation argument 'I_CONFIRM_AUTORETRY': Parameter
+'I_CONFIRM_AUTORETRY' not found`. ERPL passed the optional import parameter `I_CONFIRM_AUTORETRY`
+to `BICS_PROV_GET_RESULT_SET` unconditionally, but it only exists on newer BW releases — older
+systems reject the call during argument adaptation.
+
+- **[bics]** `FetchResultSet` now looks up the target function's actual parameter set and drops
+  `I_CONFIRM_AUTORETRY` only when the release does not define it (the dropped argument is traced).
+  Systems that do define it are unaffected.
+- **[rfc]** New reusable, version-tolerant primitives backing the fix: `SelectSupportedNamedArgs()`
+  removes version-specific optional fields from a named-argument struct — a field is dropped only
+  when it is **both** absent from the target signature **and** in an explicit droppable allowlist,
+  so a genuinely misspelled required parameter still raises a clear `Parameter not found` error
+  rather than being silently swallowed. `RfcFunction::GetParameterNames()` introspects the target
+  system's signature. Both are covered by offline unit tests (`[select_supported_args]`).
+
+### Build & CI
+
+- **[bics]** Relaxed three `GenericTable::Rows()` bindings in `bics_result.cpp` from `auto&` to
+  `const auto&` (`Rows()` returns by value; binding the temporary to a non-const reference is
+  rejected by newer compilers).
+
 ## v2026.06.01 — RFC connection teardown no longer crashes the host process
 
 Fixes [#78](https://github.com/DataZooDE/erpl/issues/78): a long-running process (reported in a
