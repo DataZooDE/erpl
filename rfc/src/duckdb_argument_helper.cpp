@@ -329,6 +329,52 @@ namespace duckdb
         }
     }
 
+    Value SelectSupportedNamedArgs(const Value &named_args,
+                                   const std::set<std::string> &supported_names,
+                                   const std::set<std::string> &droppable_names,
+                                   std::vector<std::string> *out_dropped) {
+        if (named_args.IsNull() || named_args.type().id() != LogicalTypeId::STRUCT) {
+            return named_args;
+        }
+
+        // Compare names case-insensitively: SAP RFC parameter names are
+        // upper-case, but callers should not have to rely on exact casing.
+        auto to_upper_set = [](const std::set<std::string> &names) {
+            std::set<std::string> upper;
+            for (const auto &name : names) {
+                upper.insert(StringUtil::Upper(name));
+            }
+            return upper;
+        };
+        auto supported_upper = to_upper_set(supported_names);
+        auto droppable_upper = to_upper_set(droppable_names);
+
+        auto &child_types = StructType::GetChildTypes(named_args.type());
+        auto &child_values = StructValue::GetChildren(named_args);
+
+        child_list_t<Value> kept;
+        for (idx_t i = 0; i < child_types.size(); i++) {
+            const auto &field_name = child_types[i].first;
+            auto upper_name = StringUtil::Upper(field_name);
+
+            // Only drop a field that the target does not support AND that the
+            // caller explicitly marked as droppable. Everything else is kept so
+            // unexpected/misspelled parameters still raise a clear error later.
+            bool unsupported = supported_upper.find(upper_name) == supported_upper.end();
+            bool droppable = droppable_upper.find(upper_name) != droppable_upper.end();
+            if (unsupported && droppable) {
+                if (out_dropped != nullptr) {
+                    out_dropped->push_back(field_name);
+                }
+                continue;
+            }
+
+            kept.push_back(std::make_pair(field_name, child_values[i]));
+        }
+
+        return Value::STRUCT(kept);
+    }
+
 // TableWrapper ---------------------------------------------------------------
 
 TableWrapper::TableWrapper(std::shared_ptr<Value> struct_oriented_value, std::string root_path)

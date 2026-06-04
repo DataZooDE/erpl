@@ -1273,7 +1273,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
      * @param name The name of the parameter.
      * @return The RfcFunctionParameterDesc object.
     */
-    RfcFunctionParameterDesc RfcFunction::GetParameterInfo(std::string name) 
+    RfcFunctionParameterDesc RfcFunction::GetParameterInfo(std::string name)
     {
         for (auto &param : GetParameterInfos()) {
             if (param.GetName() == name) {
@@ -1282,6 +1282,20 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         }
 
         throw std::runtime_error(StringUtil::Format("Parameter '%s' not found", name.c_str()));
+    }
+
+    /**
+     * @brief Returns the names of all parameters (any direction) the target
+     *        system defines for this function.
+     * @return A set of parameter names.
+    */
+    std::set<std::string> RfcFunction::GetParameterNames()
+    {
+        std::set<std::string> names;
+        for (auto &param : GetParameterInfos()) {
+            names.insert(param.GetName());
+        }
+        return names;
     }
 
     /**
