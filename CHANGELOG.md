@@ -23,6 +23,36 @@ LOAD erpl;
 
 ---
 
+## v2026.06.05 — BICS result: key figures no longer crash on DOUBLE → DATE
+
+Fixes [#84](https://github.com/DataZooDE/erpl/issues/84): `sap_bics_result` aborted while
+materializing some BW queries with `Invalid Input Error: Failed to cast value: Unimplemented type
+for cast (DOUBLE -> DATE)`. The schema bound fine (`DESCRIBE` worked), but fetching values failed
+because a numeric key-figure column had been declared `DATE`.
+
+### SAP scan path
+
+- **[bics]** Result column types are now derived from the **value domain the scanner actually
+  writes**, not from the InfoObject's DDIC/ABAP type. The previous logic ran every column through
+  the characteristic / key-figure metadata, so a key figure or characteristic whose ABAP type was
+  `'D'` (date), `'T'` (time) or `'I'` (int) produced a `DATE`/`TIME`/`INTEGER` column — but the
+  cells written into it are fixed by position: row-axis characteristics carry formatted member
+  key/text **strings** (`VARCHAR`), the synthetic `HIER_LEVEL` columns are `INTEGER`, and
+  column-axis (key-figure / data-cell) columns carry the `DOUBLE` `E_T_DATA_CELLS.VALUE`. The
+  mismatch (e.g. a `DOUBLE` cell value into a `DATE` column) aborted materialization. It surfaced
+  only now because the common CHAR/NUMC characteristics already map to `VARCHAR`; a key figure with
+  a date/time/int DDIC type is the case that breaks.
+- **[bics]** The same class of bug on the **row axis** (a date/time characteristic placed on rows
+  would have failed identically) is fixed by the same change. The now-dead per-column typing
+  machinery (`Characteristic::GetResultType()`, the `FindReturnType` chain, `bicstype2rfctype()`)
+  was removed so result columns can no longer be typed from metadata again.
+
+### Build & CI
+
+- **[bics]** Added offline regression tests (`test/cpp/test_bics_result_types.cpp`) covering the
+  column-axis key-figure and row-axis date-characteristic variants plus the CHAR/NUMC/key-figure
+  baseline; verified the column-axis case fails on the pre-fix behaviour.
+
 ## v2026.06.04 — BICS: actionable open errors and cross-release result fetch
 
 Two SAP BW (BICS) reliability fixes, both reported against live customer systems.
