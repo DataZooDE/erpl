@@ -14,12 +14,32 @@ Each bullet is tagged with the affected sub-extension(s):
 
 Binaries are self-distributed via [get.erpl.io](http://get.erpl.io) for the
 matrix `{linux_amd64, linux_amd64_musl, osx_amd64, osx_arm64, windows_amd64} ×
-{DuckDB v1.4.4, v1.5.3}`. Install with:
+{DuckDB v1.4.5, v1.5.4}`. Install with:
 
 ```sql
 INSTALL erpl FROM 'http://get.erpl.io';
 LOAD erpl;
 ```
+
+---
+
+## v2026.06.17 — DuckDB v1.4.5 (LTS) + v1.5.4 (latest)
+
+Tracks DuckDB's latest patch releases on both supported lines. No SAP-facing behavior
+changes — this is a build/toolchain refresh. Existing `DUCKDB_MINOR_VERSION` guards
+(e.g. in `rfc/src/sap_storage.cpp`) already cover the 1.4 ↔ 1.5 storage API split, so no
+extension source changes were required.
+
+### Build & CI
+
+- **[all]** The self-distributed binary matrix now targets **DuckDB v1.4.5** (LTS) and
+  **v1.5.4** (latest), up from v1.4.4 / v1.5.3. Both legs build across
+  `{linux_amd64, linux_amd64_musl, osx_amd64, osx_arm64, windows_amd64}`.
+- **[all]** `extension-ci-tools` advanced to the rolling `v1.5-variegata` branch.
+- **[all]** The bundled `duckdb` submodule used for local debug builds is pinned to v1.5.4.
+- **[all]** Pinned the `linux_amd64_musl` build image to `alpine:3.21`. The rolling
+  `alpine:3` tag had advanced to 3.22, whose repos dropped the `clang19` package, breaking
+  the musl Docker image build for every leg.
 
 ---
 
