@@ -37,6 +37,9 @@ extension source changes were required.
   `{linux_amd64, linux_amd64_musl, osx_amd64, osx_arm64, windows_amd64}`.
 - **[all]** `extension-ci-tools` advanced to the rolling `v1.5-variegata` branch.
 - **[all]** The bundled `duckdb` submodule used for local debug builds is pinned to v1.5.4.
+- **[all]** Pinned the `linux_amd64_musl` build image to `alpine:3.21`. The rolling
+  `alpine:3` tag had advanced to 3.22, whose repos dropped the `clang19` package, breaking
+  the musl Docker image build for every leg.
 
 ---
 

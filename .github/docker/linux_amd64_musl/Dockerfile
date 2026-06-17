@@ -1,4 +1,6 @@
-FROM alpine:3
+# Pin to 3.21: the rolling `alpine:3` tag advanced to 3.22, whose repos no
+# longer ship the `clang19` package the build expects. 3.21 still provides it.
+FROM alpine:3.21
 
 ###
 # Base image setup
