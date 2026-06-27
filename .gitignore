@@ -84,3 +84,4 @@ python-env/*
 
 # Experiments
 /examples/experiments/*
+.adt.creds

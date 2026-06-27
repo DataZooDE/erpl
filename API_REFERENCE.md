@@ -71,6 +71,8 @@ SELECT * FROM sap_bics_show_cubes();
 | `sap_bics_set_char_prop` | AO-style char property (Display/Sort/Totals) | `SELECT * FROM sap_bics_set_char_prop('q1', '0CNTRY', 'DISPLAY', 'TEXT')` |
 | `sap_odp_read_full` | Extract ODP data (full snapshot) | `SELECT * FROM sap_odp_read_full('BW', 'MY_ODP')` |
 | `sap_odp_read_delta` | Extract ODP data (incremental delta) | `SELECT * FROM sap_odp_read_delta('BW', 'MY_ODP', 'MY_PIPELINE')` |
+| `sap_odp_get_last_modified` | Last-modified timestamp of an ODP object (cheap delta probe) | `SELECT * FROM sap_odp_get_last_modified('ABAP_CDS', 'MY_CDS$E')` |
+| `sap_odp_get_subscriptions` | List subscriptions for one ODP object | `SELECT * FROM sap_odp_get_subscriptions('ABAP_CDS', 'MY_CDS$E')` |
 | `ATTACH` | Mount SAP as database | `ATTACH '' AS sap (TYPE sap_rfc)` |
 
 ---
@@ -830,14 +832,18 @@ your pipeline is done.
 | `odp_context` | VARCHAR | *required* | ODP context (e.g. `'BW'`, `'ABAP_CDS'`) |
 | `odp_name` | VARCHAR | *required* | ODP provider name |
 | `subscriber_process` | VARCHAR | *required* | **Stable** identifier that keys the server-side delta pointer across calls. Choose a deterministic name per pipeline (e.g. `'MY_ETL_BUPA_DAILY'`). |
-| `threads` | UINTEGER | 5 | Parallel read threads |
-| `columns` | LIST(VARCHAR) | all | Columns to extract |
-| `filters` | LIST(STRUCT) | — | Server-side selection predicates (same shape as `sap_odp_read_full`) |
-| `recover` | BOOLEAN | `false` | When true, re-stream the last unconfirmed packet (`I_EXTRACTION_MODE='R'`) without advancing the pointer. Useful after a fetch was interrupted. |
+| `threads` | UINTEGER | 1 | Accepted for API symmetry but **delta/RECOVER fetch is serialized** (capped to 1). Parallel package fetch can race a multi-package delta into an under-count, and delta packets are small; use `sap_odp_read_full` `threads` for large parallel snapshots. Must be ≥ 1. |
+| `columns` | LIST(VARCHAR) | all | Columns to extract (not allowed together with `recover=true`) |
+| `filters` | LIST(STRUCT) | — | Server-side selection predicates (same shape as `sap_odp_read_full`; not allowed together with `recover=true`) |
+| `recover` | BOOLEAN | `false` | When true, re-stream the last unconfirmed packet (`I_EXTRACTION_MODE='R'`) without advancing the pointer, using the **original** open's projection/filters. Useful after a fetch was interrupted. Cannot be combined with `columns`/`filters`. |
 | `secret` | VARCHAR | — | Named secret |
 
 **Concurrency note:** do not run two `sap_odp_read_delta` calls with the same
 `subscriber_process` in parallel — they will race the server-side pointer.
+
+**Change semantics:** for `ABAP_CDS` byElement-tracked sources, inserts and
+updates both surface as after-images (`ODQ_CHANGEMODE='U'`); physical deletes are
+**not** reported by the byElement annotation (the row simply leaves the snapshot).
 
 ```sql
 -- First call: SAP auto-DELTAINIT — returns full current snapshot, registers
@@ -883,6 +889,45 @@ List ODP extraction cursors for delta tracking. Cursors created by
 
 ```sql
 SELECT * FROM sap_odp_show_cursors();
+```
+
+---
+
+#### `sap_odp_get_last_modified(odp_context, odp_name [, secret])`
+
+Return the last-modified UTC timestamp of an ODP object (invokes
+`RODPS_REPL_ODP_GET_LAST_MODIF`) **without** fetching any rows. Use it as a cheap
+probe before `sap_odp_read_delta`: if the timestamp has not advanced since your
+last run, there is nothing to extract.
+
+Output columns: `odp_name` (VARCHAR), `last_modified` (DECIMAL(21,7) — a SAP UTC
+timestamp; comparable against the `pointer` column of `sap_odp_show_cursors`).
+
+```sql
+SELECT * FROM sap_odp_get_last_modified('ABAP_CDS', 'MY_CDS_VIEW$E');
+```
+
+---
+
+#### `sap_odp_get_subscriptions(odp_context, odp_name [, subscriber_name, subscriber_process, secret])`
+
+List the subscriptions registered for a specific ODP object (invokes
+`RODPS_REPL_ODP_GET_SUBSCR`). Unlike `sap_odp_show_subscriptions` (which lists all
+subscriptions), this is scoped to one `odp_name` and can be further filtered.
+
+Output columns: `subscriber_type`, `subscriber_name`, `subscriber_process`,
+`queue_name`, `subscription_id`.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `odp_context` | VARCHAR | ODP context (e.g. `'BW'`, `'ABAP_CDS'`) |
+| `odp_name` | VARCHAR | ODP object name |
+| `subscriber_name` | VARCHAR | *(named)* optional subscriber-name filter |
+| `subscriber_process` | VARCHAR | *(named)* optional subscriber-process filter |
+| `secret` | VARCHAR | *(named)* optional secret name |
+
+```sql
+SELECT * FROM sap_odp_get_subscriptions('ABAP_CDS', 'MY_CDS_VIEW$E');
 ```
 
 ---
