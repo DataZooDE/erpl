@@ -23,7 +23,7 @@ LOAD erpl;
 
 ---
 
-## Unreleased
+## v2026.06.27 — SAP ODP delta replication
 
 - **[odp]** ODP **delta replication**. New `sap_odp_read_delta(odp_context,
   odp_name, subscriber_process [, columns, filters, recover, threads, secret])`:
