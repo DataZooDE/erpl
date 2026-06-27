@@ -23,6 +23,26 @@ LOAD erpl;
 
 ---
 
+## Unreleased
+
+- **[odp]** ODP **delta replication**. New `sap_odp_read_delta(odp_context,
+  odp_name, subscriber_process [, columns, filters, recover, threads, secret])`:
+  the first call with a `subscriber_process` performs SAP's auto-DELTAINIT
+  (full snapshot + registers a delta pointer); subsequent calls return only
+  changes since the pointer. `recover=true` re-streams the last unconfirmed
+  packet. Delta fetch is serialized (single-threaded) for correct multi-package
+  ordering. Validated end-to-end against an ABAP_CDS byElement source on the
+  trial system (insert/update/delete/mixed/bulk/recover/filters).
+- **[odp]** New `PRAGMA sap_odp_close_delta_cursor(odp_context,
+  subscriber_process, odp_name)` — graceful, idempotent cursor close that leaves
+  the subscription resumable (counterpart to `sap_odp_drop`/`RODPS_REPL_ODP_RESET`).
+- **[odp]** New `sap_odp_get_last_modified(odp_context, odp_name)` (cheap
+  delta probe) and `sap_odp_get_subscriptions(odp_context, odp_name [, …])`
+  (per-object subscription list).
+- **[odp]** `sap_odp_drop` is now a `PragmaCall` with an explicit 4-argument
+  signature (the previous zero-arg registration failed to bind the documented
+  call).
+
 ## v2026.06.17 — DuckDB v1.4.5 (LTS) + v1.5.4 (latest)
 
 Tracks DuckDB's latest patch releases on both supported lines. No SAP-facing behavior
