@@ -23,6 +23,15 @@ LOAD erpl;
 
 ---
 
+## v2026.06.28 — ODP delta hardening
+
+- **[odp]** Fix: make `OdpFetchSession::CloseSession()` exception-safe on the
+  destructor path. It runs from `~OdpFetchSession` on the FULL read path; the
+  v2026.06.27 trace-logging addition could throw (string allocation / trace
+  macro) and escape the destructor as `std::terminate`. The trace call is now
+  wrapped in its own guard with a final `catch(...)`. Found by a post-release
+  Codex review of the shipped delta-replication diff.
+
 ## v2026.06.27 — SAP ODP delta replication
 
 - **[odp]** ODP **delta replication**. New `sap_odp_read_delta(odp_context,
