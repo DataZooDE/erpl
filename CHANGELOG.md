@@ -23,6 +23,21 @@ LOAD erpl;
 
 ---
 
+## v2026.07.02 — BICS transformation field mappings
+
+- **[bics]** Fix: `sap_bics_meta_transform_fields` returned **0 rows on every
+  system** (reported on BW/4HANA in #89). It queried `RSTRANFIELD` with column
+  names that do not exist (`FIELDNAME`, `IOBJNM`, `ROLE`, `ROUTINE`, `RULE_*`);
+  both the "enhanced" and "basic" reads threw and a catch-all swallowed the
+  error into an empty result. The scanner now reads the real `RSTRANFIELD`
+  schema (`TRANID, OBJVERS, RULEID, PARAMTYPE, PARAMNM, FIELDNM, FIELDTYPE,
+  KEYFLAG`) and pairs source/target rows by `RULEID` via `PARAMTYPE`
+  (`0` = source, `1` = target), preferring the active object version (`A`) over
+  delivered (`D`). The swallow-to-empty path is replaced by a traced fallback so
+  a genuinely missing table still degrades gracefully on non-BW systems. The
+  `bw_transformation_mappings` view, which builds on this function, was broken
+  the same way and is fixed by the same change.
+
 ## v2026.06.28 — ODP delta hardening
 
 - **[odp]** Fix: make `OdpFetchSession::CloseSession()` exception-safe on the
