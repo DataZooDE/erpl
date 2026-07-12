@@ -17,7 +17,7 @@ static unique_ptr<FunctionData> RfcDescribeFunctionBind(ClientContext &context,
                                                         vector<LogicalType> &return_types,
                                                         vector<string> &names)
 {
-    PostHogTelemetry::Instance().CaptureFunctionExecution("sap_rfc_describe_function");
+    PostHogTelemetry::Instance().RecordFunctionCall("sap_rfc_describe_function");
 
     auto &inputs = input.inputs;
 

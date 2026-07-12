@@ -2,6 +2,7 @@
 #include "sap_connection.hpp"
 #include "sap_type_conversion.hpp"
 #include "sap_secret.hpp"
+#include "erpl_telemetry.hpp"
 #include <fstream>
 #include <sstream>
 
@@ -180,12 +181,54 @@ namespace duckdb
             param_count++;
         }
         
+        // Telemetry: classify the auth method before the round-trip (pure local
+        // field checks, no credential material). Emitted only on success below.
+        const char *auth = TelemetryAuthKind();
+
         auto connection_handle = RfcOpenConnection(params, param_count, &error_info);
 
         if (connection_handle == NULL) {
+            // Telemetry: $exception {error_class (from RFC_RC enum), feature,
+            // phase}. The SAP error message/code text is NEVER sent.
+            erpl_telemetry::CaptureError(RfcTelemetryErrorClass(error_info.code),
+                                         erpl_telemetry::feature::kConnectionOpened,
+                                         erpl_telemetry::phase::kConnect);
             throw IOException(StringUtil::Format("Error during SAP RFC logon: %s: %s",rfcrc2std(error_info.code), uc2std(error_info.message)));
         }
+        // Telemetry: feature_used {feature="connection_opened", auth_kind}.
+        erpl_telemetry::CaptureConnectionOpened(auth);
         return std::make_shared<RfcConnection>(connection_handle);
+    }
+
+    const char *RfcAuthParams::TelemetryAuthKind() const
+    {
+        // Order matters: an SSO2 ticket or SNC library takes precedence over a
+        // plain user/password even if both are present. Only the *presence* of
+        // a field is inspected — never its value.
+        if (!mysapsso2.empty()) {
+            return erpl_telemetry::auth_kind::kSso;
+        }
+        if (!snc_lib.empty() || !snc_myname.empty() || !snc_partnername.empty()) {
+            return erpl_telemetry::auth_kind::kSnc;
+        }
+        return erpl_telemetry::auth_kind::kBasic;
+    }
+
+    const char *RfcTelemetryErrorClass(RFC_RC code)
+    {
+        switch (code) {
+            case RFC_LOGON_FAILURE:
+            case RFC_AUTHORIZATION_FAILURE:
+                return erpl_telemetry::error_class::kAuthError;
+            case RFC_COMMUNICATION_FAILURE:
+            case RFC_CLOSED:
+                return erpl_telemetry::error_class::kConnectionFailed;
+            case RFC_TIMEOUT:
+            case RFC_CANCELED:
+                return erpl_telemetry::error_class::kTimeout;
+            default:
+                return erpl_telemetry::error_class::kRfcError;
+        }
     }
 
     // RfcAuthParams ------------------------------------------------------------

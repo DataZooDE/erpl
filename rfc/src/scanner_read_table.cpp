@@ -10,6 +10,7 @@
 #include "duckdb_argument_helper.hpp"
 #include "sap_rfc.hpp"
 #include "telemetry.hpp"
+#include "erpl_telemetry.hpp"
 
 namespace duckdb 
 {
@@ -18,7 +19,13 @@ namespace duckdb
                                                      vector<LogicalType> &return_types, 
                                                      vector<string> &names) 
     {
-        PostHogTelemetry::Instance().CaptureFunctionExecution("sap_read_table");
+        PostHogTelemetry::Instance().RecordFunctionCall("sap_read_table");
+
+        // Telemetry: rfc_table_read fires once per statement (bind), timing the
+        // SAP metadata round-trip. Emits feature_used {feature, duration_ms} on
+        // success; a failure below emits an enumerated $exception. No table name,
+        // column list, FILTER/where clause or SQL is ever sent.
+        erpl_telemetry::ScopedFeature feat_timer(erpl_telemetry::feature::kRfcTableRead);
 
         auto table_name = input.inputs[0].ToString();
         auto &named_params = input.named_parameters;
@@ -54,7 +61,15 @@ namespace duckdb
             bind_data->SetSecretName(secret_name);
         }
         bind_data->InitOptionsFromWhereClause(where_clause);
-        bind_data->InitAndVerifyFields(fields);
+        try {
+            bind_data->InitAndVerifyFields(fields);
+        } catch (...) {
+            feat_timer.Cancel();
+            erpl_telemetry::CaptureError(erpl_telemetry::error_class::kRfcError,
+                                         erpl_telemetry::feature::kRfcTableRead,
+                                         erpl_telemetry::phase::kRead);
+            throw;
+        }
 
         names = bind_data->GetRfcColumnNames();
         return_types = bind_data->GetReturnTypes();

@@ -33,7 +33,7 @@ namespace duckdb
                                                           vector<LogicalType> &return_types, 
                                                           vector<string> &names) 
     {   
-        PostHogTelemetry::Instance().CaptureFunctionExecution("sap_rfc_search_function");
+        PostHogTelemetry::Instance().RecordFunctionCall("sap_rfc_search_function");
         
         // Connect to the SAP system
         auto connection = RfcAuthParams::FromContext(context).Connect();

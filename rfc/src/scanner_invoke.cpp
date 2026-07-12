@@ -2,6 +2,7 @@
 #include "scanner_invoke.hpp"
 #include "sap_secret.hpp"
 #include "telemetry.hpp"
+#include "erpl_telemetry.hpp"
 
 namespace duckdb 
 {
@@ -22,10 +23,10 @@ namespace duckdb
                                                   vector<LogicalType> &return_types, 
                                                   vector<string> &names) 
     {
-        PostHogTelemetry::Instance().CaptureFunctionExecution("sap_rfc_invoke");
+        PostHogTelemetry::Instance().RecordFunctionCall("sap_rfc_invoke");
 
         auto &inputs = input.inputs;
-        
+
         // Connect to the SAP system
         auto connection = GetAuthParamsFromContext(context, input).Connect();
 
@@ -33,7 +34,27 @@ namespace duckdb
         auto func_name = inputs[0].GetValue<string>();
         auto func_args = std::vector<Value>(inputs.begin()+1, inputs.end());
         auto path = GetPathNamedParam(input);
-        auto result_set = RfcResultSet::InvokeFunction(connection, func_name, func_args, path);
+
+        // Telemetry: SAP BAPIs are RFC-enabled function modules whose names start
+        // with "BAPI_"; classify by that prefix so the dashboard can split BAPI
+        // vs plain RFC. The prefix check is a code-controlled classification — the
+        // function name itself is NEVER sent. Times only the RFC round-trip and
+        // emits feature_used {feature, duration_ms} on success; a failure emits an
+        // enumerated $exception instead (feature timer cancelled).
+        const char *feat = StringUtil::StartsWith(StringUtil::Upper(func_name), "BAPI_")
+                               ? erpl_telemetry::feature::kBapiCall
+                               : erpl_telemetry::feature::kSapRfc;
+        erpl_telemetry::ScopedFeature feat_timer(feat);
+        std::shared_ptr<RfcResultSet> result_set;
+        try {
+            result_set = RfcResultSet::InvokeFunction(connection, func_name, func_args, path);
+        } catch (...) {
+            feat_timer.Cancel();
+            erpl_telemetry::CaptureError(erpl_telemetry::error_class::kRfcError,
+                                         feat, erpl_telemetry::phase::kInvoke);
+            throw;
+        }
+        feat_timer.Fire();
         names = result_set->GetResultNames();
         return_types = result_set->GetResultTypes();
 

@@ -26,7 +26,7 @@ static unique_ptr<FunctionData> RfcShowTablesBind(ClientContext &context,
                                                     vector<LogicalType> &return_types, 
                                                     vector<string> &names) 
 {
-    PostHogTelemetry::Instance().CaptureFunctionExecution("sap_show_tables");
+    PostHogTelemetry::Instance().RecordFunctionCall("sap_show_tables");
 
     auto &named_params = input.named_parameters;
     auto table_search_str = GetSearchString("TABLENAME", input);

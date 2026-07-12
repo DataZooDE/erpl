@@ -6,7 +6,7 @@
 namespace duckdb {
 
 string TunnelCloseAll(ClientContext &context, const FunctionParameters &parameters) {
-    PostHogTelemetry::Instance().CaptureFunctionExecution("tunnel_close_all");
+    PostHogTelemetry::Instance().RecordFunctionCall("tunnel_close_all");
     
     // Close all tunnels using the tunnel manager
     g_tunnel_manager->CloseAllTunnels();

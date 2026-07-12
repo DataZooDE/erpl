@@ -7,7 +7,7 @@
 namespace duckdb {
 
 string TunnelCreate(ClientContext &context, const FunctionParameters &parameters) {
-    PostHogTelemetry::Instance().CaptureFunctionExecution("tunnel_create");
+    PostHogTelemetry::Instance().RecordFunctionCall("tunnel_create");
     
     // Get authentication parameters from the secret
     auto auth_params = GetTunnelAuthParamsFromContext(context, parameters);
