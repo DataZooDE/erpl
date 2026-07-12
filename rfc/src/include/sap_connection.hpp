@@ -92,5 +92,14 @@ namespace duckdb
 		static RfcAuthParams FromContext(ClientContext &context, const string &secret_name = SAP_SECRET_DEFAULT_PATH);
 		string ToString();
 		std::shared_ptr<RfcConnection> Connect();
+
+		// Enumerated auth kind (basic|sso|snc) for telemetry — derived purely
+		// from which credential fields are set. Returns no credential material.
+		const char *TelemetryAuthKind() const;
 	};
+
+	// Maps an RFC_RC failure code to an enumerated telemetry error_class
+	// (auth_error|connection_failed|timeout|rfc_error). Code-controlled enum in,
+	// enum out — never inspects or forwards the SAP error message.
+	const char *RfcTelemetryErrorClass(RFC_RC code);
 } // namespace duckdb

@@ -30,7 +30,7 @@ static unique_ptr<FunctionData> RfcShowGroupBind(ClientContext &context,
                                                         vector<LogicalType> &return_types, 
                                                         vector<string> &names) 
 {
-    PostHogTelemetry::Instance().CaptureFunctionExecution("sap_rfc_search_group");
+    PostHogTelemetry::Instance().RecordFunctionCall("sap_rfc_search_group");
 
     // Connect to the SAP system
     auto connection = RfcAuthParams::FromContext(context).Connect();

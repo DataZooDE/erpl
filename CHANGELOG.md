@@ -23,6 +23,34 @@ LOAD erpl;
 
 ---
 
+## v2026.07.12 — Cross-product telemetry (schema 2)
+
+- **[all]** Adopt the shared cross-product **posthog-telemetry schema-2**
+  telemetry. The library is bumped to its analysis-first API (`e41682b`), which
+  supersedes the prior shutdown-race pin (an ancestor commit) so the teardown
+  SIGSEGV fix is retained while the new envelope + APIs are added. Every
+  sub-extension now identifies the product at load
+  (`SetProduct("erpl", …, "oss")`) and associates a pseudonymous `deployment`
+  group; `extension_loaded` is unchanged. Opt-out is unchanged and still fully
+  short-circuiting (`SET erpl_telemetry_enabled = false`, or
+  `DATAZOO_DISABLE_TELEMETRY=1`).
+- **[rfc]** Emit `feature_used` at the real entry points — `connection_opened`
+  (`auth_kind` ∈ `basic|sso|snc`), `sap_rfc`/`bapi_call` (`duration_ms`, split by
+  the `BAPI_` module-name prefix), and `rfc_table_read` (`duration_ms`). Caught
+  failures on the connect/invoke/read paths emit an enumerated `$exception`
+  (`error_class` mapped from `RFC_RC`, plus `feature`/`phase`) — never a SAP
+  message, host, user, table, or SQL.
+- **[odp]** Emit `odp_extract` `feature_used` with `mode` ∈ `full|delta` and
+  `duration_ms` at the full/delta read binds.
+- **[bics]** / **[tunnel]** Route all DuckDB function calls through
+  `RecordFunctionCall(...)`, aggregated into one `function_executed` per function
+  per session instead of a per-call event.
+- **[all]** New header-only helper `rfc/src/include/erpl_telemetry.hpp` (bounded
+  `feature`/`auth_kind`/`error_class`/`phase` enums + a success-only
+  `ScopedFeature` timer), a `TELEMETRY.md` describing exactly what is collected,
+  and a `[telemetry_verify]` regression test. Only enumerated/numeric property
+  values ever leave the machine.
+
 ## v2026.07.02 — BICS transformation field mappings
 
 - **[bics]** Fix: `sap_bics_meta_transform_fields` returned **0 rows on every

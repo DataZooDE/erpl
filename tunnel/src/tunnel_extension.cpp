@@ -11,6 +11,7 @@
 #include "pragma_tunnel_close_all.hpp"
 #include "scanner_tunnels.hpp"
 #include "telemetry.hpp"
+#include "erpl_telemetry.hpp"
 
 // Needed for OPENSSL_init_ssl / OPENSSL_INIT_NO_ATEXIT
 #include <openssl/ssl.h>
@@ -115,6 +116,7 @@ static void LoadInternal(ExtensionLoader &loader)
 
     loader.SetDescription("SSH tunnel management for DuckDB — create and manage SSH tunnels to securely reach SAP systems behind firewalls.");
 
+    erpl_telemetry::InitProduct();
     PostHogTelemetry::Instance().CaptureExtensionLoad("erpl_tunnel");
 
     RegisterConfiguration(loader);

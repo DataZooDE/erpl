@@ -21,6 +21,7 @@
 #include "sap_rfc.hpp"
 
 #include "telemetry.hpp"
+#include "erpl_telemetry.hpp"
 #include "sap_connection.hpp"
 #include "sap_function.hpp"
 #include "sap_secret.hpp"
@@ -363,6 +364,7 @@ namespace duckdb {
 
         loader.SetDescription("SAP RFC connectivity for DuckDB — read tables, invoke function modules, and browse SAP metadata directly via the RFC protocol.");
 
+        erpl_telemetry::InitProduct();
         PostHogTelemetry::Instance().CaptureExtensionLoad("erpl_rfc");
 
         RegisterConfiguration(loader);

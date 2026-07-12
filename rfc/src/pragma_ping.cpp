@@ -5,7 +5,7 @@
 namespace duckdb {
     string RfcPing(ClientContext &context, const FunctionParameters &parameters) 
     {
-        PostHogTelemetry::Instance().CaptureFunctionExecution("sap_rfc_ping");
+        PostHogTelemetry::Instance().RecordFunctionCall("sap_rfc_ping");
 
         // Connect to the SAP system
         auto auth_params = GetAuthParamsFromContext(context, parameters);

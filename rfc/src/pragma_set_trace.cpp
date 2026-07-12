@@ -22,7 +22,7 @@ namespace duckdb
 
     string PragmaSetTraceLevel(ClientContext &context, const FunctionParameters &parameters) 
     {
-        PostHogTelemetry::Instance().CaptureFunctionExecution("sap_rfc_set_trace_level");
+        PostHogTelemetry::Instance().RecordFunctionCall("sap_rfc_set_trace_level");
 
         RFC_RC rc = RFC_OK;
         RFC_ERROR_INFO error_info;
@@ -40,7 +40,7 @@ namespace duckdb
 
     string PragmaSetTraceDir(ClientContext &context, const FunctionParameters &parameters) 
     {
-        PostHogTelemetry::Instance().CaptureFunctionExecution("sap_rfc_set_trace_dir");
+        PostHogTelemetry::Instance().RecordFunctionCall("sap_rfc_set_trace_dir");
 
         RFC_RC rc = RFC_OK;
         RFC_ERROR_INFO error_info;
@@ -57,7 +57,7 @@ namespace duckdb
 
     string PragmaSetMaximumTraceFileSize(ClientContext &context, const FunctionParameters &parameters) 
     {
-        PostHogTelemetry::Instance().CaptureFunctionExecution("sap_rfc_set_maximum_trace_file_size");
+        PostHogTelemetry::Instance().RecordFunctionCall("sap_rfc_set_maximum_trace_file_size");
 
         RFC_RC rc = RFC_OK;
         RFC_ERROR_INFO error_info;
@@ -76,7 +76,7 @@ namespace duckdb
 
     string PragmaSetMaximumStoredTraceFiles(ClientContext &context, const FunctionParameters &parameters)
     {
-        PostHogTelemetry::Instance().CaptureFunctionExecution("sap_rfc_set_maximum_stored_trace_files");
+        PostHogTelemetry::Instance().RecordFunctionCall("sap_rfc_set_maximum_stored_trace_files");
 
         RFC_RC rc = RFC_OK;
         RFC_ERROR_INFO error_info;

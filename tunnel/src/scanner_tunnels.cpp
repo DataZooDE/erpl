@@ -5,7 +5,7 @@
 namespace duckdb {
 
 unique_ptr<FunctionData> ListTunnelsBind(ClientContext &context, TableFunctionBindInput &input, vector<LogicalType> &return_types, vector<string> &names) {
-    PostHogTelemetry::Instance().CaptureFunctionExecution("tunnels");
+    PostHogTelemetry::Instance().RecordFunctionCall("tunnels");
     
     return_types.push_back(LogicalType::BIGINT);    // tunnel_id
     return_types.push_back(LogicalType::VARCHAR);   // ssh_host

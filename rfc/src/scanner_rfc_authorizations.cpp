@@ -106,7 +106,7 @@ static unique_ptr<FunctionData> RfcAuthorizationsBind(ClientContext &context,
                                                       vector<LogicalType> &return_types,
                                                       vector<string> &names)
 {
-    PostHogTelemetry::Instance().CaptureFunctionExecution("sap_rfc_authorizations");
+    PostHogTelemetry::Instance().RecordFunctionCall("sap_rfc_authorizations");
 
     names = {"extension", "duckdb_function", "rfc_function_module", "invocation", "purpose"};
     return_types = {LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR,

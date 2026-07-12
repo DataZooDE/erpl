@@ -6,7 +6,7 @@
 namespace duckdb {
 
 string TunnelClose(ClientContext &context, const FunctionParameters &parameters) {
-    PostHogTelemetry::Instance().CaptureFunctionExecution("tunnel_close");
+    PostHogTelemetry::Instance().RecordFunctionCall("tunnel_close");
     
     // Extract tunnel_id from positional parameters
     int64_t tunnel_id = parameters.values[0].GetValue<int64_t>(); 

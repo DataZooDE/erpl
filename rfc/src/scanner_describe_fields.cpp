@@ -26,7 +26,7 @@ namespace duckdb
                                                           vector<LogicalType> &return_types, 
                                                           vector<string> &names) 
     {
-        PostHogTelemetry::Instance().CaptureFunctionExecution("sap_describe_fields");
+        PostHogTelemetry::Instance().RecordFunctionCall("sap_describe_fields");
 
         // Connect to the SAP system
         auto connection = RfcAuthParams::FromContext(context).Connect();
