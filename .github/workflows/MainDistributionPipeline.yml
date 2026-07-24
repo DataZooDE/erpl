@@ -37,11 +37,11 @@ jobs:
       deploy_versioned: ${{ !(startsWith(github.ref, 'refs/tags/v')) && !(github.ref == 'refs/heads/master') }}
 
   duckdb-stable-build-v154:
-    name: Build v.1.5.4 extension binaries
+    name: Build v.1.5.5 extension binaries
     uses: ./.github/workflows/_extension_build.yml
     secrets: inherit
     with:
-      duckdb_version: v1.5.4
+      duckdb_version: v1.5.5
       extension_name: erpl
       exclude_archs: linux_arm64;windows_amd64_rtools;wasm_mvp;wasm_eh;wasm_threads;
 
@@ -51,7 +51,7 @@ jobs:
     uses: ./.github/workflows/_extension_deploy.yml
     secrets: inherit
     with:
-      duckdb_version: v1.5.4
+      duckdb_version: v1.5.5
       extension_name: erpl
       exclude_archs: linux_arm64;windows_amd64_rtools;wasm_mvp;wasm_eh;wasm_threads;
       deploy_latest: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
