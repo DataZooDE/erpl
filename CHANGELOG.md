@@ -23,6 +23,29 @@ LOAD erpl;
 
 ---
 
+## Unreleased
+
+- **[bics]** Support **BEx query variable submission** ([#96](https://github.com/DataZooDE/erpl/issues/96)).
+  `sap_bics_begin` gains `variables => LIST<STRUCT(NAME, SIGN, OP, LOW, HIGH)>`,
+  `hierarchy_variables => …` and `variant => …`. Values are submitted with
+  `BICS_PROV_OPEN` through `I_T_VIEW_VARIABLE_VALUES`, so a BEx query with a
+  mandatory variable prompt can be initialized and executed. Single values,
+  intervals, multiple values (repeat `NAME`) and hierarchy nodes are supported.
+  The shape mirrors the existing ODP `filters` select-option convention.
+- **[bics]** New `sap_bics_variables(info_provider [, query])` lists a query's
+  variables with their `mandatory` / `input_enabled` flags, so callers can
+  discover what has to be filled.
+- **[bics]** A query whose mandatory variables are unfilled used to surface as
+  a DuckDB internal error ("Table function must return at least one column").
+  It now reports which variables are missing. A variable name the query does
+  not expose as input-ready is rejected instead of being silently ignored by BW.
+- **[bics]** Fix session restore for query-based sessions: the InfoProvider and
+  query names are now persisted with the state. `BICS_PROV_GET_INITIAL_STATE`
+  does not carry them for queries, so any second statement against a session
+  opened by query name previously failed with "Failed to open data provider …
+  for info provider ''". This affected every chained `begin → rows → result`
+  workflow on a BEx query, not just variable-driven ones.
+
 ## v2026.07.12 — Cross-product telemetry (schema 2)
 
 - **[all]** Adopt the shared cross-product **posthog-telemetry schema-2**

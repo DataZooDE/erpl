@@ -514,19 +514,78 @@ SELECT * FROM sap_bics_hierarchy('ZCOSTCENTER_H01', version='A', date_to='202512
 
 BICS queries use a stateful workflow: initialize a session, configure axes and filters, then fetch results.
 
-#### Step 1: `sap_bics_begin(cube_name [, id, return, secret])`
+#### Step 1: `sap_bics_begin(cube_name [, id, return, variables, hierarchy_variables, variant, secret])`
 
-Initialize a BICS query session.
+Initialize a BICS query session. `cube_name` may also be a BEx query technical
+name, which is resolved to its InfoProvider via `RSRREPDIR`.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `cube_name` | VARCHAR | *required* | Cube technical name |
+| `cube_name` | VARCHAR | *required* | Cube or BEx query technical name |
 | `id` | VARCHAR | — | User-defined state ID |
 | `return` | BICS_RETURN | `'DESCRIBE'` | `'DESCRIBE'` for metadata, `'RESULT'` for data |
+| `variables` | LIST\<STRUCT\> | — | BEx variable values (see below) |
+| `hierarchy_variables` | LIST\<STRUCT\> | — | Hierarchy-node variable values (see below) |
+| `variant` | VARCHAR | — | Name of a saved BEx variant to fill the variables |
 | `secret` | VARCHAR | — | Named secret |
 
 ```sql
 SELECT * FROM sap_bics_begin('MY_CUBE', id='my_session');
+```
+
+**`variables` shape** — `LIST<STRUCT(NAME, SIGN, OP, LOW, HIGH)>`, mapped onto
+SAP's `BICS_PROV_STATE_INIT_VARIABLES` row type and submitted with
+`BICS_PROV_OPEN`. It mirrors the ODP `filters` shape, with `NAME` naming a BEx
+variable instead of a field:
+
+| Field | Type | Semantics |
+|-------|------|-----------|
+| `NAME` | VARCHAR | BEx variable technical name |
+| `SIGN` | VARCHAR | `'I'` (include) or `'E'` (exclude); defaults to `'I'` |
+| `OP` | VARCHAR | `'EQ'`, `'BT'`, `'GE'`, `'LE'`, `'CP'`, …; defaults to `'BT'` when `HIGH` is given, else `'EQ'` |
+| `LOW` | VARCHAR | Value, or lower bound of an interval |
+| `HIGH` | VARCHAR | Upper bound of an interval; empty otherwise |
+
+Repeat `NAME` to fill a multi-value variable — that is how multiple values
+travel on the wire.
+
+```sql
+SELECT * FROM sap_bics_begin('MY_QUERY', id='q1',
+    variables => [
+        {'NAME':'ZVAR_YEAR', 'SIGN':'I', 'OP':'EQ', 'LOW':'2026', 'HIGH':''},
+        {'NAME':'ZVAR_DATE', 'SIGN':'I', 'OP':'BT', 'LOW':'20260101', 'HIGH':'20260131'}
+    ]);
+```
+
+Values are stored with the session state and replayed whenever the session is
+restored, so a chained `begin → rows → result` workflow stays restricted.
+
+**`hierarchy_variables` shape** — `LIST<STRUCT(NAME, LOW, HIERARCHY_NAME,
+HIERARCHY_VERSION, HIERARCHY_DUE_DATE)>`. Separate from `variables` so the
+common case does not have to spell out the hierarchy fields;
+`HIERARCHY_DUE_DATE` defaults to `'99991231'`.
+
+A variable name the query does not expose as input-ready is rejected — BW would
+otherwise ignore it silently and return an unrestricted result.
+
+#### `sap_bics_variables(info_provider [, query, id, secret])`
+
+List the BEx variables of a query, to find out what `variables` has to fill.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `name` | VARCHAR | Technical name |
+| `text` | VARCHAR | Description |
+| `mandatory` | BOOLEAN | BW refuses to produce a result until this one has a value |
+| `input_enabled` | BOOLEAN | Can be filled by the caller (exit variables cannot) |
+| `is_exit_variable` | BOOLEAN | Filled by a BW customer-exit, not by the caller |
+| `var_type` | VARCHAR | `CHARACTERISTIC_VALUE`, `HIERARCHY`, `TEXT`, `FORMULA`, `HIERARCHY_NODE` |
+| `selection_type` | VARCHAR | `SINGLE_VALUE`, `INTERVAL`, `SELECTION_OPTION`, `MULTIPLE_VALUES`, `PRECALCULATED_VALUE_SET` |
+| `entry_type` | VARCHAR | `OPTIONAL`, `MANDATORY`, `MANDATORY_NOT_INITIAL` |
+| `reference_char` | VARCHAR | Characteristic a hierarchy-node variable refers to |
+
+```sql
+SELECT * FROM sap_bics_variables('MY_QUERY');
 ```
 
 #### Step 2: `sap_bics_rows(state_id, char1 [, char2, ..., op, return])`
