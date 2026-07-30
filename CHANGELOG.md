@@ -50,6 +50,15 @@ LOAD erpl;
   query's schema does not narrow just because it returned nothing. State-derived column
   names are unchanged whenever the state agrees on the count; otherwise names come from
   the result's own members, falling back to `ROW_<n>`.
+- **[bics]** Name the row axis from the query's design-time metadata when the session
+  state carries none, instead of falling back to `ROW_1`, `ROW_2`, …. The extra
+  `BICS_PROV_GET_DESIGN_TIME_INFO` call is made only when the state cannot name the
+  axis, and both sources are matched on the characteristic id rather than by position,
+  so a column is never labelled with an unrelated characteristic.
+- **[odp]** `test_odp_com` hardcoded SAP credentials with a password that no longer
+  matched the trial system, so every run performed a failed logon — enough repeats lock
+  the SAP user globally and break every other suite. It now reads the standard
+  `ERPL_SAP_*` variables and skips when they are unset.
 - **[bics]** Revive the C++ tests that had gone dark: the test binaries link
   `dummy_static_extension_loader`, whose `LoadAllExtensions` is a no-op, so nothing
   registered `core_functions` and every test that evaluates a serialized `Value`

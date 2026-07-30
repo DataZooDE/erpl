@@ -688,9 +688,12 @@ one `DOUBLE` column per column-axis leaf.
 The number of row-axis columns follows the result set the BW server returns; when a
 result carries no rows at all, the session state's axis is used instead so a query's
 schema does not change shape just because it returned nothing.
-Column names come from the session state when it describes the axis; BEx queries whose
-drilldown lives in the query definition rather than the state are named from the result's
-own members, falling back to `ROW_1`, `ROW_2`, … when no metadata is available for them.
+
+Column names are resolved in order: the session state, then the query's design-time
+metadata (one extra RFC call, made only when the state cannot name the axis — the case
+for BEx queries whose drilldown lives in the query definition), then `ROW_1`, `ROW_2`,
+…. Both metadata sources are matched on the member's characteristic id, never by
+position, so a column is never labelled with an unrelated characteristic.
 
 ```sql
 -- Complete workflow
