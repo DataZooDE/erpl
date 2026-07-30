@@ -1148,13 +1148,27 @@ All parameters are VARCHAR. Choose either direct connection or load-balanced par
 | `group` | Logon group | — | required |
 | `client` | SAP client number | required | required |
 | `user` | Username | required | required |
-| `passwd` | Password (redacted) | required | required |
+| `passwd` | Password (redacted) | required¹ | required¹ |
 | `lang` | Language (e.g. `'EN'`) | optional | optional |
+| `snc_mode` | Activate SNC — `'1'` on, `'0'` off | optional | optional |
+| `snc_sso` | Use the SNC identity for logon (`'1'`/`'0'`) | optional | optional |
 | `snc_qop` | SNC quality of protection | optional | optional |
 | `snc_myname` | SNC client name | optional | optional |
 | `snc_partnername` | SNC server name | optional | optional |
 | `snc_lib` | SNC library path | optional | optional |
-| `mysapsso2` | SSO2 ticket | optional | optional |
+| `mysapsso2` | SSO2 ticket (redacted) | optional | optional |
+| `x509cert` | X.509 certificate for logon (redacted) | optional | optional |
+| `saprouter` | SAProuter string, e.g. `'/H/routerhost/S/3299'` | optional | optional |
+| `gwhost` | Gateway host | optional | optional |
+| `gwserv` | Gateway service | optional | optional |
+| `codepage` | Logon codepage, e.g. `'4103'` | optional | optional |
+| `trace` | SAP RFC trace level `'0'`–`'3'` | optional | optional |
+| `dest` | Destination in `sapnwrfc.ini` | optional | optional |
+
+¹ Not required when logging on via SNC or an SSO2 ticket.
+
+The parameter names are passed through to `RfcOpenConnection` unchanged, so they
+follow the SAP NetWeaver RFC SDK documentation.
 
 ```sql
 -- Direct connection
@@ -1170,7 +1184,21 @@ CREATE SECRET my_sap_lb (
     MSHOST 'sapms.example.com', SYSID 'PRD', GROUP 'PUBLIC',
     CLIENT '100', USER 'sapuser', PASSWD 'password'
 );
+
+-- SNC / Kerberos logon, without a password
+CREATE SECRET my_sap_snc (
+    TYPE sap_rfc,
+    ASHOST 'sap.example.com', SYSNR '00', CLIENT '100', USER 'sapuser',
+    SNC_MODE '1',
+    SNC_PARTNERNAME 'p:CN=SAP/sap.example.com@EXAMPLE.LOCAL',
+    SNC_LIB '/usr/lib/libgsskrb5.so'
+);
 ```
+
+A secret is selected by name via the `secret` argument, e.g.
+`PRAGMA sap_rfc_ping(secret='my_sap_snc')` or
+`SELECT * FROM sap_read_table('SFLIGHT', secret='my_sap_snc')`. Without it, the
+best-matching `sap_rfc` secret in scope is used.
 
 ---
 

@@ -38,7 +38,24 @@ namespace duckdb
         auto &secret_manager = duckdb::SecretManager::Get(context);
         auto transaction = duckdb::CatalogTransaction::GetSystemCatalogTransaction(context);
 
-        // Lookup the secret
+        // A caller that named a secret gets that secret. LookupSecret() matches
+        // the argument against the secret *scopes*, not against the name, so
+        // using it here handed back whatever sap_rfc secret happened to be in
+        // scope — silently connecting with another system's credentials.
+        if (!secret_name.empty() && secret_name != SAP_SECRET_DEFAULT_PATH) {
+            auto secret_entry = secret_manager.GetSecretByName(transaction, secret_name);
+            if (!secret_entry) {
+                throw InvalidInputException("Secret '%s' not found", secret_name);
+            }
+            if (secret_entry->secret->GetType() != SAP_SECRET_TYPE_NAME) {
+                throw InvalidInputException("Secret '%s' is of type '%s', expected '%s'", secret_name,
+                                            secret_entry->secret->GetType(), SAP_SECRET_TYPE_NAME);
+            }
+            const auto &named_secret = dynamic_cast<const KeyValueSecret &>(*secret_entry->secret);
+            return ConvertSecretToAuthParams(named_secret);
+        }
+
+        // No secret named: fall back to the best scope match.
         auto secret_match = secret_manager.LookupSecret(transaction, secret_name, "sap_rfc");
         if (! secret_match.HasMatch()) {
 
@@ -50,142 +67,100 @@ namespace duckdb
         return ConvertSecretToAuthParams(duck_secret);
     }
 
+    const vector<RfcAuthParamDefinition> &RfcAuthParamDefinitions()
+    {
+        // The names are the ones documented for RfcOpenConnection in the SAP
+        // NetWeaver RFC SDK; they are passed through unchanged.
+        static const vector<RfcAuthParamDefinition> definitions = {
+            {"ashost",          &RfcAuthParams::ashost,          false},
+            {"sysnr",           &RfcAuthParams::sysnr,           false},
+            {"user",            &RfcAuthParams::user,            false},
+            {"passwd",          &RfcAuthParams::password,        true},
+            {"client",          &RfcAuthParams::client,          false},
+            {"lang",            &RfcAuthParams::lang,            false},
+            {"mshost",          &RfcAuthParams::mshost,          false},
+            {"msserv",          &RfcAuthParams::msserv,          false},
+            {"sysid",           &RfcAuthParams::sysid,           false},
+            {"group",           &RfcAuthParams::group,           false},
+            {"snc_mode",        &RfcAuthParams::snc_mode,        false},
+            {"snc_sso",         &RfcAuthParams::snc_sso,         false},
+            {"snc_qop",         &RfcAuthParams::snc_qop,         false},
+            {"snc_myname",      &RfcAuthParams::snc_myname,      false},
+            {"snc_partnername", &RfcAuthParams::snc_partnername, false},
+            {"snc_lib",         &RfcAuthParams::snc_lib,         false},
+            {"mysapsso2",       &RfcAuthParams::mysapsso2,       true},
+            {"x509cert",        &RfcAuthParams::x509cert,        true},
+            {"saprouter",       &RfcAuthParams::saprouter,       false},
+            {"gwhost",          &RfcAuthParams::gwhost,          false},
+            {"gwserv",          &RfcAuthParams::gwserv,          false},
+            {"codepage",        &RfcAuthParams::codepage,        false},
+            {"trace",           &RfcAuthParams::trace,           false},
+            {"dest",            &RfcAuthParams::dest,            false},
+        };
+        return definitions;
+    }
+
+    vector<std::pair<std::string, std::string>> RfcAuthParams::BuildConnectionParams() const
+    {
+        vector<std::pair<std::string, std::string>> params;
+        for (auto &definition : RfcAuthParamDefinitions()) {
+            const auto &value = this->*definition.member;
+            if (value.empty()) {
+                continue;
+            }
+            params.emplace_back(definition.name, value);
+        }
+        return params;
+    }
+
     std::string RfcAuthParams::ToString() {
         std::stringstream ss;
-        ss << "ashost=" << ashost;
-        if (!sysnr.empty()) ss << " sysnr=" << sysnr;
-        if (!user.empty()) ss << " user=" << user;
-        if (!password.empty()) ss << " password=***";
-        if (!client.empty()) ss << " client=" << client;
-        if (!lang.empty()) ss << " lang=" << lang;
-        if (!mshost.empty()) ss << " mshost=" << mshost;
-        if (!msserv.empty()) ss << " msserv=" << msserv;
-        if (!sysid.empty()) ss << " sysid=" << sysid;
-        if (!group.empty()) ss << " group=" << group;
-        if (!snc_qop.empty()) ss << " snc_qop=" << snc_qop;
-        if (!snc_myname.empty()) ss << " snc_myname=" << snc_myname;
-        if (!snc_partnername.empty()) ss << " snc_partnername=" << snc_partnername;
-        if (!snc_lib.empty()) ss << " snc_lib=" << snc_lib;
-        if (!mysapsso2.empty()) ss << " mysapsso2=" << mysapsso2;
+        bool first = true;
+        for (auto &definition : RfcAuthParamDefinitions()) {
+            const auto &value = this->*definition.member;
+            if (value.empty()) {
+                continue;
+            }
+            if (!first) {
+                ss << " ";
+            }
+            first = false;
+            ss << definition.name << "=" << (definition.secret ? "***" : value);
+        }
         return ss.str();
     }
 
     std::shared_ptr<RfcConnection> RfcAuthParams::Connect() 
     {
         RFC_ERROR_INFO error_info;
-        RFC_CONNECTION_PARAMETER params[15];
-        size_t param_count = 0; 
 
-        auto ashost = std2uc(this->ashost);
-        if (strlenR(ashost.get()) > 0) {
-            params[param_count].name = cU("ashost");
-            params[param_count].value = ashost.get();
-            param_count++;
-        }
+        // Marshal the parameter list into the SDK's wide-character representation.
+        // `storage` owns the converted strings and must outlive the RfcOpenConnection
+        // call, since RFC_CONNECTION_PARAMETER only holds pointers into it.
+        auto param_list = BuildConnectionParams();
+        std::vector<unique_ptr<SAP_UC, void (*)(void *)>> storage;
+        std::vector<RFC_CONNECTION_PARAMETER> params;
+        storage.reserve(param_list.size() * 2);
+        params.reserve(param_list.size());
 
-        auto sysnr = std2uc(this->sysnr);
-        if (strlenR(sysnr.get()) > 0) {
-            params[param_count].name = cU("sysnr");	
-            params[param_count].value = sysnr.get();
-            param_count++;
-        }
+        for (auto &param : param_list) {
+            storage.push_back(std2uc(param.first));
+            auto name = storage.back().get();
+            storage.push_back(std2uc(param.second));
+            auto value = storage.back().get();
 
-        auto user = std2uc(this->user);
-        if (strlenR(user.get()) > 0) {
-            params[param_count].name = cU("user");	
-            params[param_count].value = user.get();
-            param_count++;
+            RFC_CONNECTION_PARAMETER rfc_param;
+            rfc_param.name = name;
+            rfc_param.value = value;
+            params.push_back(rfc_param);
         }
+        auto param_count = params.size();
 
-        auto password = std2uc(this->password);
-        if (strlenR(password.get()) > 0) {
-            params[param_count].name = cU("passwd");	
-            params[param_count].value = password.get();
-            param_count++;
-        }
-
-        auto client = std2uc(this->client);
-        if (strlenR(client.get()) > 0) {
-            params[param_count].name = cU("client");	
-            params[param_count].value = client.get();
-            param_count++;
-        }
-
-        auto lang = std2uc(this->lang);
-        if (strlenR(lang.get()) > 0) {
-            params[param_count].name = cU("lang");	
-            params[param_count].value = lang.get(); 
-            param_count++;
-        }
-
-        auto mshost = std2uc(this->mshost);
-        if (strlenR(mshost.get()) > 0) {
-            params[param_count].name = cU("mshost");	
-            params[param_count].value = mshost.get();
-            param_count++;
-        }
-
-        auto msserv = std2uc(this->msserv);
-        if (strlenR(msserv.get()) > 0) {
-            params[param_count].name = cU("msserv");	
-            params[param_count].value = msserv.get();
-            param_count++;
-        }
-
-        auto sysid = std2uc(this->sysid);
-        if (strlenR(sysid.get()) > 0) {
-            params[param_count].name = cU("sysid");	
-            params[param_count].value = sysid.get();
-            param_count++;
-        }   
-
-        auto group = std2uc(this->group);
-        if (strlenR(group.get()) > 0) {
-            params[param_count].name = cU("group");	
-            params[param_count].value = group.get();
-            param_count++;
-        }
-
-        auto snc_qop = std2uc(this->snc_qop);
-        if (strlenR(snc_qop.get()) > 0) {
-            params[param_count].name = cU("snc_qop");	
-            params[param_count].value = snc_qop.get();
-            param_count++;
-        }
-        
-        auto snc_myname = std2uc(this->snc_myname);
-        if (strlenR(snc_myname.get()) > 0) {
-            params[param_count].name = cU("snc_myname");	
-            params[param_count].value = snc_myname.get();
-            param_count++;
-        }
-        
-        auto snc_partnername = std2uc(this->snc_partnername);
-        if (strlenR(snc_partnername.get()) > 0) {
-            params[param_count].name = cU("snc_partnername");	
-            params[param_count].value = snc_partnername.get();
-            param_count++;
-        }
-        
-        auto snc_lib = std2uc(this->snc_lib);
-        if (strlenR(snc_lib.get()) > 0) {
-            params[param_count].name = cU("snc_lib");	
-            params[param_count].value = snc_lib.get();
-            param_count++;
-        }
-        
-        auto mysapsso2 = std2uc(this->mysapsso2);
-        if (strlenR(mysapsso2.get()) > 0) {
-            params[param_count].name = cU("mysapsso2");	
-            params[param_count].value = mysapsso2.get();
-            param_count++;
-        }
-        
         // Telemetry: classify the auth method before the round-trip (pure local
         // field checks, no credential material). Emitted only on success below.
         const char *auth = TelemetryAuthKind();
 
-        auto connection_handle = RfcOpenConnection(params, param_count, &error_info);
+        auto connection_handle = RfcOpenConnection(params.data(), param_count, &error_info);
 
         if (connection_handle == NULL) {
             // Telemetry: $exception {error_class (from RFC_RC enum), feature,
@@ -208,7 +183,8 @@ namespace duckdb
         if (!mysapsso2.empty()) {
             return erpl_telemetry::auth_kind::kSso;
         }
-        if (!snc_lib.empty() || !snc_myname.empty() || !snc_partnername.empty()) {
+        if (!snc_mode.empty() || !snc_sso.empty() || !snc_lib.empty() || !snc_myname.empty() ||
+            !snc_partnername.empty() || !snc_qop.empty() || !x509cert.empty()) {
             return erpl_telemetry::auth_kind::kSnc;
         }
         return erpl_telemetry::auth_kind::kBasic;

@@ -6,11 +6,16 @@
 
 namespace duckdb {
 
-class RfcAuthParams; // Forward declaration
+struct RfcAuthParams; // Forward declaration
 
 static constexpr const char *SAP_SECRET_PROVIDER = "config";
 static constexpr const char *SAP_SECRET_TYPE_NAME = "sap_rfc";
 static constexpr const char *SAP_SECRET_DEFAULT_PATH = "*";
+
+// The parameter names accepted by a `sap_rfc` secret. Derived from
+// RfcAuthParamDefinitions() in sap_connection.hpp, which is the single source
+// of truth for the supported RfcOpenConnection parameters.
+const vector<string> &SapSecretParameterNames();
 
 // Convert a DuckDB secret to an RfcAuthParams
 RfcAuthParams ConvertSecretToAuthParams(const KeyValueSecret &duck_secret);
