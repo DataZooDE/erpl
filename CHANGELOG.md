@@ -23,7 +23,11 @@ LOAD erpl;
 
 ---
 
-## Unreleased
+## v2026.07.30 — BEx query variables
+
+The headline is that **BEx queries with a variable prompt can finally be executed**.
+Getting there uncovered a result-materialization bug that made several BEx queries
+unreadable regardless of variables, so both are fixed here.
 
 - **[bics]** Support **BEx query variable submission** ([#96](https://github.com/DataZooDE/erpl/issues/96)).
   `sap_bics_begin` gains `variables => LIST<STRUCT(NAME, SIGN, OP, LOW, HIGH)>`,
@@ -55,6 +59,14 @@ LOAD erpl;
   `BICS_PROV_GET_DESIGN_TIME_INFO` call is made only when the state cannot name the
   axis, and both sources are matched on the characteristic id rather than by position,
   so a column is never labelled with an unrelated characteristic.
+- **[bics]** Name measure columns from the query's design-time metadata
+  ([#101](https://github.com/DataZooDE/erpl/issues/101)). Measures came back as
+  `dyn_kf_1`, `dyn_kf_2`, … for BEx queries whose session state carries no
+  characteristic metadata — the same root cause as the row axis, one layer down.
+  Naming order is technical name, then description, then the synthetic name; the
+  middle step matters because these BEx structure members carry a description but an
+  empty technical name. Descriptions may contain spaces, so such columns need quoting:
+  `SELECT "Net Sales" FROM sap_bics_result('q1')`.
 - **[odp]** `test_odp_com` hardcoded SAP credentials with a password that no longer
   matched the trial system, so every run performed a failed logon — enough repeats lock
   the SAP user globally and break every other suite. It now reads the standard
