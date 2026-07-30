@@ -23,6 +23,39 @@ LOAD erpl;
 
 ---
 
+## v2026.07.30.1 — SNC logon and the full RfcOpenConnection parameter set
+
+Connecting through **SNC (Kerberos, X.509, SAP Single Sign-On) is now possible**:
+`SNC_MODE` could not be set on a `sap_rfc` secret, so the SAP RFC SDK never
+activated SNC and a password was effectively mandatory.
+
+- **[rfc]** The `sap_rfc` secret accepts the remaining documented
+  `RfcOpenConnection` parameters ([#98](https://github.com/DataZooDE/erpl/issues/98)):
+  `SNC_MODE`, `SNC_SSO`, `X509CERT`, `SAPROUTER`, `GWHOST`, `GWSERV`, `CODEPAGE`,
+  `TRACE` and `DEST`, alongside the existing `SNC_QOP` / `SNC_MYNAME` /
+  `SNC_PARTNERNAME` / `SNC_LIB`. A secret without `PASSWD` is valid — an
+  SNC or SSO2 logon needs none. Names are passed to the SDK unchanged.
+- **[rfc]** *Fix:* the `secret => '<name>'` argument selected a secret by **scope
+  instead of by name**. It was passed to DuckDB's `LookupSecret()` as a path, so
+  with more than one `sap_rfc` secret defined, ERPL could silently connect to a
+  different system than the one named — and a misspelled name resolved to some
+  other secret rather than erroring. Naming a secret now selects exactly that
+  secret, and an unknown name is reported.
+- **[rfc]** *Fix:* the password was **not redacted** in `duckdb_secrets()`. The
+  redact list named `password` while the stored key is `passwd`, so the plaintext
+  password was printed. `passwd`, `mysapsso2` and `x509cert` are now redacted.
+- **[rfc]** The connection parameters are defined once in a single table instead
+  of being repeated across four hand-maintained lists, which also removes a
+  fixed-size `RFC_CONNECTION_PARAMETER params[15]` stack array that exactly
+  matched the old parameter count. Telemetry's `auth_kind` recognises an
+  SNC logon that sets only `SNC_MODE` (previously reported as `basic`).
+
+Not verified end to end: the SNC handshake itself needs an SNC-enabled SAP
+system, which the ABAP trial used for CI is not. What is verified live is that
+`SNC_MODE '1'` makes the SDK initialize SNC and load the configured `SNC_LIB`.
+
+---
+
 ## v2026.07.30 — BEx query variables
 
 The headline is that **BEx queries with a variable prompt can finally be executed**.

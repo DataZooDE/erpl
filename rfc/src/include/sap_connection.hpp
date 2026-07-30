@@ -73,30 +73,64 @@ namespace duckdb
 	};
 
 	struct RfcAuthParams {
+		// Connection / logon
 		string ashost;
 		string sysnr;
 		string user;
 		string password;
 		string client;
 		string lang;
+		// Load balancing via a message server
 		string mshost;
 		string msserv;
 		string sysid;
 		string group;
+		// SNC (Secure Network Communications)
+		string snc_mode;
+		string snc_sso;
 		string snc_qop;
 		string snc_myname;
 		string snc_partnername;
 		string snc_lib;
+		// Other credential material
 		string mysapsso2;
+		string x509cert;
+		// Routing and miscellaneous
+		string saprouter;
+		string gwhost;
+		string gwserv;
+		string codepage;
+		string trace;
+		string dest;
 
 		static RfcAuthParams FromContext(ClientContext &context, const string &secret_name = SAP_SECRET_DEFAULT_PATH);
 		string ToString();
 		std::shared_ptr<RfcConnection> Connect();
 
+		// The (name, value) pairs handed to RfcOpenConnection, in table order and
+		// with unset parameters omitted — the SDK treats an empty value as an
+		// explicit empty setting for some parameters.
+		vector<std::pair<string, string>> BuildConnectionParams() const;
+
 		// Enumerated auth kind (basic|sso|snc) for telemetry — derived purely
 		// from which credential fields are set. Returns no credential material.
 		const char *TelemetryAuthKind() const;
 	};
+
+	// One entry per supported connection parameter. `name` is used verbatim as
+	// the `sap_rfc` secret parameter, as the key in the secret map, and as the
+	// RfcOpenConnection parameter name, so a parameter is added in exactly one
+	// place. Keep this the single source of truth — the secret registration,
+	// the secret -> RfcAuthParams conversion, ToString() and the SDK parameter
+	// array are all derived from it.
+	struct RfcAuthParamDefinition {
+		const char *name;
+		string RfcAuthParams::*member;
+		// Whether the value must be hidden in any human-readable rendering.
+		bool secret;
+	};
+
+	const vector<RfcAuthParamDefinition> &RfcAuthParamDefinitions();
 
 	// Maps an RFC_RC failure code to an enumerated telemetry error_class
 	// (auth_error|connection_failed|timeout|rfc_error). Code-controlled enum in,
