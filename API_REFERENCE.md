@@ -681,6 +681,17 @@ Fetch result set from configured query state.
 |-----------|------|---------|-------------|
 | `state_id` | VARCHAR | *required* | State ID |
 
+**Result shape** — one `VARCHAR` column per row-axis element carrying the formatted
+member key or text, one `INTEGER` `<name>_HIER_LEVEL` column per row-axis element, then
+one `DOUBLE` column per column-axis leaf.
+
+The number of row-axis columns follows the result set the BW server returns; when a
+result carries no rows at all, the session state's axis is used instead so a query's
+schema does not change shape just because it returned nothing.
+Column names come from the session state when it describes the axis; BEx queries whose
+drilldown lives in the query definition rather than the state are named from the result's
+own members, falling back to `ROW_1`, `ROW_2`, … when no metadata is available for them.
+
 ```sql
 -- Complete workflow
 SELECT * FROM sap_bics_begin('MY_CUBE', id='q1');

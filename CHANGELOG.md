@@ -39,6 +39,24 @@ LOAD erpl;
   a DuckDB internal error ("Table function must return at least one column").
   It now reports which variables are missing. A variable name the query does
   not expose as input-ready is rejected instead of being silently ignored by BW.
+- **[bics]** Fix `sap_bics_result` for BEx queries whose row axis the state does not
+  describe ([#99](https://github.com/DataZooDE/erpl/issues/99)). The result schema was
+  sized from the persisted state's axis tables while the data was written using the
+  result's own row-element count, so the schema collapsed to the column-axis leaves
+  (all `DOUBLE`) and materialization failed with e.g. `Could not convert string
+  'FC008' to DOUBLE`; data cells were targeted past the end of the chunk and silently
+  dropped. The schema now follows the result set, which is the only source that always
+  knows the axis width; a result with no rows at all falls back to the state, so a
+  query's schema does not narrow just because it returned nothing. State-derived column
+  names are unchanged whenever the state agrees on the count; otherwise names come from
+  the result's own members, falling back to `ROW_<n>`.
+- **[bics]** Revive the C++ tests that had gone dark: the test binaries link
+  `dummy_static_extension_loader`, whose `LoadAllExtensions` is a no-op, so nothing
+  registered `core_functions` and every test that evaluates a serialized `Value`
+  (the captured-response fixtures, the state repository round trip) failed on a missing
+  `list_value`. Test databases are now built through `MakeTestDatabase()`, which
+  registers the statically linked extension directly. Seven test cases, including the
+  `GetColumnNames` / `GetResultTypes` coverage over captured BW responses, run again.
 - **[bics]** Fix session restore for query-based sessions: the InfoProvider and
   query names are now persisted with the state. `BICS_PROV_GET_INITIAL_STATE`
   does not carry them for queries, so any second statement against a session
