@@ -23,6 +23,56 @@ LOAD erpl;
 
 ---
 
+## Unreleased
+
+- **[bics]** Support **BEx query variable submission** ([#96](https://github.com/DataZooDE/erpl/issues/96)).
+  `sap_bics_begin` gains `variables => LIST<STRUCT(NAME, SIGN, OP, LOW, HIGH)>`,
+  `hierarchy_variables => …` and `variant => …`. Values are submitted with
+  `BICS_PROV_OPEN` through `I_T_VIEW_VARIABLE_VALUES`, so a BEx query with a
+  mandatory variable prompt can be initialized and executed. Single values,
+  intervals, multiple values (repeat `NAME`) and hierarchy nodes are supported.
+  The shape mirrors the existing ODP `filters` select-option convention.
+- **[bics]** New `sap_bics_variables(info_provider [, query])` lists a query's
+  variables with their `mandatory` / `input_enabled` flags, so callers can
+  discover what has to be filled.
+- **[bics]** A query whose mandatory variables are unfilled used to surface as
+  a DuckDB internal error ("Table function must return at least one column").
+  It now reports which variables are missing. A variable name the query does
+  not expose as input-ready is rejected instead of being silently ignored by BW.
+- **[bics]** Fix `sap_bics_result` for BEx queries whose row axis the state does not
+  describe ([#99](https://github.com/DataZooDE/erpl/issues/99)). The result schema was
+  sized from the persisted state's axis tables while the data was written using the
+  result's own row-element count, so the schema collapsed to the column-axis leaves
+  (all `DOUBLE`) and materialization failed with e.g. `Could not convert string
+  'FC008' to DOUBLE`; data cells were targeted past the end of the chunk and silently
+  dropped. The schema now follows the result set, which is the only source that always
+  knows the axis width; a result with no rows at all falls back to the state, so a
+  query's schema does not narrow just because it returned nothing. State-derived column
+  names are unchanged whenever the state agrees on the count; otherwise names come from
+  the result's own members, falling back to `ROW_<n>`.
+- **[bics]** Name the row axis from the query's design-time metadata when the session
+  state carries none, instead of falling back to `ROW_1`, `ROW_2`, …. The extra
+  `BICS_PROV_GET_DESIGN_TIME_INFO` call is made only when the state cannot name the
+  axis, and both sources are matched on the characteristic id rather than by position,
+  so a column is never labelled with an unrelated characteristic.
+- **[odp]** `test_odp_com` hardcoded SAP credentials with a password that no longer
+  matched the trial system, so every run performed a failed logon — enough repeats lock
+  the SAP user globally and break every other suite. It now reads the standard
+  `ERPL_SAP_*` variables and skips when they are unset.
+- **[bics]** Revive the C++ tests that had gone dark: the test binaries link
+  `dummy_static_extension_loader`, whose `LoadAllExtensions` is a no-op, so nothing
+  registered `core_functions` and every test that evaluates a serialized `Value`
+  (the captured-response fixtures, the state repository round trip) failed on a missing
+  `list_value`. Test databases are now built through `MakeTestDatabase()`, which
+  registers the statically linked extension directly. Seven test cases, including the
+  `GetColumnNames` / `GetResultTypes` coverage over captured BW responses, run again.
+- **[bics]** Fix session restore for query-based sessions: the InfoProvider and
+  query names are now persisted with the state. `BICS_PROV_GET_INITIAL_STATE`
+  does not carry them for queries, so any second statement against a session
+  opened by query name previously failed with "Failed to open data provider …
+  for info provider ''". This affected every chained `begin → rows → result`
+  workflow on a BEx query, not just variable-driven ones.
+
 ## v2026.07.12 — Cross-product telemetry (schema 2)
 
 - **[all]** Adopt the shared cross-product **posthog-telemetry schema-2**
