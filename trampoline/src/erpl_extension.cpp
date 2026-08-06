@@ -8,6 +8,7 @@
 #include <locale>
 #include <fstream>
 #include <iostream>
+#include "datazoo_banner_duckdb.hpp"
 
 #ifdef __linux__
 
@@ -91,6 +92,11 @@ extern const unsigned int erpl_odp_duckdb_extension_len;
 
 #endif
 
+
+// Deliberately outside namespace duckdb: the banner library is DuckDB-agnostic
+// (the same header serves erpl-adt and flapi).
+const datazoo::BannerInfo ERPL_BANNER {
+    "erpl", "2026.07.24", "https://github.com/DataZooDE/erpl"};
 
 namespace duckdb 
 {
@@ -561,6 +567,13 @@ static std::string Separator() {
                  << "(The purpose of the extension is to extract dependencies and load the ERPL implementation)" << std::endl;
        ExtractExtensionsAndSapLibs();
        LoadExtensions(loader.GetDatabaseInstance());
+
+       // The banner lives here rather than in erpl_rfc / erpl_bics / erpl_odp:
+       // `LOAD erpl` is what a user types, and those three are implementation
+       // details this trampoline extracts and loads on their behalf. Putting it
+       // in each of them would stack four banners on a single LOAD.
+       datazoo::RegisterBannerOption(loader);
+       datazoo::ShowBanner(ERPL_BANNER);
     }
 
     void ErplExtension::Load(ExtensionLoader &loader) 
