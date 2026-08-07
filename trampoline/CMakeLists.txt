@@ -124,6 +124,13 @@ if(UNIX AND APPLE)
     endforeach()
 endif()
 
+# Feedback banner (header-only). Telemetry OFF: the trampoline does not link
+# posthog-telemetry -- that lives in erpl_rfc, which this extension merely
+# extracts and loads.
+set(DATAZOO_BANNER_TELEMETRY OFF CACHE BOOL "" FORCE)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../datazoo-banner datazoo-banner-build)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../datazoo-banner/include)
+
 include_directories(src/include)
 
 message(STATUS "SAPNWRFC_LIB_OBJECTS: ${SAPNWRFC_LIB_OBJECTS}")
