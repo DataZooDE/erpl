@@ -1,0 +1,265 @@
+# name: test/sql/sap_rfc_struct_layout.test
+# description: Structure field alignment — the fields *after* a nested STRING
+#              must still round-trip.
+#
+#              A deep (variable-length) component inside an otherwise flat
+#              structure is 8-byte aligned on the wire, so every field that
+#              follows it sits at an offset that depends on where the deep
+#              component ends.  Getting that wrong moves the following fields
+#              by 4-8 bytes; the call still succeeds and the values are still
+#              of the right DuckDB type, so a typeof()-only test sees nothing.
+#
+#              The tests below vary only the length of the deep component and
+#              assert that the neighbouring scalars are unchanged.  Lengths 7,
+#              8 and 9 straddle the 8-byte boundary in both directions.
+# group: [rfc]
+
+require erpl_rfc
+
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
+
+statement ok
+CREATE SECRET abap_trial (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}'
+);
+
+# -------------------------------------------------------------------------
+# 1. STFC_DEEP_STRUCTURE — STFCCPLXT is (I, C, STR, XSTR): an INT and a CHAR,
+#    then a STRING, then an XSTRING.  The XSTRING follows the STRING, so it is
+#    the field whose offset moves if the STRING is mis-sized.
+#
+#    STR is empty here; an empty ABAP STRING surfaces as NULL.
+# -------------------------------------------------------------------------
+query TTTT
+SELECT ECHOSTRUCT.I::VARCHAR,
+       ECHOSTRUCT.C,
+       coalesce(length(ECHOSTRUCT.STR)::VARCHAR, '<initial>'),
+       hex(ECHOSTRUCT.XSTR)
+FROM sap_rfc_invoke('STFC_DEEP_STRUCTURE', {'IMPORTSTRUCT': {
+    'I': -2147483648, 'C': 'ZY', 'STR': '', 'XSTR': '\x00\xFF\xBE'::BLOB
+}}, SECRET='abap_trial');
+----
+-2147483648
+ZY
+<initial>
+00FFBE
+
+# -------------------------------------------------------------------------
+# 2. …one character before the 8-byte boundary.
+# -------------------------------------------------------------------------
+query TTTT
+SELECT ECHOSTRUCT.I::VARCHAR,
+       ECHOSTRUCT.C,
+       length(ECHOSTRUCT.STR)::VARCHAR,
+       hex(ECHOSTRUCT.XSTR)
+FROM sap_rfc_invoke('STFC_DEEP_STRUCTURE', {'IMPORTSTRUCT': {
+    'I': -2147483648, 'C': 'ZY', 'STR': repeat('s', 7), 'XSTR': '\x00\xFF\xBE'::BLOB
+}}, SECRET='abap_trial');
+----
+-2147483648
+ZY
+7
+00FFBE
+
+# -------------------------------------------------------------------------
+# 3. …exactly on the boundary.
+# -------------------------------------------------------------------------
+query TTTT
+SELECT ECHOSTRUCT.I::VARCHAR,
+       ECHOSTRUCT.C,
+       length(ECHOSTRUCT.STR)::VARCHAR,
+       hex(ECHOSTRUCT.XSTR)
+FROM sap_rfc_invoke('STFC_DEEP_STRUCTURE', {'IMPORTSTRUCT': {
+    'I': -2147483648, 'C': 'ZY', 'STR': repeat('s', 8), 'XSTR': '\x00\xFF\xBE'::BLOB
+}}, SECRET='abap_trial');
+----
+-2147483648
+ZY
+8
+00FFBE
+
+# -------------------------------------------------------------------------
+# 4. …one character past it.
+# -------------------------------------------------------------------------
+query TTTT
+SELECT ECHOSTRUCT.I::VARCHAR,
+       ECHOSTRUCT.C,
+       length(ECHOSTRUCT.STR)::VARCHAR,
+       hex(ECHOSTRUCT.XSTR)
+FROM sap_rfc_invoke('STFC_DEEP_STRUCTURE', {'IMPORTSTRUCT': {
+    'I': -2147483648, 'C': 'ZY', 'STR': repeat('s', 9), 'XSTR': '\x00\xFF\xBE'::BLOB
+}}, SECRET='abap_trial');
+----
+-2147483648
+ZY
+9
+00FFBE
+
+# -------------------------------------------------------------------------
+# 5. SAPCRFC_STRU_ALLTYPES has a STRING as its *second* field, so eighteen
+#    scalars of assorted widths follow the deep component.  Send a STRING that
+#    lands on the 8-byte boundary and assert the fields behind it.
+# -------------------------------------------------------------------------
+query TTTTTTTTT
+SELECT length(O.STRING)::VARCHAR,
+       O.INT1::VARCHAR,
+       O.INT2::VARCHAR,
+       O.INT4::VARCHAR,
+       O.INT8::VARCHAR,
+       O.DEC::VARCHAR,
+       O.DATE::VARCHAR,
+       O.CHAR2,
+       O.NUMC3
+FROM sap_rfc_invoke('S_APCRFC_ECHO', {'I': {
+    'CHAR10':'ABCD',
+    'STRING':repeat('s', 8),
+    'INT1':123::TINYINT,
+    'INT2':32123::SMALLINT,
+    'INT4':-2147483123,
+    'INT8':9223372036854775123::BIGINT,
+    'DEC':(-123456789)::DECIMAL(25,0),
+    'DATE':'2013-12-11'::DATE,
+    'CHAR2':'AB',
+    'NUMC3':'3'
+}}, SECRET='abap_trial');
+----
+8
+123
+32123
+-2147483123
+9223372036854775123
+-123456789
+2013-12-11
+AB
+003
+
+# -------------------------------------------------------------------------
+# 6. …the same structure with the deep component one character shorter.  The
+#    trailing scalars must be identical to case 5.
+# -------------------------------------------------------------------------
+query TTTTTTTTT
+SELECT length(O.STRING)::VARCHAR,
+       O.INT1::VARCHAR,
+       O.INT2::VARCHAR,
+       O.INT4::VARCHAR,
+       O.INT8::VARCHAR,
+       O.DEC::VARCHAR,
+       O.DATE::VARCHAR,
+       O.CHAR2,
+       O.NUMC3
+FROM sap_rfc_invoke('S_APCRFC_ECHO', {'I': {
+    'CHAR10':'ABCD',
+    'STRING':repeat('s', 7),
+    'INT1':123::TINYINT,
+    'INT2':32123::SMALLINT,
+    'INT4':-2147483123,
+    'INT8':9223372036854775123::BIGINT,
+    'DEC':(-123456789)::DECIMAL(25,0),
+    'DATE':'2013-12-11'::DATE,
+    'CHAR2':'AB',
+    'NUMC3':'3'
+}}, SECRET='abap_trial');
+----
+7
+123
+32123
+-2147483123
+9223372036854775123
+-123456789
+2013-12-11
+AB
+003
+
+# -------------------------------------------------------------------------
+# 7. …and with the deep component carrying multi-byte characters, so its
+#    character count and its byte count differ.  A layout that sizes the
+#    following fields from the wrong one of the two drifts here.
+# -------------------------------------------------------------------------
+query TTTTTTTTT
+SELECT O.STRING,
+       O.INT1::VARCHAR,
+       O.INT2::VARCHAR,
+       O.INT4::VARCHAR,
+       O.INT8::VARCHAR,
+       O.DEC::VARCHAR,
+       O.DATE::VARCHAR,
+       O.CHAR2,
+       O.NUMC3
+FROM sap_rfc_invoke('S_APCRFC_ECHO', {'I': {
+    'CHAR10':'ABCD',
+    'STRING':'straße 東京',
+    'INT1':123::TINYINT,
+    'INT2':32123::SMALLINT,
+    'INT4':-2147483123,
+    'INT8':9223372036854775123::BIGINT,
+    'DEC':(-123456789)::DECIMAL(25,0),
+    'DATE':'2013-12-11'::DATE,
+    'CHAR2':'AB',
+    'NUMC3':'3'
+}}, SECRET='abap_trial');
+----
+straße 東京
+123
+32123
+-2147483123
+9223372036854775123
+-123456789
+2013-12-11
+AB
+003
+
+# -------------------------------------------------------------------------
+# 8. S_APCRFC_ALIGNMENT — SAP's own alignment fixtures.  SAPCRFC_ALIGNMENT1 is
+#    (CHAR, INT4, RAW, INT2) and SAPCRFC_ALIGNMENT2 appends an INT1, which
+#    changes the structure's internal padding.  The server rejects the row if
+#    any field does not carry its expected value, and appends a copy of the
+#    last row it read — so two identical rows come back only if the layout is
+#    right in both directions.
+# -------------------------------------------------------------------------
+query TTTT
+SELECT F1, F2::VARCHAR, hex(F3), F4::VARCHAR
+FROM sap_rfc_invoke('S_APCRFC_ALIGNMENT', {'TAB1': [
+    {'F1':'ABCD','F2':4711,'F3':'\xA1'::BLOB,'F4':42::SMALLINT}
+]}, SECRET='abap_trial', path='/TAB1');
+----
+ABCD
+4711
+A1
+42
+ABCD
+4711
+A1
+42
+
+query TTTTT
+SELECT F1, F2::VARCHAR, hex(F3), F4::VARCHAR, T1::VARCHAR
+FROM sap_rfc_invoke('S_APCRFC_ALIGNMENT', {'TAB2': [
+    {'F1':'ABCD','F2':4711,'F3':'\xA1'::BLOB,'F4':42::SMALLINT,'T1':7::TINYINT}
+]}, SECRET='abap_trial', path='/TAB2');
+----
+ABCD
+4711
+A100
+42
+7
+ABCD
+4711
+A100
+42
+7

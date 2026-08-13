@@ -165,7 +165,13 @@ namespace duckdb
         if (str.empty()) {
             return Value();
         }
-        return Value::CreateValue(str);
+        // NOTE: Value::CreateValue<std::string>() produces a *BLOB*, not a
+        // VARCHAR (see duckdb/src/common/types/value.cpp).  Building a BLOB
+        // from arbitrary text re-interprets the bytes as a blob literal, so
+        // any non-ASCII byte throws ("Invalid byte encountered in STRING ->
+        // BLOB conversion") and a literal "\x.." sequence would be silently
+        // decoded.  RFCTYPE_STRING is character data — construct a VARCHAR.
+        return Value(str);
     }
 
     /**
