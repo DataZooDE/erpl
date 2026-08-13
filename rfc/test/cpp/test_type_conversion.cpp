@@ -21,6 +21,27 @@ TEST_CASE("Test sapuc2duckval with rtrim = 1", "[sap_type_conversion]") {
     REQUIRE(StringValue::Get(result) == "Hello World");
 }
 
+// RFCTYPE_STRING is character data.  Value::CreateValue<std::string>() builds
+// a BLOB, which re-interprets the bytes as a blob literal: non-ASCII throws
+// and a literal "\x.." sequence would be silently decoded.
+TEST_CASE("Test sapuc2duckval yields VARCHAR, not BLOB", "[sap_type_conversion]") {
+    SAP_UC str[] = {'H', 'e', 'l', 'l', 'o', '\0'};
+    Value result = uc2duck(str, 5, false);
+    REQUIRE(result.type().id() == LogicalTypeId::VARCHAR);
+}
+
+TEST_CASE("Test sapuc2duckval with non-ASCII characters", "[sap_type_conversion]") {
+    SAP_UC str[] = {'s', 't', 'r', 'a', 0x00DF, 'e', '\0'};
+    Value result = uc2duck(str, 6, false);
+    REQUIRE(StringValue::Get(result) == "stra\xC3\x9F" "e");
+}
+
+TEST_CASE("Test sapuc2duckval keeps a literal backslash-x sequence", "[sap_type_conversion]") {
+    SAP_UC str[] = {'\\', 'x', '4', '1', '\0'};
+    Value result = uc2duck(str, 4, false);
+    REQUIRE(StringValue::Get(result) == "\\x41");
+}
+
 TEST_CASE("Test sapuc2duckval with len = 0", "[sap_type_conversion]") {
     SAP_UC str[] = {'H', 'e', 'l', 'l', 'o', ' ', 'W', 'o', 'r', 'l', 'd', '\0'};
     Value result = uc2duck(str, 0);

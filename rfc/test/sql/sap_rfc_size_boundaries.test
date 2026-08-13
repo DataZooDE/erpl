@@ -1,0 +1,166 @@
+# name: test/sql/sap_rfc_size_boundaries.test
+# description: Length-prefix boundaries for variable-length values.
+#
+#              A value longer than 65535 bytes cannot be described by a 16-bit
+#              length and switches to an extended length form on the wire.
+#              Getting the switch-over wrong desynchronises the stream: the
+#              symptom is a truncated value, a hang, or a protocol error on the
+#              *next* call rather than this one.  Only an ODP test hit this
+#              before, and only by accident.
+#
+#              Each case round-trips a payload through a pure echo and checks
+#              both its length and its content, at 65534/65535/65536 bytes
+#              (either side of the boundary) and at ~100000 bytes (well past
+#              it, where a second extension step would show up).
+# group: [rfc]
+
+require erpl_rfc
+
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
+
+statement ok
+CREATE SECRET abap_trial (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}'
+);
+
+# -------------------------------------------------------------------------
+# 1. STRING just below the 16-bit boundary.  S_APCRFC_STRING is `so = si`.
+#    md5 is compared rather than the text itself so a mangled interior is
+#    caught as well as a wrong length.
+# -------------------------------------------------------------------------
+query TT
+SELECT length(SO)::VARCHAR, (md5(SO) = md5(repeat('x', 65534)))::VARCHAR
+FROM sap_rfc_invoke('S_APCRFC_STRING', {'SI': repeat('x', 65534)}, SECRET='abap_trial');
+----
+65534
+true
+
+# -------------------------------------------------------------------------
+# 2. STRING exactly at the boundary.
+# -------------------------------------------------------------------------
+query TT
+SELECT length(SO)::VARCHAR, (md5(SO) = md5(repeat('x', 65535)))::VARCHAR
+FROM sap_rfc_invoke('S_APCRFC_STRING', {'SI': repeat('x', 65535)}, SECRET='abap_trial');
+----
+65535
+true
+
+# -------------------------------------------------------------------------
+# 3. STRING one past the boundary — the first length that needs the extended
+#    form.
+# -------------------------------------------------------------------------
+query TT
+SELECT length(SO)::VARCHAR, (md5(SO) = md5(repeat('x', 65536)))::VARCHAR
+FROM sap_rfc_invoke('S_APCRFC_STRING', {'SI': repeat('x', 65536)}, SECRET='abap_trial');
+----
+65536
+true
+
+# -------------------------------------------------------------------------
+# 4. STRING well past the boundary.
+# -------------------------------------------------------------------------
+query TT
+SELECT length(SO)::VARCHAR, (md5(SO) = md5(repeat('x', 100000)))::VARCHAR
+FROM sap_rfc_invoke('S_APCRFC_STRING', {'SI': repeat('x', 100000)}, SECRET='abap_trial');
+----
+100000
+true
+
+# -------------------------------------------------------------------------
+# 5. A stream that desynchronised on an oversized value would fail on the
+#    *following* call, so a short round-trip is issued immediately after the
+#    100000-character one to prove the connection is still in step.
+# -------------------------------------------------------------------------
+query T
+SELECT SO FROM sap_rfc_invoke('S_APCRFC_STRING', {'SI': 'still in step'}, SECRET='abap_trial');
+----
+still in step
+
+# -------------------------------------------------------------------------
+# 6-9. The same four sizes for XSTRING, where the unit is bytes rather than
+#      characters.  S_APCRFCXSTRING echoes its CHANGING parameter PARAM into
+#      the export EPARAM.  The payload is 0xBE so a byte lost to a length
+#      miscount cannot be mistaken for padding.
+# -------------------------------------------------------------------------
+query TT
+SELECT octet_length(EPARAM)::VARCHAR, (md5(EPARAM) = md5(repeat('\xBE'::BLOB, 65534)))::VARCHAR
+FROM sap_rfc_invoke('S_APCRFCXSTRING', {
+    'PARAM': repeat('\xBE'::BLOB, 65534),
+    'STRUC': {'F1':'a','X':'\x00'::BLOB},
+    'TABLE': []
+}, SECRET='abap_trial');
+----
+65534
+true
+
+query TT
+SELECT octet_length(EPARAM)::VARCHAR, (md5(EPARAM) = md5(repeat('\xBE'::BLOB, 65535)))::VARCHAR
+FROM sap_rfc_invoke('S_APCRFCXSTRING', {
+    'PARAM': repeat('\xBE'::BLOB, 65535),
+    'STRUC': {'F1':'a','X':'\x00'::BLOB},
+    'TABLE': []
+}, SECRET='abap_trial');
+----
+65535
+true
+
+query TT
+SELECT octet_length(EPARAM)::VARCHAR, (md5(EPARAM) = md5(repeat('\xBE'::BLOB, 65536)))::VARCHAR
+FROM sap_rfc_invoke('S_APCRFCXSTRING', {
+    'PARAM': repeat('\xBE'::BLOB, 65536),
+    'STRUC': {'F1':'a','X':'\x00'::BLOB},
+    'TABLE': []
+}, SECRET='abap_trial');
+----
+65536
+true
+
+query TT
+SELECT octet_length(EPARAM)::VARCHAR, (md5(EPARAM) = md5(repeat('\xBE'::BLOB, 100000)))::VARCHAR
+FROM sap_rfc_invoke('S_APCRFCXSTRING', {
+    'PARAM': repeat('\xBE'::BLOB, 100000),
+    'STRUC': {'F1':'a','X':'\x00'::BLOB},
+    'TABLE': []
+}, SECRET='abap_trial');
+----
+100000
+true
+
+# -------------------------------------------------------------------------
+# 10. Both a large STRING and a large XSTRING inside one structure, with a
+#     scalar on either side.  This is the size boundary and the deep-field
+#     alignment in the same record: I and C must survive two consecutive
+#     oversized components.
+# -------------------------------------------------------------------------
+query TTTT
+SELECT ECHOSTRUCT.I::VARCHAR,
+       ECHOSTRUCT.C,
+       length(ECHOSTRUCT.STR)::VARCHAR,
+       octet_length(ECHOSTRUCT.XSTR)::VARCHAR
+FROM sap_rfc_invoke('STFC_DEEP_STRUCTURE', {'IMPORTSTRUCT': {
+    'I': 2147483647,
+    'C': 'ZZ',
+    'STR': repeat('s', 100000),
+    'XSTR': repeat('\xBE'::BLOB, 70000)
+}}, SECRET='abap_trial');
+----
+2147483647
+ZZ
+100000
+70000

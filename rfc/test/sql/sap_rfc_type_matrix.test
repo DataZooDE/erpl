@@ -1,0 +1,314 @@
+# name: test/sql/sap_rfc_type_matrix.test
+# description: Exact-value round-trip of every ABAP scalar type through the
+#              RFC layer, including boundary values.
+#
+#              sap_rfc_type_coverage.test asserts typeof() only, so a
+#              correctly-typed *wrong number* passes it.  This file asserts the
+#              value itself.  The vehicle is S_APCRFC_ECHO from SAP's own RFC
+#              verification function group S_APCRFC (`o = i`, a pure echo of
+#              SAPCRFC_STRU_ALLTYPES which carries one field of every ABAP
+#              type).  Because the server does nothing but copy the structure,
+#              any difference between what we send and what we get back is a
+#              defect in our marshalling.
+#
+#              Defect classes covered here:
+#                * scalar values decoded with the wrong type code
+#                  (e.g. a DECFLOAT34 read as a decimal64 — a plausible wrong
+#                  number, not an error)
+#                * integer boundaries at the limits of INT1/2/4/8
+#                * fixed-width CHAR/RAW buffer contracts (trailing content)
+#                * RFC_DATE being exactly 8 characters and RFC_TIME exactly 6
+#                * non-Latin-1 text in a variable-length STRING
+# group: [rfc]
+
+require erpl_rfc
+
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
+
+statement ok
+CREATE SECRET abap_trial (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}'
+);
+
+# -------------------------------------------------------------------------
+# 1. Canonical round-trip — every field of SAPCRFC_STRU_ALLTYPES at once.
+#
+# Every value is compared as VARCHAR so the assertion is on the exact digits,
+# not on a rounded floating-point rendering.
+# -------------------------------------------------------------------------
+query TTTTTTTTTTTTTTTT
+SELECT O.CHAR10,
+       O.STRING,
+       O.INT1::VARCHAR,
+       O.INT2::VARCHAR,
+       O.INT4::VARCHAR,
+       O.INT8::VARCHAR,
+       O.FLOAT::VARCHAR,
+       O.DEC::VARCHAR,
+       O.DECFLOAT16::VARCHAR,
+       O.DECFLOAT34::VARCHAR,
+       O.NUMC,
+       O.DATE::VARCHAR,
+       O.TIME::VARCHAR,
+       O.CHAR2,
+       O.NUMC2,
+       O.NUMC3
+FROM sap_rfc_invoke('S_APCRFC_ECHO', {'I': {
+    'CHAR10':'ABCD',
+    'STRING':'straße 東京',
+    'INT1':123::TINYINT,
+    'INT2':32123::SMALLINT,
+    'INT4':-2147483123,
+    'INT8':9223372036854775123::BIGINT,
+    'FLOAT':1.5::DOUBLE,
+    'DEC':(-123456789)::DECIMAL(25,0),
+    'RAW':'\x00\xFF\xBE'::BLOB,
+    'XSTRING':'\x00\xFF\xBE\xEF'::BLOB,
+    'DECFLOAT16':9999999999999999::DECIMAL(16,0),
+    'DECFLOAT34':'9999999999999999999999999999999999'::DECIMAL(34,0),
+    'NUMC':'1234567890',
+    'DATE':'2013-12-11'::DATE,
+    'TIME':'23:59:59'::TIME,
+    'CHAR2':'AB',
+    'NUMC2':'12',
+    'NUMC3':'3'
+}}, SECRET='abap_trial');
+----
+ABCD
+straße 東京
+123
+32123
+-2147483123
+9223372036854775123
+1.5
+-123456789
+9999999999999999
+9999999999999999999999999999999999
+1234567890
+2013-12-11
+23:59:59
+AB
+0000000012
+003
+
+# -------------------------------------------------------------------------
+# 2. Integer, decimal and float boundaries.
+#
+# INT2/INT4/INT8 at their negative limit, DEC at the full 25-digit width of
+# DEC_25 and DECFLOAT16/34 at their full significand width, negative.  A
+# sign-handling or width bug shows up as a plausible wrong number here, which
+# is exactly what a typeof()-only assertion cannot see.
+#
+# NOTE ON INT1: ABAP INT1 is unsigned 0..255 but is surfaced as a DuckDB
+# TINYINT (signed -128..127), so only 0..127 is reachable from SQL.  0 is
+# asserted below; 128..255 is out of scope for this file.
+# -------------------------------------------------------------------------
+query TTTTTTTT
+SELECT O.INT1::VARCHAR,
+       O.INT2::VARCHAR,
+       O.INT4::VARCHAR,
+       O.INT8::VARCHAR,
+       O.FLOAT::VARCHAR,
+       O.DEC::VARCHAR,
+       O.DECFLOAT16::VARCHAR,
+       O.DECFLOAT34::VARCHAR
+FROM sap_rfc_invoke('S_APCRFC_ECHO', {'I': {
+    'INT1':0::TINYINT,
+    'INT2':(-32768)::SMALLINT,
+    'INT4':-2147483648,
+    'INT8':(-9223372036854775808)::BIGINT,
+    'FLOAT':(-1.7976931348623157e308)::DOUBLE,
+    'DEC':'-1234567890123456789012345'::DECIMAL(25,0),
+    'DECFLOAT16':(-9999999999999999)::DECIMAL(16,0),
+    'DECFLOAT34':'-9999999999999999999999999999999999'::DECIMAL(34,0)
+}}, SECRET='abap_trial');
+----
+0
+-32768
+-2147483648
+-9223372036854775808
+-1.7976931348623157e+308
+-1234567890123456789012345
+-9999999999999999
+-9999999999999999999999999999999999
+
+# -------------------------------------------------------------------------
+# 3. DECFLOAT16 vs DECFLOAT34 must not be confused.
+#
+# The two share a decoder shape and differ only in width (8 vs 16 bytes).
+# Swapping the type codes decodes a DECFLOAT34 as a decimal64: a plausible
+# wrong number rather than an error.  The DECFLOAT34 value below needs 34
+# significant digits, so it cannot survive a decimal64 decode intact.
+# -------------------------------------------------------------------------
+query TT
+SELECT O.DECFLOAT16::VARCHAR, O.DECFLOAT34::VARCHAR
+FROM sap_rfc_invoke('S_APCRFC_ECHO', {'I': {
+    'DECFLOAT16':1234567890123456::DECIMAL(16,0),
+    'DECFLOAT34':'1234567890123456789012345678901234'::DECIMAL(34,0)
+}}, SECRET='abap_trial');
+----
+1234567890123456
+1234567890123456789012345678901234
+
+# -------------------------------------------------------------------------
+# 4. RFC_DATE is exactly 8 characters, RFC_TIME exactly 6.
+#
+# An off-by-one in either buffer shifts the digits, so a year at each end of
+# the range plus the last representable second are asserted verbatim.
+#
+# ABAP-initial DATS ('00000000') and TIMS ('000000') surface as NULL: DATE
+# and TIME_ILL below are left unsupplied, and TIME is sent as 00:00:00.
+# -------------------------------------------------------------------------
+query TTTT
+SELECT O.DATE::VARCHAR,
+       O.DATE_ILL::VARCHAR,
+       coalesce(O.TIME::VARCHAR, '<initial>'),
+       O.TIME_ILL::VARCHAR
+FROM sap_rfc_invoke('S_APCRFC_ECHO', {'I': {
+    'DATE':'0001-01-01'::DATE,
+    'DATE_ILL':'9999-12-31'::DATE,
+    'TIME':'00:00:00'::TIME,
+    'TIME_ILL':'23:59:59'::TIME
+}}, SECRET='abap_trial');
+----
+0001-01-01
+9999-12-31
+<initial>
+23:59:59
+
+# -------------------------------------------------------------------------
+# 5. Fixed-width CHAR: trailing content.
+#
+# CHAR10 is a DDIC CHAR(10).  A value shorter than the field must come back as
+# exactly the value — no uninitialised tail.  An unpadded read of the SDK
+# buffer keeps the right prefix and picks up whatever follows it, so both the
+# exact text and its length are asserted.  '0UNIT' is the literal shape of a
+# real defect of this kind.
+# -------------------------------------------------------------------------
+query TTTT
+SELECT '[' || O.CHAR10 || ']',
+       length(O.CHAR10)::VARCHAR,
+       '[' || O.CHAR2 || ']',
+       length(O.CHAR2)::VARCHAR
+FROM sap_rfc_invoke('S_APCRFC_ECHO', {'I': {
+    'CHAR10':'0UNIT',
+    'CHAR2':'ÄÖ'
+}}, SECRET='abap_trial');
+----
+[0UNIT]
+5
+[ÄÖ]
+2
+
+# -------------------------------------------------------------------------
+# 6. Fixed-width CHAR filled to its full DDIC width, non-Latin-1.
+#
+# S_APCRFC_UTF16 exports a CHAR(10) holding exactly ten non-ASCII characters.
+# The field is full, so nothing can be hidden by a trailing-blank trim: the
+# result must be ten characters, not ten bytes and not five.
+# -------------------------------------------------------------------------
+query TT
+SELECT TOLONG, length(TOLONG)::VARCHAR
+FROM sap_rfc_invoke('S_APCRFC_UTF16', SECRET='abap_trial');
+----
+ÄÖÜÄÖÜÄÖÜÄ
+10
+
+# -------------------------------------------------------------------------
+# 7. Fixed-width RAW: high bytes and the zero-padded tail.
+#
+# RAW in SAPCRFC_STRU_ALLTYPES is a RAW(25).  A three-byte payload containing
+# 0x00, 0xFF and 0xBE must round-trip and the field must come back at its full
+# declared width, zero-padded — a short read here is the byte-oriented twin of
+# the CHAR case above.
+# -------------------------------------------------------------------------
+query TT
+SELECT octet_length(O.RAW)::VARCHAR, hex(O.RAW)
+FROM sap_rfc_invoke('S_APCRFC_ECHO', {'I': {
+    'RAW':'\x00\xFF\xBE'::BLOB
+}}, SECRET='abap_trial');
+----
+25
+00FFBE00000000000000000000000000000000000000000000
+
+# -------------------------------------------------------------------------
+# 8. Variable-length XSTRING: high bytes, exact length, no padding.
+# -------------------------------------------------------------------------
+query TT
+SELECT octet_length(O.XSTRING)::VARCHAR, hex(O.XSTRING)
+FROM sap_rfc_invoke('S_APCRFC_ECHO', {'I': {
+    'XSTRING':'\x00\xFF\xBE\xEF'::BLOB
+}}, SECRET='abap_trial');
+----
+4
+00FFBEEF
+
+# -------------------------------------------------------------------------
+# 9. NUMC is right-aligned and zero-padded to its DDIC width by the server.
+#
+# NUMC2 is a NUMC(10); sending '12' must come back as '0000000012', and NUMC3
+# is a NUMC(3) so '3' becomes '003'.  Getting the field width wrong shifts the
+# digits and silently changes the number.
+# -------------------------------------------------------------------------
+query TTTT
+SELECT O.NUMC2, length(O.NUMC2)::VARCHAR, O.NUMC3, length(O.NUMC3)::VARCHAR
+FROM sap_rfc_invoke('S_APCRFC_ECHO', {'I': {
+    'NUMC2':'12',
+    'NUMC3':'3'
+}}, SECRET='abap_trial');
+----
+0000000012
+10
+003
+3
+
+# -------------------------------------------------------------------------
+# 10. Packed decimals with a scale, including a negative and the full
+#     31-digit width of a DEC(31,2).
+#
+# S_APCRFC_PACKED verifies the packed values it receives on the server side
+# and then adds 1 to P_4, so the returned 13.3456 proves the server decoded
+# 12.3456 exactly; MAX/MAX1 exercise the widest packed field, which does not
+# fit a 64-bit integer.
+# -------------------------------------------------------------------------
+query TTTTTT
+SELECT P.P_2::VARCHAR,
+       P.P_4::VARCHAR,
+       P.I::VARCHAR,
+       P.DF::VARCHAR,
+       P.MAX::VARCHAR,
+       P.MAX1::VARCHAR
+FROM sap_rfc_invoke('S_APCRFC_PACKED', {'P': {
+    'P_2': (-1234.56)::DECIMAL(11,2),
+    'P_4': 12.3456::DECIMAL(11,4),
+    'I': 123456,
+    'DF': (-12.3456)::DECIMAL(16,14),
+    'PU': 0::DECIMAL(9,2),
+    'EMPTY': 0::DECIMAL(13,2),
+    'SIMPLE': 0::DECIMAL(13,0),
+    'MAX': '12345678901234567890123456789.12'::DECIMAL(31,2),
+    'MAX1': '1234567890123456789012345678.91'::DECIMAL(31,2)
+}}, SECRET='abap_trial');
+----
+-1234.56
+13.3456
+123456
+-12.34560000000000
+12345678901234567890123456789.12
+1234567890123456789012345678.91
