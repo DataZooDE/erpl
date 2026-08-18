@@ -24,9 +24,22 @@ jobs:
       extension_name: erpl
       exclude_archs: linux_arm64;windows_amd64_rtools;wasm_mvp;wasm_eh;wasm_threads;
 
+  # A deploy job depends on its build job, and `needs` normally requires that job
+  # to have succeeded outright. Because the build is a matrix over platforms, a
+  # single broken platform made the whole build job "failure" and skipped deploy
+  # for *every* platform. That is how a Windows-only outage (msys2 purging a pinned
+  # runtime, issue #115) silently stopped all publishing to get.erpl.io for ten
+  # days, across Linux and macOS too.
+  #
+  # `!cancelled()` lets deploy run when the build job did not succeed outright. The
+  # deploy job is itself a matrix over architectures and each leg downloads only its
+  # own artifact, so the platforms that built still publish. A platform whose build
+  # failed has no artifact, so its deploy leg fails at download — which is the
+  # honest signal, and keeps the broken platform visible in CI rather than hiding it.
   duckdb-stable-deploy-v145:
     name: Deploy extension binaries
     needs: duckdb-stable-build-v145
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/_extension_deploy.yml
     secrets: inherit
     with:
@@ -48,6 +61,8 @@ jobs:
   duckdb-stable-deploy-v154:
     name: Deploy extension binaries
     needs: duckdb-stable-build-v154
+    # See the note above duckdb-stable-deploy-v145.
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/_extension_deploy.yml
     secrets: inherit
     with:
