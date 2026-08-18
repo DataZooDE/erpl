@@ -23,35 +23,83 @@ LOAD erpl;
 
 ---
 
-## Unreleased
+## v2026.08.19 — Non-ASCII text, raw byte columns, and a ten-day release outage
 
-- **[rfc]** *Fix:* `sap_read_table` returned `RAW` / `LRAW` / `RAWSTRING` / `RSTR`
-  columns as their **hex spelling** rather than the bytes
-  ([#109](https://github.com/DataZooDE/erpl/issues/109)). `RFC_READ_TABLE` cannot
-  carry binary data, so it renders raw columns as hex text in the character
-  `DATA` line; that text was written straight into the BLOB. `octet_length()` was
-  therefore double the real size and the payload needed a manual `unhex()`. The
-  hex is now decoded, and an empty raw column — which SAP renders as the field
-  delimiter, previously stored as a one-byte `~` — is reported as `NULL`.
-  **Behaviour change:** anyone working around this with `unhex()` should drop it.
-- **[rfc]** *Fix:* `DECFLOAT16` / `DECFLOAT34` columns were left as VARCHAR by the
-  read-table conversion and implicitly cast per cell into their `DECIMAL` column;
-  they are now parsed directly. The `DEC` / `CURR` / `QUAN` path now applies the
-  same `min(precision, 38)` cap as the column type it feeds.
+**If you are on the 2026-08-08 build, upgrade.** Three separate defects could abort
+a query outright, and a CI break meant none of the fixes reached `get.erpl.io` for
+ten days.
+
+### SAP scan path
+
+- **[bics]** *Fix:* any BW object text containing a non-ASCII character could abort
+  the query with `Invalid byte encountered in STRING -> BLOB conversion of string
+  "..."` ([#107](https://github.com/DataZooDE/erpl/issues/107)). DuckDB's
+  `Value::CreateValue` has an easy-to-miss overload split — `const char *` yields a
+  VARCHAR while `std::string` yields a **BLOB** — so text was being routed through
+  `Blob::ToBlob`, which rejects every byte above `0x7F`. Pure-ASCII input round-trips
+  invisibly, which is why this survived both the test suite and the SAP demo content
+  until the first accented character arrived. Fixed at 13 call sites;
+  `sap_bics_describe_infoobject` hit it on every call.
 - **[rfc]** *Fix:* reading a `UTCLONG` / `UTCL` / `UTCS` / `UTCM` column with
   `sap_read_table` **aborted the whole scan** with `Failed to cast value: invalid
   timestamp field format`. SAP's compact `YYYYMMDDHHMMSS,sssssss` is not an ISO
   timestamp and a blank cell is not castable at all, but the read-table path left
-  these to an implicit cast instead of the `sap_utc2timestamp()` parsing the
-  direct RFC path already used. Confirmed on `ADRC`.
-- **[rfc]** *Fix:* an all-blank numeric cell aborted the whole scan — with
-  `Could not convert string "  " to DECIMAL(p,s)` for packed decimals, and the
-  equivalent for `INT1` / `INT2` / `INT4` / `INT8` / `FLTP`. Blank now reads as
-  `NULL`, matching the existing handling of an empty cell.
-- **[rfc]** `RfcType::ConvertCsvValue` now has an explicit branch for every DDIC
-  type that maps to a non-VARCHAR column, so no read-table cell relies on an
-  implicit per-cell cast. A new offline test iterates the whole DDIC type map, so
-  a future mapping added without a matching branch fails the build.
+  both to an implicit cast instead of the parsing the direct RFC path already used.
+  Reproduced on `ADRC`, a table present on every system.
+- **[rfc]** *Fix:* an all-blank numeric cell aborted the whole scan — `Could not
+  convert string "  " to DECIMAL(p,s)` for packed decimals, and the equivalent for
+  `INT1` / `INT2` / `INT4` / `INT8` / `FLTP`. A blank cell is SAP's "no value" and
+  now reads as `NULL`.
+
+### Type system
+
+- **[rfc]** *Fix:* `sap_read_table` returned `RAW` / `LRAW` / `RAWSTRING` / `RSTR`
+  columns as their **hex spelling** instead of the bytes
+  ([#109](https://github.com/DataZooDE/erpl/issues/109)). `RFC_READ_TABLE` cannot
+  carry binary data, so it renders raw columns as hex text in the character `DATA`
+  line, and that text was written straight into the BLOB. `octet_length()` was
+  double the real size and the payload needed a manual `unhex()`. **Behaviour
+  change:** drop any `unhex()` workaround. An empty raw column — which SAP renders
+  as the field delimiter, previously stored as a one-byte `~` — is now `NULL`.
+- **[rfc]** *Fix:* `DECFLOAT16` / `DECFLOAT34` columns were left as VARCHAR and
+  implicitly cast per cell into their `DECIMAL` column; they are now parsed
+  directly. The `DEC` / `CURR` / `QUAN` path applies the same `min(precision, 38)`
+  cap as the column type it feeds.
+- **[rfc]** `RfcType::ConvertCsvValue` now has an explicit branch for every DDIC type
+  that maps to a non-VARCHAR column, so no read-table cell relies on an implicit
+  per-cell cast. A test iterates the whole DDIC type map, so a mapping added without
+  a matching branch fails the build — the absence of that check is what allowed the
+  UTCLONG and blank-numeric aborts to sit unnoticed.
+
+### Stability
+
+- **[rfc]** *Fix:* the SAP NW RFC SDK faults inside its own static destructor at
+  process exit, aborting an already-successful process with `pure virtual method
+  called` on roughly 10% of runs ([#112](https://github.com/DataZooDE/erpl/issues/112)).
+  A terminate handler now intercepts it and exits with the status the process had
+  already chosen, so exit codes are trustworthy again. glibc Linux only. The SDK's
+  own fault is unchanged — `RfcCleanup`, its documented teardown entry point, is
+  declared in `sapnwrfc.h` but not exported by `libsapnwrfc.so`.
+
+### Build & CI
+
+- **[all]** *Fix:* **no binaries reached `get.erpl.io` between 2026-08-08 and
+  2026-08-18** ([#115](https://github.com/DataZooDE/erpl/issues/115)). msys2 purged
+  `msys2-runtime-3.5.4-2` from every mirror, which our pinned vcpkg commit fetches,
+  so every Windows build failed deterministically — and the deploy jobs require the
+  full matrix, so Linux and macOS stopped publishing too. Windows now uses a newer
+  vcpkg pin (`vcpkg_commit_windows`); Linux and macOS stay on the proven pin, whose
+  successor ships an openssl that will not build in `manylinux_2_28`.
+  Reported and diagnosed by [@rafael-tesseralabs](https://github.com/rafael-tesseralabs).
+- **[all]** Deploy jobs now run with `if: !cancelled()`, so one broken platform can
+  no longer halt publishing for the others. The deploy matrix is per-architecture,
+  so working platforms publish while a failed one stays visibly red.
+- **[all]** *Fix:* `RUN_SQL_TESTS` never checked exit statuses — `make sql_tests_*`
+  returned only the **last** file's result, so five failing ODP tests were invisible.
+  Failures are now aggregated and reported.
+- **[bics]/[odp]** SQL suites no longer pin absolute counts of SAP-shipped catalog
+  content, which drift with system configuration rather than with our code. BICS is
+  43/43 and ODP 24/24; both were failing before.
 
 ## v2026.07.30.1 — SNC logon and the full RfcOpenConnection parameter set
 
