@@ -936,8 +936,9 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         // Fast path: the input is already a VARCHAR Value from the SDK CSV
         // payload, so for non-special types we can hand it through unchanged
         // and avoid one std::string extraction + one StringValueInfo
-        // allocation per cell.  Only the DATE / TIME / BCD branches need the
-        // raw string for type-specific parsing.
+        // allocation per cell.  Every branch below exists because the column's
+        // declared DuckDB type (see CreateDuckDbType) is *not* VARCHAR, so the
+        // cell has to be parsed here rather than left to an implicit cast.
         switch(_rfc_type)
         {
             case RFCTYPE_DATE:
@@ -953,7 +954,32 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             case RFCTYPE_BCD:
             {
                 auto str_value = csv_value.GetValue<std::string>();
-                return bcd2duck(str_value, GetLength() * 2 - 1, GetDecimals());
+                // Same precision/scale derivation as CreateDuckDbType, cap
+                // included — the two must agree or the value fails to fit the
+                // column's declared DECIMAL type.
+                auto precision = std::min<unsigned int>(GetLength() * 2 - 1, 38);
+                auto scale = std::min<unsigned int>(GetDecimals(), precision);
+                return bcd2duck(str_value, precision, scale);
+            }
+            case RFCTYPE_DECF16:
+            case RFCTYPE_DECF34:
+            {
+                // Declared as DECIMAL(16|34, scale). Without this branch the
+                // VARCHAR cell was handed to a DECIMAL column and silently
+                // cast per cell.
+                auto str_value = csv_value.GetValue<std::string>();
+                unsigned int precision = (_rfc_type == RFCTYPE_DECF16) ? 16 : 34;
+                auto scale = std::min<unsigned int>(GetDecimals(), precision);
+                return bcd2duck(str_value, precision, scale);
+            }
+            case RFCTYPE_BYTE:
+            case RFCTYPE_XSTRING:
+            {
+                // Declared as BLOB. RFC_READ_TABLE spells RAW columns out as hex
+                // text, so decode it back into the bytes it stands for instead of
+                // storing the spelling (issue #109).
+                auto str_value = csv_value.GetValue<std::string>();
+                return hex2blob(str_value);
             }
             default:
                 return csv_value;

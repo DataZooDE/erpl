@@ -445,3 +445,82 @@ TEST_CASE("Test IsStringType identifies string ABAP types", "[sap_function]") {
     REQUIRE(RfcType::FromTypeName("NUMC", 10, 0).IsStringType() == false);
     REQUIRE(RfcType::FromTypeName("INT4", 4, 0).IsStringType() == false);
 }
+// --- issue #109: RAW columns arrive as hex text and must be decoded -----------
+
+TEST_CASE("hex2blob decodes RFC_READ_TABLE hex into bytes", "[sap_type_conversion]") {
+    // "Cr\xC3\xA9dit Agricole SA\0" — the 0xC3 0xA9 pair makes this non-ASCII, so
+    // it also pins that the decoded bytes go in raw rather than through the
+    // escaped STRING -> BLOB path (issue #107).
+    auto result = hex2blob("4372C3A96469742041677269636F6C6520534100");
+    REQUIRE(result.type().id() == LogicalTypeId::BLOB);
+
+    const string expected = string("Cr\xC3\xA9""dit Agricole SA", 19) + string(1, '\0');
+    REQUIRE(StringValue::Get(result) == expected);
+    // The whole point: 20 bytes in, 20 bytes out — not the 40 hex characters.
+    REQUIRE(StringValue::Get(result).size() == 20);
+}
+
+TEST_CASE("hex2blob accepts lower case and trailing blanks", "[sap_type_conversion]") {
+    // The DATA line is fixed width, so cells come back blank padded.
+    REQUIRE(StringValue::Get(hex2blob("00ff10  ")) == string("\x00\xFF\x10", 3));
+    REQUIRE(StringValue::Get(hex2blob("00FF10")) == string("\x00\xFF\x10", 3));
+}
+
+TEST_CASE("hex2blob maps non-hex and empty cells to NULL", "[sap_type_conversion]") {
+    // SAP emits the field delimiter for an empty RAW; storing that literal '~'
+    // as blob content was the old behaviour.
+    REQUIRE(hex2blob("~").IsNull());
+    REQUIRE(hex2blob("").IsNull());
+    REQUIRE(hex2blob("   ").IsNull());
+    REQUIRE(hex2blob("ABC").IsNull());      // odd length
+    REQUIRE(hex2blob("ZZ").IsNull());       // not hex
+    REQUIRE(hex2blob("00GG").IsNull());
+}
+
+TEST_CASE("ConvertCsvValue decodes RAW and RAWSTRING columns", "[sap_function]") {
+    for (auto &type_name : {"RAW", "LRAW", "RAWSTRING", "RSTR"}) {
+        auto rfc_type = RfcType::FromTypeName(type_name, 16, 0);
+        REQUIRE(rfc_type.CreateDuckDbType().id() == LogicalTypeId::BLOB);
+
+        auto converted = rfc_type.ConvertCsvValue(Value("48656C6C6F"));
+        REQUIRE(converted.type().id() == LogicalTypeId::BLOB);
+        REQUIRE(StringValue::Get(converted) == "Hello");
+    }
+}
+
+TEST_CASE("ConvertCsvValue yields the column's declared type", "[sap_function]") {
+    // Anything ConvertCsvValue leaves as VARCHAR gets implicitly cast when it is
+    // written into the output vector. These are the types where that cast would
+    // otherwise happen (or fail), so the produced value must already match.
+    struct Case { const char *name; unsigned int len; unsigned int dec; };
+    const Case cases[] = {
+        {"RAW", 16, 0}, {"RAWSTRING", 0, 0}, {"DATS", 8, 0}, {"TIMS", 6, 0},
+        {"CURR", 15, 2}, {"DEC", 31, 2}, {"D16D", 16, 2}, {"D34D", 34, 2},
+    };
+
+    for (auto &c : cases) {
+        auto rfc_type = RfcType::FromTypeName(c.name, c.len, c.dec);
+        auto declared = rfc_type.CreateDuckDbType();
+        // A blank cell is the one input every column type has to tolerate.
+        auto converted = rfc_type.ConvertCsvValue(Value("  "));
+        INFO("type " << c.name);
+        REQUIRE((converted.IsNull() || converted.type() == declared));
+    }
+}
+
+TEST_CASE("ConvertCsvValue decimal precision matches the declared column type",
+          "[sap_function]") {
+    // bcd2duck used to be called without CreateDuckDbType's min(..., 38) cap, so
+    // the produced DECIMAL could disagree with the column it is written into.
+    for (auto &type_name : {"CURR", "DEC", "QUAN"}) {
+        auto rfc_type = RfcType::FromTypeName(type_name, 31, 2);
+        auto converted = rfc_type.ConvertCsvValue(Value("123.45"));
+        REQUIRE(converted.type() == rfc_type.CreateDuckDbType());
+    }
+
+    auto d16 = RfcType::FromTypeName("D16D", 16, 2);
+    REQUIRE(d16.ConvertCsvValue(Value("123.45")).type() == d16.CreateDuckDbType());
+
+    auto d34 = RfcType::FromTypeName("D34D", 34, 2);
+    REQUIRE(d34.ConvertCsvValue(Value("123.45")).type() == d34.CreateDuckDbType());
+}

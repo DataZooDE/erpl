@@ -1,0 +1,81 @@
+# name: test/sql/sap_read_table_raw_columns.test
+# description: RAW / LRAW / RAWSTRING / RSTR columns are delivered by
+#              RFC_READ_TABLE as hex text inside the character DATA line. They
+#              must be decoded back into the bytes they stand for, not stored as
+#              their hex spelling. Regression test for issue #109.
+#
+#              The decoding itself is pinned by the offline
+#              [sap_type_conversion] / [sap_function] cases (hex2blob and
+#              ConvertCsvValue); this file covers the end-to-end path against a
+#              real system, using assertions that do not depend on any RAW
+#              column actually holding data.
+# group: [rfc]
+
+require erpl_rfc
+
+# Configure connection ------------------------------------------------
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
+
+statement ok
+CREATE SECRET abap_trial (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}'
+);
+
+# /DMO/AGENCY.ATTACHMENT is DDIC type RSTR (RAWSTRING).
+query I
+SELECT sap_type FROM sap_describe_fields('/DMO/AGENCY') WHERE field = 'ATTACHMENT';
+----
+RSTR
+
+statement ok
+CREATE TABLE agency AS
+SELECT AGENCY_ID, ATTACHMENT
+FROM sap_read_table('/DMO/AGENCY', COLUMNS=['AGENCY_ID', 'ATTACHMENT']);
+
+# A RAWSTRING column must be typed BLOB, not VARCHAR.
+query I
+SELECT typeof(ATTACHMENT) FROM agency LIMIT 1;
+----
+BLOB
+
+# The core regression. SAP renders an empty RAW cell as the field delimiter, and
+# the old code stored that '~' as one byte of blob content. An empty RAW is NULL,
+# never a one-byte tilde. Holds whether or not the column carries data.
+query I
+SELECT count(*) = 0 FROM agency WHERE ATTACHMENT = '~'::BLOB;
+----
+true
+
+# Decoded bytes, never the hex spelling: hex text is exactly the characters
+# 0-9A-Fa-f, so a populated cell made only of those with an even length is the
+# signature of the bug. (Vacuously true while the demo data ships no attachments,
+# which is why the offline tests carry the decoding assertions.)
+query I
+SELECT count(*) = 0 FROM agency
+WHERE ATTACHMENT IS NOT NULL
+  AND octet_length(ATTACHMENT) % 2 = 0
+  AND regexp_matches(ATTACHMENT::VARCHAR, '^[0-9A-Fa-f]+$');
+----
+true
+
+# Reading a table whose RAW column is empty must not fail, and must not drop rows.
+query I
+SELECT count(*) > 0 FROM agency;
+----
+true

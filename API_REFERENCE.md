@@ -1261,8 +1261,8 @@ shown in parentheses is the internal RFC-SDK type the ERPL scanners use.
 | DECF34 / D34D / D34N / D34R / D34S | RFCTYPE_DECF34 | DECIMAL(min(LENG,34), S) | IEEE 754-2008 decimal floating point (34 digit) |
 | STRING / STRG / SSTR / LCHR | RFCTYPE_STRING | VARCHAR | Variable-length character data |
 | XMLDATA | RFCTYPE_XMLDATA | VARCHAR | XML payload (text) |
-| RAW / LRAW | RFCTYPE_BYTE | BLOB | Fixed-length raw bytes (incl. RAW(16) UUIDs) |
-| RAWSTRING / RSTR | RFCTYPE_XSTRING | BLOB | Variable-length raw bytes |
+| RAW / LRAW | RFCTYPE_BYTE | BLOB | Fixed-length raw bytes (incl. RAW(16) UUIDs). See note below |
+| RAWSTRING / RSTR | RFCTYPE_XSTRING | BLOB | Variable-length raw bytes. See note below |
 | DATS | RFCTYPE_DATE | DATE | Format YYYYMMDD |
 | TIMS | RFCTYPE_TIME | TIME | Format HHMMSS |
 | UTCLONG / UTCL | RFCTYPE_UTCLONG | TIMESTAMP | UTC timestamp, microsecond precision |
@@ -1283,6 +1283,14 @@ Notes:
   VARCHAR with a fixed width, not as a dedicated type.
 - BCD precision is capped at DuckDB's `DECIMAL(38)` maximum; SAP fields wider
   than `DEC(20)` will be reported with `precision=38` and scale clamped to it.
+- **Raw byte columns in `sap_read_table`**: `RFC_READ_TABLE` cannot carry binary
+  data, so it spells `RAW` / `LRAW` / `RAWSTRING` / `RSTR` columns out as hex text
+  in its character `DATA` line. ERPL decodes that back into the bytes it stands
+  for, so the BLOB holds the payload and `octet_length()` is the true byte count.
+  An empty raw column arrives as the field delimiter and is reported as `NULL`.
+  Before v2026.08.18 the hex text was stored verbatim, which doubled
+  `octet_length()` and required a manual `unhex()`
+  ([#109](https://github.com/DataZooDE/erpl/issues/109)).
 
 ---
 

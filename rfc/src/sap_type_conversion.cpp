@@ -3,6 +3,7 @@
 #include <sstream>
 
 #include "duckdb.hpp"
+#include "duckdb/common/types/blob.hpp"
 #include "sap_type_conversion.hpp"
 
 
@@ -468,6 +469,14 @@ namespace duckdb
             bcd_str = bcd_str.substr(0, pos);
         }
 
+        // An all-blank cell is SAP's "no value" for a numeric field. Falling
+        // through would reach DefaultCastAs and throw
+        // "Could not convert string \"  \" to DECIMAL(p,s)", aborting the whole
+        // scan; NULL is both correct and consistent with the empty case above.
+        if (bcd_str.find_first_not_of(' ') == std::string::npos) {
+            return Value();
+        }
+
         // Check if it is a negative bcd and the last character 
         // is of the decimal is '-'
         if (!bcd_str.empty() && bcd_str.back() == '-') {
@@ -484,14 +493,56 @@ namespace duckdb
     }
 
     /**
+     * @brief Decodes the hex text RFC_READ_TABLE uses for RAW columns into bytes.
+     *
+     * RAW / LRAW / RAWSTRING / RSTR columns cannot travel as characters, so
+     * RFC_READ_TABLE spells them out as upper-case hex in its DATA line. The
+     * column's DuckDB type is BLOB, so the hex has to be decoded here — writing
+     * the text straight into the BLOB stores the spelling instead of the payload
+     * and doubles octet_length() (issue #109).
+     *
+     * @param hex_str The hex text from the DATA line, possibly blank-padded.
+     * @return The decoded bytes as a BLOB, or a NULL BLOB when the cell is empty
+     *         or is not valid even-length hex. SAP emits the field delimiter for
+     *         an empty RAW, which is exactly such a non-hex cell.
+     */
+    Value hex2blob(const std::string &hex_str)
+    {
+        auto last = hex_str.find_last_not_of(' ');
+        if (last == std::string::npos) {
+            return Value(LogicalType::BLOB);
+        }
+
+        const auto len = last + 1;
+        if (len % 2 != 0) {
+            return Value(LogicalType::BLOB);
+        }
+
+        std::string bytes;
+        bytes.reserve(len / 2);
+        for (size_t i = 0; i < len; i += 2) {
+            const auto hi = Blob::HEX_MAP[static_cast<unsigned char>(hex_str[i])];
+            const auto lo = Blob::HEX_MAP[static_cast<unsigned char>(hex_str[i + 1])];
+            if (hi < 0 || lo < 0) {
+                return Value(LogicalType::BLOB);
+            }
+            bytes.push_back(static_cast<char>((hi << 4) | lo));
+        }
+
+        // BLOB_RAW takes the string as raw bytes; Value::BLOB would re-parse it
+        // as an escaped ASCII literal and reject every byte above 0x7F.
+        return Value::BLOB_RAW(bytes);
+    }
+
+    /**
      * @brief Converts a SAP date to a DuckDB date.
-     * 
+     *
      * @param rfc_date The SAP date to convert.
      * @return The SAP date as a DuckDB DATETIME.
      * @note The SAP date is expected to be in the format YYYYMMDD.
      * @note If the date is invalid a default DuckDB date is returned.
      */
-    Value rfc2duck(const RFC_DATE &rfc_date) 
+    Value rfc2duck(const RFC_DATE &rfc_date)
     {
         return rfc2duck((RFC_DATE &)rfc_date);
     }
