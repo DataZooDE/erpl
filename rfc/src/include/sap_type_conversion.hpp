@@ -26,6 +26,13 @@ namespace duckdb
     void ltrim(std::string &s);
     Value bcd2duck(std::string &bcd_str, unsigned int length, unsigned int decimals);
 
+    // RFC_READ_TABLE renders RAW / LRAW / RAWSTRING / RSTR columns as upper-case
+    // hex text inside its character DATA line. Decode that back into the bytes it
+    // encodes, so a BLOB column carries the payload rather than its hex spelling.
+    // Returns a NULL BLOB for an empty cell or for anything that is not valid
+    // even-length hex (SAP emits the delimiter for an empty RAW).
+    Value hex2blob(const std::string &hex_str);
+
     // SAP UTCLONG/UTCSECOND/UTCMINUTE <-> DuckDB TIMESTAMP.
     // SAP-side format: "YYYYMMDDHHMMSS,sssssss" (UTCLONG, comma decimal
     // separator), or shorter forms for UTCSECOND/UTCMINUTE. Empty input

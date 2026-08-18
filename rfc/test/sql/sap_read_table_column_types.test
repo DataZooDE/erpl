@@ -1,0 +1,114 @@
+# name: test/sql/sap_read_table_column_types.test
+# description: RFC_READ_TABLE hands every column over as text in its character
+#              DATA line, so any column whose DuckDB type is not VARCHAR has to
+#              be parsed by RfcType::ConvertCsvValue. Where it was not, the cell
+#              was left to an implicit cast that either stored the wrong content
+#              (RAW columns kept their hex spelling) or threw and aborted the
+#              whole scan (UTCLONG, and any blank numeric cell).
+#              Regression test for issue #109.
+#
+#              The parsing itself is pinned by the offline
+#              [sap_type_conversion] / [sap_function] cases (hex2blob,
+#              ConvertCsvValue); this file covers the end-to-end path against a
+#              real system, using assertions that do not depend on any
+#              particular column holding data.
+# group: [rfc]
+
+require erpl_rfc
+
+# Configure connection ------------------------------------------------
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
+
+statement ok
+CREATE SECRET abap_trial (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}'
+);
+
+# /DMO/AGENCY.ATTACHMENT is DDIC type RSTR (RAWSTRING).
+query I
+SELECT sap_type FROM sap_describe_fields('/DMO/AGENCY') WHERE field = 'ATTACHMENT';
+----
+RSTR
+
+statement ok
+CREATE TABLE agency AS
+SELECT AGENCY_ID, ATTACHMENT
+FROM sap_read_table('/DMO/AGENCY', COLUMNS=['AGENCY_ID', 'ATTACHMENT']);
+
+# A RAWSTRING column must be typed BLOB, not VARCHAR.
+query I
+SELECT typeof(ATTACHMENT) FROM agency LIMIT 1;
+----
+BLOB
+
+# The core regression. SAP renders an empty RAW cell as the field delimiter, and
+# the old code stored that '~' as one byte of blob content. An empty RAW is NULL,
+# never a one-byte tilde. Holds whether or not the column carries data.
+query I
+SELECT count(*) = 0 FROM agency WHERE ATTACHMENT = '~'::BLOB;
+----
+true
+
+# Decoded bytes, never the hex spelling: hex text is exactly the characters
+# 0-9A-Fa-f, so a populated cell made only of those with an even length is the
+# signature of the bug. (Vacuously true while the demo data ships no attachments,
+# which is why the offline tests carry the decoding assertions.)
+query I
+SELECT count(*) = 0 FROM agency
+WHERE ATTACHMENT IS NOT NULL
+  AND octet_length(ATTACHMENT) % 2 = 0
+  AND regexp_matches(ATTACHMENT::VARCHAR, '^[0-9A-Fa-f]+$');
+----
+true
+
+# Reading a table whose RAW column is empty must not fail, and must not drop rows.
+query I
+SELECT count(*) > 0 FROM agency;
+----
+true
+
+# ---------------------------------------------------------------------
+# UTCLONG columns. SAP's compact "YYYYMMDDHHMMSS,sssssss" is not an ISO
+# timestamp and a blank cell is not castable at all, so reading one of these
+# aborted the scan with "invalid timestamp field format". ADRC ships on every
+# system and always has rows.
+
+statement ok
+CREATE TABLE adrc AS
+SELECT ADDRNUMBER, ADDRESSCREATEDONDATETIME
+FROM sap_read_table('ADRC', COLUMNS=['ADDRNUMBER', 'ADDRESSCREATEDONDATETIME'], MAX_ROWS=20);
+
+query I
+SELECT typeof(ADDRESSCREATEDONDATETIME) FROM adrc LIMIT 1;
+----
+TIMESTAMP
+
+query I
+SELECT count(*) > 0 FROM adrc;
+----
+true
+
+# Every value is either NULL or a real timestamp — never the ABAP all-zero
+# initial value surfacing as year 0.
+query I
+SELECT count(*) = 0 FROM adrc
+WHERE ADDRESSCREATEDONDATETIME IS NOT NULL
+  AND year(ADDRESSCREATEDONDATETIME) < 1900;
+----
+true

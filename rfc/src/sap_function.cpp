@@ -936,8 +936,9 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         // Fast path: the input is already a VARCHAR Value from the SDK CSV
         // payload, so for non-special types we can hand it through unchanged
         // and avoid one std::string extraction + one StringValueInfo
-        // allocation per cell.  Only the DATE / TIME / BCD branches need the
-        // raw string for type-specific parsing.
+        // allocation per cell.  Every branch below exists because the column's
+        // declared DuckDB type (see CreateDuckDbType) is *not* VARCHAR, so the
+        // cell has to be parsed here rather than left to an implicit cast.
         switch(_rfc_type)
         {
             case RFCTYPE_DATE:
@@ -953,9 +954,75 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             case RFCTYPE_BCD:
             {
                 auto str_value = csv_value.GetValue<std::string>();
-                return bcd2duck(str_value, GetLength() * 2 - 1, GetDecimals());
+                // Same precision/scale derivation as CreateDuckDbType, cap
+                // included — the two must agree or the value fails to fit the
+                // column's declared DECIMAL type.
+                auto precision = std::min<unsigned int>(GetLength() * 2 - 1, 38);
+                auto scale = std::min<unsigned int>(GetDecimals(), precision);
+                return bcd2duck(str_value, precision, scale);
+            }
+            case RFCTYPE_DECF16:
+            case RFCTYPE_DECF34:
+            {
+                // Declared as DECIMAL(16|34, scale). Without this branch the
+                // VARCHAR cell was handed to a DECIMAL column and silently
+                // cast per cell.
+                auto str_value = csv_value.GetValue<std::string>();
+                unsigned int precision = (_rfc_type == RFCTYPE_DECF16) ? 16 : 34;
+                auto scale = std::min<unsigned int>(GetDecimals(), precision);
+                return bcd2duck(str_value, precision, scale);
+            }
+            case RFCTYPE_BYTE:
+            case RFCTYPE_XSTRING:
+            {
+                // Declared as BLOB. RFC_READ_TABLE spells RAW columns out as hex
+                // text, so decode it back into the bytes it stands for instead of
+                // storing the spelling (issue #109).
+                auto str_value = csv_value.GetValue<std::string>();
+                return hex2blob(str_value);
+            }
+            case RFCTYPE_UTCLONG:
+            case RFCTYPE_UTCSECOND:
+            case RFCTYPE_UTCMINUTE:
+            {
+                // Declared as TIMESTAMP. SAP's compact "YYYYMMDDHHMMSS,sssssss"
+                // is not an ISO timestamp, and a blank cell is not castable at
+                // all — reading a UTCLONG column aborted the scan with
+                // "invalid timestamp field format". sap_utc2timestamp does the
+                // same parsing the direct RFC path already used, and maps blank
+                // and the all-zero ABAP initial value to NULL.
+                auto str_value = csv_value.GetValue<std::string>();
+                return sap_utc2timestamp(str_value);
+            }
+            case RFCTYPE_INT:
+            case RFCTYPE_INT1:
+            case RFCTYPE_INT2:
+            case RFCTYPE_INT8:
+            case RFCTYPE_FLOAT:
+            {
+                // Declared as an integer / DOUBLE type. Leaving these to the
+                // implicit cast in Vector::SetValue works for ordinary numeric
+                // text but throws on a blank cell, which SAP does emit. These
+                // must mirror CreateDuckDbType, which is not const so cannot be
+                // called from here.
+                LogicalType target;
+                switch (_rfc_type) {
+                    case RFCTYPE_INT1: target = LogicalType::TINYINT;  break;
+                    case RFCTYPE_INT2: target = LogicalType::SMALLINT; break;
+                    case RFCTYPE_FLOAT: target = LogicalType::DOUBLE;  break;
+                    default: target = LogicalType::BIGINT;             break;
+                }
+
+                auto str_value = csv_value.GetValue<std::string>();
+                if (str_value.find_first_not_of(' ') == std::string::npos) {
+                    return Value(target);
+                }
+                return Value(str_value).DefaultCastAs(target);
             }
             default:
+                // Everything still reaching this point is declared VARCHAR
+                // (CHAR / NUMC / STRING / XMLDATA and the lenient fallback), so
+                // the cell can be handed through untouched.
                 return csv_value;
         }
     }

@@ -23,6 +23,36 @@ LOAD erpl;
 
 ---
 
+## Unreleased
+
+- **[rfc]** *Fix:* `sap_read_table` returned `RAW` / `LRAW` / `RAWSTRING` / `RSTR`
+  columns as their **hex spelling** rather than the bytes
+  ([#109](https://github.com/DataZooDE/erpl/issues/109)). `RFC_READ_TABLE` cannot
+  carry binary data, so it renders raw columns as hex text in the character
+  `DATA` line; that text was written straight into the BLOB. `octet_length()` was
+  therefore double the real size and the payload needed a manual `unhex()`. The
+  hex is now decoded, and an empty raw column — which SAP renders as the field
+  delimiter, previously stored as a one-byte `~` — is reported as `NULL`.
+  **Behaviour change:** anyone working around this with `unhex()` should drop it.
+- **[rfc]** *Fix:* `DECFLOAT16` / `DECFLOAT34` columns were left as VARCHAR by the
+  read-table conversion and implicitly cast per cell into their `DECIMAL` column;
+  they are now parsed directly. The `DEC` / `CURR` / `QUAN` path now applies the
+  same `min(precision, 38)` cap as the column type it feeds.
+- **[rfc]** *Fix:* reading a `UTCLONG` / `UTCL` / `UTCS` / `UTCM` column with
+  `sap_read_table` **aborted the whole scan** with `Failed to cast value: invalid
+  timestamp field format`. SAP's compact `YYYYMMDDHHMMSS,sssssss` is not an ISO
+  timestamp and a blank cell is not castable at all, but the read-table path left
+  these to an implicit cast instead of the `sap_utc2timestamp()` parsing the
+  direct RFC path already used. Confirmed on `ADRC`.
+- **[rfc]** *Fix:* an all-blank numeric cell aborted the whole scan — with
+  `Could not convert string "  " to DECIMAL(p,s)` for packed decimals, and the
+  equivalent for `INT1` / `INT2` / `INT4` / `INT8` / `FLTP`. Blank now reads as
+  `NULL`, matching the existing handling of an empty cell.
+- **[rfc]** `RfcType::ConvertCsvValue` now has an explicit branch for every DDIC
+  type that maps to a non-VARCHAR column, so no read-table cell relies on an
+  implicit per-cell cast. A new offline test iterates the whole DDIC type map, so
+  a future mapping added without a matching branch fails the build.
+
 ## v2026.07.30.1 — SNC logon and the full RfcOpenConnection parameter set
 
 Connecting through **SNC (Kerberos, X.509, SAP Single Sign-On) is now possible**:
