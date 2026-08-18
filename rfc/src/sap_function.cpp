@@ -13,7 +13,11 @@
 
 static std::atomic<bool> g_rfc_strict_type_check{false};
 
-#if defined(__linux__)
+// glibc only: the guard needs on_exit to recover the process's exit status,
+// and musl does not provide it (the linux_amd64_musl build failed to compile
+// with __linux__ alone). Elsewhere the SAP SDK teardown fault is left to abort
+// as before; the SQL test runner tolerates it there.
+#if defined(__linux__) && defined(__GLIBC__)
 namespace {
     // Exit-time guard for the SAP SDK's static teardown (issue #112).
     //
