@@ -167,6 +167,43 @@ TEST_CASE("DeserializeJson blob type", "[duckdb_serialization_helper]")
     REQUIRE(val.GetValue<string>() == "TEST");
 }
 
+TEST_CASE("Blob with non-ascii bytes survives a JSON round-trip (issue #107)",
+          "[duckdb_serialization_helper]")
+{
+    // "Crédit Agricole SA" in UTF-8 — 0xC3 0xA9 is the 'e' with acute accent.
+    // SerializeBlobJson base64-encodes Value::ToString() (the "\xAB"-escaped,
+    // always-ASCII rendering) and DeserializeJsonBlob feeds that back through
+    // Value::BLOB, which parses the escapes. The two must stay paired: swapping
+    // either side for a raw-bytes variant silently corrupts non-ASCII payloads.
+    const string raw = "Cr\xC3\xA9" "dit Agricole SA";
+
+    auto json = ErplSerializer::SerializeJson(Value::BLOB_RAW(raw), true);
+    Value val;
+    REQUIRE_NOTHROW(val = ErplSerializer::DeserializeJson(json));
+    REQUIRE(val.type().id() == LogicalTypeId::BLOB);
+    // StringValue::Get returns the stored bytes; GetValue<string>() would return
+    // the "\xC3\xA9"-escaped rendering instead.
+    REQUIRE(StringValue::Get(val) == raw);
+}
+
+TEST_CASE("Serializer keeps non-ascii text as VARCHAR, never BLOB (issue #107)",
+          "[duckdb_serialization_helper]")
+{
+    // Guard against the Value::CreateValue(std::string) footgun: that overload
+    // resolves to Value::BLOB(const string &), so any std::string carrying
+    // non-ASCII text would abort instead of becoming a VARCHAR.
+    const string text = "Cr\xC3\xA9" "dit Agricole SA";
+
+    auto val = Value(text);
+    REQUIRE(val.type().id() == LogicalTypeId::VARCHAR);
+
+    auto json = ErplSerializer::SerializeJson(val, true);
+    Value round_tripped;
+    REQUIRE_NOTHROW(round_tripped = ErplSerializer::DeserializeJson(json));
+    REQUIRE(round_tripped.type().id() == LogicalTypeId::VARCHAR);
+    REQUIRE(round_tripped.GetValue<string>() == text);
+}
+
 TEST_CASE("DeserializeJson struct type", "[duckdb_serialization_helper]") 
 {
     auto struct_str = string("{\"$type\":\"STRUCT\",\"$value\":{\"a\":{\"$type\":\"INTEGER\",\"$value\":123},\"b\":{\"$type\":\"VARCHAR\",\"$value\":\"TEST\"}}}");

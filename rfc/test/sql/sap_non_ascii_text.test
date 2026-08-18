@@ -1,0 +1,65 @@
+# name: test/sql/sap_non_ascii_text.test
+# description: Non-ASCII (UTF-8) text from SAP must survive as VARCHAR and never
+#              be routed through a STRING -> BLOB conversion. Regression test for
+#              issue #107 ("Invalid byte encountered in STRING -> BLOB conversion
+#              of string \"Crédit Agricole SA\"").
+# group: [rfc]
+
+require erpl_rfc
+
+# Configure connection ------------------------------------------------
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
+
+statement ok
+CREATE SECRET abap_trial (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}'
+);
+
+# T005T ships with accented country names in the German locale, so this needs no
+# fixture setup. Reading them must not raise a conversion error.
+query II
+SELECT LAND1, LANDX
+FROM sap_read_table('T005T')
+WHERE SPRAS = 'D' AND LAND1 IN ('AT', 'EG')
+ORDER BY LAND1;
+----
+AT	Österreich
+EG	Ägypten
+
+# The column must be VARCHAR — a BLOB here is the bug: it means the text was
+# pushed through Blob::ToBlob, which rejects every byte above 0x7F.
+query I
+SELECT typeof(LANDX) FROM sap_read_table('T005T') WHERE SPRAS = 'D' AND LAND1 = 'AT';
+----
+VARCHAR
+
+# The bytes must round-trip intact, not be stripped or hex-escaped.
+query I
+SELECT LANDX <> strip_accents(LANDX)
+FROM sap_read_table('T005T')
+WHERE SPRAS = 'D' AND LAND1 = 'AT';
+----
+true
+
+# Non-ASCII text must also survive a WHERE-clause round trip (filter pushdown
+# builds a SQL literal from the value).
+query I
+SELECT count(*) FROM sap_read_table('T005T') WHERE SPRAS = 'D' AND LAND1 = 'EG';
+----
+1

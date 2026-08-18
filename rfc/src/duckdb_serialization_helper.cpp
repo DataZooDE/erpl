@@ -335,6 +335,13 @@ namespace duckdb
         auto data = std::string(size, ' ');
         
         Blob::FromBase64(base64, data_ptr_cast(data.data()), size);
+        // Value::BLOB (not BLOB_RAW) is deliberate and pairs with
+        // SerializeBlobJson, which base64-encodes Value::ToString() — i.e. the
+        // "\xAB"-escaped rendering, which is always pure ASCII. Value::BLOB
+        // parses those escapes back into the original bytes. Using BLOB_RAW
+        // here would keep the backslash-x text as literal content and corrupt
+        // every non-ASCII byte (issue #107 proposed exactly that; the
+        // round-trip test below pins the invariant down).
         return Value::BLOB(data);
     }
 
