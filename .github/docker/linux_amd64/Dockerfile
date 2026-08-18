@@ -4,6 +4,8 @@ FROM quay.io/pypa/manylinux_2_28_x86_64
 RUN yum install -y curl zip unzip tar autoconf libtool
 RUN yum install -y ninja-build
 RUN yum install -y perl-IPC-Cmd
+# openssl >= 3.6 (pulled in by the current vcpkg pin) needs Time::Piece from perl-core
+RUN yum install -y perl-core
 RUN yum install -y ccache
 RUN yum install -y java-11-openjdk-devel maven
 RUN yum install -y wget
