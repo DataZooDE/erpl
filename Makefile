@@ -109,17 +109,48 @@ SSH_VARS = ERPL_SSH_HOST=localhost \
            ERPL_SSH_PASSWORD=testpass \
            ERPL_SSH_PRIVATE_KEY_PATH=test/integration/test_key
 
-# Common test execution logic
+# Common test execution logic.
+#
+# Every test's exit status is checked and failures are aggregated. The previous
+# version ran the files in a bare loop and returned only the *last* test's
+# status, so a failure anywhere else was reported as success — the ODP suite was
+# silently green while five of its files were failing.
+#
+# One narrow exception: the SAP NW RFC SDK aborts inside its own static
+# destructor at process exit ("pure virtual method called", issue #112) on
+# roughly 10% of runs, after every assertion has already passed. That is
+# third-party teardown, not a test result, so it is surfaced as a warning. It is
+# matched on both the pass marker and the SDK signature, so any other abort —
+# including a crash that loses assertions — still fails the run.
 define RUN_SQL_TESTS
-	cd $(1) && $(COMMON_TEST_ENV) $(2) bash -c 'if [ -n "$(TEST_FILE)" ]; then \
-		echo "Running test: test/sql/$(TEST_FILE)" && \
-		../build/debug/test/unittest --test-dir . "test/sql/$(TEST_FILE)"; \
-	else \
-		for test_file in test/sql/*.test; do \
-			echo "Running test: $$test_file"; \
-			../build/debug/test/unittest --test-dir . "$$test_file"; \
-		done; \
-	fi'
+	cd $(1) && $(COMMON_TEST_ENV) $(2) bash -c ' \
+		set -u; \
+		failed=0; sdk_aborts=0; \
+		run_one() { \
+			local f="$$1" log rc; \
+			log=$$(mktemp); \
+			echo "Running test: $$f"; \
+			../build/debug/test/unittest --test-dir . "$$f" >"$$log" 2>&1; rc=$$?; \
+			if [ $$rc -ne 0 ] && grep -q "All tests passed" "$$log" \
+					&& grep -q "pure virtual method called" "$$log"; then \
+				echo "  WARN: assertions passed, SAP SDK aborted at exit (erpl#112)"; \
+				sdk_aborts=$$((sdk_aborts+1)); rc=0; \
+			fi; \
+			if [ $$rc -ne 0 ]; then \
+				echo "  FAIL: $$f"; cat "$$log"; failed=$$((failed+1)); \
+			fi; \
+			rm -f "$$log"; \
+		}; \
+		if [ -n "$(TEST_FILE)" ]; then \
+			run_one "test/sql/$(TEST_FILE)"; \
+		else \
+			for test_file in test/sql/*.test; do run_one "$$test_file"; done; \
+		fi; \
+		if [ $$sdk_aborts -gt 0 ]; then \
+			echo "$$sdk_aborts test(s) hit the SAP SDK exit abort (issue #112)"; \
+		fi; \
+		if [ $$failed -gt 0 ]; then echo "$$failed test(s) FAILED"; exit 1; fi; \
+		echo "All SQL tests passed"'
 endef
 
 #### SQL Test targets

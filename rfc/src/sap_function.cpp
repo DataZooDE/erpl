@@ -1,4 +1,7 @@
 #include <atomic>
+#include <cstdlib>
+#include <exception>
+#include <mutex>
 #include <set>
 #include <stdexcept>
 
@@ -9,6 +12,74 @@
 #include "erpl_tracing.hpp"
 
 static std::atomic<bool> g_rfc_strict_type_check{false};
+
+// glibc only: the guard needs on_exit to recover the process's exit status,
+// and musl does not provide it (the linux_amd64_musl build failed to compile
+// with __linux__ alone). Elsewhere the SAP SDK teardown fault is left to abort
+// as before; the SQL test runner tolerates it there.
+#if defined(__linux__) && defined(__GLIBC__)
+namespace {
+    // Exit-time guard for the SAP SDK's static teardown (issue #112).
+    //
+    // libsapnwrfc keeps a global function-metadata Repository. Its destructor
+    // runs during static destruction — after main() has returned and every
+    // result has been produced — and on roughly 10% of runs makes a pure-virtual
+    // call, aborting an otherwise successful process:
+    //
+    //   __cxa_pure_virtual -> RfcMetaDataBase::~RfcMetaDataBase
+    //     -> RfcFunctionMetaData::~RfcFunctionMetaData
+    //     -> RfcRepository::clearRepository -> Repository::~Repository
+    //
+    // __cxa_pure_virtual calls std::terminate(), so a terminate handler can
+    // intercept it and exit cleanly instead. Two details make this work:
+    //
+    //   * Registration happens here, after the first successful
+    //     RfcGetFunctionDesc, not at extension load. Exit handlers run in
+    //     reverse registration order and the SDK registers its repository
+    //     lazily on first use, so registering at load put our handler *after*
+    //     the SDK's in teardown order and it never ran — measured, the crash
+    //     rate was unchanged.
+    //   * on_exit hands us the status the process is already exiting with, so
+    //     _Exit reproduces it. Guessing 0 would turn a failed run into a
+    //     successful one, which is worse than the crash.
+    //
+    // The handler is inert until exit begins: a genuine terminate during normal
+    // operation still reaches the previous handler and aborts.
+    //
+    // Pre-empting the SDK's own teardown is not possible: RfcCleanup, its
+    // documented "free internal variables" entry point, is declared in
+    // sapnwrfc.h but not exported by libsapnwrfc.so.
+    std::atomic<int> g_sdk_exit_status{0};
+    std::atomic<bool> g_sdk_exiting{false};
+    std::terminate_handler g_sdk_prev_terminate = nullptr;
+
+    void SdkExitTimeTerminateHandler()
+    {
+        if (g_sdk_exiting.load(std::memory_order_acquire)) {
+            std::_Exit(g_sdk_exit_status.load(std::memory_order_acquire));
+        }
+        if (g_sdk_prev_terminate != nullptr) {
+            g_sdk_prev_terminate();
+        }
+        std::abort();
+    }
+
+    void SdkOnExit(int status, void *)
+    {
+        g_sdk_exit_status.store(status, std::memory_order_release);
+        g_sdk_exiting.store(true, std::memory_order_release);
+        g_sdk_prev_terminate = std::set_terminate(SdkExitTimeTerminateHandler);
+    }
+
+    void EnsureSdkExitGuardInstalled()
+    {
+        static std::once_flag once;
+        std::call_once(once, []() { on_exit(SdkOnExit, nullptr); });
+    }
+} // namespace
+#else
+namespace { inline void EnsureSdkExitGuardInstalled() {} }
+#endif
 
 namespace duckdb {
 
@@ -1272,6 +1343,10 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             throw std::runtime_error(StringUtil::Format("Error getting function description: %s: %s",
                                                         rfcrc2std(error_info.code), uc2std(error_info.message)));
         }
+
+        // The SDK has now built its global repository, so its teardown is
+        // registered and ours can be ordered ahead of it (issue #112).
+        EnsureSdkExitGuardInstalled();
     }
 
     RfcFunction::~RfcFunction() noexcept
