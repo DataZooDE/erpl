@@ -38,9 +38,20 @@ LOAD erpl;
   read-table conversion and implicitly cast per cell into their `DECIMAL` column;
   they are now parsed directly. The `DEC` / `CURR` / `QUAN` path now applies the
   same `min(precision, 38)` cap as the column type it feeds.
-- **[rfc]** *Fix:* an all-blank numeric cell aborted the whole scan with
-  `Could not convert string "  " to DECIMAL(p,s)`; it now reads as `NULL`,
-  matching the existing handling of an empty cell.
+- **[rfc]** *Fix:* reading a `UTCLONG` / `UTCL` / `UTCS` / `UTCM` column with
+  `sap_read_table` **aborted the whole scan** with `Failed to cast value: invalid
+  timestamp field format`. SAP's compact `YYYYMMDDHHMMSS,sssssss` is not an ISO
+  timestamp and a blank cell is not castable at all, but the read-table path left
+  these to an implicit cast instead of the `sap_utc2timestamp()` parsing the
+  direct RFC path already used. Confirmed on `ADRC`.
+- **[rfc]** *Fix:* an all-blank numeric cell aborted the whole scan — with
+  `Could not convert string "  " to DECIMAL(p,s)` for packed decimals, and the
+  equivalent for `INT1` / `INT2` / `INT4` / `INT8` / `FLTP`. Blank now reads as
+  `NULL`, matching the existing handling of an empty cell.
+- **[rfc]** `RfcType::ConvertCsvValue` now has an explicit branch for every DDIC
+  type that maps to a non-VARCHAR column, so no read-table cell relies on an
+  implicit per-cell cast. A new offline test iterates the whole DDIC type map, so
+  a future mapping added without a matching branch fails the build.
 
 ## v2026.07.30.1 — SNC logon and the full RfcOpenConnection parameter set
 

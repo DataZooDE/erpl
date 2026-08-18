@@ -1257,8 +1257,8 @@ shown in parentheses is the internal RFC-SDK type the ERPL scanners use.
 | INT8 | RFCTYPE_INT8 | BIGINT | 8-byte integer (signed) |
 | FLTP | RFCTYPE_FLOAT | DOUBLE | IEEE 754 floating point |
 | DEC / CURR / QUAN | RFCTYPE_BCD | DECIMAL(min(2N-1,38), S) | Packed-decimal; precision capped at DuckDB's max |
-| DECF16 / D16D / D16N / D16R / D16S | RFCTYPE_DECF16 | DECIMAL(min(LENG,16), S) | IEEE 754-2008 decimal floating point (16 digit) |
-| DECF34 / D34D / D34N / D34R / D34S | RFCTYPE_DECF34 | DECIMAL(min(LENG,34), S) | IEEE 754-2008 decimal floating point (34 digit) |
+| DECF16 / D16D / D16N / D16R / D16S | RFCTYPE_DECF16 | DECIMAL(16, S) | IEEE 754-2008 decimal floating point; precision is the spec-defined 16, scale clamped to it |
+| DECF34 / D34D / D34N / D34R / D34S | RFCTYPE_DECF34 | DECIMAL(34, S) | IEEE 754-2008 decimal floating point; precision is the spec-defined 34, scale clamped to it |
 | STRING / STRG / SSTR / LCHR | RFCTYPE_STRING | VARCHAR | Variable-length character data |
 | XMLDATA | RFCTYPE_XMLDATA | VARCHAR | XML payload (text) |
 | RAW / LRAW | RFCTYPE_BYTE | BLOB | Fixed-length raw bytes (incl. RAW(16) UUIDs). See note below |

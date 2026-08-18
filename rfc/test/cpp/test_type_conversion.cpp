@@ -488,24 +488,66 @@ TEST_CASE("ConvertCsvValue decodes RAW and RAWSTRING columns", "[sap_function]")
     }
 }
 
-TEST_CASE("ConvertCsvValue yields the column's declared type", "[sap_function]") {
-    // Anything ConvertCsvValue leaves as VARCHAR gets implicitly cast when it is
-    // written into the output vector. These are the types where that cast would
-    // otherwise happen (or fail), so the produced value must already match.
+TEST_CASE("ConvertCsvValue yields the column's declared type for every DDIC type",
+          "[sap_function]") {
+    // Whatever ConvertCsvValue leaves as VARCHAR is implicitly cast when it is
+    // written into the output vector — and that cast throws for a blank cell on
+    // any non-VARCHAR column, aborting the whole scan. Reading a UTCLONG column
+    // failed exactly that way ("invalid timestamp field format").
+    //
+    // This covers every DDIC name RfcType::FromTypeName maps, so a newly added
+    // mapping without a matching ConvertCsvValue branch fails here.
     struct Case { const char *name; unsigned int len; unsigned int dec; };
     const Case cases[] = {
-        {"RAW", 16, 0}, {"RAWSTRING", 0, 0}, {"DATS", 8, 0}, {"TIMS", 6, 0},
-        {"CURR", 15, 2}, {"DEC", 31, 2}, {"D16D", 16, 2}, {"D34D", 34, 2},
+        {"ACCP", 6, 0},   {"CHAR", 10, 0},  {"CLNT", 3, 0},   {"CUKY", 5, 0},
+        {"CURR", 15, 2},  {"DATS", 8, 0},   {"DEC", 31, 2},   {"D16D", 16, 2},
+        {"D16N", 16, 2},  {"D16R", 16, 2},  {"D16S", 16, 2},  {"DECF16", 16, 2},
+        {"D34D", 34, 2},  {"D34N", 34, 2},  {"D34R", 34, 2},  {"D34S", 34, 2},
+        {"DECF34", 34, 2},{"FLTP", 16, 0},  {"INT1", 1, 0},   {"INT2", 2, 0},
+        {"INT4", 4, 0},   {"INT8", 8, 0},   {"LANG", 1, 0},   {"LCHR", 100, 0},
+        {"LRAW", 32, 0},  {"NUMC", 10, 0},  {"PREC", 2, 0},   {"QUAN", 13, 3},
+        {"RAW", 16, 0},   {"RAWSTRING", 0, 0}, {"RSTR", 0, 0},{"STRING", 0, 0},
+        {"STRG", 0, 0},   {"SSTR", 256, 0}, {"TIMS", 6, 0},   {"UTCL", 27, 7},
+        {"UTCLONG", 27, 7}, {"UTCS", 21, 0},{"UTCM", 19, 0},  {"UNIT", 3, 0},
     };
 
     for (auto &c : cases) {
         auto rfc_type = RfcType::FromTypeName(c.name, c.len, c.dec);
         auto declared = rfc_type.CreateDuckDbType();
-        // A blank cell is the one input every column type has to tolerate.
-        auto converted = rfc_type.ConvertCsvValue(Value("  "));
-        INFO("type " << c.name);
-        REQUIRE((converted.IsNull() || converted.type() == declared));
+        INFO("DDIC type " << c.name);
+
+        // A blank cell is the one input every column type has to tolerate: SAP
+        // emits it, and it is what used to abort the scan.
+        Value blank;
+        REQUIRE_NOTHROW(blank = rfc_type.ConvertCsvValue(Value("   ")));
+        REQUIRE((blank.IsNull() || blank.type() == declared));
     }
+}
+
+TEST_CASE("ConvertCsvValue parses SAP UTC timestamps rather than casting them",
+          "[sap_function]") {
+    // SAP's compact form is not an ISO timestamp, so the implicit VARCHAR ->
+    // TIMESTAMP cast could not have parsed it even when the cell was populated.
+    auto utc = RfcType::FromTypeName("UTCL", 27, 7);
+    REQUIRE(utc.CreateDuckDbType().id() == LogicalTypeId::TIMESTAMP);
+
+    auto converted = utc.ConvertCsvValue(Value("20240115143000,0000000"));
+    REQUIRE(converted.type().id() == LogicalTypeId::TIMESTAMP);
+    REQUIRE(converted.ToString() == "2024-01-15 14:30:00");
+
+    // The ABAP initial value is NULL, not year 0.
+    REQUIRE(utc.ConvertCsvValue(Value("00000000000000")).IsNull());
+}
+
+TEST_CASE("ConvertCsvValue parses integer and float columns", "[sap_function]") {
+    auto i4 = RfcType::FromTypeName("INT4", 4, 0);
+    REQUIRE(i4.ConvertCsvValue(Value("42")).type() == i4.CreateDuckDbType());
+    REQUIRE(i4.ConvertCsvValue(Value("42")).GetValue<int64_t>() == 42);
+    REQUIRE(i4.ConvertCsvValue(Value("  ")).IsNull());
+
+    auto f = RfcType::FromTypeName("FLTP", 16, 0);
+    REQUIRE(f.ConvertCsvValue(Value("1.5")).type() == f.CreateDuckDbType());
+    REQUIRE(f.ConvertCsvValue(Value("1.5")).GetValue<double>() == 1.5);
 }
 
 TEST_CASE("ConvertCsvValue decimal precision matches the declared column type",

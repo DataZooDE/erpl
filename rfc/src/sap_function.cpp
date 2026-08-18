@@ -981,7 +981,48 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                 auto str_value = csv_value.GetValue<std::string>();
                 return hex2blob(str_value);
             }
+            case RFCTYPE_UTCLONG:
+            case RFCTYPE_UTCSECOND:
+            case RFCTYPE_UTCMINUTE:
+            {
+                // Declared as TIMESTAMP. SAP's compact "YYYYMMDDHHMMSS,sssssss"
+                // is not an ISO timestamp, and a blank cell is not castable at
+                // all — reading a UTCLONG column aborted the scan with
+                // "invalid timestamp field format". sap_utc2timestamp does the
+                // same parsing the direct RFC path already used, and maps blank
+                // and the all-zero ABAP initial value to NULL.
+                auto str_value = csv_value.GetValue<std::string>();
+                return sap_utc2timestamp(str_value);
+            }
+            case RFCTYPE_INT:
+            case RFCTYPE_INT1:
+            case RFCTYPE_INT2:
+            case RFCTYPE_INT8:
+            case RFCTYPE_FLOAT:
+            {
+                // Declared as an integer / DOUBLE type. Leaving these to the
+                // implicit cast in Vector::SetValue works for ordinary numeric
+                // text but throws on a blank cell, which SAP does emit. These
+                // must mirror CreateDuckDbType, which is not const so cannot be
+                // called from here.
+                LogicalType target;
+                switch (_rfc_type) {
+                    case RFCTYPE_INT1: target = LogicalType::TINYINT;  break;
+                    case RFCTYPE_INT2: target = LogicalType::SMALLINT; break;
+                    case RFCTYPE_FLOAT: target = LogicalType::DOUBLE;  break;
+                    default: target = LogicalType::BIGINT;             break;
+                }
+
+                auto str_value = csv_value.GetValue<std::string>();
+                if (str_value.find_first_not_of(' ') == std::string::npos) {
+                    return Value(target);
+                }
+                return Value(str_value).DefaultCastAs(target);
+            }
             default:
+                // Everything still reaching this point is declared VARCHAR
+                // (CHAR / NUMC / STRING / XMLDATA and the lenient fallback), so
+                // the cell can be handed through untouched.
                 return csv_value;
         }
     }
