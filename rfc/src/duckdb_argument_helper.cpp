@@ -196,8 +196,11 @@ namespace duckdb
         if (list_values.size() > 0)
         {
             auto current_type = list_values[0].type();
-            auto casted_type = new_value.DefaultCastAs(current_type);
-            list_values.push_back(new_value);
+            // Push the converted value. The cast used to go into a throw-away
+            // local while the uncast value was pushed; Value::LIST below then
+            // cast it to the same type anyway, so this is a dead-store cleanup
+            // rather than a behaviour change.
+            list_values.push_back(new_value.DefaultCastAs(current_type));
         }
         else
         {
