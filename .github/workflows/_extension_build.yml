@@ -39,6 +39,21 @@ on:
       vcpkg_commit:
         required: false
         type: string
+        default: "ce613c41372b23b1f51333815feb3edd87ef8a8b"
+      # Windows needs a newer vcpkg than Linux/macOS (issue #115).
+      #
+      # vcpkg_acquire_msys at the pin above fetches msys2-runtime-3.5.4-2, which
+      # msys2 has purged from every mirror; all return 404, so the Windows build
+      # fails deterministically and re-running never helps.
+      #
+      # Bumping the shared pin to 84bab45d (what extension-ci-tools now uses)
+      # fixes Windows but breaks Linux: that vcpkg ships openssl 3.6.0, which
+      # fails to build in the manylinux_2_28 container
+      # ("building openssl:x64-linux failed with: BUILD_FAILED"). Linux and macOS
+      # are green on the older pin, so only Windows moves.
+      vcpkg_commit_windows:
+        required: false
+        type: string
         default: "84bab45d415d22042bd0b9081aea57f362da3f35"
       # Override the default script producing the matrices. Allows specifying custom matrices.
       matrix_parse_script:
@@ -340,7 +355,7 @@ jobs:
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11.1
         with:
-          vcpkgGitCommitId: ${{ inputs.vcpkg_commit }}
+          vcpkgGitCommitId: ${{ inputs.vcpkg_commit_windows }}
           vcpkgGitURL: ${{ inputs.vcpkg_url }}
 
       - name: Configure AWS Credentials
