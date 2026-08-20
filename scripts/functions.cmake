@@ -310,6 +310,81 @@ endfunction()
 
 #---------------------------------------------------------------------------------------
 
+# Builds the erpl-proto nwrfc ABI shim -- a pure-Rust libsapnwrfc replacement -- and stages
+# it in the build tree as the alternative RFC backend. See ERPL_PROTO_INTEGRATION_PLAN.md.
+#
+# erpl-proto lives in a private repository, so `proto/` is absent from clones without
+# access. That is not an error: the build then simply offers the nwrfc backend only, exactly
+# as it did before this existed. Same conditional pattern as `bics/` and `odp/`.
+#
+# The artifact is deliberately RENAMED on the way in. Cargo names it `libsapnwrfc.so`,
+# because an SDK consumer that links `-lsapnwrfc` has to resolve it by that name -- but in
+# this build the two libraries coexist and are chosen between at runtime, so a second file
+# called `libsapnwrfc.so` in the build tree is a loaded gun. Under its own name it can only
+# ever be loaded deliberately, by absolute path.
+#
+# Sets ERPL_PROTO_AVAILABLE and ERPL_PROTO_BACKEND_LIB in the caller's scope.
+function(add_erpl_proto_backend)
+    set(ERPL_PROTO_AVAILABLE FALSE PARENT_SCOPE)
+
+    get_filename_component(proto_dir "${CMAKE_CURRENT_SOURCE_DIR}/../proto" ABSOLUTE)
+    if(NOT EXISTS "${proto_dir}/Cargo.toml")
+        message(STATUS "erpl-proto not present at ${proto_dir} -- building with the nwrfc backend only")
+        return()
+    endif()
+
+    find_program(CARGO_EXECUTABLE cargo)
+    if(NOT CARGO_EXECUTABLE)
+        message(WARNING
+            "erpl-proto is present at ${proto_dir} but `cargo` was not found, so the proto "
+            "backend will not be built. Install a Rust toolchain, or remove the submodule.")
+        return()
+    endif()
+
+    # A dedicated target directory: sharing the submodule's own `target/` would have this
+    # build contend with cargo's lock against interactive work in erpl-proto.
+    set(cargo_target_dir "${CMAKE_BINARY_DIR}/erpl-proto-target")
+
+    if(WIN32)
+        set(cargo_artifact "sapnwrfc.dll")
+        set(staged_name "erpl_proto_nwrfc.dll")
+    elseif(APPLE)
+        set(cargo_artifact "libsapnwrfc.dylib")
+        set(staged_name "liberpl_proto_nwrfc.dylib")
+    else()
+        set(cargo_artifact "libsapnwrfc.so")
+        set(staged_name "liberpl_proto_nwrfc.so")
+    endif()
+
+    # Always a release build. This is a dependency, not code under debug here, and a debug
+    # cdylib of the shim is ~30x the size for no diagnostic benefit on the erpl side.
+    set(cargo_artifact_path "${cargo_target_dir}/release/${cargo_artifact}")
+    set(staged_path "${CMAKE_BINARY_DIR}/${staged_name}")
+
+    file(GLOB_RECURSE proto_sources CONFIGURE_DEPENDS
+        "${proto_dir}/crates/*.rs"
+        "${proto_dir}/crates/*/Cargo.toml"
+        "${proto_dir}/Cargo.toml")
+
+    add_custom_command(
+        OUTPUT "${staged_path}"
+        COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${cargo_target_dir}"
+                ${CARGO_EXECUTABLE} build --release --manifest-path "${proto_dir}/Cargo.toml"
+                -p erpl-proto-nwrfc
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${cargo_artifact_path}" "${staged_path}"
+        DEPENDS ${proto_sources}
+        COMMENT "Building erpl-proto nwrfc ABI shim (${staged_name})"
+        VERBATIM)
+
+    add_custom_target(erpl_proto_backend ALL DEPENDS "${staged_path}")
+
+    message(STATUS "erpl-proto backend enabled: ${staged_path}")
+    set(ERPL_PROTO_AVAILABLE TRUE PARENT_SCOPE)
+    set(ERPL_PROTO_BACKEND_LIB "${staged_path}" PARENT_SCOPE)
+endfunction()
+
+#---------------------------------------------------------------------------------------
+
 function(enable_mold_linker)
     # Try to find mold binary
     find_program(MOLD_LINKER mold)

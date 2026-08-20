@@ -27,6 +27,10 @@ endif()
 
 find_package(OpenSSL REQUIRED)
 
+# The alternative pure-Rust RFC backend, when the private erpl-proto submodule is present.
+# Phase 1: built and staged only -- nothing links or loads it yet.
+add_erpl_proto_backend()
+
 # Add posthog-telemetry submodule
 # Disable posthog-telemetry's own tests - we use erpl's tests instead
 set(POSTHOG_BUILD_UNITTESTS_SAVED ${BUILD_UNITTESTS})
