@@ -13,8 +13,8 @@ That is nowhere near erpl's surface — `bics/` and `odp/` reach deep into conta
 and field descriptors. `erpl-proto-nwrfc`, by contrast, builds a `libsapnwrfc.so` that
 exports the full SDK symbol set.
 
-Measured against this tree, `rfc/`, `bics/` and `odp/` together call **54 SDK entry
-points**, and the shim implements all 54:
+Measured against this tree, `rfc/`, `bics/` and `odp/` together call **55 SDK entry
+points**, and the shim implements all 55:
 
 ```
 RfcAppendNewRow RfcCloseConnection RfcCreateFunction RfcDestroyFunction RfcGetBytes
@@ -35,7 +35,7 @@ So this is a link/load change, not a source port.
 
 Both libraries export the same symbols, so only one can be *linked* — whichever the loader
 resolves first wins for the whole process. erpl therefore stops linking `libsapnwrfc`
-altogether and resolves the 54 entry points through a function-pointer table filled by
+altogether and resolves the 55 entry points through a function-pointer table filled by
 `dlopen` + `dlsym` (`LoadLibrary` / `GetProcAddress` on Windows) at first RFC use.
 
 Two facts make this safe:
@@ -76,7 +76,7 @@ Each phase is a self-contained PR.
 - [x] SDK headers stay a compile-time dependency for now; vendoring is Phase 7.
 - [x] Rust becomes a build prerequisite *only* when `proto/` is present.
 
-### Phase 1 — build plumbing, no behaviour change
+### Phase 1 — build plumbing, no behaviour change *(done)*
 
 - Add the `proto/` submodule.
 - CMake: when `proto/Cargo.toml` exists, a custom target runs
@@ -85,30 +85,41 @@ Each phase is a self-contained PR.
   by a stray `-lsapnwrfc`.
 - Nothing links or loads it yet. All suites stay green, unchanged.
 
-### Phase 2 — the dispatch layer (riskiest step; its own PR)
+### Phase 2 — the dispatch layer *(done, landed with Phase 3)*
 
-- New `rfc/src/sap_rfc_api.{hpp,cpp}`: an X-macro list of the 54 entry points generating a
+- New `rfc/src/sap_rfc_api.{hpp,cpp}`: an X-macro list of the 55 entry points generating a
   `RfcApi` function-pointer struct, populated on first use.
 - The header includes `sapnwrfc.h` for types, then `#define`s each entry point to the
   dispatch call. Every consumer includes this instead of `sapnwrfc.h` directly — that is
-  53 headers and sources across `rfc/`, `bics/` and `odp/`.
+  48 headers and sources across `rfc/`, `bics/` and `odp/`.
+
+  One collision had to be resolved first: `duckdb::RfcPing`, the `sap_rfc_ping` pragma
+  handler, shares its name with the SDK's `RfcPing` and is renamed `RfcPingPragma`.
+
+  `strlenU16` turned out to be the only symbol erpl needed from `libsapucum`. It is a
+  four-line loop, now supplied in the dispatch header, which lets that library leave the
+  link line too — so the SDK is gone from the link entirely, not merely reduced.
 - Drop `${SAPNWRFC_LIB_FILES}` from `target_link_libraries`; add `${CMAKE_DL_LIBS}`.
 - **Backend is still nwrfc**, now reached by dlopen. Full RFC + BICS + ODP suites must be
   green before merge.
 - `bics/` and `odp/` changes ship as submodule commits plus a parent pointer-bump PR.
 
-### Phase 3 — the toggle
+### Phase 3 — the toggle *(done)*
+
+Landed together with Phase 2: separating them would have meant committing a dispatch
+layer hardcoded to one backend and then immediately rewriting it.
+
 
 - Extension option `erpl_rfc_backend`: `'nwrfc'` (default) or `'proto'`. Env override
   `ERPL_RFC_BACKEND`.
-- `erpl_rfc_backend_path` / `ERPL_RFC_PROTO_LIB` for an explicit library path.
+- `erpl_rfc_backend_path` / `ERPL_RFC_BACKEND_PATH` for an explicit library path.
 - Resolved once and frozen at first RFC use. Changing it afterwards raises a clear error
   rather than silently mixing backends within a process.
-- Search order: explicit path → alongside the extension → build dir → loader path. A
+- Search order: explicit path → alongside the extension → loader path. A
   missing library when `proto` was requested is a hard error — **never** a silent fallback
   to nwrfc, which would make a green proto test leg meaningless.
 
-### Phase 4 — tests on both backends
+### Phase 4 — tests on both backends *(done)*
 
 - Parameterise `RUN_SQL_TESTS` in the `Makefile` with a backend argument.
 - New targets: `sql_tests_rfc_proto`, `sql_tests_bics_proto`, `sql_tests_odp_proto`, and
@@ -124,10 +135,19 @@ Each phase is a self-contained PR.
 - The SAP SDK exit-abort tolerance (erpl#112) is gated to the nwrfc leg. Under proto there
   is no SDK static destructor, so an abort there is a real failure.
 
-### Phase 5 — CI
+### Phase 5 — CI *(done)*
 
-Add a proto leg to `.github/workflows/_extension_build.yml`, gated on submodule
-availability so fork PRs skip it instead of failing.
+Added an `erpl_proto_backend` job: it builds the shim, runs erpl-proto's sans-IO codec
+tests, and gates the entry-point contract with `scripts/check_proto_backend_symbols.sh`.
+Gated on submodule availability so fork PRs skip it instead of failing.
+
+The SQL suites cannot run in CI — they need a live ABAP system — so both backends are
+covered locally through `make sql_tests_all_backends`.
+
+`erpl-proto` was added to the scoped token used by the matrix job. The platform build jobs
+use an *unscoped* app token, so the GitHub App must additionally be installed on
+`DataZooDE/erpl-proto` before their submodule checkout will succeed. That is a repository
+admin action, not a code change.
 
 ### Phase 6 — close the gaps
 
@@ -135,12 +155,46 @@ Work `proto_known_failures.txt` down: deep tables (`STFC_DEEP_TABLE`), `RSTR` co
 `VARCHAR` where they should be `BLOB`, and whatever the BICS and ODP suites surface. These
 are fixes in erpl-proto, reaching erpl by submodule pointer bump.
 
-### Phase 7 — release packaging
+### Phase 7 — release packaging *(partly done)*
 
-The payoff. `trampoline/` currently embeds `libsapnwrfc` + `libsapucum` + three ICU
-libraries, roughly 30 MB. A proto build embeds one ~1 MB Rust `.so` and needs no
-post-install extraction of the SDK. This is also where a vendored `erpl_sapnwrfc.h` lands in
-erpl-proto, removing the SDK from the build entirely.
+The trampoline now also embeds the proto shim and extracts it next to the other
+extensions, where the dispatch layer finds it without any search path or environment
+variable. It is shipped **alongside** the SDK, not instead of it: nwrfc stays the default,
+and carrying both means a released build can be flipped with `SET erpl_rfc_backend =
+'proto'` and flipped straight back. That costs about 1 MB against the SDK + ICU's ~30 MB.
+
+It is extracted but deliberately **not** loaded. The trampoline loads its libraries
+`RTLD_GLOBAL`; doing that to a library exporting the same `Rfc*` symbols as the SDK would
+have the two interposing on each other. erpl_rfc opens it on demand, `RTLD_LOCAL`, and only
+if the backend is actually selected.
+
+Still outstanding, and only worth doing once proto has proven itself in the field:
+
+- Drop the SDK + ICU from the trampoline in a proto-only build. That is what actually makes
+  the artifact small; shipping both cannot.
+- Vendor a minimal `erpl_sapnwrfc.h` into erpl-proto, removing the SDK from the build
+  entirely. Today `sapnwrfc.h` is still needed at compile time for its types.
+
+## Measured state
+
+Both backends run the full suites against the a4h trial. Measured on this branch, not
+assumed:
+
+| Suite | nwrfc | proto |
+|---|---|---|
+| `rfc` (27 files) | 27 pass | 27 pass |
+| `odp` (24 files) | 24 pass | 24 pass |
+| `bics` (43 files) | *measuring* | *measuring* |
+
+The proto leg was additionally run with the SAP SDK **removed from the library path
+entirely**, and stayed green — which is what rules out a silent fallback. The same run on
+the nwrfc backend fails immediately with "Could not load the SAP NW RFC SDK", so the check
+is not vacuous.
+
+This is well ahead of what erpl-proto's own documentation claims: its `README.md` says 13
+of erpl's 20 tests pass and `docs/spec/15-nwrfc-abi.md` (ABI-4) says 18 of 20, naming
+`sap_rfc_invoke_fuzz` and `sap_rfc_type_coverage` as failures. Both are stale — the suite
+is 27 files now, and both named tests pass. Worth correcting in erpl-proto.
 
 ## Known risks
 

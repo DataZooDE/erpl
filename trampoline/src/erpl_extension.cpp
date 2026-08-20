@@ -22,6 +22,11 @@ extern const char _binary_libsapnwrfc_so_end[];
 extern const char _binary_libsapucum_so_start[];
 extern const char _binary_libsapucum_so_end[];
 
+#ifdef WITH_ERPL_PROTO
+extern const char _binary_liberpl_proto_nwrfc_so_start[];
+extern const char _binary_liberpl_proto_nwrfc_so_end[];
+#endif
+
 extern const char _binary_libicudata_so_50_start[];
 extern const char _binary_libicudata_so_50_end[];
 
@@ -204,6 +209,16 @@ namespace duckdb
 
             SaveToFile(_binary_libsapucum_so_start, _binary_libsapucum_so_end, StringUtil::Format("%s/libsapucum.so", ext_path));
             LoadLibraryFromFile(StringUtil::Format("%s/libsapucum.so", ext_path));
+
+            #ifdef WITH_ERPL_PROTO
+            // The alternative pure-Rust RFC backend.  Written out but deliberately NOT
+            // loaded: it exports the same Rfc* symbols as the SDK above, and this
+            // extension loads its libraries RTLD_GLOBAL, so loading it here would have
+            // the two interposing on each other and calls served by whichever won.
+            // erpl_rfc opens it on demand, RTLD_LOCAL, and only if the backend is
+            // actually selected -- it finds it here, next to the extension.
+            SaveToFile(_binary_liberpl_proto_nwrfc_so_start, _binary_liberpl_proto_nwrfc_so_end, StringUtil::Format("%s/liberpl_proto_nwrfc.so", ext_path));
+            #endif
             
             std::cout << "done" << std::endl;
 
