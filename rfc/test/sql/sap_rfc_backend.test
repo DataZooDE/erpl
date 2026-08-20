@@ -1,0 +1,47 @@
+# name: test/sql/sap_rfc_backend.test
+# description: Backend selection on the nwrfc (SAP SDK) leg
+# group: [erpl_rfc]
+#
+# Runs only on the nwrfc leg; the proto leg is covered by sap_rfc_backend_proto.test.
+# Resolving the backend needs no SAP system -- it is a dlopen and a table of dlsyms -- so
+# these assertions hold whether or not a4h is reachable.
+
+require erpl_rfc
+
+require-env ERPL_RFC_BACKEND nwrfc
+
+# The default, and what every released build has used to date.
+query I
+SELECT sap_rfc_backend()
+----
+nwrfc
+
+# Naming the active backend again is accepted: a test file stating its own precondition
+# must not depend on whether something already resolved the backend.
+statement ok
+SET erpl_rfc_backend = 'nwrfc'
+
+query I
+SELECT sap_rfc_backend()
+----
+nwrfc
+
+# Switching after the backend is resolved is refused. Connections and function
+# descriptors belong to one implementation; redirecting calls mid-process would hand a
+# handle from one library to the other.
+statement error
+SET erpl_rfc_backend = 'proto'
+----
+already resolved
+
+# An unknown name is rejected outright rather than falling back to a default.
+statement error
+SET erpl_rfc_backend = 'libsapnwrfc'
+----
+Unknown RFC backend
+
+# The path setting cannot retroactively move a library that is already loaded.
+statement error
+SET erpl_rfc_backend_path = '/nonexistent/libsapnwrfc.so'
+----
+already loaded

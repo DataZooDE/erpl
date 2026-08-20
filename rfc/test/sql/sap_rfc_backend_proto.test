@@ -1,0 +1,29 @@
+# name: test/sql/sap_rfc_backend_proto.test
+# description: Backend selection on the erpl-proto leg
+# group: [erpl_rfc]
+#
+# The mirror of sap_rfc_backend.test. Skipped on the nwrfc leg. Its real job is to prove
+# the proto leg is genuinely running on erpl-proto: without this, a proto suite that
+# silently fell back to the SDK would report a full row of green while testing nothing.
+
+require erpl_rfc
+
+require-env ERPL_RFC_BACKEND proto
+
+query I
+SELECT sap_rfc_backend()
+----
+proto
+
+statement ok
+SET erpl_rfc_backend = 'proto'
+
+query I
+SELECT sap_rfc_backend()
+----
+proto
+
+statement error
+SET erpl_rfc_backend = 'nwrfc'
+----
+already resolved
