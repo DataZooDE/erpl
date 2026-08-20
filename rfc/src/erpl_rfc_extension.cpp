@@ -167,11 +167,10 @@ namespace duckdb {
     // Reports which implementation is serving RFC calls, resolving the backend if that
     // has not happened yet.  Deliberately returns the bare name rather than the library
     // path, so a test can assert on it without depending on where the build put things.
-    static void RfcBackendFunction(DataChunk &args, ExpressionState &, Vector &result) {
+    static void RfcBackendFunction(DataChunk &, ExpressionState &, Vector &result) {
         const auto name = string(RfcBackendName(GetResolvedRfcBackend()));
         result.SetVectorType(VectorType::CONSTANT_VECTOR);
         ConstantVector::GetData<string_t>(result)[0] = StringVector::AddString(result, name);
-        D_ASSERT(args.size() >= 0);
     }
 
     static void RegisterConfiguration(ExtensionLoader &loader)
