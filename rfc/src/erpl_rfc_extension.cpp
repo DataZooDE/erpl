@@ -305,7 +305,7 @@ namespace duckdb {
             // named parameters this function takes are `path` and `secret`, so
             // REQUTEXT='Hello' is rejected by the binder.
             desc.examples    = {"SELECT * FROM sap_rfc_invoke('STFC_CONNECTION', {'REQUTEXT': 'Hello'})",
-                                "SELECT * FROM sap_rfc_invoke('RFC_READ_TABLE', {'QUERY_TABLE': 'SFLIGHT', 'DELIMITER': '|'})"};
+                                "SELECT * FROM sap_rfc_invoke('BAPI_FLIGHT_GETLIST', path='/FLIGHT_LIST')"};
             desc.categories  = {"sap"};
             desc.parameter_names = {"function_name"};
             info.descriptions.push_back(std::move(desc));
