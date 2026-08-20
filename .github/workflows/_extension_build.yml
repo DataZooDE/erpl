@@ -76,7 +76,7 @@ jobs:
         with:
           app-id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
           private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
-          repositories: "erpl,erpl-bics,erpl-odp"
+          repositories: "erpl,erpl-bics,erpl-odp,erpl-proto"
           
       - uses: actions/checkout@v4
         with:
@@ -112,6 +112,79 @@ jobs:
           windows_matrix="`cat windows_matrix.json`"
           echo windows_matrix=$windows_matrix >> $GITHUB_OUTPUT
           echo `cat $GITHUB_OUTPUT`
+  # -----------------------------------------------------------------------------------------------------------------------------------------------
+  # The alternative pure-Rust RFC backend. erpl can be served by SAP's SDK or by
+  # erpl-proto, chosen at runtime (see ERPL_PROTO_INTEGRATION_PLAN.md), and this leg
+  # guards the contract between the two repositories: that the shim still builds, and
+  # that it still exports every RFC entry point erpl dispatches through. A gap here
+  # would otherwise surface at runtime, on whichever SAP call needed it first.
+  #
+  # The SQL suites are not run here -- they need a live ABAP system, which CI has no
+  # access to; they run on both backends locally via `make sql_tests_all_backends`.
+  #
+  # erpl-proto is a private submodule. A fork without access simply has no proto/
+  # directory, and this job reports that and succeeds rather than failing on something
+  # the contributor cannot fix.
+  erpl_proto_backend:
+    name: erpl-proto backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub token
+        id: generate_token
+        uses: tibdex/github-app-token@v1.8.2
+        continue-on-error: true
+        with:
+          app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
+          private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+          token: ${{ steps.generate_token.outputs.token || github.token }}
+        continue-on-error: true
+
+      - name: Checkout without submodules (fork fallback)
+        if: ${{ failure() }}
+        uses: actions/checkout@v4
+
+      - name: Check whether erpl-proto is available
+        id: availability
+        run: |
+          if [ -f proto/Cargo.toml ]; then
+            echo "available=true" >> $GITHUB_OUTPUT
+          else
+            echo "available=false" >> $GITHUB_OUTPUT
+            echo "::notice::erpl-proto submodule not available (private repository); skipping the proto backend checks."
+          fi
+
+      - name: Install Rust
+        if: steps.availability.outputs.available == 'true'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        if: steps.availability.outputs.available == 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            proto/target
+          key: erpl-proto-cargo-${{ hashFiles('proto/Cargo.lock') }}
+
+      - name: Build the nwrfc ABI shim
+        if: steps.availability.outputs.available == 'true'
+        run: cargo build --release --manifest-path proto/Cargo.toml -p erpl-proto-nwrfc
+
+      - name: Check the entry-point contract
+        if: steps.availability.outputs.available == 'true'
+        run: ./scripts/check_proto_backend_symbols.sh proto/target/release/libsapnwrfc.so
+
+      - name: erpl-proto sans-IO codec tests
+        if: steps.availability.outputs.available == 'true'
+        # The wire crate is self-contained and needs no SAP system -- these tests are the
+        # protocol's executable specification.
+        run: cargo test --release --manifest-path proto/Cargo.toml -p erpl-proto-wire
+
   # -----------------------------------------------------------------------------------------------------------------------------------------------
   linux:
     name: Linux
