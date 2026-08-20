@@ -51,3 +51,55 @@ if [[ -n "$missing" ]]; then
 fi
 
 echo "OK: the proto backend provides every entry point erpl needs."
+
+# ---------------------------------------------------------------------------------------
+# Return codes.
+#
+# sapnwrfc.h's RFC_RC is an unnumbered enum, so every value is an ordinal you can only get
+# right by counting declarations -- and five of the shim's were once wrong. Nothing about
+# that is visible at a call site: the consumer branches on a code that means something
+# else. erpl's RfcConnection::Close treats RFC_INVALID_HANDLE as benign, so receiving 8
+# (RFC_TIMEOUT) instead of 13 turned every close of a stale handle into a thrown
+# IOException. Worth a permanent gate.
+PROTO_ABI="$REPO_DIR/proto/crates/erpl-proto-nwrfc/src/abi.rs"
+SDK_HEADER="$REPO_DIR/nwrfcsdk/linux/include/sapnwrfc.h"
+
+if [[ ! -f "$PROTO_ABI" || ! -f "$SDK_HEADER" ]]; then
+	echo "NOTE: skipping the return-code check (needs both proto/ and the SDK headers)."
+	exit 0
+fi
+
+python3 - "$SDK_HEADER" "$PROTO_ABI" <<'PYTHON'
+import re, sys
+
+header, abi = open(sys.argv[1]).read(), open(sys.argv[2]).read()
+
+body = re.search(r'typedef enum _RFC_RC\s*\{(.*?)\}\s*RFC_RC;', header, re.S).group(1)
+names = []
+for line in body.splitlines():
+    line = re.sub(r'///<.*|/\*.*?\*/', '', line).strip().rstrip(',').strip()
+    if line and not line.startswith('/'):
+        names.append(line)
+sdk = {name: ordinal for ordinal, name in enumerate(names)}
+
+shim = {m.group(1): int(m.group(2))
+        for m in re.finditer(r'pub const (RFC_[A-Z0-9_]+):\s*RFC_RC\s*=\s*(\d+);', abi)}
+
+mismatches = []
+for name, value in sorted(shim.items(), key=lambda kv: kv[1]):
+    expected = sdk.get(name)
+    if expected is None:
+        print(f"  ?  {name} = {value} is not an RFC_RC enumerator in the SDK header")
+    elif expected != value:
+        collision = next((k for k, v in sdk.items() if v == value), '?')
+        mismatches.append(f"{name}: shim says {value} ({collision}), SDK says {expected}")
+
+print(f"checked {len(shim)} RFC_RC constants against the SDK enum")
+if mismatches:
+    print("\nRETURN CODE MISMATCHES:")
+    for m in mismatches:
+        print(f"  {m}")
+    print("\nA consumer branching on one of these takes one error for another.")
+    sys.exit(1)
+print("OK: every RFC_RC constant the shim defines matches the SDK enum.")
+PYTHON
