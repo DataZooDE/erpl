@@ -361,22 +361,29 @@ function(add_erpl_proto_backend)
     set(cargo_artifact_path "${cargo_target_dir}/release/${cargo_artifact}")
     set(staged_path "${CMAKE_BINARY_DIR}/${staged_name}")
 
-    file(GLOB_RECURSE proto_sources CONFIGURE_DEPENDS
-        "${proto_dir}/crates/*.rs"
-        "${proto_dir}/crates/*/Cargo.toml"
-        "${proto_dir}/Cargo.toml")
-
-    add_custom_command(
-        OUTPUT "${staged_path}"
+    # Cargo decides whether anything needs rebuilding, so this target always runs and
+    # no-ops in a fraction of a second when the shim is current.
+    #
+    # The obvious alternative -- a file(GLOB_RECURSE ... CONFIGURE_DEPENDS) over the Rust
+    # sources feeding an OUTPUT-producing command -- is worse in two ways, and was tried
+    # first. CONFIGURE_DEPENDS makes CMake re-verify the glob on *every* ninja invocation,
+    # which costs a full re-configure of this (large) project before any build can start.
+    # And a glob would have to enumerate what cargo already tracks far better: not just
+    # .rs files and manifests but Cargo.lock, build scripts, `include_str!` data, and the
+    # toolchain file. Duplicating a build system's change detection in another build
+    # system is how the two come to disagree.
+    #
+    # copy_if_different is what keeps this cheap for dependents: the staged file's
+    # timestamp only moves when the bytes actually change, so an unchanged shim does not
+    # drag the trampoline through a relink of a ~290 MB artifact.
+    add_custom_target(erpl_proto_backend ALL
         COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${cargo_target_dir}"
                 ${CARGO_EXECUTABLE} build --release --manifest-path "${proto_dir}/Cargo.toml"
                 -p erpl-proto-nwrfc
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${cargo_artifact_path}" "${staged_path}"
-        DEPENDS ${proto_sources}
+        BYPRODUCTS "${staged_path}"
         COMMENT "Building erpl-proto nwrfc ABI shim (${staged_name})"
         VERBATIM)
-
-    add_custom_target(erpl_proto_backend ALL DEPENDS "${staged_path}")
 
     message(STATUS "erpl-proto backend enabled: ${staged_path}")
     set(ERPL_PROTO_AVAILABLE TRUE PARENT_SCOPE)

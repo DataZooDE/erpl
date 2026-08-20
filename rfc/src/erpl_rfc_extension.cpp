@@ -300,9 +300,12 @@ namespace duckdb {
         {
             CreateTableFunctionInfo info(CreateRfcInvokeScanFunction());
             FunctionDescription desc;
-            desc.description = "Call any RFC-enabled SAP function module and return its result as a table. Additional named arguments are forwarded as function parameters.";
-            desc.examples    = {"SELECT * FROM sap_rfc_invoke('STFC_CONNECTION', REQUTEXT='Hello')",
-                                "SELECT * FROM sap_rfc_invoke('RFC_READ_TABLE', QUERY_TABLE='SFLIGHT', DELIMITER='|')"};
+            desc.description = "Call any RFC-enabled SAP function module and return its result as a table. Function parameters are passed as STRUCT values, e.g. {'REQUTEXT': 'Hello'}.";
+            // Function parameters travel as a STRUCT, not as named arguments: the only
+            // named parameters this function takes are `path` and `secret`, so
+            // REQUTEXT='Hello' is rejected by the binder.
+            desc.examples    = {"SELECT * FROM sap_rfc_invoke('STFC_CONNECTION', {'REQUTEXT': 'Hello'})",
+                                "SELECT * FROM sap_rfc_invoke('RFC_READ_TABLE', {'QUERY_TABLE': 'SFLIGHT', 'DELIMITER': '|'})"};
             desc.categories  = {"sap"};
             desc.parameter_names = {"function_name"};
             info.descriptions.push_back(std::move(desc));

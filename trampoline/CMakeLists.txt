@@ -152,11 +152,19 @@ if(TARGET erpl_proto_backend)
         convert_dylib_to_object("liberpl_proto_nwrfc" "${ERPL_PROTO_STAGED_PATH}"
                                 "liberpl_proto_nwrfc.o"
                                 "${CMAKE_CURRENT_BINARY_DIR}/liberpl_proto_nwrfc.o" ON)
+        # The staged shim is a BYPRODUCT of a custom target, not the output of a custom
+        # command, so name the target too or nothing orders the two.
+        add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/liberpl_proto_nwrfc.o"
+                           DEPENDS erpl_proto_backend APPEND)
         list(APPEND SAPNWRFC_LIB_OBJECTS "liberpl_proto_nwrfc.o")
     else()
         embed_binary_to_object("${CMAKE_BINARY_DIR}" "${ERPL_PROTO_STAGED_NAME}"
                                "${CMAKE_CURRENT_BINARY_DIR}/liberpl_proto_nwrfc.o"
                                "${ERPL_PROTO_STAGED_PATH}")
+        # The staged shim is a BYPRODUCT of a custom target, not the output of a custom
+        # command, so name the target too or nothing orders the two.
+        add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/liberpl_proto_nwrfc.o"
+                           DEPENDS erpl_proto_backend APPEND)
         list(APPEND SAPNWRFC_LIB_OBJECTS "liberpl_proto_nwrfc.o")
     endif()
 
