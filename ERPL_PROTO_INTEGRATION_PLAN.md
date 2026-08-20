@@ -4,7 +4,8 @@ Plan for putting [`erpl-proto`](https://github.com/DataZooDE/erpl-proto) — the
 implementation of SAP's classic RFC protocol — underneath `erpl`, selectable at runtime
 against the stock SAP NW RFC SDK.
 
-**`nwrfc` stays the default.** `proto` is opt-in until its test legs are green.
+**`nwrfc` stays the default.** `proto` is opt-in — its test legs are green (see
+[Measured state](#measured-state)), but the default does not move on one machine's results.
 
 ## The seam: the nwrfc C ABI
 
@@ -149,11 +150,15 @@ use an *unscoped* app token, so the GitHub App must additionally be installed on
 `DataZooDE/erpl-proto` before their submodule checkout will succeed. That is a repository
 admin action, not a code change.
 
-### Phase 6 — close the gaps
+### Phase 6 — close the gaps *(nothing to close)*
 
-Work `proto_known_failures.txt` down: deep tables (`STFC_DEEP_TABLE`), `RSTR` columns typed
-`VARCHAR` where they should be `BLOB`, and whatever the BICS and ODP suites surface. These
-are fixes in erpl-proto, reaching erpl by submodule pointer bump.
+The gaps this phase existed to work down were not there. Every suite passes on both
+backends and all three `proto_known_failures.txt` files are empty — including the deep
+tables (`STFC_DEEP_TABLE`) and `RSTR` typing that ABI-4 named. The one defect that did
+turn up was the `RFC_RC` ordinal set above, fixed in erpl-proto and gated here.
+
+Keep the mechanism: the lists and the unexpected-pass check cost nothing while empty, and
+they are what will make the next regression legible.
 
 ### Phase 7 — release packaging *(partly done)*
 
@@ -177,16 +182,21 @@ Still outstanding, and only worth doing once proto has proven itself in the fiel
 
 ## Measured state
 
-Both backends run the full suites against the a4h trial. Measured on this branch, not
+Every suite runs against the a4h trial on both backends. Measured on this branch, not
 assumed:
 
 | Suite | nwrfc | proto |
 |---|---|---|
 | `rfc` (27 files) | 27 pass | 27 pass |
 | `odp` (24 files) | 24 pass | 24 pass |
-| `bics` (43 files) | *measuring* | *measuring* |
+| `bics` (43 files) | 43 pass | 43 pass |
+| `tunnel` (3 files) | 3 pass | n/a (no RFC) |
+| C++ (121 cases) | 3210 assertions | 3212 assertions |
 
-The proto leg was additionally run with the SAP SDK **removed from the library path
+`proto_known_failures.txt` is empty in all three suites. There was nothing to put in it,
+which is not what Phase 4 expected.
+
+The proto legs were additionally run with the SAP SDK **removed from the library path
 entirely**, and stayed green — which is what rules out a silent fallback. The same run on
 the nwrfc backend fails immediately with "Could not load the SAP NW RFC SDK", so the check
 is not vacuous.
@@ -196,18 +206,55 @@ of erpl's 20 tests pass and `docs/spec/15-nwrfc-abi.md` (ABI-4) says 18 of 20, n
 `sap_rfc_invoke_fuzz` and `sap_rfc_type_coverage` as failures. Both are stale — the suite
 is 27 files now, and both named tests pass. Worth correcting in erpl-proto.
 
+### What the dual-backend matrix caught
+
+One real defect, and it is the argument for running both legs rather than trusting one.
+
+`sapnwrfc.h`'s `RFC_RC` is an unnumbered enum, so every value is an ordinal you can only
+get right by counting declarations. Five of the shim's were wrong:
+
+| Constant | shim had | SDK | what the shim's value actually means |
+|---|---|---|---|
+| `RFC_INVALID_HANDLE` | 8 | 13 | `RFC_TIMEOUT` |
+| `RFC_EXTERNAL_FAILURE` | 20 | 15 | `RFC_INVALID_PARAMETER` |
+| `RFC_NOT_FOUND` | 23 | 17 | `RFC_BUFFER_TOO_SMALL` |
+| `RFC_NOT_SUPPORTED` | 21 | 18 | `RFC_CODEPAGE_CONVERSION_FAILURE` |
+| `RFC_INVALID_PARAMETER` | 12 | 20 | `RFC_SERIALIZATION_FAILURE` |
+
+None of this is visible from inside erpl-proto: its own tests compare against the same
+constants, so they agreed with themselves. It only surfaces in a consumer that *branches*
+on a return code. `RfcConnection::Close` treats `RFC_INVALID_HANDLE` as benign — a handle
+already gone is nothing left to close (erpl#78) — so receiving 8 turned every close of a
+stale connection into a thrown `IOException`, caught only by the destructor's catch-all,
+which exists because an escaping exception there would `std::terminate` the process.
+`RFC_NOT_SUPPORTED` matters as much: it is what all 177 unimplemented entry points report.
+
+Note *which* leg caught it. The SQL suites never exercise a stale-handle close and were
+green throughout; the C++ suite found it the first time it ran on proto.
+`scripts/check_proto_backend_symbols.sh` now gates every `RFC_RC` constant against the SDK
+header so it cannot come back.
+
 ## Known risks
 
-- **Phase 2 spans three repositories.** `bics/` and `odp/` include `sapnwrfc.h` from 31 of
-  their headers between them; all must move to the dispatch header in lockstep.
-- **Windows and macOS** need their own dispatch back end (`LoadLibrary`, and dlopen with
-  `.dylib` naming). Linux lands first.
+- **This spans four repositories.** `bics/`, `odp/` and `proto/` all carry commits that
+  the parent's submodule pointers must be bumped to. Push the submodule branches before
+  the parent PR, or CI resolves pointers that do not exist on the remote.
+- **Windows and macOS are written but unexercised.** The dispatch layer has
+  `LoadLibrary`/`GetProcAddress` and `.dylib`/`.dll` naming, and the trampoline embeds the
+  shim as a resource / Mach-O object, but only Linux has been run. CI builds all three;
+  nothing has *tested* the other two.
 - **`scripts/lsan_suppress.txt`** and the `LD_LIBRARY_PATH` plumbing in
   `scripts/start-duckdb-debug.sh` and the `Makefile`'s `COMMON_TEST_ENV` are SDK-specific
   and need proto variants.
 - **The OpenSSL/telemetry conflict** (SAP SDK's `RTLD_GLOBAL` shadowing OpenSSL, worked
   around with `DATAZOO_DISABLE_TELEMETRY=1` in smoke tests) may behave differently — or
-  disappear — under `RTLD_LOCAL` and no SDK. Re-measure rather than assume.
-- **Debug builds statically link the extensions** into the DuckDB binary; the SDK is
-  currently linked in with them. Dispatch removes that link, which changes what
-  `build/debug/duckdb` depends on at load time.
+  disappear — under `RTLD_LOCAL` and no SDK. The smoke test still passes with the
+  workaround in place; nobody has checked whether it is still needed on the proto backend.
+- **The SDK is no longer linked anywhere**, in either build type or in any test binary.
+  `build/debug/duckdb` and the released extensions all resolve it at runtime instead, so
+  a machine that used to fail at link time for a missing SDK now fails at the first SAP
+  call — with a message naming the search path, but later than before.
+
+- **The GitHub App must be installed on `DataZooDE/erpl-proto`.** The platform build jobs
+  use an unscoped app token; without the installation their submodule checkout fails. This
+  is repository-admin work, not a code change.
