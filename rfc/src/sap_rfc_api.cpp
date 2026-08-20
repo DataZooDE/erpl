@@ -39,11 +39,13 @@ constexpr const char *PROTO_LIBRARY_NAME = "liberpl_proto_nwrfc.dylib";
 constexpr const char *PROTO_LIBRARY_NAME = "liberpl_proto_nwrfc.so";
 #endif
 
+#ifndef _WIN32
 // A witness that the SDK is already mapped into the global symbol scope. The trampoline
 // extension extracts the SDK and dlopens it RTLD_GLOBAL before erpl_rfc loads, and it
 // extracts to a directory that is on no search path -- so in a released build this is
 // the only way to reach it. Same probe the trampoline itself uses.
 constexpr const char *NWRFC_PRELOAD_WITNESS = "RfcGetVersion";
+#endif
 
 struct LibraryHandle {
 	// Null means "resolve against the process's global scope" rather than "not loaded".
@@ -90,9 +92,7 @@ void *OpenLibrary(const string &path) {
 
 void *FindSymbol(const LibraryHandle &library, const char *name) {
 #ifdef _WIN32
-	if (!library.handle) {
-		return reinterpret_cast<void *>(GetProcAddress(GetModuleHandleA(nullptr), name));
-	}
+	// handle is never null on Windows -- see IsPreloadedInGlobalScope.
 	return reinterpret_cast<void *>(GetProcAddress(reinterpret_cast<HMODULE>(library.handle), name));
 #else
 	return dlsym(library.handle ? library.handle : RTLD_DEFAULT, name);
@@ -101,7 +101,12 @@ void *FindSymbol(const LibraryHandle &library, const char *name) {
 
 bool IsPreloadedInGlobalScope() {
 #ifdef _WIN32
-	return GetProcAddress(GetModuleHandleA(nullptr), NWRFC_PRELOAD_WITNESS) != nullptr;
+	// Windows has no RTLD_DEFAULT: there is no process-wide symbol scope to search, so
+	// there is nothing for a "preloaded" handle to mean. It needs none either --
+	// LoadLibrary resolves a DLL that is already loaded to the same module and simply
+	// increments its reference count, so the ordinary path below already picks up the
+	// copy the trampoline loaded.
+	return false;
 #else
 	return dlsym(RTLD_DEFAULT, NWRFC_PRELOAD_WITNESS) != nullptr;
 #endif
@@ -277,14 +282,25 @@ const ResolvedBackend &Resolve() {
 			                                           }();
 			library_path = g_requested_library_path.empty() ? EnvironmentValue("ERPL_RFC_BACKEND_PATH")
 			                                                : g_requested_library_path;
-			g_requested_backend = backend;
-			g_backend_resolved = true;
 		}
 
 		auto library = backend == RfcBackend::PROTO ? OpenProtoLibrary(library_path)
 		                                            : OpenNwRfcLibrary(library_path);
+		auto api = ResolveApi(library);
+
+		// Marked resolved only once a backend is actually serving calls. Setting it before
+		// the load would mean a failed load still froze the selection, and the obvious
+		// recovery -- correct the path, SET again -- would be refused for a backend that
+		// was never loaded. Static initialisation is serialised, so this cannot race, and
+		// throwing above leaves the static uninitialised so the next call retries.
+		{
+			std::lock_guard<std::mutex> guard(SelectionLock());
+			g_requested_backend = backend;
+			g_backend_resolved = true;
+		}
+
 		ERPL_TRACE_INFO("RfcApi", StringUtil::Format("RFC backend: %s", library.description));
-		return ResolvedBackend {ResolveApi(library), backend, library.description};
+		return ResolvedBackend {std::move(api), backend, library.description};
 	}();
 	return resolved;
 }

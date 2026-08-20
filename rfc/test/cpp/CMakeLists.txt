@@ -24,11 +24,15 @@ set(TEST_SOURCES
     test_connection_close.cpp
     test_sap_secret.cpp
     test_select_supported_args.cpp
+    test_rfc_api_dispatch.cpp
     test_main.cpp
 )
 
 add_executable(erpl_rfc_tests ${TEST_SOURCES})
-target_link_libraries(erpl_rfc_tests ${EXTENSION_NAME} duckdb_static test_helpers ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES})
+# The SAP SDK is not linked here either: erpl resolves the RFC entry points at runtime, and
+# linking the SDK into the test binary would put it in the global scope, so the tests would
+# exercise a resolution path the extension itself never takes.
+target_link_libraries(erpl_rfc_tests ${EXTENSION_NAME} duckdb_static test_helpers ${OPENSSL_LIBRARIES} ${CMAKE_DL_LIBS})
 # DuckDB v1.5+ requires dummy_static_extension_loader for LoadAllExtensions.
 # The target is defined in duckdb/extension/CMakeLists.txt which is processed
 # AFTER this file due to cmake ordering, so defer the link to the top-level scope.
