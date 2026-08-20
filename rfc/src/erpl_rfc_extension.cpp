@@ -5,6 +5,7 @@
 #include "duckdb/catalog/catalog.hpp"
 #include "duckdb/main/extension/extension_loader.hpp"
 #include "duckdb/parser/parsed_data/create_table_function_info.hpp"
+#include "duckdb/parser/parsed_data/create_scalar_function_info.hpp"
 
 #include "erpl_rfc_extension.hpp"
 #include "pragma_ping.hpp"
@@ -18,6 +19,7 @@
 #include "scanner_describe_fields.hpp"
 #include "scanner_read_table.hpp"
 #include "scanner_rfc_authorizations.hpp"
+#include "sap_rfc_api.hpp"
 #include "sap_rfc.hpp"
 
 #include "telemetry.hpp"
@@ -154,6 +156,24 @@ namespace duckdb {
         SetRfcReadTableBatchBudget(parameter.GetValue<unsigned int>());
     }
 
+    static void OnRfcBackend(ClientContext &, SetScope, Value &parameter) {
+        SetRfcBackend(parameter.GetValue<string>());
+    }
+
+    static void OnRfcBackendPath(ClientContext &, SetScope, Value &parameter) {
+        SetRfcBackendLibraryPath(parameter.GetValue<string>());
+    }
+
+    // Reports which implementation is serving RFC calls, resolving the backend if that
+    // has not happened yet.  Deliberately returns the bare name rather than the library
+    // path, so a test can assert on it without depending on where the build put things.
+    static void RfcBackendFunction(DataChunk &args, ExpressionState &, Vector &result) {
+        const auto name = string(RfcBackendName(GetResolvedRfcBackend()));
+        result.SetVectorType(VectorType::CONSTANT_VECTOR);
+        ConstantVector::GetData<string_t>(result)[0] = StringVector::AddString(result, name);
+        D_ASSERT(args.size() >= 0);
+    }
+
     static void RegisterConfiguration(ExtensionLoader &loader)
     {
         auto &instance = loader.GetDatabaseInstance();
@@ -208,6 +228,26 @@ namespace duckdb {
             OnMaxPersistentConnections);
 
         config.AddExtensionOption(
+            "erpl_rfc_backend",
+            "Which implementation serves SAP RFC calls: 'nwrfc' (SAP's NetWeaver RFC SDK, "
+            "the default) or 'proto' (the pure-Rust erpl-proto implementation).  Must be "
+            "set before the first SAP call; the backend is frozen for the life of the "
+            "process once resolved.  Also settable with the ERPL_RFC_BACKEND environment "
+            "variable, which an explicit SET overrides.",
+            LogicalType::VARCHAR,
+            Value("nwrfc"),
+            OnRfcBackend);
+
+        config.AddExtensionOption(
+            "erpl_rfc_backend_path",
+            "Explicit path to the RFC backend shared library, overriding the search.  "
+            "Empty (the default) means search: next to the extension, then the loader's "
+            "library path.  Also settable with ERPL_RFC_BACKEND_PATH.",
+            LogicalType::VARCHAR,
+            Value(""),
+            OnRfcBackendPath);
+
+        config.AddExtensionOption(
             "erpl_rfc_read_table_batch_budget",
             "Target upper bound on concurrent result rows (projected columns x "
             "per-column batch size) held by a sap_read_table scan (issue #69).  "
@@ -231,6 +271,20 @@ namespace duckdb {
     static void RegisterRfcFunctions(ExtensionLoader &loader)
     {
         loader.RegisterFunction(CreateRfcPingPragma());
+
+        {
+            ScalarFunction backend_function("sap_rfc_backend", {}, LogicalType::VARCHAR, RfcBackendFunction);
+            // The answer depends on process-wide state, not on the arguments, so it must
+            // not be folded at bind time or cached across statements.
+            backend_function.stability = FunctionStability::VOLATILE;
+            CreateScalarFunctionInfo info(backend_function);
+            FunctionDescription desc;
+            desc.description = "Returns which implementation is serving SAP RFC calls: 'nwrfc' or 'proto'.";
+            desc.examples    = {"SELECT sap_rfc_backend()"};
+            desc.categories  = {"sap"};
+            info.descriptions.push_back(std::move(desc));
+            loader.RegisterFunction(std::move(info));
+        }
 
         {
             CreateTableFunctionInfo info(CreateRfcReadTableScanFunction());

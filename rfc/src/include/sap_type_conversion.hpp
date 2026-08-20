@@ -1,7 +1,7 @@
 #pragma once
 
 #include "duckdb.hpp"
-#include "sapnwrfc.h"
+#include "sap_rfc_api.hpp"
 #include "sap_function.hpp"
 
 #include "duckdb/common/types/time.hpp"

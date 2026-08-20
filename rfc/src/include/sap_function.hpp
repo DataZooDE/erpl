@@ -3,7 +3,7 @@
 #include <set>
 
 #include "duckdb.hpp"
-#include "sapnwrfc.h"
+#include "sap_rfc_api.hpp"
 
 #include "sap_connection.hpp"
 #include "sap_type_conversion.hpp"
