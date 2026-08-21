@@ -1,6 +1,5 @@
 {
   "dependencies": [
-    "openssl",
-    "libssh2"
+    "openssl"
   ]
 }

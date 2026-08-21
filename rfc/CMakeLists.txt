@@ -60,6 +60,7 @@ set(EXTENSION_SOURCES
       src/pragma_ping.cpp
       src/pragma_set_trace.cpp
       src/pragma_ini.cpp
+      src/pragma_tunnel_deprecated.cpp
       src/sap_secret.cpp
       src/erpl_tracing.cpp
       src/sap_connection.cpp

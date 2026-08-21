@@ -8,7 +8,6 @@ Each bullet is tagged with the affected sub-extension(s):
 - **[rfc]** — `erpl_rfc`, the SAP RFC scan path
 - **[bics]** — `erpl_bics`, BW BICS queries (lives in a git submodule)
 - **[odp]** — `erpl_odp`, ODP data replication (lives in a git submodule)
-- **[tunnel]** — `erpl_tunnel`, SSH tunneling
 - **[trampoline]** — `erpl`, the umbrella extension that bundles the SAP SDK
 - **[all]** — cross-cutting work that touches every sub-extension
 
@@ -22,6 +21,36 @@ LOAD erpl;
 ```
 
 ---
+
+## Unreleased
+
+### Breaking
+
+- **The bundled SSH tunnel has been removed.** It moved to the dedicated
+  [erpl_tunnel](https://github.com/DataZooDE/erpl-tunnel) extension, which supports reverse
+  tunnels and Tailscale/NetBird in addition to SSH:
+
+  ```sql
+  INSTALL erpl_tunnel FROM 'http://get.erpl.io';
+  LOAD erpl_tunnel;
+  ```
+
+  `tunnel_create`, `tunnel_close`, `tunnel_close_all` and `tunnels()` remain registered as
+  stubs that raise and point there, so an existing script says where the function went
+  instead of failing with "does not exist". Loading `erpl_tunnel` replaces them.
+
+  This also fixes a bug: while erpl bundled its own tunnel it **silently shadowed** the
+  dedicated extension. `INSTALL erpl_tunnel; LOAD erpl_tunnel;` appeared to succeed and left
+  you on the bundled implementation, so nobody with erpl installed could migrate.
+
+  Two differences to be aware of: `tunnels()` gained `backend` and `direction` columns, so
+  **column order changed** (queries naming columns are unaffected), and `tunnel_create` is a
+  deprecated alias for `tunnel_import`. The `ssh_tunnel` secret type is unchanged.
+
+  Requires erpl_tunnel with the replace-on-conflict registration fix; older builds abort
+  the LOAD when erpl's stubs are present.
+
+- The released `erpl` bundle is ~48 MB smaller, and `libssh2` is no longer a dependency.
 
 ## v2026.08.19 — Non-ASCII text, raw byte columns, and a ten-day release outage
 

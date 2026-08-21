@@ -10,7 +10,10 @@ The project is a **mono-repo** containing multiple DuckDB extensions that are bu
 - **erpl_rfc** (`rfc/`) - Core SAP RFC connectivity: table reading, function invocation, metadata discovery
 - **erpl_bics** (`bics/`) - SAP BW (Business Warehouse) queries via BICS protocol, metadata views, lineage
 - **erpl_odp** (`odp/`) - SAP ODP (Operational Data Provisioning) for data replication
-- **erpl_tunnel** (`tunnel/`) - SSH tunneling for SAP connections via libssh2
+SSH tunnelling used to live in `tunnel/`; it moved to the dedicated
+[erpl_tunnel](https://github.com/DataZooDE/erpl-tunnel) extension. `rfc/src/pragma_tunnel_deprecated.cpp` keeps stubs
+that point there. See TUNNEL_REMOVAL_PLAN.md.
+
 - **erpl** (`trampoline/`) - Trampoline extension that bundles and extracts SAP SDK dependencies at install time
 
 ## Build & Development Commands
@@ -47,7 +50,6 @@ SQL tests require a running SAP system (ABAP Platform Trial on Docker) and use S
 make sql_tests_rfc                                    # All RFC tests
 make sql_tests_bics                                   # All BICS tests
 make sql_tests_odp                                    # All ODP tests
-make sql_tests_tunnel                                 # All tunnel tests (starts Docker SSH mock)
 make sql_tests_rfc TEST_FILE=sap_read_table.test      # Single test file
 make sql_tests_bics TEST_FILE=sap_bics_hierarchy.test # Single BICS test
 ```
@@ -57,7 +59,7 @@ C++ unit tests (no SAP system needed):
 ./build/debug/test/unittest "[erpl_rfc]"    # Run RFC C++ tests
 ```
 
-SQL test files: `{rfc,bics,odp,tunnel}/test/sql/*.test`. C++ tests: `rfc/test/cpp/`.
+SQL test files: `{rfc,bics,odp}/test/sql/*.test`. C++ tests: `rfc/test/cpp/`.
 
 ### Development Cycle
 

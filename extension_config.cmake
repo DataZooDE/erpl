@@ -9,7 +9,6 @@ include(../scripts/functions.cmake)
 enable_mold_linker()
 
 get_filename_component(rfc_ext "${PROJECT_SOURCE_DIR}/../rfc" REALPATH)
-get_filename_component(tunnel_ext "${PROJECT_SOURCE_DIR}/../tunnel" REALPATH)
 get_filename_component(bics_ext "${PROJECT_SOURCE_DIR}/../bics" REALPATH)
 get_filename_component(odp_ext "${PROJECT_SOURCE_DIR}/../odp" REALPATH)
 get_filename_component(erpl_ext "${PROJECT_SOURCE_DIR}/../trampoline" REALPATH)
@@ -20,12 +19,6 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
         SOURCE_DIR "${rfc_ext}"
         DONT_LINK
     )
-    if (EXISTS "${tunnel_ext}/CMakeLists.txt")
-        duckdb_extension_load(erpl_tunnel
-            SOURCE_DIR "${tunnel_ext}"
-            DONT_LINK
-        )
-    endif()
     if (EXISTS "${bics_ext}/CMakeLists.txt")
         duckdb_extension_load(erpl_bics
             SOURCE_DIR "${bics_ext}"
@@ -46,11 +39,6 @@ else()
     duckdb_extension_load(erpl_rfc
         SOURCE_DIR "${rfc_ext}"
     )
-    if (EXISTS "${tunnel_ext}/CMakeLists.txt")
-        duckdb_extension_load(erpl_tunnel
-            SOURCE_DIR "${tunnel_ext}"
-        )
-    endif()        
     if (EXISTS "${bics_ext}/CMakeLists.txt")
         duckdb_extension_load(erpl_bics
             SOURCE_DIR "${bics_ext}"
