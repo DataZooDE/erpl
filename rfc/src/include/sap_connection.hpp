@@ -1,7 +1,7 @@
 #pragma once
 
 #include "duckdb.hpp"
-#include "sapnwrfc.h"
+#include "sap_rfc_api.hpp"
 #include "sap_secret.hpp"
 
 namespace duckdb 

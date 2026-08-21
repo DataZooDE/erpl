@@ -27,6 +27,10 @@ endif()
 
 find_package(OpenSSL REQUIRED)
 
+# The alternative pure-Rust RFC backend, when the private erpl-proto submodule is present.
+# Phase 1: built and staged only -- nothing links or loads it yet.
+add_erpl_proto_backend()
+
 # Add posthog-telemetry submodule
 # Disable posthog-telemetry's own tests - we use erpl's tests instead
 set(POSTHOG_BUILD_UNITTESTS_SAVED ${BUILD_UNITTESTS})
@@ -59,6 +63,7 @@ set(EXTENSION_SOURCES
       src/sap_secret.cpp
       src/erpl_tracing.cpp
       src/sap_connection.cpp
+      src/sap_rfc_api.cpp
       src/sap_function.cpp
       src/sap_type_conversion.cpp
       src/sap_rfc.cpp
@@ -84,6 +89,14 @@ build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 set(PARAMETERS "-warnings")
 build_loadable_extension(${TARGET_NAME} ${PARAMETERS} ${EXTENSION_SOURCES})
 
+if(ERPL_PROTO_AVAILABLE)
+      # So that building the extension -- or the unittest binary, which links it -- also
+      # stages the shim. Without this only the `all` target would build it, and the SQL
+      # suites build a narrower target than that.
+      add_dependencies(${EXTENSION_NAME} erpl_proto_backend)
+      add_dependencies(${LOADABLE_EXTENSION_NAME} erpl_proto_backend)
+endif()
+
 if(WIN32)
       default_win32_definitions(${EXTENSION_NAME})
       default_win32_definitions(${LOADABLE_EXTENSION_NAME})
@@ -99,8 +112,11 @@ if(UNIX AND APPLE)
       default_osx_definitions(${LOADABLE_EXTENSION_NAME})
 endif()
 
-target_link_libraries(${EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES} posthog_telemetry)
-target_link_libraries(${LOADABLE_EXTENSION_NAME} ${SAPNWRFC_LIB_FILES} ${OPENSSL_LIBRARIES} posthog_telemetry)
+# The SAP SDK is deliberately NOT linked: both it and the erpl-proto shim export the same
+# symbols, so the backend is opened with dlopen/RTLD_LOCAL at runtime instead. Only the
+# headers are used at compile time. See src/sap_rfc_api.hpp.
+target_link_libraries(${EXTENSION_NAME} ${OPENSSL_LIBRARIES} posthog_telemetry ${CMAKE_DL_LIBS})
+target_link_libraries(${LOADABLE_EXTENSION_NAME} ${OPENSSL_LIBRARIES} posthog_telemetry ${CMAKE_DL_LIBS})
 
 if(MINGW)
    target_link_libraries(${EXTENSION_NAME} -lcrypt32)

@@ -272,6 +272,17 @@ PRAGMA sap_rfc_ping(secret='my_sap');
 
 ---
 
+#### `sap_rfc_backend()`
+
+Which implementation is serving SAP RFC calls: `'nwrfc'` or `'proto'`. Resolves the backend
+if that has not happened yet. See [Selecting the RFC backend](#selecting-the-rfc-backend).
+
+```sql
+SELECT sap_rfc_backend();
+```
+
+---
+
 #### `PRAGMA sap_rfc_set_trace_level(level)`
 
 Set SAP NetWeaver RFC SDK trace level.
@@ -1312,12 +1323,35 @@ Notes:
 | `erpl_rfc_persistent_connections` | BOOLEAN | `true` | Cache one RFC connection + function descriptor per column for a `sap_read_table` scan instead of reopening per batch |
 | `erpl_rfc_max_persistent_connections` | UINTEGER | 16 | Upper bound on RFC connections a scan caches concurrently (issue #67); columns past the cap use per-batch open/close |
 | `erpl_rfc_read_table_batch_budget` | UINTEGER | 1310720 | Target max concurrent result rows (projected columns × per-column batch) for `sap_read_table`; bounds peak memory on wide tables (issue #69). Lower = less memory but more RFC round-trips; `0` disables the cap |
+| `erpl_rfc_backend` | VARCHAR | `'nwrfc'` | Which implementation serves RFC calls: `'nwrfc'` (SAP's NetWeaver RFC SDK) or `'proto'` (the pure-Rust erpl-proto implementation). Must be set **before the first SAP call**; frozen for the life of the process once resolved. Environment override: `ERPL_RFC_BACKEND` |
+| `erpl_rfc_backend_path` | VARCHAR | `''` | Explicit path to the RFC backend shared library, overriding the search. Empty means: next to the extension, then the loader's library path. Environment override: `ERPL_RFC_BACKEND_PATH` |
 
 ```sql
 SET erpl_trace_enabled = TRUE;
 SET erpl_trace_level = 'DEBUG';
 SET erpl_trace_output = 'both';
 ```
+
+##### Selecting the RFC backend
+
+erpl does not link the SAP SDK. It resolves the RFC entry points at runtime, so the
+implementation behind them is a runtime choice:
+
+```sql
+-- Must come before any SAP call in this process.
+SET erpl_rfc_backend = 'proto';
+SELECT sap_rfc_backend();          -- 'proto'
+```
+
+The backend freezes at the first SAP call. Connections and function descriptors belong to
+one implementation, so a later `SET` is refused rather than allowed to hand a handle from
+one library to the other — start a new process to switch.
+
+If `'proto'` is selected and its library cannot be found, the call fails. erpl never falls
+back to the SDK, because a silent downgrade would leave you believing you had tested a
+backend you had not.
+
+---
 
 #### erpl_bics
 

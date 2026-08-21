@@ -1,6 +1,6 @@
 #include "pragma_set_trace.hpp"
 #include "duckdb/parser/parsed_data/create_pragma_function_info.hpp"
-#include "sapnwrfc.h"
+#include "sap_rfc_api.hpp"
 #include "telemetry.hpp"
 
 namespace duckdb 

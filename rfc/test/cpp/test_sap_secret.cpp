@@ -1,7 +1,7 @@
 #include "catch.hpp"
 #include "duckdb.hpp"
 
-#include "sapnwrfc.h"
+#include "sap_rfc_api.hpp"
 #include "sap_secret.hpp"
 #include "sap_connection.hpp"
 

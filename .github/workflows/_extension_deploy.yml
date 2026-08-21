@@ -62,7 +62,7 @@ jobs:
         with:
           app-id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
           private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
-          repositories: "erpl,erpl-bics,erpl-odp"
+          repositories: "erpl,erpl-bics,erpl-odp,erpl-proto"
           
       - uses: actions/checkout@v4
         with:
@@ -97,7 +97,7 @@ jobs:
         with:
           app-id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
           private-key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
-          repositories: "erpl,erpl-bics,erpl-odp"
+          repositories: "erpl,erpl-bics,erpl-odp,erpl-proto"
 
       - uses: actions/checkout@v4
         with:

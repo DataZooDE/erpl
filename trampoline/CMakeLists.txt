@@ -124,6 +124,57 @@ if(UNIX AND APPLE)
     endforeach()
 endif()
 
+# The alternative pure-Rust RFC backend, when the private erpl-proto submodule is present.
+#
+# It is shipped ALONGSIDE the SAP SDK rather than instead of it: nwrfc remains the default,
+# and carrying both means a released build can be flipped to the proto backend with
+# `SET erpl_rfc_backend = 'proto'` and flipped straight back if anything misbehaves. It
+# costs about 1 MB against the SDK + ICU's ~30 MB. Once proto has proven itself in the
+# field, dropping the SDK is what actually makes the artifact small.
+#
+# The extension resolves it from its own directory, which is where the trampoline extracts
+# everything, so no search path or environment variable is involved.
+if(TARGET erpl_proto_backend)
+    if(WIN32)
+        set(ERPL_PROTO_STAGED_NAME "erpl_proto_nwrfc.dll")
+    elseif(APPLE)
+        set(ERPL_PROTO_STAGED_NAME "liberpl_proto_nwrfc.dylib")
+    else()
+        set(ERPL_PROTO_STAGED_NAME "liberpl_proto_nwrfc.so")
+    endif()
+    set(ERPL_PROTO_STAGED_PATH "${CMAKE_BINARY_DIR}/${ERPL_PROTO_STAGED_NAME}")
+
+    message(STATUS "Attaching ${ERPL_PROTO_STAGED_NAME} to the trampoline")
+    if(WIN32)
+        file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/resources.rc"
+             "erpl_proto_nwrfc RCDATA \"${ERPL_PROTO_STAGED_PATH}\"\n")
+    elseif(APPLE)
+        # change_rpath OFF, unlike the SDK libraries. Nothing links against this one --
+        # erpl_rfc dlopens it by absolute path -- so its install name is irrelevant, and
+        # rewriting it would mutate the staged file in place on every build, which fights
+        # the copy_if_different that keeps this cheap.
+        convert_dylib_to_object("liberpl_proto_nwrfc" "${ERPL_PROTO_STAGED_PATH}"
+                                "liberpl_proto_nwrfc.o"
+                                "${CMAKE_CURRENT_BINARY_DIR}/liberpl_proto_nwrfc.o" OFF)
+        # The staged shim is a BYPRODUCT of a custom target, not the output of a custom
+        # command, so name the target too or nothing orders the two.
+        add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/liberpl_proto_nwrfc.o"
+                           DEPENDS erpl_proto_backend APPEND)
+        list(APPEND SAPNWRFC_LIB_OBJECTS "liberpl_proto_nwrfc.o")
+    else()
+        embed_binary_to_object("${CMAKE_BINARY_DIR}" "${ERPL_PROTO_STAGED_NAME}"
+                               "${CMAKE_CURRENT_BINARY_DIR}/liberpl_proto_nwrfc.o"
+                               "${ERPL_PROTO_STAGED_PATH}")
+        # The staged shim is a BYPRODUCT of a custom target, not the output of a custom
+        # command, so name the target too or nothing orders the two.
+        add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/liberpl_proto_nwrfc.o"
+                           DEPENDS erpl_proto_backend APPEND)
+        list(APPEND SAPNWRFC_LIB_OBJECTS "liberpl_proto_nwrfc.o")
+    endif()
+
+    add_compile_definitions(WITH_ERPL_PROTO)
+endif()
+
 # Feedback banner (header-only). Telemetry OFF: the trampoline does not link
 # posthog-telemetry -- that lives in erpl_rfc, which this extension merely
 # extracts and loads.
@@ -144,6 +195,11 @@ set(EXTENSION_SOURCES
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 set(PARAMETERS "-warnings")
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
+
+if(TARGET erpl_proto_backend)
+    add_dependencies(${EXTENSION_NAME} erpl_proto_backend)
+    add_dependencies(${LOADABLE_EXTENSION_NAME} erpl_proto_backend)
+endif()
 
 add_dependencies(${EXTENSION_NAME} erpl_rfc_loadable_extension)
 add_dependencies(${LOADABLE_EXTENSION_NAME} erpl_rfc_loadable_extension)

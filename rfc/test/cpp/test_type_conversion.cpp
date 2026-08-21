@@ -2,7 +2,7 @@
 #include "catch.hpp"
 #include "test_helpers.hpp"
 #include "duckdb.hpp"
-#include "sapnwrfc.h"
+#include "sap_rfc_api.hpp"
 #include "sap_type_conversion.hpp"
 #include "sap_function.hpp"
 

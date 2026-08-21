@@ -8,7 +8,7 @@
 #include "duckdb.hpp"
 #include "duckdb/parallel/base_pipeline_event.hpp"
 #include "duckdb/parallel/task_executor.hpp"
-#include "sapnwrfc.h"
+#include "sap_rfc_api.hpp"
 
 #include "sap_function.hpp"
 

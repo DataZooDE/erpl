@@ -19,3 +19,6 @@
 [submodule "datazoo-banner"]
 	path = datazoo-banner
 	url = https://github.com/DataZooDE/duckdb-extension-banner.git
+[submodule "proto"]
+	path = proto
+	url = https://github.com/DataZooDE/erpl-proto.git

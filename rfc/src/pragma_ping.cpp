@@ -3,7 +3,7 @@
 #include "telemetry.hpp"
 
 namespace duckdb {
-    string RfcPing(ClientContext &context, const FunctionParameters &parameters) 
+    string RfcPingPragma(ClientContext &context, const FunctionParameters &parameters) 
     {
         PostHogTelemetry::Instance().RecordFunctionCall("sap_rfc_ping");
 
@@ -18,7 +18,7 @@ namespace duckdb {
 
     PragmaFunction CreateRfcPingPragma() 
     {
-        auto rfc_ping_pragma = PragmaFunction::PragmaCall("sap_rfc_ping", RfcPing, {});
+        auto rfc_ping_pragma = PragmaFunction::PragmaCall("sap_rfc_ping", RfcPingPragma, {});
         rfc_ping_pragma.named_parameters["secret"] = LogicalType::VARCHAR;
 
         return rfc_ping_pragma;

@@ -2,7 +2,7 @@ PROJ_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 EXT_CONFIG=${PROJ_DIR}extension_config.cmake
 
-.PHONY: all clean format debug release pull update wasm_mvp wasm_eh wasm_threads sql_tests_rfc sql_tests_bics sql_tests_odp sql_tests_tunnel smoke_test smoke_test_musl
+.PHONY: all clean format debug debug_tests release pull update wasm_mvp wasm_eh wasm_threads sql_tests_rfc sql_tests_bics sql_tests_odp sql_tests_tunnel sql_tests_rfc_proto sql_tests_bics_proto sql_tests_odp_proto sql_tests_all_backends smoke_test smoke_test_musl
 
 # Test file argument - if provided, run only that specific test
 TEST_FILE ?=
@@ -86,6 +86,16 @@ endif
 configure_ci:
 	@echo "configure_ci step is skipped for this extension build..."
 
+#### Build target for the SQL suites
+# Builds only the unittest binary (and, through it, the extensions and the erpl-proto
+# shim).  The full `debug` target additionally links tools/plan_serializer, which fails
+# under GNU ld for reasons unrelated to erpl -- depending on it would make every SQL
+# suite unrunnable.
+debug_tests:
+	mkdir -p ./build/debug/
+	cmake $(GENERATOR) $(BUILD_FLAGS) -DBUILD_UNITTESTS=ON -DCMAKE_BUILD_TYPE=Debug -S ./duckdb/ -B ./build/debug/
+	cmake --build ./build/debug/ --config Debug --target unittest
+
 #### SQL Test Configuration
 # Common environment variables for all test targets
 COMMON_TEST_ENV = RFC_TRACE=0 \
@@ -102,6 +112,18 @@ SAP_COMMON_VARS = ERPL_SAP_ASHOST=localhost \
                   ERPL_SAP_USER=DEVELOPER \
                   ERPL_SAP_PASSWORD=$(SAP_PASSWORD)
 
+#### RFC backend selection
+# The suites run twice: once on SAP's SDK, once on the pure-Rust erpl-proto shim.  nwrfc
+# is the default and needs no variables at all -- the proto legs point the extension at
+# the library the build staged.  See ERPL_PROTO_INTEGRATION_PLAN.md.
+PROTO_BACKEND_VARS = ERPL_RFC_BACKEND=proto \
+                     ERPL_RFC_BACKEND_PATH=$(PROJ_DIR)build/debug/liberpl_proto_nwrfc.so
+
+# Tests known to fail on the proto backend.  A listed test that fails is reported as a
+# known gap; a listed test that PASSES fails the run, so the list cannot silently rot.
+# Override with ALLOW_UNEXPECTED_PASS=1 while working through the list.
+ALLOW_UNEXPECTED_PASS ?= 0
+
 # SSH tunnel variables
 SSH_VARS = ERPL_SSH_HOST=localhost \
            ERPL_SSH_PORT=2222 \
@@ -109,76 +131,59 @@ SSH_VARS = ERPL_SSH_HOST=localhost \
            ERPL_SSH_PASSWORD=testpass \
            ERPL_SSH_PRIVATE_KEY_PATH=test/integration/test_key
 
-# Common test execution logic.
-#
-# Every test's exit status is checked and failures are aggregated. The previous
-# version ran the files in a bare loop and returned only the *last* test's
-# status, so a failure anywhere else was reported as success — the ODP suite was
-# silently green while five of its files were failing.
-#
-# One narrow exception: the SAP NW RFC SDK aborts inside its own static
-# destructor at process exit ("pure virtual method called", issue #112) on
-# roughly 10% of runs, after every assertion has already passed. That is
-# third-party teardown, not a test result, so it is surfaced as a warning. It is
-# matched on both the pass marker and the SDK signature, so any other abort —
-# including a crash that loses assertions — still fails the run.
+# Common test execution logic lives in scripts/run_sql_tests.sh -- it grew past what is
+# readable inlined in a make recipe once it had to handle two backends and per-backend
+# expected failures.  See that script for the rules it applies.
 define RUN_SQL_TESTS
-	cd $(1) && $(COMMON_TEST_ENV) $(2) bash -c ' \
-		set -u; \
-		failed=0; sdk_aborts=0; \
-		run_one() { \
-			local f="$$1" log rc; \
-			log=$$(mktemp); \
-			echo "Running test: $$f"; \
-			../build/debug/test/unittest --test-dir . "$$f" >"$$log" 2>&1; rc=$$?; \
-			if [ $$rc -ne 0 ] && grep -q "All tests passed" "$$log" \
-					&& grep -q "pure virtual method called" "$$log"; then \
-				echo "  WARN: assertions passed, SAP SDK aborted at exit (erpl#112)"; \
-				sdk_aborts=$$((sdk_aborts+1)); rc=0; \
-			fi; \
-			if [ $$rc -ne 0 ]; then \
-				echo "  FAIL: $$f"; cat "$$log"; failed=$$((failed+1)); \
-			fi; \
-			rm -f "$$log"; \
-		}; \
-		if [ -n "$(TEST_FILE)" ]; then \
-			run_one "test/sql/$(TEST_FILE)"; \
-		else \
-			for test_file in test/sql/*.test; do run_one "$$test_file"; done; \
-		fi; \
-		if [ $$sdk_aborts -gt 0 ]; then \
-			echo "$$sdk_aborts test(s) hit the SAP SDK exit abort (issue #112)"; \
-		fi; \
-		if [ $$failed -gt 0 ]; then echo "$$failed test(s) FAILED"; exit 1; fi; \
-		echo "All SQL tests passed"'
+	ALLOW_UNEXPECTED_PASS=$(ALLOW_UNEXPECTED_PASS) $(COMMON_TEST_ENV) $(2) $(3) \
+		$(PROJ_DIR)scripts/run_sql_tests.sh $(1) \
+		$(if $(4),--backend $(4)) \
+		$(if $(5),--known-failures $(PROJ_DIR)$(5)) \
+		$(if $(TEST_FILE),--test-file $(TEST_FILE))
 endef
 
 #### SQL Test targets
+#
+# Each suite runs on both RFC backends.  The bare targets are the nwrfc (SAP SDK) legs and
+# keep their previous meaning; the _proto targets run the same files against erpl-proto.
 
-sql_tests_rfc: debug
-	$(call RUN_SQL_TESTS,./rfc,$(SAP_COMMON_VARS))
+sql_tests_rfc: debug_tests
+	$(call RUN_SQL_TESTS,rfc,$(SAP_COMMON_VARS),,nwrfc,)
 
-sql_tests_bics: debug
-	$(call RUN_SQL_TESTS,./bics,$(SAP_COMMON_VARS))
+sql_tests_bics: debug_tests
+	$(call RUN_SQL_TESTS,bics,$(SAP_COMMON_VARS),,nwrfc,)
 
-sql_tests_odp: debug
-	$(call RUN_SQL_TESTS,./odp,$(SAP_COMMON_VARS))
+sql_tests_odp: debug_tests
+	$(call RUN_SQL_TESTS,odp,$(SAP_COMMON_VARS),,nwrfc,)
 
-sql_tests_tunnel: debug
+sql_tests_rfc_proto: debug_tests
+	$(call RUN_SQL_TESTS,rfc,$(SAP_COMMON_VARS),$(PROTO_BACKEND_VARS),proto,rfc/test/proto_known_failures.txt)
+
+sql_tests_bics_proto: debug_tests
+	$(call RUN_SQL_TESTS,bics,$(SAP_COMMON_VARS),$(PROTO_BACKEND_VARS),proto,bics/test/proto_known_failures.txt)
+
+sql_tests_odp_proto: debug_tests
+	$(call RUN_SQL_TESTS,odp,$(SAP_COMMON_VARS),$(PROTO_BACKEND_VARS),proto,odp/test/proto_known_failures.txt)
+
+# Every suite on every backend.  Serial on purpose: the suites share one SAP system and
+# one unittest binary, and running them concurrently corrupts both.
+sql_tests_all_backends:
+	$(MAKE) sql_tests_rfc
+	$(MAKE) sql_tests_bics
+	$(MAKE) sql_tests_odp
+	$(MAKE) sql_tests_rfc_proto
+	$(MAKE) sql_tests_bics_proto
+	$(MAKE) sql_tests_odp_proto
+
+sql_tests_tunnel: debug_tests
 	@echo "Starting SSH mock server via docker-compose..."
 	cd ./tunnel/test/integration && docker-compose up -d
 	@echo "Waiting for SSH server to be ready..."
 	@sleep 15
-	@echo "Using static SSH keypairs for testing..."
-	@cd ./tunnel/test/integration && echo "Static keys are already generated and mounted"
-	@echo "Static SSH public keys are already mounted in the container..."
-	@echo "Waiting for SSH key setup..."
-	@sleep 5
 	@echo "Running tunnel SQL tests..."
-	$(call RUN_SQL_TESTS,./tunnel,$(SSH_VARS))
+	$(call RUN_SQL_TESTS,tunnel,$(SSH_VARS),,nwrfc,)
 	@echo "Stopping SSH mock server..."
 	cd ./tunnel/test/integration && docker-compose down
-	@echo "Static SSH keys are preserved for future tests..."
 
 # Usage examples:
 #   make sql_tests_bics                    # Run all BICS tests
@@ -186,7 +191,8 @@ sql_tests_tunnel: debug
 #   make sql_tests_rfc TEST_FILE=sap_rfc_invoke.test       # Run only RFC invoke test
 #   make sql_tests_odp TEST_FILE=sap_odp_describe.test     # Run only ODP describe test
 #   make sql_tests_tunnel                  # Run all tunnel tests
-#   make sql_tests_tunnel TEST_FILE=sap_tunnel_basic.test  # Run only basic tunnel test
+#   make sql_tests_rfc_proto               # Same RFC files, on the erpl-proto backend
+#   make sql_tests_all_backends            # Every suite on both backends
 
 #### Smoke test — verifies the release extension installs and loads correctly
 # Downloads the official DuckDB CLI for the built version; no SAP connection required.

@@ -1,0 +1,8 @@
+# Tests in this suite known to fail on the erpl-proto backend.
+#
+# One test filename per line; blank lines and # comments ignored. A listed test that
+# fails is reported as a known gap rather than a failure. A listed test that PASSES fails
+# the run -- the list is a record of real gaps, not a place for entries to accumulate
+# unchallenged. Remove a line as soon as its gap closes.
+#
+# See ERPL_PROTO_INTEGRATION_PLAN.md, Phase 6.
