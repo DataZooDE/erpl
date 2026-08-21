@@ -70,6 +70,11 @@ extern const unsigned int libsapnwrfc_dylib_len;
 extern const char libsapucum_dylib[];
 extern const unsigned int libsapucum_dylib_len;
 
+#ifdef WITH_ERPL_PROTO
+extern const char liberpl_proto_nwrfc_dylib[];
+extern const unsigned int liberpl_proto_nwrfc_dylib_len;
+#endif
+
 extern const char libicudata_50_dylib[];
 extern const unsigned int libicudata_50_dylib_len;
 
@@ -359,6 +364,10 @@ namespace duckdb
             SaveResourceToFile(TEXT("ICUUC57"), StringUtil::Format("%s\\icuuc57.dll", ext_path));
             SaveResourceToFile(TEXT("SAPNWRFC"), StringUtil::Format("%s\\sapnwrfc.dll", ext_path));
             SaveResourceToFile(TEXT("LIBSAPUCUM"), StringUtil::Format("%s\\libsapucum.dll", ext_path));
+            #ifdef WITH_ERPL_PROTO
+            // Written out but deliberately NOT loaded -- see the note on the Linux path.
+            SaveResourceToFile(TEXT("ERPL_PROTO_NWRFC"), StringUtil::Format("%s\\erpl_proto_nwrfc.dll", ext_path));
+            #endif
             SaveResourceToFile(TEXT("LIBCRYPTO-3-x64"), StringUtil::Format("%s\\libcrypto-3-x64.dll", ext_path));
             SaveResourceToFile(TEXT("LIBSSL-3-x64"), StringUtil::Format("%s\\libssl-3-x64.dll", ext_path));
             SaveResourceToFile(TEXT("LIBSSH2"), StringUtil::Format("%s\\libssh2.dll", ext_path));
@@ -494,6 +503,11 @@ static void ExtractExtensionsAndSapLibs()
 
         SaveToFile(libsapucum_dylib, libsapucum_dylib_len, ext_path + "/libsapucum.dylib");
         LoadLibraryFromFile(ext_path + "/libsapucum.dylib");
+
+        #ifdef WITH_ERPL_PROTO
+        // Written out but deliberately NOT loaded -- see the note on the Linux path.
+        SaveToFile(liberpl_proto_nwrfc_dylib, liberpl_proto_nwrfc_dylib_len, ext_path + "/liberpl_proto_nwrfc.dylib");
+        #endif
 
         std::cout << "done" << std::endl;
 

@@ -67,7 +67,9 @@ string LastLibraryError() {
 	if (buffer) {
 		LocalFree(buffer);
 	}
-	return StringUtil::Trim(message);
+	// StringUtil::Trim mutates in place and returns void.
+	StringUtil::Trim(message);
+	return message;
 #else
 	const char *error = dlerror();
 	return error ? string(error) : string("unknown error");

@@ -149,9 +149,13 @@ if(TARGET erpl_proto_backend)
         file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/resources.rc"
              "erpl_proto_nwrfc RCDATA \"${ERPL_PROTO_STAGED_PATH}\"\n")
     elseif(APPLE)
+        # change_rpath OFF, unlike the SDK libraries. Nothing links against this one --
+        # erpl_rfc dlopens it by absolute path -- so its install name is irrelevant, and
+        # rewriting it would mutate the staged file in place on every build, which fights
+        # the copy_if_different that keeps this cheap.
         convert_dylib_to_object("liberpl_proto_nwrfc" "${ERPL_PROTO_STAGED_PATH}"
                                 "liberpl_proto_nwrfc.o"
-                                "${CMAKE_CURRENT_BINARY_DIR}/liberpl_proto_nwrfc.o" ON)
+                                "${CMAKE_CURRENT_BINARY_DIR}/liberpl_proto_nwrfc.o" OFF)
         # The staged shim is a BYPRODUCT of a custom target, not the output of a custom
         # command, so name the target too or nothing orders the two.
         add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/liberpl_proto_nwrfc.o"
