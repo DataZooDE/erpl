@@ -362,8 +362,11 @@ namespace duckdb
             #endif
             SaveResourceToFile(TEXT("LIBCRYPTO-3-x64"), StringUtil::Format("%s\\libcrypto-3-x64.dll", ext_path));
             SaveResourceToFile(TEXT("LIBSSL-3-x64"), StringUtil::Format("%s\\libssl-3-x64.dll", ext_path));
-            SaveResourceToFile(TEXT("LIBSSH2"), StringUtil::Format("%s\\libssh2.dll", ext_path));
-            SaveResourceToFile(TEXT("ZLIB1"), StringUtil::Format("%s\\zlib1.dll", ext_path));
+            // NOTE: this list is hardcoded while attach_vcpkg_dlls_as_resources() globs
+            // whatever vcpkg actually built, so the two must be kept in sync -- asking for
+            // a resource that was never attached fails the whole extraction. libssh2 and
+            // its zlib dependency left rfc/vcpkg.json together with the bundled SSH
+            // tunnel, so neither DLL exists any more.
             std::cout << StringUtil::Format("ERPL dependencies extracted and saved to %s.", ext_path) << std::endl;
             
             SaveResourceToFile(TEXT("ERPL_RFC"), StringUtil::Format("%s\\erpl_rfc.duckdb_extension", ext_path));
