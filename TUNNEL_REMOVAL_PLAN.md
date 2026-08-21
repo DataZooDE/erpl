@@ -63,12 +63,34 @@ findings force this, both verified experimentally rather than read off the sourc
 1. **The name must be freed.** As long as anything erpl ships is called `erpl_tunnel`, the
    user's `LOAD erpl_tunnel` is a no-op and the real extension never loads (above).
 
-2. **Last registration wins, so the stub is transparent once the real one loads.** A
-   duplicate pragma name does *not* throw — contrary to what `ExtensionLoader` suggests,
-   where the pragma path leaves `CreateInfo::on_conflict` at its `ERROR_ON_CONFLICT`
-   default. Tested by registering a `tunnel_create` stub in `erpl_rfc` alongside the real
-   one: startup succeeded, and `PRAGMA tunnel_create(remote_host=…, remote_port=…)` was
-   handled by the **real** implementation, registered second. The stub never fired.
+2. **A duplicate name aborts the other extension's load, so erpl-tunnel had to change too.**
+
+   This was got wrong first time and caught by testing. An initial probe registered a
+   competing `tunnel_create` in `erpl_rfc`, and startup succeeded with the *real*
+   implementation serving the call — suggesting duplicates were harmless and last-wins.
+   That probe used the **statically linked debug build**, where both extensions are
+   registered through a different path. It does not transfer.
+
+   Against real artifacts, `LOAD erpl_tunnel` after `LOAD erpl` fails:
+
+   ```
+   Invalid Input Error: Initialization function "erpl_tunnel_duckdb_cpp_init" threw an
+   exception: "Pragma Function with name "tunnel_create" already exists!"
+   ```
+
+   `ExtensionLoader::RegisterFunction(PragmaFunction)` and the `CreateTableFunctionInfo`
+   overload both leave `CreateInfo::on_conflict` at its `ERROR_ON_CONFLICT` default.
+   Fixing only the pragmas moves the abort to the `tunnels` table function and leaves the
+   extension half-registered — `loaded = false`, `tunnel_peers` and `tunnel_self` missing
+   — which looks like success unless you count the functions.
+
+   So this change has a **companion in erpl-tunnel** (DataZooDE/erpl-tunnel#5): its pragma
+   and table-function registrations use `REPLACE_ON_CONFLICT`, overwriting a stub rather
+   than aborting. `REPLACE` rather than `IGNORE`, because ignoring would leave the stub
+   resolving the name — a function that only knows how to say "this moved".
+
+   **Release ordering therefore matters: erpl-tunnel ships first.** With an older
+   erpl-tunnel, erpl's stubs abort its load — the exact path the stub message recommends.
 
 The stub must **not** register the `ssh_tunnel` secret type. `RegisterSecretType` throws
 `InternalException("Attempted to register an already registered secret type")`, and secret
