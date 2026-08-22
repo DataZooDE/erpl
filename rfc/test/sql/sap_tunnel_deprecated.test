@@ -1,0 +1,57 @@
+# name: test/sql/sap_tunnel_deprecated.test
+# description: The SSH tunnel functions moved to the erpl_tunnel extension
+# group: [erpl_rfc]
+#
+# erpl no longer bundles an SSH tunnel. What remains are stubs that name the dedicated
+# extension, so a call to a moved function says where it went instead of failing with
+# DuckDB's generic "Function does not exist". See TUNNEL_REMOVAL_PLAN.md.
+#
+# No SAP system is involved.
+
+require erpl_rfc
+
+# Every moved function names its replacement, the install line, and the repository.
+statement error
+PRAGMA tunnel_create(remote_host='sap.example.com', remote_port=3300, local_port=3300)
+----
+has moved out of erpl into the dedicated erpl_tunnel extension
+
+statement error
+PRAGMA tunnel_create(remote_host='sap.example.com', remote_port=3300, local_port=3300)
+----
+INSTALL erpl_tunnel FROM 'http://get.erpl.io'
+
+statement error
+PRAGMA tunnel_create(remote_host='sap.example.com', remote_port=3300, local_port=3300)
+----
+https://github.com/DataZooDE/erpl-tunnel
+
+# The stub carries the original parameters, so a realistic call reaches the message rather
+# than falling through to a signature error.
+statement error
+PRAGMA tunnel_create(secret='my_ssh', remote_host='h', remote_port=1, local_port=2, timeout=30)
+----
+has moved out of erpl
+
+statement error
+PRAGMA tunnel_close(1)
+----
+PRAGMA tunnel_close has moved out of erpl
+
+statement error
+PRAGMA tunnel_close_all
+----
+PRAGMA tunnel_close_all has moved out of erpl
+
+# tunnels() was a table function; it raises from bind, so the message is all the caller sees.
+statement error
+SELECT * FROM tunnels()
+----
+tunnels() has moved out of erpl
+
+# The ssh_tunnel secret type is deliberately NOT registered here. Registering it would make
+# LOAD erpl_tunnel fail outright -- RegisterSecretType throws on a duplicate -- so erpl
+# leaves the type entirely to the dedicated extension.
+statement error
+CREATE SECRET tunnel_secret (TYPE ssh_tunnel, ssh_host 'h', ssh_user 'u')
+----

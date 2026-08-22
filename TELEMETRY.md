@@ -53,7 +53,7 @@ pseudonymous** identifier, not tied to any personal data.
 
 | Event | When | Properties (beyond the envelope) |
 |---|---|---|
-| `extension_loaded` | an ERPL extension loads (`erpl_rfc`, `erpl_bics`, `erpl_odp`, `erpl_tunnel`) | — |
+| `extension_loaded` | an ERPL extension loads (`erpl_rfc`, `erpl_bics`, `erpl_odp`) | — |
 | `feature_used` | a named capability is exercised | `feature` (enum below), plus the per-feature props below |
 | `function_executed` | a DuckDB function runs — **aggregated** per function per session (not per row) | `function_name`, `call_count`, `duration_ms_p50` |
 | `$exception` | a caught error in an instrumented path | `error_class` (enum), `feature` (enum), `phase` (enum) |

@@ -2,7 +2,7 @@ PROJ_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 EXT_CONFIG=${PROJ_DIR}extension_config.cmake
 
-.PHONY: all clean format debug debug_tests release pull update wasm_mvp wasm_eh wasm_threads sql_tests_rfc sql_tests_bics sql_tests_odp sql_tests_tunnel sql_tests_rfc_proto sql_tests_bics_proto sql_tests_odp_proto sql_tests_all_backends smoke_test smoke_test_musl
+.PHONY: all clean format debug debug_tests release pull update wasm_mvp wasm_eh wasm_threads sql_tests_rfc sql_tests_bics sql_tests_odp sql_tests_rfc_proto sql_tests_bics_proto sql_tests_odp_proto sql_tests_all_backends smoke_test smoke_test_musl
 
 # Test file argument - if provided, run only that specific test
 TEST_FILE ?=
@@ -124,12 +124,6 @@ PROTO_BACKEND_VARS = ERPL_RFC_BACKEND=proto \
 # Override with ALLOW_UNEXPECTED_PASS=1 while working through the list.
 ALLOW_UNEXPECTED_PASS ?= 0
 
-# SSH tunnel variables
-SSH_VARS = ERPL_SSH_HOST=localhost \
-           ERPL_SSH_PORT=2222 \
-           ERPL_SSH_USER=root \
-           ERPL_SSH_PASSWORD=testpass \
-           ERPL_SSH_PRIVATE_KEY_PATH=test/integration/test_key
 
 # Common test execution logic lives in scripts/run_sql_tests.sh -- it grew past what is
 # readable inlined in a make recipe once it had to handle two backends and per-backend
@@ -175,22 +169,12 @@ sql_tests_all_backends:
 	$(MAKE) sql_tests_bics_proto
 	$(MAKE) sql_tests_odp_proto
 
-sql_tests_tunnel: debug_tests
-	@echo "Starting SSH mock server via docker-compose..."
-	cd ./tunnel/test/integration && docker-compose up -d
-	@echo "Waiting for SSH server to be ready..."
-	@sleep 15
-	@echo "Running tunnel SQL tests..."
-	$(call RUN_SQL_TESTS,tunnel,$(SSH_VARS),,nwrfc,)
-	@echo "Stopping SSH mock server..."
-	cd ./tunnel/test/integration && docker-compose down
 
 # Usage examples:
 #   make sql_tests_bics                    # Run all BICS tests
 #   make sql_tests_bics TEST_FILE=sap_bics_hierarchy.test  # Run only hierarchy test
 #   make sql_tests_rfc TEST_FILE=sap_rfc_invoke.test       # Run only RFC invoke test
 #   make sql_tests_odp TEST_FILE=sap_odp_describe.test     # Run only ODP describe test
-#   make sql_tests_tunnel                  # Run all tunnel tests
 #   make sql_tests_rfc_proto               # Same RFC files, on the erpl-proto backend
 #   make sql_tests_all_backends            # Every suite on both backends
 

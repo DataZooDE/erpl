@@ -39,9 +39,6 @@ extern const char _binary_libicuuc_so_50_end[];
 extern const char _binary_erpl_rfc_duckdb_extension_start[];
 extern const char _binary_erpl_rfc_duckdb_extension_end[];
 
-extern const char _binary_erpl_tunnel_duckdb_extension_start[];
-extern const char _binary_erpl_tunnel_duckdb_extension_end[];
-
 #ifdef WITH_ERPL_BICS
 extern const char _binary_erpl_bics_duckdb_extension_start[];
 extern const char _binary_erpl_bics_duckdb_extension_end[];
@@ -86,9 +83,6 @@ extern const unsigned int libicuuc_50_dylib_len;
 
 extern const char erpl_rfc_duckdb_extension[];
 extern const unsigned int erpl_rfc_duckdb_extension_len;
-
-extern const char erpl_tunnel_duckdb_extension[];
-extern const unsigned int erpl_tunnel_duckdb_extension_len;
 
 #ifdef WITH_ERPL_BICS
 extern const char erpl_bics_duckdb_extension[];
@@ -235,8 +229,6 @@ namespace duckdb
             SaveToFile(_binary_erpl_rfc_duckdb_extension_start, _binary_erpl_rfc_duckdb_extension_end, StringUtil::Format("%s/erpl_rfc.duckdb_extension", ext_path));
             std::cout << StringUtil::Format("ERPL RFC extension extracted and saved to %s.", ext_path) << std::endl;
 
-            SaveToFile(_binary_erpl_tunnel_duckdb_extension_start, _binary_erpl_tunnel_duckdb_extension_end, StringUtil::Format("%s/erpl_tunnel.duckdb_extension", ext_path));
-            std::cout << StringUtil::Format("ERPL Tunnel extension extracted and saved to %s.", ext_path) << std::endl;
 
             #ifdef WITH_ERPL_BICS
             SaveToFile(_binary_erpl_bics_duckdb_extension_start, _binary_erpl_bics_duckdb_extension_end, StringUtil::Format("%s/erpl_bics.duckdb_extension", ext_path));
@@ -370,15 +362,16 @@ namespace duckdb
             #endif
             SaveResourceToFile(TEXT("LIBCRYPTO-3-x64"), StringUtil::Format("%s\\libcrypto-3-x64.dll", ext_path));
             SaveResourceToFile(TEXT("LIBSSL-3-x64"), StringUtil::Format("%s\\libssl-3-x64.dll", ext_path));
-            SaveResourceToFile(TEXT("LIBSSH2"), StringUtil::Format("%s\\libssh2.dll", ext_path));
-            SaveResourceToFile(TEXT("ZLIB1"), StringUtil::Format("%s\\zlib1.dll", ext_path));
+            // NOTE: this list is hardcoded while attach_vcpkg_dlls_as_resources() globs
+            // whatever vcpkg actually built, so the two must be kept in sync -- asking for
+            // a resource that was never attached fails the whole extraction. libssh2 and
+            // its zlib dependency left rfc/vcpkg.json together with the bundled SSH
+            // tunnel, so neither DLL exists any more.
             std::cout << StringUtil::Format("ERPL dependencies extracted and saved to %s.", ext_path) << std::endl;
             
             SaveResourceToFile(TEXT("ERPL_RFC"), StringUtil::Format("%s\\erpl_rfc.duckdb_extension", ext_path));
             std::cout << StringUtil::Format("ERPL RFC extension extracted and saved to %s.", ext_path) << std::endl;
 
-            SaveResourceToFile(TEXT("ERPL_TUNNEL"), StringUtil::Format("%s\\erpl_tunnel.duckdb_extension", ext_path));
-            std::cout << StringUtil::Format("ERPL Tunnel extension extracted and saved to %s.", ext_path) << std::endl;
 
             #ifdef WITH_ERPL_BICS
             SaveResourceToFile(TEXT("ERPL_BICS"), StringUtil::Format("%s\\erpl_bics.duckdb_extension", ext_path));
@@ -514,8 +507,6 @@ static void ExtractExtensionsAndSapLibs()
         SaveToFile(erpl_rfc_duckdb_extension, erpl_rfc_duckdb_extension_len, ext_path + "/erpl_rfc.duckdb_extension");
         std::cout << "ERPL RFC extension extracted and saved to " << ext_path << "." << std::endl;
 
-        SaveToFile(erpl_tunnel_duckdb_extension, erpl_tunnel_duckdb_extension_len, ext_path + "/erpl_tunnel.duckdb_extension");
-        std::cout << "ERPL Tunnel extension extracted and saved to " << ext_path << "." << std::endl;
 
         #ifdef WITH_ERPL_BICS
         SaveToFile(erpl_bics_duckdb_extension, erpl_bics_duckdb_extension_len, ext_path + "/erpl_bics.duckdb_extension");
@@ -575,7 +566,6 @@ static std::string Separator() {
         DuckDB db_wrapper(db);
         InstallAndLoadExtension(db_wrapper, "erpl_rfc");
 
-        InstallAndLoadExtension(db_wrapper, "erpl_tunnel");
 
         #ifdef WITH_ERPL_BICS
         InstallAndLoadExtension(db_wrapper, "erpl_bics");
@@ -590,7 +580,7 @@ static std::string Separator() {
 
     static void LoadInternal(ExtensionLoader &loader)
     {
-       loader.SetDescription("ERPL bootstrap extension — bundles the SAP NetWeaver RFC SDK and installs the erpl_rfc, erpl_bics, erpl_odp, and erpl_tunnel extensions.");
+       loader.SetDescription("ERPL bootstrap extension — bundles the SAP NetWeaver RFC SDK and installs the erpl_rfc, erpl_bics and erpl_odp extensions.");
 
        std::cout << "-- Loading ERPL Trampoline Extension. --" << std::endl
                  << "(The purpose of the extension is to extract dependencies and load the ERPL implementation)" << std::endl;

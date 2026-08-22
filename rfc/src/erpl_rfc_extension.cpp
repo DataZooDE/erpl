@@ -11,6 +11,7 @@
 #include "pragma_ping.hpp"
 #include "pragma_set_trace.hpp"
 #include "pragma_ini.hpp"
+#include "pragma_tunnel_deprecated.hpp"
 #include "scanner_invoke.hpp"
 #include "scanner_show_groups.hpp"
 #include "scanner_describe_function.hpp"
@@ -426,6 +427,10 @@ namespace duckdb {
         RegisterConfiguration(loader);
         RegisterRfcFunctions(loader);
         RegisterSapStorageExtension(loader);
+
+        // Stubs naming erpl_tunnel for the SSH tunnel functions erpl used to bundle.
+        // See TUNNEL_REMOVAL_PLAN.md.
+        RegisterDeprecatedTunnelFunctions(loader);
     }
 
     void ErplRfcExtension::Load(ExtensionLoader &loader) 

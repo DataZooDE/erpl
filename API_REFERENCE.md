@@ -3,7 +3,7 @@
 > Complete function reference for SAP data integration in DuckDB
 
 **DuckDB Version:** >= v1.2.0
-**Extensions:** erpl_rfc, erpl_bics, erpl_odp, erpl_tunnel
+**Extensions:** erpl_rfc, erpl_bics, erpl_odp
 
 ---
 
@@ -22,7 +22,7 @@ The ERPL extension suite brings SAP data integration directly into DuckDB. It en
 | **erpl_rfc** | Core SAP RFC connectivity — table reads, function calls, metadata |
 | **erpl_bics** | SAP BW queries via BICS — cubes, hierarchies, lineage |
 | **erpl_odp** | SAP ODP data extraction and replication |
-| **erpl_tunnel** | SSH tunneling for secure SAP connections |
+| *(SSH tunnelling)* | moved to the [erpl_tunnel](https://github.com/DataZooDE/erpl-tunnel) extension |
 
 ---
 
@@ -1076,68 +1076,25 @@ PRAGMA sap_odp_drop(
 
 ---
 
-## erpl_tunnel — SSH Tunneling
+## SSH tunnelling — moved to `erpl_tunnel`
 
-### Tunnel Management
-
-#### `PRAGMA tunnel_create([secret, remote_host, remote_port, local_port, timeout])`
-
-Create a new SSH tunnel for port forwarding.
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `secret` | VARCHAR | — | SSH tunnel secret name |
-| `remote_host` | VARCHAR | *required* | Target host to tunnel to |
-| `remote_port` | INTEGER | *required* | Target port |
-| `local_port` | INTEGER | *required* | Local port to bind |
-| `timeout` | INTEGER | 60 | Connection timeout in seconds |
-
-**Returns:** `tunnel_id`, `message`
+The SSH tunnel that erpl used to bundle now lives in a dedicated extension,
+[erpl_tunnel](https://github.com/DataZooDE/erpl-tunnel), which does more: reverse tunnels,
+Tailscale and NetBird backends, and peer discovery.
 
 ```sql
-PRAGMA tunnel_create(
-    secret='my_ssh',
-    remote_host='sap-internal.corp',
-    remote_port=3300,
-    local_port=13300
-);
+INSTALL erpl_tunnel FROM 'http://get.erpl.io';
+LOAD erpl_tunnel;
 ```
 
----
+`tunnel_create`, `tunnel_close`, `tunnel_close_all` and `tunnels()` remain registered in
+erpl as stubs that raise and point here, so an old script says where the function went
+rather than failing with "does not exist". Loading `erpl_tunnel` replaces them.
 
-#### `PRAGMA tunnel_close(tunnel_id)`
-
-Close a specific tunnel by ID.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `tunnel_id` | INTEGER | Tunnel ID to close |
-
-```sql
-PRAGMA tunnel_close(1);
-```
-
----
-
-#### `PRAGMA tunnel_close_all`
-
-Close all active tunnels.
-
-```sql
-PRAGMA tunnel_close_all;
-```
-
----
-
-#### `tunnels()`
-
-List all active SSH tunnels.
-
-**Returns:** `tunnel_id` (BIGINT), `ssh_host` (VARCHAR), `ssh_port` (INTEGER), `ssh_user` (VARCHAR), `remote_host` (VARCHAR), `remote_port` (INTEGER), `local_port` (INTEGER), `status` (VARCHAR)
-
-```sql
-SELECT * FROM tunnels();
-```
+Two differences from the version erpl bundled: `tunnels()` gained `backend` and
+`direction` columns, so **column order changed** (queries naming columns are unaffected),
+and `tunnel_create` is a deprecated alias for `tunnel_import`. The `ssh_tunnel` secret type
+is unchanged, so existing secrets keep working.
 
 ---
 
@@ -1359,13 +1316,6 @@ backend you had not.
 |--------|------|---------|-------------|
 | `erpl_bics_trace` | BOOLEAN | `false` | Enable BICS trace logging |
 | `erpl_bics_trace_dir` | VARCHAR | `'./trace'` | BICS trace directory |
-
-#### erpl_tunnel
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `erpl_telemetry_enabled` | BOOLEAN | `true` | Enable telemetry |
-| `erpl_telemetry_key` | VARCHAR | *(built-in)* | Telemetry API key |
 
 ---
 

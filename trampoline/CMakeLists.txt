@@ -16,7 +16,6 @@ if(WIN32)
     # such that it can be extracted
     init_resource_file()
     attach_extension_and_dependencies_as_resource("erpl_rfc.duckdb_extension" "${ADDED_EXTENSION_OBJECTS}")
-    attach_extension_and_dependencies_as_resource("erpl_tunnel.duckdb_extension" "${ADDED_EXTENSION_OBJECTS}")
 
     list(FIND DUCKDB_EXTENSION_NAMES "erpl_bics" _index)
     if(NOT ${_index} EQUAL -1)
@@ -53,7 +52,6 @@ if(UNIX AND NOT APPLE)
     # Attach the erpl_XXX.duckdb_extension files as an object to the trampoline file 
     # (we call this erpl to not confuse the user), such that it can be extracted
     attach_extension_as_object("erpl_rfc.duckdb_extension")
-    attach_extension_as_object("erpl_tunnel.duckdb_extension")
 
     list(FIND DUCKDB_EXTENSION_NAMES "erpl_bics" _index)
     if(NOT ${_index} EQUAL -1)
@@ -88,7 +86,6 @@ if(UNIX AND APPLE)
     # Attach the erpl_XXX.duckdb_extension files as an object to the trampoline file 
     # (we call this erpl to not confuse the user), such that it can be extracted
     attach_extension_as_object("erpl_rfc.duckdb_extension")
-    attach_extension_as_object("erpl_tunnel.duckdb_extension")
 
     list(FIND DUCKDB_EXTENSION_NAMES "erpl_bics" _index)
     if(NOT ${_index} EQUAL -1)
@@ -203,9 +200,6 @@ endif()
 
 add_dependencies(${EXTENSION_NAME} erpl_rfc_loadable_extension)
 add_dependencies(${LOADABLE_EXTENSION_NAME} erpl_rfc_loadable_extension)
-
-add_dependencies(${EXTENSION_NAME} erpl_tunnel_loadable_extension)
-add_dependencies(${LOADABLE_EXTENSION_NAME} erpl_tunnel_loadable_extension)
 
 list(FIND DUCKDB_EXTENSION_NAMES "erpl_bics" _index)
 if(NOT ${_index} EQUAL -1)
