@@ -22,7 +22,43 @@ LOAD erpl;
 
 ---
 
-## Unreleased
+## v2026.08.22 — A pure-Rust RFC backend, and the SSH tunnel moves out
+
+### Added
+
+- **[rfc]** **erpl can now run on either SAP's NetWeaver RFC SDK or
+  [erpl-proto](https://github.com/DataZooDE/erpl-proto), a pure-Rust implementation of the
+  classic RFC protocol — chosen at runtime.** `nwrfc` remains the default; nothing changes
+  unless you ask for it:
+
+  ```sql
+  SET erpl_rfc_backend = 'proto';   -- or 'nwrfc' (default), or ERPL_RFC_BACKEND
+  SELECT sap_rfc_backend();         -- which one is actually serving calls
+  ```
+
+  erpl no longer links `libsapnwrfc` at all. The 55 SDK entry points that `erpl_rfc`,
+  `erpl_bics` and `erpl_odp` call between them are resolved through a dispatch table
+  filled by `dlopen` + `dlsym` on first use. Both libraries export the same symbols, so
+  only one could ever be linked — whichever the loader reached first would silently serve
+  everything, which is why the indirection exists. The library is opened `RTLD_LOCAL` so
+  the two can never interpose on each other.
+
+  The backend freezes at the first SAP call: connections and function descriptors belong
+  to one implementation, so a later `SET` is refused rather than allowed to hand a handle
+  across. A missing proto library is a hard error, never a silent fallback to the SDK.
+
+  Both backends pass the full suites against an ABAP Platform Trial — `rfc` 28/28,
+  `bics` 43/43, `odp` 24/24, and 121 C++ test cases — including with the SDK removed from
+  the library path entirely. `libsapucum` also left the link line; `strlenU16` was the
+  only symbol erpl needed from it.
+
+- **[rfc]** `sap_rfc_backend()` reports which implementation is serving RFC calls.
+
+### Fixed
+
+- **[rfc]** The `sap_rfc_invoke` example advertised in `duckdb_functions()` was wrong —
+  `REQUTEXT='Hello'` is rejected by the binder, since the only named parameters that
+  function takes are `path` and `secret`. RFC parameters travel as a STRUCT.
 
 ### Breaking
 

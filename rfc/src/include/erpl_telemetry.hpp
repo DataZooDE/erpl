@@ -37,7 +37,7 @@ namespace erpl_telemetry {
 // product_version stamped on every event's envelope. Kept as ONE header
 // constant (not a per-translation-unit -D macro) so all four extensions agree
 // regardless of load order. Bump on release (erpl uses CalVer, e.g. 2026.07.02).
-static constexpr const char *kProductVersion = "2026.07.02";
+static constexpr const char *kProductVersion = "2026.08.22";
 
 // -- Bounded enums: the ONLY feature values we ever emit. Extend by adding a
 //    constant here — never pass a free-form string. -------------------------

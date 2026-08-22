@@ -100,7 +100,7 @@ extern const unsigned int erpl_odp_duckdb_extension_len;
 // Deliberately outside namespace duckdb: the banner library is DuckDB-agnostic
 // (the same header serves erpl-adt and flapi).
 const datazoo::BannerInfo ERPL_BANNER {
-    "erpl", "2026.07.24", "https://github.com/DataZooDE/erpl"};
+    "erpl", "2026.08.22", "https://github.com/DataZooDE/erpl"};
 
 namespace duckdb 
 {
