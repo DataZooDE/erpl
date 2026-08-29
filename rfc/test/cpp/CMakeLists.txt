@@ -16,6 +16,8 @@ include_directories(./include
 
 set(TEST_SOURCES
     test_type_conversion.cpp
+    test_struct_type_sharing.cpp
+    test_deferred_table_params.cpp
     test_serialization_helper.cpp
     test_value_helper.cpp
     test_table_wrapper.cpp
