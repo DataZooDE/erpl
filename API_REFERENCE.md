@@ -1316,13 +1316,28 @@ backend you had not.
 |--------|------|---------|-------------|
 | `erpl_bics_trace` | BOOLEAN | `false` | Enable BICS trace logging |
 | `erpl_bics_trace_dir` | VARCHAR | `'./trace'` | BICS trace directory |
-| `erpl_bics_max_data_cells` | BIGINT | `10000000` | Upper bound on the number of data cells a single BICS result set may contain |
+| `erpl_bics_max_data_cells` | BIGINT | `1000000` | Upper bound on the number of data cells a single BICS result set may contain |
 
 `erpl_bics_max_data_cells` is passed to `BICS_PROV_GET_RESULT_SET` as `I_MAX_DATA_CELLS`.
 BW builds the result set only if it fits the budget; otherwise it returns no data at all
 and `sap_bics_result()` fails with an error naming the size the result would have had.
 Raise the setting for large extracts (it is capped at 2,147,483,647, the width of the ABAP
 integer BW receives it in), or lower it to guard against a runaway query.
+
+It is in practice a **memory** budget. The whole result set is materialised before the
+first row is emitted, at roughly **2.2 KB of peak RSS per data cell** (measured on the
+release build), plus about 0.8 KB per row-axis element (result rows x row-axis
+characteristics). Size it against the memory you have:
+
+| Budget | Approx. peak RSS |
+|--------|------------------|
+| 1,000,000 (default) | ~2.2 GB |
+| 4,000,000 | ~8.8 GB |
+| 10,000,000 | ~22 GB |
+
+Note that the budget counts **data cells** — the key-figure cells — not output columns. A
+result with 60,000 rows and 31 output columns of which 6 are key figures is 360,000 data
+cells, not 1,860,000.
 
 ---
 
