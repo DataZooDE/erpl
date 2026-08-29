@@ -1,0 +1,58 @@
+# erpl-rev's ABAP objects: type map, util, delta engine, CDC, RFC FM generator and the
+# test drivers, plus the ZERPL_REV registered-server destination.
+#
+# Fully portable, unlike erpl-proto's: erpl-rev creates its destination and its RFC
+# function modules from ABAP (ZCL_ERPL_REV_SETUP, ZCL_ERPL_REV_MKFM) rather than from a
+# Rust example, so nothing here needs a checkout of that repo.
+#
+# Generated from erpl-rev/scripts/deploy-abap.sh; regenerate if that list changes.
+
+_AB="$HERE/assets/rev/abap"
+
+if [ "$PROVISION_MODE" = check ]; then
+    say "would deploy $(ls "$_AB" | wc -l) erpl-rev ABAP objects + ZERPL_REV destination"
+    return 0
+fi
+
+rc=0
+_d() {  # _d <kind> <NAME> <file> <desc>
+    local k="$1"; shift
+    [ -f "$_AB/$2" ] || { warn "$1 (missing $2)"; return 1; }
+    "$k" "$1" "$_AB/$2" "$3"
+}
+_d tabl ZWIDE_BSEG zwide_bseg.ddl "wide BSEG repro (erpl-rev)" || rc=1 || rc=1
+_d cls ZCL_WIDE_BSEG zcl_wide_bseg.abap "populate ZWIDE_BSEG" || rc=1 || rc=1
+_d tabl ZDELTA_WM zdelta_wm.ddl "delta watermark test table (erpl-rev)" || rc=1 || rc=1
+_d intf ZIF_ERPL_REV_PROGRESS zif_erpl_rev_progress.intf.abap "replicate progress callback" || rc=1 || rc=1
+_d cls ZCL_ERPL_REV_TYPEMAP zcl_erpl_rev_typemap.abap "DDIC<->DuckDB type map" || rc=1 || rc=1
+_d cls ZCL_ERPL_REV_UTIL zcl_erpl_rev_util.abap "query/describe/replicate" || rc=1 || rc=1
+_d cls ZCL_ERPL_REV_DELTA zcl_erpl_rev_delta.abap "delta engine (state + 4 readers)" || rc=1 || rc=1
+_d cls ZCL_ERPL_REV_DELTADRV zcl_erpl_rev_deltadrv.abap "delta change-injection driver" || rc=1 || rc=1
+_d cls ZCL_ERPL_REV_CDC zcl_erpl_rev_cdc.abap "trigger-CDC thin executor (provision/run/teardown)" || rc=1 || rc=1
+_d cls ZCL_ERPL_REV_MKFM zcl_erpl_rev_mkfm.abap "create RFC FMs" || rc=1 || rc=1
+_d cls ZCL_ERPL_REV_SETUP zcl_erpl_rev_setup.abap "create registered dest" || rc=1 || rc=1
+_d cls ZCL_ERPL_REV_TYPETEST zcl_erpl_rev_typetest.abap "typemap tests" || rc=1 || rc=1
+_d cls ZCL_ERPL_REV_UTILTEST zcl_erpl_rev_utiltest.abap "util tests" || rc=1 || rc=1
+_d cls ZCL_ERPL_REV_REPLTEST zcl_erpl_rev_repltest.abap "replicate tests" || rc=1 || rc=1
+_d cls ZCL_ERPL_REV_WIDETEST zcl_erpl_rev_widetest.abap "wide replicate tests" || rc=1 || rc=1
+_d cls ZCL_ERPL_REV_CONSOLETEST zcl_erpl_rev_consoletest.abap "console realistic query tests (arbitrary column names)" || rc=1 || rc=1
+_d cls ZCL_ERPL_REV_SLTTEST zcl_erpl_rev_slttest.abap "SLT-like replication tests (projection + source filter)" || rc=1 || rc=1
+_d cls ZCL_ERPL_REV_DIFFTEST zcl_erpl_rev_difftest.abap "data-identity check (replicated == SAP source, every cell)" || rc=1 || rc=1
+_d cls ZCL_ERPL_REV_PARTEST zcl_erpl_rev_partest.abap "partitioned full-load + auto partition-col/job-count tests" || rc=1 || rc=1
+_d cls ZCL_ERPL_REV_PUBTEST zcl_erpl_rev_pubtest.abap "external target publish (parquet/dataset/attached catalog)" || rc=1 || rc=1
+_d cls ZCL_ERPL_REV_CDSTEST zcl_erpl_rev_cdstest.abap "CDS view source (describe/keys/params/discovery/publish)" || rc=1 || rc=1
+_d cls ZCL_ERPL_REV_BWTEST zcl_erpl_rev_bwtest.abap "BW/native (ADBC) source vs a HANA-view stand-in" || rc=1 || rc=1
+_d cls ZCL_ERPL_REV_DELTATEST zcl_erpl_rev_deltatest.abap "delta E2E (watermark/snapshot/changedoc/insert-only/orchestration)" || rc=1 || rc=1
+_d cls ZCL_ERPL_REV_CDCTEST zcl_erpl_rev_cdctest.abap "trigger-CDC E2E (real HANA triggers, physical deletes)" || rc=1 || rc=1
+_d prog Z_ERPL_REV_REPL_WORKER z_erpl_rev_repl_worker.prog.abap "parallel-replication worker (one key range)" || rc=1 || rc=1
+_d prog Z_ERPL_REV_REPLICATE z_erpl_rev_replicate.prog.abap "replicate SAP table -> DuckDB (serial + parallel)" || rc=1 || rc=1
+_d prog Z_ERPL_REV_SQL z_erpl_rev_sql.prog.abap "DuckDB SQL console" || rc=1 || rc=1
+_d prog Z_ERPL_REV_DELTA z_erpl_rev_delta.prog.abap "delta orchestration loop (cadence + lease)" || rc=1 || rc=1
+_d prog Z_ERPL_REV_DELTA_SFLIGHT z_erpl_rev_delta_sflight.prog.abap "SFLIGHT delta demo (load/change/run/inspect, GUI)" || rc=1 || rc=1
+_d cls ZCL_ERPL_REV_REPLRUN zcl_erpl_rev_replrun.abap "Z_ERPL_REV_REPLICATE parallel-branch E2E" || rc=1 || rc=1
+
+# The destination and the generated RFC FMs come from the classes just deployed.
+if adt object run ZCL_ERPL_REV_SETUP >/dev/null 2>&1; then ok "ZERPL_REV destination"; else warn "ZERPL_REV destination"; rc=1; fi
+if adt object run ZCL_ERPL_REV_MKFM  >/dev/null 2>&1; then ok "RFC FMs (Z_DUCKDB_*)";  else warn "RFC FMs (Z_DUCKDB_*)";  rc=1; fi
+
+return $rc
