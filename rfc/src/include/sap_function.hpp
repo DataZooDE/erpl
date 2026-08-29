@@ -88,7 +88,6 @@ bool GetRfcStrictTypeCheck();
             std::vector<RfcFieldDesc> _field_infos;
 
             child_list_t<LogicalType> CreateDuckDbTypesForRfcStruct();
-            LogicalType CreateDuckDbTypeForRfcTable();
             
             void AdaptStructure(RFC_STRUCTURE_HANDLE &structure_handle, string &arg_name, Value &arg_value);
             void AdaptTable(RFC_TABLE_HANDLE &table_handle, string &arg_name, Value &arg_value);
@@ -96,9 +95,15 @@ bool GetRfcStrictTypeCheck();
             Value ConvertRfcValue(RFC_FUNCTION_HANDLE &function_handle, string &field_name);
             Value ConvertRfcStruct(RFC_STRUCTURE_HANDLE &struct_handle);
             Value ConvertRfcTable(RFC_TABLE_HANDLE &table_handle);
+            // Converts one row against a STRUCT LogicalType the caller built once for the
+            // whole table, instead of deriving (and storing) a fresh one per row.
+            Value ConvertRfcStruct(RFC_STRUCTURE_HANDLE &struct_handle, const LogicalType &struct_type);
 
         public:
             bool IsStringType() const;
+            // The row type of a TABLES parameter -- public so a caller that defers the
+            // conversion can still declare the right (empty) LIST type for it.
+            LogicalType CreateDuckDbTypeForRfcTable();
 
             static RfcType FromTypeName(const std::string &type_name);
             static RfcType FromTypeName(const std::string &type_name, const unsigned int length, const unsigned int decimals);
@@ -248,6 +253,13 @@ bool GetRfcStrictTypeCheck();
     class RfcResultSet {
         public: 
             RfcResultSet(std::shared_ptr<RfcInvocation> invocation, std::string path);
+            // `deferred_table_params` names TABLES parameters that must NOT be converted
+            // into a duckdb::Value tree.  Their Value comes back as an empty LIST of the
+            // right type; the caller reads the rows straight off the SDK handle with
+            // GetResultTableHandle() instead.  This exists so a very large table can be
+            // streamed rather than boxed -- see issue #120.
+            RfcResultSet(std::shared_ptr<RfcInvocation> invocation, std::string path,
+                         std::set<std::string> deferred_table_params);
 
             std::shared_ptr<RfcInvocation> GetInvocation() const;
             std::shared_ptr<RfcFunction> GetFunction() const;
@@ -265,6 +277,18 @@ bool GetRfcStrictTypeCheck();
             unsigned int TotalRows();
             bool IsTabularResult();
 
+            // Raw SDK access to a deferred TABLES parameter.  Only valid for a parameter
+            // named in `deferred_table_params`: for anything else the rows have already
+            // been converted and the handle's lifetime is not something the caller can
+            // reason about, so both throw rather than hand out a trap.  The returned
+            // handle is owned by the invocation and stays valid exactly as long as this
+            // RfcResultSet is alive.
+            RFC_TABLE_HANDLE GetResultTableHandle(const std::string &param_name) const;
+            unsigned int GetResultTableRowCount(const std::string &param_name) const;
+            // Row type of a deferred TABLES parameter, so the caller can convert
+            // individual fields off the row handle with ConvertRfcValueFromContainer().
+            std::shared_ptr<RfcType> GetResultTableRowType(const std::string &param_name) const;
+
             std::string ToSQLString();
 
             static std::shared_ptr<RfcResultSet> InvokeFunction(
@@ -272,6 +296,14 @@ bool GetRfcStrictTypeCheck();
                 std::string function_name,
                 std::vector<Value> &function_arguments,
                 std::string result_path
+            );
+
+            static std::shared_ptr<RfcResultSet> InvokeFunction(
+                std::shared_ptr<RfcConnection> connection,
+                std::string function_name,
+                std::vector<Value> &function_arguments,
+                std::string result_path,
+                std::set<std::string> deferred_table_params
             );
 
             static std::shared_ptr<RfcResultSet> InvokeFunction(
@@ -291,6 +323,7 @@ bool GetRfcStrictTypeCheck();
             std::vector<std::string> _result_names;
             std::vector<LogicalType> _result_types;
             std::vector<Value> _result_data;
+            std::set<std::string> _deferred_table_params;
             unsigned int _total_rows;
             unsigned int _current_row_idx;
             

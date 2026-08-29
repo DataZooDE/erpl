@@ -1316,28 +1316,39 @@ backend you had not.
 |--------|------|---------|-------------|
 | `erpl_bics_trace` | BOOLEAN | `false` | Enable BICS trace logging |
 | `erpl_bics_trace_dir` | VARCHAR | `'./trace'` | BICS trace directory |
-| `erpl_bics_max_data_cells` | BIGINT | `1000000` | Upper bound on the number of data cells a single BICS result set may contain |
+| `erpl_bics_max_result_memory` | VARCHAR | `''` (DuckDB's `memory_limit`) | Memory a single BICS result set may use, e.g. `'8GB'` |
+| `erpl_bics_max_data_cells` | BIGINT | `0` (derive from the memory budget) | Explicit cell budget (`I_MAX_DATA_CELLS`), for pinning exactly what BW receives |
 
-`erpl_bics_max_data_cells` is passed to `BICS_PROV_GET_RESULT_SET` as `I_MAX_DATA_CELLS`.
-BW builds the result set only if it fits the budget; otherwise it returns no data at all
-and `sap_bics_result()` fails with an error naming the size the result would have had.
-Raise the setting for large extracts (it is capped at 2,147,483,647, the width of the ABAP
-integer BW receives it in), or lower it to guard against a runaway query.
+A BEx query is read in one piece: BW builds the whole result set or none of it, and there
+is no windowing in the BICS RFC API to page it (neither `BICS_PROV_GET_RESULT_SET` nor
+`BICS_PROV_GET_RESULTSET_DETAIL` accepts a row range). So the ceiling is a **memory**
+budget.
 
-It is in practice a **memory** budget. The whole result set is materialised before the
-first row is emitted, at roughly **2.2 KB of peak RSS per data cell** (measured on the
-release build), plus about 0.8 KB per row-axis element (result rows x row-axis
-characteristics). Size it against the memory you have:
+`erpl_bics_max_result_memory` accepts anything DuckDB's own memory settings accept
+(`'8GB'`, `'512MB'`, `'80%'`). Left empty it follows DuckDB's `memory_limit`, which
+defaults to **80% of physical RAM** — so out of the box erpl sizes itself to the machine,
+and `SET memory_limit` moves both together.
 
-| Budget | Approx. peak RSS |
-|--------|------------------|
-| 1,000,000 (default) | ~2.2 GB |
-| 4,000,000 | ~8.8 GB |
-| 10,000,000 | ~22 GB |
+erpl converts the budget into the cell count BW needs (`I_MAX_DATA_CELLS`) by dividing by
+~128 bytes per data cell — the width of one `BICS_PROV_RS_DATA_CELL` row in the SAP RFC
+container. Set `erpl_bics_max_data_cells` to a non-zero value to bypass the conversion and
+pin the cell count yourself (capped at 2,147,483,647, the width of the ABAP integer BW
+receives it in).
 
-Note that the budget counts **data cells** — the key-figure cells — not output columns. A
-result with 60,000 rows and 31 output columns of which 6 are key figures is 360,000 data
-cells, not 1,860,000.
+When a query does not fit, it fails with the size it would have needed and a value you can
+paste straight back:
+
+```
+This BEx query is too large to read in one go: it would return 63000 rows x 31 columns
+= 1953000 data cells, which needs about 238.4 MB of memory. The limit is 4.0 MB. Either
+raise it with SET erpl_bics_max_result_memory = '287MiB' (make sure the machine actually
+has that much), or make the query smaller with sap_bics_filter(). BW reported result
+state 4.
+```
+
+Note the budget counts **data cells** — the key-figure cells — not output columns. A result
+with 60,000 rows and 31 output columns of which 6 are key figures is 360,000 data cells,
+not 1,860,000.
 
 ---
 

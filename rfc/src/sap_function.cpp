@@ -862,8 +862,12 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                 rc = RfcGetTable(function_handle, std2uc(field_name).get(), &table_handle, &error_info);
                 if (rc != RFC_OK)
                 {
+                    // The field name was missing from this format string, so the throw
+                    // itself threw ("Expected 3 parameters, received 2") and buried the
+                    // real RFC error.
                     throw std::runtime_error(StringUtil::Format("Failed to get table %s: %s: %s",
-                                                                rfcrc2std(error_info.code), uc2std(error_info.message)));
+                                                                field_name, rfcrc2std(error_info.code),
+                                                                uc2std(error_info.message)));
                 }
 
                 return ConvertRfcTable(table_handle);
@@ -965,6 +969,38 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         return Value::STRUCT(std::move(struct_values));
     }
 
+    // Same conversion as above, but against a STRUCT LogicalType the caller already
+    // built.  Value::STRUCT(child_list_t) derives -- and therefore stores -- a fresh
+    // LogicalType per row: for a table that is one copy of every field name and type per
+    // *row*, which for a wide table dominates the payload itself.  Sharing one type
+    // across the rows of a table halves the memory a converted table costs (measured
+    // 2160 -> 1120 bytes per row on a 14-field BICS data cell).  See issue #120.
+    Value RfcType::ConvertRfcStruct(RFC_STRUCTURE_HANDLE &struct_handle, const LogicalType &struct_type)
+    {
+        if (struct_type.id() != LogicalTypeId::STRUCT) {
+            // Single unnamed column: CreateDuckDbTypeForRfcTable collapses the struct
+            // away, so there is no shared type to hand down.
+            return ConvertRfcStruct(struct_handle);
+        }
+
+        auto &child_types = StructType::GetChildTypes(struct_type);
+        auto field_infos = GetFieldInfos();
+        if (field_infos.size() != child_types.size()) {
+            // Should not happen -- both come off the same field infos -- but a mismatch
+            // would silently misalign the columns, so fall back rather than guess.
+            return ConvertRfcStruct(struct_handle);
+        }
+
+        vector<Value> struct_values;
+        struct_values.reserve(field_infos.size());
+        for (auto &field_info : field_infos) {
+            auto struct_key = field_info.GetName();
+            struct_values.emplace_back(field_info.GetRfcType()->ConvertRfcValue(struct_handle, struct_key));
+        }
+
+        return Value::STRUCT(struct_type, std::move(struct_values));
+    }
+
     Value RfcType::ConvertRfcTable(RFC_TABLE_HANDLE &table_handle) 
     {
         RFC_RC rc = RFC_OK;
@@ -994,7 +1030,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             }
 
             auto row_handle = RfcGetCurrentRow(table_handle, &error_info);
-            auto struct_value = ConvertRfcStruct(row_handle);
+            auto struct_value = ConvertRfcStruct(row_handle, child_type);
 
             row_values.emplace_back(std::move(struct_value));
         }
@@ -1865,10 +1901,70 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
     // RfcInvocation ------------------------------------------------------------
 
     RfcResultSet::RfcResultSet(std::shared_ptr<RfcInvocation> invocation, std::string path) 
-        : _invocation(invocation), _path(path), _total_rows(0), _current_row_idx(0)
+        : RfcResultSet(invocation, path, std::set<std::string>())
+    { }
+
+    RfcResultSet::RfcResultSet(std::shared_ptr<RfcInvocation> invocation, std::string path,
+                               std::set<std::string> deferred_table_params) 
+        : _invocation(invocation), _path(path),
+          _deferred_table_params(std::move(deferred_table_params)),
+          _total_rows(0), _current_row_idx(0)
     {
+        // Selecting a path *into* a deferred parameter would silently report zero rows:
+        // the placeholder LIST is empty, and the rows only exist behind the SDK handle.
+        auto path_tokens = ValueHelper::ParseJsonPointer(path);
+        if (! path_tokens.empty() &&
+            _deferred_table_params.find(path_tokens.front()) != _deferred_table_params.end()) {
+            throw std::runtime_error(StringUtil::Format(
+                "Result path '%s' selects deferred table parameter '%s'; read it through "
+                "GetResultTableHandle() instead", path, path_tokens.front()));
+        }
+
         std::tie(_result_names, _result_types) = InferResultSchema(path);
         _result_data = ConvertValuesAndSelectPath(path);
+    }
+
+    RFC_TABLE_HANDLE RfcResultSet::GetResultTableHandle(const std::string &param_name) const
+    {
+        if (_deferred_table_params.find(param_name) == _deferred_table_params.end()) {
+            throw std::runtime_error(StringUtil::Format(
+                "Parameter '%s' was not deferred; its rows are already converted and the SDK "
+                "handle is not safe to hand out", param_name));
+        }
+
+        RFC_ERROR_INFO error_info;
+        RFC_TABLE_HANDLE table_handle = nullptr;
+        auto rc = RfcGetTable(_invocation->GetFunctionHandle(), std2uc(param_name).get(),
+                              &table_handle, &error_info);
+        if (rc != RFC_OK || table_handle == nullptr) {
+            throw std::runtime_error(StringUtil::Format("Failed to get table '%s': %s: %s",
+                                                        param_name, rfcrc2std(error_info.code),
+                                                        uc2std(error_info.message)));
+        }
+        return table_handle;
+    }
+
+    std::shared_ptr<RfcType> RfcResultSet::GetResultTableRowType(const std::string &param_name) const
+    {
+        if (_deferred_table_params.find(param_name) == _deferred_table_params.end()) {
+            throw std::runtime_error(StringUtil::Format(
+                "Parameter '%s' was not deferred; use GetResultValue() instead", param_name));
+        }
+        return _invocation->GetFunction()->GetResultInfo(param_name).GetRfcType();
+    }
+
+    unsigned int RfcResultSet::GetResultTableRowCount(const std::string &param_name) const
+    {
+        auto table_handle = GetResultTableHandle(param_name);
+        RFC_ERROR_INFO error_info;
+        unsigned int row_count = 0;
+        auto rc = RfcGetRowCount(table_handle, &row_count, &error_info);
+        if (rc != RFC_OK) {
+            throw std::runtime_error(StringUtil::Format("Failed to get row count for '%s': %s: %s",
+                                                        param_name, rfcrc2std(error_info.code),
+                                                        uc2std(error_info.message)));
+        }
+        return row_count;
     }
 
     std::vector<LogicalType> RfcResultSet::GetResultTypes() 
@@ -2006,6 +2102,15 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
     {
             auto rfc_type = param_info.GetRfcType();
             auto field_name = param_info.GetName();
+
+            // A deferred table is read straight off the SDK handle by the caller, so skip
+            // the conversion entirely and stand in an empty LIST of the correct type --
+            // the schema stays exactly as it would have been (issue #120).
+            if (! _deferred_table_params.empty() &&
+                _deferred_table_params.find(field_name) != _deferred_table_params.end()) {
+                return Value::LIST(rfc_type->CreateDuckDbTypeForRfcTable(), {});
+            }
+
             return rfc_type->ConvertRfcValue(_invocation, field_name);
     }
 
@@ -2202,6 +2307,20 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                             ? invocation->Invoke(result_path)
                             : invocation->Invoke();
         return result_set;
+    }
+
+    std::shared_ptr<RfcResultSet> RfcResultSet::InvokeFunction(std::shared_ptr<RfcConnection> connection,
+                                                               std::string function_name,
+                                                               std::vector<Value> &function_arguments,
+                                                               std::string result_path,
+                                                               std::set<std::string> deferred_table_params)
+    {
+        auto func = std::make_shared<RfcFunction>(connection, function_name);
+        auto invocation = function_arguments.size() > 0 
+                            ? func->BeginInvocation(function_arguments) 
+                            : func->BeginInvocation();
+        invocation->Execute();
+        return std::make_shared<RfcResultSet>(invocation, result_path, std::move(deferred_table_params));
     }
 
     std::shared_ptr<RfcResultSet> RfcResultSet::InvokeFunction(std::shared_ptr<RfcConnection> connection,
