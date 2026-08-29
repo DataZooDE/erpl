@@ -1316,8 +1316,17 @@ backend you had not.
 |--------|------|---------|-------------|
 | `erpl_bics_trace` | BOOLEAN | `false` | Enable BICS trace logging |
 | `erpl_bics_trace_dir` | VARCHAR | `'./trace'` | BICS trace directory |
+| `erpl_bics_stream_result_tables` | BOOLEAN | `true` | Stream the large BICS response tables off the SAP SDK handle instead of materialising them |
 | `erpl_bics_max_result_memory` | VARCHAR | `''` (DuckDB's `memory_limit`) | Memory a single BICS result set may use, e.g. `'8GB'` |
 | `erpl_bics_max_data_cells` | BIGINT | `0` (derive from the memory budget) | Explicit cell budget (`I_MAX_DATA_CELLS`), for pinning exactly what BW receives |
+
+`erpl_bics_stream_result_tables` controls how the response is read. With it on (the
+default) the four tables that grow with the result — `E_T_DATA_CELLS`, `E_T_ROWS`,
+`E_T_MEMBER`, `E_T_MEMBER_PRESENTATION` — are read row by row from the SDK handle and only
+the fields actually needed are converted. Turning it off restores the pre-2026.08
+behaviour of building the whole response as a value tree, which costs roughly 2.2 KB per
+data cell and 0.8 KB per row-axis element. It exists as an escape hatch; there is no
+reason to turn it off except to compare behaviour.
 
 A BEx query is read in one piece: BW builds the whole result set or none of it, and there
 is no windowing in the BICS RFC API to page it (neither `BICS_PROV_GET_RESULT_SET` nor
