@@ -13,12 +13,93 @@ Each bullet is tagged with the affected sub-extension(s):
 
 Binaries are self-distributed via [get.erpl.io](http://get.erpl.io) for the
 matrix `{linux_amd64, linux_amd64_musl, osx_amd64, osx_arm64, windows_amd64} ×
-{DuckDB v1.4.5, v1.5.4}`. Install with:
+{DuckDB v1.4.5, v1.5.5}`. Install with:
 
 ```sql
 INSTALL erpl FROM 'http://get.erpl.io';
 LOAD erpl;
 ```
+
+---
+
+## v2026.08.29 — BEx result sets that fit in memory
+
+### Fixed
+
+- **[bics]** **BEx query results were silently capped at a compiled-in 1,000,000 data
+  cells** ([#120](https://github.com/DataZooDE/erpl/issues/120)). `BICS_PROV_GET_RESULT_SET`
+  takes an `I_MAX_DATA_CELLS` budget and erpl passed a hard-coded million. Above it BW
+  builds nothing and answers with empty axis tables and no message at all, which erpl
+  reported as *"The BW server returned no result structure for this query"* — an error that
+  named neither the cause nor a way out. The budget counts **data cells** (key-figure
+  cells), not output columns, which is why a 63,000 × 31 query fit while a 2M-cell one did
+  not.
+
+- **[bics]** The member table was copied **once per result row**. `GenericTable::Rows()`
+  returns its vector by value, and `RowReferenceIterator::NextPresentationValues` bound it
+  to a reference on every row — O(rows × members) `Value` copies. Likely a large part of
+  the long-standing "BICS burns CPU even on small result sets" behaviour.
+
+- **[rfc]** A `StringUtil::Format` call had three placeholders and two arguments, so the
+  throw itself threw and buried the real RFC error behind
+  *"Expected 3 parameters, received 2"*.
+
+### Added
+
+- **[bics]** `erpl_bics_max_result_memory` — the result-set ceiling is now a **memory**
+  budget, not a cell count. It accepts what DuckDB's own memory settings accept (`'8GB'`,
+  `'80%'`), and when unset it follows DuckDB's `memory_limit`, which defaults to 80% of
+  physical RAM. erpl converts it to the cell count BW needs.
+
+  A query that does not fit now fails with something actionable:
+
+  ```
+  This BEx query is too large to read in one go: it would return 63000 rows x 31 columns
+  = 1953000 data cells, which needs about 238.4 MB of memory. The limit is 4.0 MB. Either
+  raise it with SET erpl_bics_max_result_memory = '287MiB' (make sure the machine actually
+  has that much), or make the query smaller with sap_bics_filter().
+  ```
+
+  `erpl_bics_max_data_cells` remains as an explicit override for callers who want to pin
+  exactly what BW receives.
+
+- **[bics]** `erpl_bics_stream_result_tables` (default on) — an escape hatch that restores
+  the previous materialising read path.
+
+### Changed
+
+- **[bics]** **The response is no longer materialised before the first row is produced.**
+  The four tables that grow with the result — `E_T_DATA_CELLS`, `E_T_ROWS`, `E_T_MEMBER`,
+  `E_T_MEMBER_PRESENTATION` — are read row by row off the SAP SDK handle, converting only
+  the fields actually needed (the fetch loop reads three of a data cell's fourteen).
+  `E_T_COLUMNS` stays materialised; it is bounded by the column count, not the result size.
+
+  Measured on a 20,000,000-row BW fixture, same binary with the toggle flipped:
+
+  | result rows | before | after | reduction |
+  |---|---|---|---|
+  | 106,729 | 2,386 MB | 1,327 MB | 44% |
+  | 1,280,841 | 14,795 MB | 3,496 MB | **76%** |
+
+  Row counts are identical either way, and the streamed path is marginally *faster*.
+
+- **[rfc]** `RfcType::ConvertRfcTable` builds one STRUCT `LogicalType` per table instead of
+  deriving and storing a fresh one per row — one copy of every field name and type, per
+  row. Measured at 2,160 → 1,120 bytes per row on a 14-field BICS data cell, and 784 → 400
+  on a 4-field axis element. This benefits every scan path, not just BICS.
+
+- **[rfc]** `RfcResultSet` can now **defer** a TABLES parameter: its rows are not converted
+  and the raw `RFC_TABLE_HANDLE` is exposed instead, so a caller can stream a very large
+  table rather than box it.
+
+### Notes
+
+- There is no pagination to reach for in BICS: neither `BICS_PROV_GET_RESULT_SET` nor
+  `BICS_PROV_GET_RESULTSET_DETAIL` accepts a row range, so BW builds the whole result set
+  or none of it. Sizing the budget, or filtering with `sap_bics_filter()`, is the route.
+- **[bics]** Adds `bics/test/fixtures`, an idempotent BW fixture (a Z aDSO created from the
+  demo cube and loaded through `RSDSO_WRITE_API`) large enough to measure result-set
+  behaviour on; the demo cube is left untouched.
 
 ---
 
