@@ -1316,6 +1316,13 @@ backend you had not.
 |--------|------|---------|-------------|
 | `erpl_bics_trace` | BOOLEAN | `false` | Enable BICS trace logging |
 | `erpl_bics_trace_dir` | VARCHAR | `'./trace'` | BICS trace directory |
+| `erpl_bics_max_data_cells` | BIGINT | `10000000` | Upper bound on the number of data cells a single BICS result set may contain |
+
+`erpl_bics_max_data_cells` is passed to `BICS_PROV_GET_RESULT_SET` as `I_MAX_DATA_CELLS`.
+BW builds the result set only if it fits the budget; otherwise it returns no data at all
+and `sap_bics_result()` fails with an error naming the size the result would have had.
+Raise the setting for large extracts (it is capped at 2,147,483,647, the width of the ABAP
+integer BW receives it in), or lower it to guard against a runaway query.
 
 ---
 
