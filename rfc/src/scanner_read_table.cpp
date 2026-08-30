@@ -94,22 +94,42 @@ namespace duckdb
                                  DataChunk &output) 
     {
         auto &bind_data = data.bind_data->CastNoConst<RfcReadTableBindData>();
-        if (! bind_data.HasMoreResults()) {
-#ifdef __GLIBC__
-            // Scan finished: per-column SDK handles were released at FINISHED
-            // and the streaming reader holds no whole-batch buffers, so hand
-            // the emptied allocator arenas back to the OS instead of letting
-            // RSS linger as glibc free-list fragmentation (issue #69).
-            malloc_trim(0);
-#endif
-            return;
-        }
 
-        //printf(">> RfcReadTableScan\n");
-        bind_data.Step(context, output);
-        // DuckDB removed these from the plan when it handed them to us, so if we do not
-        // apply them nobody does.  See ApplyResidualFilters.
-        bind_data.ApplyResidualFilters(output);
+        // Loop, because an empty chunk is how a table function says "scan finished".
+        // Residual filtering can legitimately reject every row of a batch, and returning
+        // that empty chunk would end the scan and silently discard everything still
+        // unread.  Observed on DD03L: the scan stopped at the first fully-rejected batch
+        // and returned 25,578 rows instead of 114,566.  Keep pulling until a batch has a
+        // surviving row or the table is genuinely exhausted.
+        while (true) {
+            if (! bind_data.HasMoreResults()) {
+#ifdef __GLIBC__
+                // Scan finished: per-column SDK handles were released at FINISHED
+                // and the streaming reader holds no whole-batch buffers, so hand
+                // the emptied allocator arenas back to the OS instead of letting
+                // RSS linger as glibc free-list fragmentation (issue #69).
+                malloc_trim(0);
+#endif
+                return;
+            }
+
+            bind_data.Step(context, output);
+            if (! bind_data.HasResidualFilters()) {
+                return;
+            }
+
+            // DuckDB removed these from the plan when it handed them to us, so if we do
+            // not apply them nobody does.  See ApplyResidualFilters.
+            bind_data.ApplyResidualFilters(output);
+            if (output.size() > 0) {
+                return;
+            }
+
+            // Nothing survived.  Reset before the next Step: ApplyResidualFilters sliced
+            // the chunk, leaving dictionary vectors that Step would otherwise write
+            // through as if they were flat.
+            output.Reset();
+        }
     }
 
     double RfcReadTableProgress(ClientContext &, const FunctionData *func_data, const GlobalTableFunctionState *)

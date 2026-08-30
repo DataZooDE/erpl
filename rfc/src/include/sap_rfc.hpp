@@ -185,6 +185,7 @@ namespace duckdb
 			// optional: filter_pushdown = true makes DuckDB drop the filter from the
 			// plan, so anything the scan does not apply is simply not applied.
 			void ApplyResidualFilters(DataChunk &output);
+			bool HasResidualFilters() const { return ! residual_filters.empty(); }
     };
 
 	enum class ReadTableStates {
