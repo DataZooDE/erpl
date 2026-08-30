@@ -288,3 +288,22 @@ icm/server_port_3 = PROT=HTTP, PORT=8101, PROCTIMEOUT=300, TIMEOUT=300
 login/accept_sso2_ticket = 1
 login/create_sso2_ticket = 2
 abap/shared_objects_size_MB = 386
+#---------------------------------------------------------------------
+# SNC, added for saprfc development. Remove this block and restart to
+# revert; the original profile is kept alongside as *.pre-snc.
+#
+# accept_insecure_* stay on so unprotected connections keep working
+# beside SNC ones -- turning them off would cut every existing client
+# off from the system at once.
+#---------------------------------------------------------------------
+snc/enable = 1
+snc/gssapi_lib = /usr/sap/A4H/SYS/exe/run/libsapcrypto.so
+snc/identity/as = p:CN=A4H, OU=IDEMOSYSTEM, OU=SAP Web AS, O=SAP Trust Community, C=DE
+snc/accept_insecure_gui = 1
+snc/accept_insecure_rfc = 1
+snc/accept_insecure_cpic = 1
+snc/accept_insecure_r3int_rfc = 1
+snc/permit_insecure_start = 1
+snc/data_protection/min = 1
+snc/data_protection/max = 3
+snc/data_protection/use = 3

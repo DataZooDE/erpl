@@ -1,0 +1,15 @@
+#VERSION=2
+#
+# Gateway registration ACL for the erpl-proto development system.
+#
+# Phase 8 needs a registered RFC server, and A4H ships without a reginfo, which
+# under gw/acl_mode = 1 denies every registration. This permits exactly one
+# program ID, only from the docker host and the container itself, and denies
+# everything else explicitly so the file does not widen over time.
+#
+# Install with: docker cp reginfo a4h:/usr/sap/A4H/SYS/global/reginfo
+# and set gw/reg_info in DEFAULT.PFL. See docs/spec/13-server.md.
+P TP=SAPRFC_TEST HOST=172.17.0.1,172.17.0.2,localhost ACCESS=* CANCEL=172.17.0.1,localhost
+#
+# Nothing else may register.
+D TP=*
