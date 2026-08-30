@@ -34,11 +34,22 @@ for f in "$_AB"/zcl_saprfc_*.abap "$_AB"/zcl_erpl_abi_*.abap; do
         "erpl-proto live server test" || rc=1
 done
 
+retry_failed || rc=1
+
 # --- destinations, delegated ------------------------------------------------
+# ERPL_A4H_DELEGATED is the recursion guard, and BOTH sides must spell it the same way.
+# They did not on the first attempt -- this side set ERPL_SKIP_ABAP while erpl-proto
+# checked ERPL_A4H_DELEGATED -- so neither guard fired and the two scripts called each
+# other until the run was killed.
+if [ -n "${ERPL_A4H_DELEGATED:-}" ]; then
+    say "destinations: handled by the caller (erpl-proto invoked us)"
+    return $rc
+fi
+
 _PROTO="${ERPL_PROTO_DIR:-$HERE/../../../erpl-proto}"
 if [ -f "$_PROTO/scripts/deploy-a4h-fixtures.sh" ]; then
     say "delegating SM59 destinations to $_PROTO"
-    if ( cd "$_PROTO" && SAP_PASSWD="$SAP_PASSWORD" ERPL_SKIP_ABAP=1 \
+    if ( cd "$_PROTO" && SAP_PASSWD="$SAP_PASSWORD" ERPL_A4H_DELEGATED=1 \
             ./scripts/deploy-a4h-fixtures.sh 2>&1 | sed 's/^/    /' ); then
         ok "erpl-proto destinations"
     else

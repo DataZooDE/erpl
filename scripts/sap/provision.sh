@@ -64,7 +64,12 @@ export RESTARTED=0
 export PROVISION_STATE_DIR="$STATE_DIR"
 export PROVISION_MODE="$MODE"
 
-rc=0
+# _PROVISION_RC, not rc: the steps are SOURCED, so they share this namespace.  A plain
+# `rc` was clobbered by the next step initialising its own -- step 25 failed, step 30 set
+# rc=0, and the run exited 0 reporting success.  A provisioner that returns green while a
+# step failed is the exact failure mode this whole file exists to prevent.
+_PROVISION_RC=0
+_PROVISION_FAILED=
 shopt -s nullglob
 for step in "$HERE"/provision.d/*.sh; do
     name="$(basename "$step")"
@@ -73,14 +78,16 @@ for step in "$HERE"/provision.d/*.sh; do
     # shellcheck disable=SC1090
     if ! . "$step"; then
         fail "$name"
-        rc=1
+        _PROVISION_RC=1
+        _PROVISION_FAILED="$_PROVISION_FAILED $name"
     fi
 done
+rc="$_PROVISION_RC"
 
 if [ "$rc" = 0 ]; then
     echo "== provisioning complete =="
     echo "   backgrounded steps, if any: ./scripts/sap/provision.sh --status"
 else
-    echo "== provisioning finished WITH FAILURES ==" >&2
+    echo "== provisioning finished WITH FAILURES:$_PROVISION_FAILED ==" >&2
 fi
 exit $rc

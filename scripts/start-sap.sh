@@ -38,12 +38,12 @@ provision_when_ready() {
     # shellcheck source=sap/lib.sh
     . "$SCRIPT_DIR/sap/lib.sh"
     echo "==> waiting for the instance"
-    wait_for_sap 900 || { echo "instance did not come up" >&2; return 1; }
+    wait_for_sap 2400 || { echo "instance did not come up (see the state above)" >&2; return 1; }
     # sapcontrol reporting GREEN is NOT enough: it says started while the ABAP HTTP stack
     # is still coming up, so an ADT call right after it fails in a way that looks like a
     # broken system rather than an early one.
     echo "==> waiting for ADT to answer"
-    wait_for_adt 900 || { echo "ADT never answered" >&2; return 1; }
+    wait_for_adt 1200 || { echo "ADT never answered" >&2; return 1; }
     echo "==> provisioning"
     "$SCRIPT_DIR/sap/provision.sh"
 }
