@@ -157,6 +157,10 @@ namespace duckdb {
         SetRfcReadTableBatchBudget(parameter.GetValue<unsigned int>());
     }
 
+    static void OnPushdownFilters(ClientContext &, SetScope, Value &parameter) {
+        SetRfcPushdownFilters(parameter.GetValue<bool>());
+    }
+
     static void OnRfcBackend(ClientContext &, SetScope, Value &parameter) {
         SetRfcBackend(parameter.GetValue<string>());
     }
@@ -261,6 +265,20 @@ namespace duckdb {
             LogicalType::UINTEGER,
             Value::UINTEGER(RfcReadColumnStateMachine::DEFAULT_READ_TABLE_BATCH_BUDGET),
             OnReadTableBatchBudget);
+
+        config.AddExtensionOption(
+            "erpl_rfc_pushdown_filters",
+            "Translate SQL WHERE predicates into RFC_READ_TABLE's OPTIONS table so SAP "
+            "filters the rows instead of sending them all across the wire.  On a large "
+            "table this is the difference between transferring millions of rows and "
+            "thousands, so leave it on unless a specific SAP release rejects the "
+            "generated ABAP syntax.  Comparisons (= <> < > <= >=), AND/OR combinations "
+            "and IN lists are pushed; anything else is evaluated by DuckDB instead.  "
+            "Turning this off never changes which rows you get back -- DuckDB applies "
+            "every filter either way -- it only makes the scan slower.",
+            LogicalType::BOOLEAN,
+            Value::BOOLEAN(true),
+            OnPushdownFilters);
 
         auto provider = make_uniq<RfcEnvironmentCredentialsProvider>(config);
         provider->SetAll();
