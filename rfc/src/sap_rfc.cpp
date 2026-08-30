@@ -619,6 +619,14 @@ namespace duckdb
                 return false;
             }
             case TableFilterType::OPTIONAL_FILTER: {
+                // Enforced, not skipped.  DuckDB's own OptionalFilter::FilterSelection is
+                // a no-op, but that is a performance choice rather than a statement that
+                // the predicate may be violated: CheckStatistics delegates to the child
+                // for zone-map pruning, and table_scan.cpp feeds the child into index-scan
+                // comparison extraction.  Both eliminate rows, so the predicate is implied
+                // by the query.  DuckDB can afford to skip the exact check because
+                // something downstream re-applies it; here the filter was removed from the
+                // plan, so nothing would.
                 auto &optional_filter = filter.Cast<OptionalFilter>();
                 return optional_filter.child_filter == nullptr
                      ? true
@@ -898,6 +906,16 @@ namespace duckdb
             case LogicalTypeId::TIME: {
                 int32_t hour, minute, second, micros;
                 Time::Convert(TimeValue::Get(val), hour, minute, second, micros);
+
+                // SAP TIMS is second-precision; DuckDB TIME is not.  Truncating the
+                // fraction changes the predicate rather than approximating it:
+                // `t < TIME '09:05:03.500'` must keep a row stored as 09:05:03, but
+                // `t < '090503'` rejects it.  `>=` fails the mirror-image way.  Rounding
+                // correctly would have to depend on the comparison operator, which this
+                // function cannot see -- so decline and let the residual path handle it.
+                if (micros != 0) {
+                    return std::string();
+                }
                 return StringUtil::Format("'%02d%02d%02d'", hour, minute, second);
             }
 

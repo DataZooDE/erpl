@@ -293,3 +293,17 @@ TEST_CASE("an unpushable literal poisons its whole conjunction", "[erpl_rfc][fil
 	conj->child_filters.push_back(Cmp(ExpressionType::COMPARE_GREATERTHAN, Value::DOUBLE(1.5)));
 	REQUIRE(Push("CARRIER_ID", *conj) == "");
 }
+
+TEST_CASE("times with a fractional second are not pushed", "[erpl_rfc][filters]") {
+	// SAP TIMS is second-precision. Truncating the fraction changes the predicate:
+	// `t < TIME '09:05:03.500'` must keep a row stored as 09:05:03, but the truncated
+	// clause `t < '090503'` rejects it. Correct rounding would depend on the operator,
+	// which TransformLiteral cannot see -- so it declines and the residual path applies
+	// the predicate exactly.
+	auto f = Cmp(ExpressionType::COMPARE_LESSTHAN, Value::TIME(9, 5, 3, 500000));
+	REQUIRE(Push("DEPTIME", *f) == "");
+
+	// A whole second still goes to the server.
+	auto g = Cmp(ExpressionType::COMPARE_LESSTHAN, Value::TIME(9, 5, 3, 0));
+	REQUIRE(Push("DEPTIME", *g) == "DEPTIME < '090503'");
+}
