@@ -47,6 +47,34 @@ CLASS zcl_erpl_rev_util DEFINITION PUBLIC FINAL CREATE PUBLIC.
            END OF ty_repl.
 
     "! Run a DuckDB SQL script (';'-separated) and return the last result.
+    "! Send one ingest batch as binary sXML (IV_XDATA). first carries init+ddl.
+    " Compress the ingest payload before it goes over RFC (DataZooDE/erpl-rev#68).
+    "
+    " The wire carries no encoding flag: binary sXML starts with the ASCII magic
+    " "BXML" and a compressed package with "ERPZ", so the server tells them apart
+    " by looking. The frame is ours because cl_abap_gzip=>compress_binary emits a
+    " RAW DEFLATE stream with no header at all -- not gzip (1F 8B), not zlib
+    " (78 ..) -- so there is nothing in the bytes to detect it by. A
+    " server that predates this simply never sees a gzip payload unless it is
+    " switched on, and the synchronous first package gives us a safe place to
+    " find out (see mv_gzip_off).
+    "
+    " gv_gzip_min: below this many bytes, sending raw is the better trade. The
+    " 48x ratio measured on a wide package comes from tag scaffolding around
+    " mostly-initial cells; a narrow projection compresses far less while the
+    " compression CPU -- paid on the work process, the contended resource in a
+    " partitioned load -- stays the same.
+    " Default OFF, on measurement rather than principle. The ratio is real --
+    " a 50,000-row x 420-column package compresses 180,522,994 -> 3,768,726 bytes,
+    " 47.9x -- but over LOOPBACK the bytes were never the bottleneck, and paying
+    " ~2.5 s of compression CPU per 100k rows on the work process (the contended
+    " resource in a partitioned load) costs more than the transfer it saves:
+    " 6 alternating pairs, full-width 100k-row serial load, median 16 s off
+    " against 18.5 s on. Switch it on where the WIRE is the constraint -- a real
+    " network between SAP and the server -- and measure there before trusting it.
+    CLASS-DATA gv_gzip     TYPE abap_bool VALUE abap_false.
+    CLASS-DATA gv_gzip_min TYPE i VALUE 262144.
+
     CLASS-METHODS query
       IMPORTING iv_sql        TYPE string
       RETURNING VALUE(rs)     TYPE ty_query.
@@ -261,7 +289,11 @@ CLASS zcl_erpl_rev_util DEFINITION PUBLIC FINAL CREATE PUBLIC.
       IMPORTING iv_columns    TYPE string
       RETURNING VALUE(rr_tab) TYPE REF TO data.
 
-    "! Send one ingest batch as binary sXML (IV_XDATA). first carries init+ddl.
+
+    CLASS-METHODS compress_payload
+      IMPORTING iv_xdata     TYPE xstring
+      RETURNING VALUE(rv)    TYPE xstring.
+
     CLASS-METHODS ingest_bxml
       IMPORTING iv_target    TYPE csequence
                 iv_keys      TYPE string
@@ -575,7 +607,7 @@ CLASS zcl_erpl_rev_util IMPLEMENTATION.
                 iv_keys     = iv_keys
                 iv_init_sql = iv_init
                 iv_ddl      = iv_ddl
-                iv_xdata    = iv_xdata
+                iv_xdata    = zcl_erpl_rev_util=>compress_payload( iv_xdata )
       EXCEPTIONS communication_failure = 1 MESSAGE lv_msg
                  system_failure        = 2 MESSAGE lv_msg
                  resource_failure      = 3
@@ -1273,16 +1305,45 @@ CLASS zcl_erpl_rev_util IMPLEMENTATION.
     rs-seconds = cl_abap_tstmp=>subtract( tstmp1 = lv_t1 tstmp2 = lv_t0 ).
   ENDMETHOD.
 
+  METHOD compress_payload.
+    rv = iv_xdata.
+    IF gv_gzip = abap_false OR xstrlen( iv_xdata ) < gv_gzip_min.
+      RETURN.
+    ENDIF.
+    TRY.
+        " Level is not worth choosing: 1, 6 and 9 measured byte-identical and
+        " equally fast on this payload, so take the default.
+        cl_abap_gzip=>compress_binary( EXPORTING raw_in = iv_xdata
+                                       IMPORTING gzip_out = DATA(lv_gz) ).
+        " Only if it actually helped. A payload that grows under compression
+        " would cost CPU on both ends for nothing.
+        " Frame it so the server can tell a compressed package from a plain one.
+        " Compare against the framed length, not the bare stream: four bytes
+        " decide nothing at 48x, but they must not turn a marginal win into a loss.
+        CONSTANTS lc_magic TYPE xstring VALUE '4552505A'.   " "ERPZ"
+        DATA lv_framed TYPE xstring.
+        CONCATENATE lc_magic lv_gz INTO lv_framed IN BYTE MODE.
+        IF xstrlen( lv_framed ) < xstrlen( iv_xdata ).
+          rv = lv_framed.
+        ENDIF.
+      CATCH cx_root.
+        " Compression is an optimisation; never fail a load over it.
+        RETURN.
+    ENDTRY.
+  ENDMETHOD.
+
   METHOD ingest_bxml.
     DATA lv_aff TYPE string.
     DATA lv_msg TYPE c LENGTH 255.
+    DATA(lv_sent) = compress_payload( iv_xdata ).
+    DATA(lv_was_compressed) = xsdbool( xstrlen( lv_sent ) <> xstrlen( iv_xdata ) ).
     CALL FUNCTION 'Z_DUCKDB_INGEST' DESTINATION c_dest
       EXPORTING  iv_target   = CONV string( iv_target )
                  iv_mode     = iv_mode
                  iv_keys     = iv_keys
                  iv_init_sql = iv_init
                  iv_ddl      = iv_ddl
-                 iv_xdata    = iv_xdata
+                 iv_xdata    = lv_sent
       IMPORTING  ev_rows_affected = lv_aff
                  ev_error         = ev_error
       EXCEPTIONS system_failure = 1 MESSAGE lv_msg
@@ -1292,6 +1353,25 @@ CLASS zcl_erpl_rev_util IMPLEMENTATION.
       ev_error = |RFC subrc={ sy-subrc } { lv_msg }|.
     ELSE.
       ev_affected = CONV i( lv_aff ).
+    ENDIF.
+    " Version skew. A server that predates erpl-rev#71 does not know the ERPZ
+    " frame: it never calls its inflater and hands the frame straight to the sXML
+    " decoder, so it comes back as "missing BXML magic" -- NOT as an inflate
+    " error. Matching only the latter would leave every old server failing hard,
+    " which is exactly what the first live run of this change did.
+    "
+    " So: retry uncompressed whenever a package we actually compressed came back
+    " with either signature, and stop compressing for the rest of this work
+    " process. Degrading to the old encoding beats failing the load. replicate()
+    " sends its first package through here synchronously, so this is reached
+    " before any overlapped package has been dispatched.
+    IF lv_was_compressed = abap_true AND ev_error IS NOT INITIAL
+       AND ( ev_error CS 'payload inflate failed' OR ev_error CS 'missing BXML magic' ).
+      gv_gzip = abap_false.
+      CLEAR ev_error.
+      ingest_bxml( EXPORTING iv_target = iv_target iv_keys = iv_keys iv_mode = iv_mode
+                             iv_init = iv_init iv_ddl = iv_ddl iv_xdata = iv_xdata
+                   IMPORTING ev_affected = ev_affected ev_error = ev_error ).
     ENDIF.
   ENDMETHOD.
 
