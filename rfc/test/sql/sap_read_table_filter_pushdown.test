@@ -232,3 +232,69 @@ false
 
 statement ok
 SET erpl_rfc_pushdown_filters = true;
+
+# ---------------------------------------------------------------------
+# Scale: a table large enough to span many batches.
+#
+# /DMO/FLIGHT has 40 rows and never fills a single vector, so none of the
+# cases above exercise the multi-batch path at all.  DD02L is ~165k rows
+# (~80 batches), and TABCLASS clusters by table name, so some batches contain
+# no matching row whatsoever.
+#
+# That is the case that broke: residual filtering emptied a batch, the scan
+# returned a zero-row chunk, and DuckDB read that as end-of-scan and discarded
+# everything still unread.  On DD03L it returned 25,578 rows instead of 114,566
+# while every small-table test stayed green.
+# ---------------------------------------------------------------------
+statement ok
+SET erpl_rfc_pushdown_filters = true;
+
+statement ok
+CREATE TABLE big_all AS SELECT TABNAME, TABCLASS, CONTFLAG FROM sap_read_table('DD02L');
+
+statement ok
+SET erpl_rfc_pushdown_filters = false;
+
+statement ok
+CREATE TABLE big_resid AS
+SELECT TABNAME, TABCLASS, CONTFLAG FROM sap_read_table('DD02L') WHERE TABCLASS = 'TRANSP';
+
+statement ok
+SET erpl_rfc_pushdown_filters = true;
+
+statement ok
+CREATE TABLE big_push AS
+SELECT TABNAME, TABCLASS, CONTFLAG FROM sap_read_table('DD02L') WHERE TABCLASS = 'TRANSP';
+
+# The row count is not written down: it drifts with the trial's repository
+# contents.  What must hold is that all three agree.
+query I
+SELECT count(*) FROM (
+    (SELECT * FROM big_all WHERE TABCLASS = 'TRANSP' EXCEPT ALL SELECT * FROM big_resid)
+    UNION ALL
+    (SELECT * FROM big_resid EXCEPT ALL SELECT * FROM big_all WHERE TABCLASS = 'TRANSP')
+);
+----
+0
+
+query I
+SELECT count(*) FROM (
+    (SELECT * FROM big_all WHERE TABCLASS = 'TRANSP' EXCEPT ALL SELECT * FROM big_push)
+    UNION ALL
+    (SELECT * FROM big_push EXCEPT ALL SELECT * FROM big_all WHERE TABCLASS = 'TRANSP')
+);
+----
+0
+
+# The scan must span many batches, or the regression above cannot recur here.
+query I
+SELECT count(*) > 50000 FROM big_all;
+----
+true
+
+# ...and the filter must reject a large majority, so that whole batches really
+# do come back empty.
+query I
+SELECT (SELECT count(*) FROM big_resid) * 2 < (SELECT count(*) FROM big_all);
+----
+true
