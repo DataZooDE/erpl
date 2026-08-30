@@ -11,6 +11,7 @@ _AB="$HERE/assets/rev/abap"
 
 if [ "$PROVISION_MODE" = check ]; then
     say "would deploy $(ls "$_AB" | wc -l) erpl-rev ABAP objects + ZERPL_REV destination"
+    say "would seed ZWIDE_BSEG if empty (~100,000 rows)"
     return 0
 fi
 
@@ -64,5 +65,30 @@ adt object create --type FUGR/F --name ZERPL_REV --package '$TMP' \
 # The destination and the generated RFC FMs come from the classes just deployed.
 if adt object run ZCL_ERPL_REV_SETUP >/dev/null 2>&1; then ok "ZERPL_REV destination"; else warn "ZERPL_REV destination"; rc=1; fi
 if adt object run ZCL_ERPL_REV_MKFM  >/dev/null 2>&1; then ok "RFC FMs (Z_DUCKDB_*)";  else warn "RFC FMs (Z_DUCKDB_*)";  rc=1; fi
+
+# ZWIDE_BSEG is created empty by the tabl() above, and erpl-rev's data-identity E2E stage
+# compares every cell of it -- so on a freshly provisioned system that stage fails with
+# `rows=0 cols=390`, which reads as a replication bug rather than an unseeded table.
+# erpl-rev's own script left the seeding commented out ("Uncomment to seed"), which was
+# reasonable when a human ran it and knew; it is not reasonable for an automatic
+# provisioner whose whole purpose is to leave no manual steps.
+#
+# ~100,000 rows, tens of seconds.  Skipped when the table already holds data, so a re-run
+# against a provisioned system costs nothing.
+_wide_rows=$(docker exec "$A4H_CONTAINER" /usr/sap/A4H/hdbclient/hdbsql -i 02 -d HDB \
+               -u "${A4H_DB_USER:-SAPA4H}" -p "${A4H_DB_PASSWORD:-ABAPtr2023#00}" \
+               "SELECT COUNT(*) FROM ${A4H_DB_USER:-SAPA4H}.ZWIDE_BSEG" 2>/dev/null \
+             | sed -n '2p' | tr -dc '0-9')
+if [ -n "$_wide_rows" ] && [ "$_wide_rows" -gt 0 ] 2>/dev/null; then
+    ok "ZWIDE_BSEG already holds $_wide_rows rows"
+else
+    say "seeding ZWIDE_BSEG (~100,000 rows, tens of seconds)"
+    if adt object run ZCL_WIDE_BSEG 2>&1 | grep -aiq "populated"; then
+        ok "ZWIDE_BSEG seeded"
+    else
+        warn "ZWIDE_BSEG seeding (check) — the data-identity E2E stage will report rows=0"
+        rc=1
+    fi
+fi
 
 return $rc
