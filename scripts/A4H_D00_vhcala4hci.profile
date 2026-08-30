@@ -307,3 +307,13 @@ snc/permit_insecure_start = 1
 snc/data_protection/min = 1
 snc/data_protection/max = 3
 snc/data_protection/use = 3
+
+# --- external RFC server registration ---------------------------------------
+# erpl-proto's and erpl-rev's live tests register RFC *servers* against this system
+# (SM59 destinations with method='R'). The gateway rejects that unless it is allowed,
+# either here or via a reginfo entry -- and the failure surfaces as a registration
+# timeout rather than anything naming the gateway.
+#
+# This trial is a local throwaway; on any real system prefer a reginfo allowlist.
+gw/acl_mode = 0
+

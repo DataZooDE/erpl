@@ -51,6 +51,8 @@ _d prog Z_ERPL_REV_DELTA z_erpl_rev_delta.prog.abap "delta orchestration loop (c
 _d prog Z_ERPL_REV_DELTA_SFLIGHT z_erpl_rev_delta_sflight.prog.abap "SFLIGHT delta demo (load/change/run/inspect, GUI)" || rc=1 || rc=1
 _d cls ZCL_ERPL_REV_REPLRUN zcl_erpl_rev_replrun.abap "Z_ERPL_REV_REPLICATE parallel-branch E2E" || rc=1 || rc=1
 
+retry_failed || rc=1
+
 # The destination and the generated RFC FMs come from the classes just deployed.
 if adt object run ZCL_ERPL_REV_SETUP >/dev/null 2>&1; then ok "ZERPL_REV destination"; else warn "ZERPL_REV destination"; rc=1; fi
 if adt object run ZCL_ERPL_REV_MKFM  >/dev/null 2>&1; then ok "RFC FMs (Z_DUCKDB_*)";  else warn "RFC FMs (Z_DUCKDB_*)";  rc=1; fi

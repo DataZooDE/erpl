@@ -29,7 +29,11 @@ if "$HERE/../activate_bw_modeling.sh" >/dev/null 2>&1; then
     # Tell the rest of the run that every PSE was just re-materialised from the database.
     RESTARTED=1
     export RESTARTED
-    if wait_for_adt 600; then
+    # All three gates, not just ADT.  ADT answering only proves the HTTP stack is up;
+    # activating ABAP needs the compiler, and registering an RFC server needs the gateway.
+    # Gating on ADT alone let the next steps start too early -- twelve classes failed to
+    # activate and every destination died with "Connection reset by peer".
+    if wait_for_sap 900 && wait_for_rfc 600 && wait_for_adt 600; then
         ok "BW Modeling services activated; instance back up"
     else
         fail "instance did not come back within 10 minutes"
