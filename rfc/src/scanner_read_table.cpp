@@ -107,6 +107,9 @@ namespace duckdb
 
         //printf(">> RfcReadTableScan\n");
         bind_data.Step(context, output);
+        // DuckDB removed these from the plan when it handed them to us, so if we do not
+        // apply them nobody does.  See ApplyResidualFilters.
+        bind_data.ApplyResidualFilters(output);
     }
 
     double RfcReadTableProgress(ClientContext &, const FunctionData *func_data, const GlobalTableFunctionState *)

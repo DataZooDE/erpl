@@ -146,6 +146,9 @@ namespace duckdb
 			std::vector<RfcType> column_types;
 			std::vector<RfcReadColumnStateMachine> column_state_machines;
 			std::atomic<unsigned int> persistent_slots_used{0};
+			// Filters that could not be translated into OPTIONS, keyed by projected
+			// column index.  Copied because the TableFilterSet belongs to the plan.
+			std::vector<std::pair<idx_t, duckdb::unique_ptr<TableFilter>>> residual_filters;
 			// Defaults to RfcReadColumnStateMachine::MAX_BATCH_SIZE (that class
 			// is defined later in this header, so we can't name the constant
 			// here); Step() overwrites this with the column-count-aware cap.
@@ -173,6 +176,11 @@ namespace duckdb
 			// "back up to the previous whitespace" rule can land in the middle of one
 			// and leave an unbalanced apostrophe on both lines.
 			static std::vector<std::string> ChunkWhereClause(const std::string &where_clause, idx_t max_len);
+
+			// Apply the predicates RFC_READ_TABLE could not express.  Required, not
+			// optional: filter_pushdown = true makes DuckDB drop the filter from the
+			// plan, so anything the scan does not apply is simply not applied.
+			void ApplyResidualFilters(DataChunk &output);
     };
 
 	enum class ReadTableStates {

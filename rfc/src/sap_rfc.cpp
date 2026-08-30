@@ -9,6 +9,7 @@
 #include "duckdb/parser/parser.hpp"
 #include "duckdb/parser/expression/cast_expression.hpp"
 #include "duckdb/common/types/date.hpp"
+#include "duckdb/common/types/time.hpp"
 #include "duckdb/common/types/timestamp.hpp"
 #include "duckdb/storage/table/row_group.hpp"
 #include "duckdb/main/client_context.hpp"
@@ -559,14 +560,128 @@ namespace duckdb
         }
     }
 
+    // Evaluate one filter against one already-materialised value.
+    //
+    // Only ever used for predicates that could NOT be handed to SAP.  Row-at-a-time is
+    // slow, but this path is the difference between right and wrong answers, and it
+    // only runs for the residue.
+    static bool FilterMatchesValue(const TableFilter &filter, const Value &val)
+    {
+        switch (filter.filter_type) {
+            case TableFilterType::CONSTANT_COMPARISON: {
+                auto &const_filter = filter.Cast<ConstantFilter>();
+                // SQL three-valued logic: a comparison against NULL is never true.
+                return val.IsNull() ? false : const_filter.Compare(val);
+            }
+            case TableFilterType::IS_NULL:
+                return val.IsNull();
+            case TableFilterType::IS_NOT_NULL:
+                return ! val.IsNull();
+            case TableFilterType::CONJUNCTION_AND: {
+                auto &conj = filter.Cast<ConjunctionAndFilter>();
+                for (auto &child : conj.child_filters) {
+                    if (! FilterMatchesValue(*child, val)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            case TableFilterType::CONJUNCTION_OR: {
+                auto &conj = filter.Cast<ConjunctionOrFilter>();
+                for (auto &child : conj.child_filters) {
+                    if (FilterMatchesValue(*child, val)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            case TableFilterType::IN_FILTER: {
+                auto &in_filter = filter.Cast<InFilter>();
+                if (val.IsNull()) {
+                    return false;
+                }
+                for (auto &v : in_filter.values) {
+                    if (! v.IsNull() && v.type() == val.type() && v == val) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            case TableFilterType::OPTIONAL_FILTER: {
+                auto &optional_filter = filter.Cast<OptionalFilter>();
+                return optional_filter.child_filter == nullptr
+                     ? true
+                     : FilterMatchesValue(*optional_filter.child_filter, val);
+            }
+            case TableFilterType::STRUCT_EXTRACT: {
+                auto &struct_filter = filter.Cast<StructFilter>();
+                if (val.IsNull()) {
+                    return false;
+                }
+                auto &children = StructValue::GetChildren(val);
+                if (struct_filter.child_idx >= children.size()) {
+                    return true;
+                }
+                return FilterMatchesValue(*struct_filter.child_filter, children[struct_filter.child_idx]);
+            }
+            default:
+                // An unrecognised filter kind must not silently delete rows.  Keeping the
+                // row over-produces, which is the same thing that happened before this
+                // function existed; dropping it would be a new way to be wrong.
+                return true;
+        }
+    }
+
+    // DuckDB removes a pushed-down filter from the plan entirely -- TableFunction's
+    // `filter_pushdown` is documented as "if NOT supported a filter will be added",
+    // so setting it true makes the scan solely responsible for every predicate it is
+    // handed.  erpl pushed what RFC_READ_TABLE could express and silently ignored the
+    // rest, so a predicate that did not translate returned unfiltered rows.  Confirmed
+    // against the trial: `WHERE SEATS_MAX > 350` returned all 40 rows of /DMO/FLIGHT
+    // instead of 14, and EXPLAIN shows no FILTER operator above SAP_READ_TABLE.
+    //
+    // Everything that could not be pushed is therefore applied here instead.
+    void RfcReadTableBindData::ApplyResidualFilters(DataChunk &output)
+    {
+        if (residual_filters.empty() || output.size() == 0) {
+            return;
+        }
+
+        SelectionVector sel(STANDARD_VECTOR_SIZE);
+        idx_t kept = 0;
+        for (idx_t row = 0; row < output.size(); row++) {
+            bool matches = true;
+            for (auto &entry : residual_filters) {
+                auto val = output.GetValue(entry.first, row);
+                if (! FilterMatchesValue(*entry.second, val)) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches) {
+                sel.set_index(kept++, row);
+            }
+        }
+
+        if (kept != output.size()) {
+            output.Slice(sel, kept);
+        }
+    }
+
     void RfcReadTableBindData::AddOptionsFromFilters(duckdb::optional_ptr<duckdb::TableFilterSet> filter_set) 
     {
+        residual_filters.clear();
         if (filter_set == nullptr || filter_set->filters.empty()) {
             return;
         }
 
+        // The kill switch only stops predicates reaching SAP; it must not stop them being
+        // applied, or turning it off would change the answer rather than just the speed.
         if (! GetRfcPushdownFilters()) {
             ERPL_TRACE_DEBUG("sap_rfc", "Filter pushdown disabled by erpl_rfc_pushdown_filters");
+            for (auto &[projected_column_idx, filter] : filter_set->filters) {
+                residual_filters.emplace_back(projected_column_idx, filter->Copy());
+            }
             return;
         }
 
@@ -582,11 +697,14 @@ namespace duckdb
                 pushed_filters = true;
             } else {
                 skipped_filters = true;
+                // Not expressible in ABAP -- so it has to be applied on this side.
+                residual_filters.emplace_back(projected_column_idx, filter->Copy());
             }
         }
 
         if (!pushed_filters) {
             ERPL_TRACE_DEBUG("sap_rfc", "Skipping filter pushdown; RFC_READ_TABLE cannot represent any conditions");
+            // residual_filters already holds every one of them.
             return;
         }
 
@@ -720,12 +838,62 @@ namespace duckdb
         }
     }
 
+    // Render a constant the way ABAP's dynamic WHERE expects it, or return "" to
+    // decline pushing the predicate at all.
+    //
+    // The DDIC validates every literal against the field's own type, so a value
+    // rendered in DuckDB's spelling is rejected outright: a DATE arrives as
+    // '2020-01-01' and the server answers "is not a valid value for D(8,0)" --
+    // breaking a query that previously worked, merely because it was never pushed
+    // before.  Verified against the trial: quoted CHAR, quoted integers and quoted
+    // decimals are all accepted, and DATS wants YYYYMMDD.
+    //
+    // Anything whose ABAP spelling is not established here is declined rather than
+    // guessed.  Declining costs throughput; guessing wrong costs correctness.
     std::string RfcReadTableBindData::TransformLiteral(const Value &val) {
+        if (val.IsNull()) {
+            return std::string();
+        }
+
         switch (val.type().id()) {
-            case LogicalTypeId::BLOB:
-                return TransformBlob(StringValue::Get(val));
-            default:
+            case LogicalTypeId::VARCHAR:
                 return KeywordHelper::WriteQuoted(val.ToString());
+
+            // Quoted numerics are accepted for NUMC/INT/CURR/QUAN/DEC alike, and
+            // quoting sidesteps any difference in how ABAP parses a bare number.
+            case LogicalTypeId::TINYINT:
+            case LogicalTypeId::SMALLINT:
+            case LogicalTypeId::INTEGER:
+            case LogicalTypeId::BIGINT:
+            case LogicalTypeId::HUGEINT:
+            case LogicalTypeId::UTINYINT:
+            case LogicalTypeId::USMALLINT:
+            case LogicalTypeId::UINTEGER:
+            case LogicalTypeId::UBIGINT:
+            case LogicalTypeId::DECIMAL:
+                return KeywordHelper::WriteQuoted(val.ToString());
+
+            case LogicalTypeId::DATE: {
+                int32_t year, month, day;
+                Date::Convert(DateValue::Get(val), year, month, day);
+                return StringUtil::Format("'%04d%02d%02d'", year, month, day);
+            }
+
+            case LogicalTypeId::TIME: {
+                int32_t hour, minute, second, micros;
+                Time::Convert(TimeValue::Get(val), hour, minute, second, micros);
+                return StringUtil::Format("'%02d%02d%02d'", hour, minute, second);
+            }
+
+            // Deliberately not pushed:
+            //  - TIMESTAMP: SAP splits date and time across two fields, and UTCLONG
+            //    is not ISO, so there is no single correct spelling here.
+            //  - BLOB: TransformBlob emits Postgres' '\xAB'::BYTEA, which is not ABAP.
+            //  - FLOAT/DOUBLE: round-tripping a binary float through a decimal
+            //    literal can select a different set of rows than DuckDB would.
+            //  - BOOLEAN and everything else: no established ABAP spelling.
+            default:
+                return std::string();
         }
     }
 

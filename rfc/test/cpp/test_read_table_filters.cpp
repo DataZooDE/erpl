@@ -232,3 +232,64 @@ TEST_CASE("a quoted literal containing spaces is never split", "[erpl_rfc][filte
 	}
 	REQUIRE(Rejoin(parts) == clause);
 }
+
+// ---------------------------------------------------------------------------
+// Literal rendering per type.
+//
+// The DDIC validates every literal against the field's own type, so DuckDB's
+// spelling of a value is not automatically ABAP's.  Pushing a DATE as
+// '2020-01-01' makes the server answer "is not a valid value for D(8,0)" and
+// breaks a query that worked before only because it was never pushed.
+// Verified live against the trial: quoted CHAR / integers / decimals are
+// accepted, and DATS wants YYYYMMDD.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("dates render in ABAP's DATS format, not ISO", "[erpl_rfc][filters]") {
+	auto f = Cmp(ExpressionType::COMPARE_GREATERTHANOREQUALTO, Value::DATE(2020, 1, 1));
+	REQUIRE(Push("FLIGHT_DATE", *f) == "FLIGHT_DATE >= '20200101'");
+}
+
+TEST_CASE("times render as HHMMSS", "[erpl_rfc][filters]") {
+	auto f = Cmp(ExpressionType::COMPARE_LESSTHAN, Value::TIME(9, 5, 3, 0));
+	REQUIRE(Push("DEPTIME", *f) == "DEPTIME < '090503'");
+}
+
+TEST_CASE("integers and decimals are pushed quoted", "[erpl_rfc][filters]") {
+	SECTION("integer") {
+		auto f = Cmp(ExpressionType::COMPARE_GREATERTHAN, Value::BIGINT(350));
+		REQUIRE(Push("SEATS_MAX", *f) == "SEATS_MAX > '350'");
+	}
+	SECTION("decimal") {
+		auto f = Cmp(ExpressionType::COMPARE_GREATERTHAN, Value::DECIMAL(50000, 15, 2));
+		REQUIRE(Push("PRICE", *f) == "PRICE > '500.00'");
+	}
+}
+
+TEST_CASE("types with no established ABAP spelling are not pushed", "[erpl_rfc][filters]") {
+	SECTION("timestamp") {
+		auto f = Cmp(ExpressionType::COMPARE_EQUAL, Value::TIMESTAMP(Timestamp::FromEpochSeconds(0)));
+		REQUIRE(Push("CREATED_AT", *f) == "");
+	}
+	SECTION("blob") {
+		// TransformBlob emits Postgres' ::BYTEA syntax, which ABAP would reject.
+		auto f = Cmp(ExpressionType::COMPARE_EQUAL, Value::BLOB("\\xAB\\xCD"));
+		REQUIRE(Push("RAWFIELD", *f) == "");
+	}
+	SECTION("double") {
+		// A binary float round-tripped through a decimal literal can select a
+		// different set of rows than DuckDB would.
+		auto f = Cmp(ExpressionType::COMPARE_GREATERTHAN, Value::DOUBLE(1.5));
+		REQUIRE(Push("SOMEFLOAT", *f) == "");
+	}
+	// No NULL section: DuckDB asserts "ConstantFilter constant cannot be NULL -
+	// use IsNullFilter instead", so a NULL constant cannot reach TransformLiteral
+	// through this path at all.  The IsNull() guard there is defence in depth.
+}
+
+TEST_CASE("an unpushable literal poisons its whole conjunction", "[erpl_rfc][filters]") {
+	// Otherwise an AND would silently widen and an OR would silently narrow.
+	auto conj = make_uniq<ConjunctionAndFilter>();
+	conj->child_filters.push_back(Cmp(ExpressionType::COMPARE_EQUAL, Value("LH")));
+	conj->child_filters.push_back(Cmp(ExpressionType::COMPARE_GREATERTHAN, Value::DOUBLE(1.5)));
+	REQUIRE(Push("CARRIER_ID", *conj) == "");
+}
