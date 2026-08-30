@@ -1,5 +1,6 @@
 #pragma once
 
+#include <set>
 #include <atomic>
 #include <mutex>
 #include <optional>
@@ -144,6 +145,9 @@ namespace duckdb
 			ClientContext &client_context;
 			std::vector<std::string> column_names;
 			std::vector<RfcType> column_types;
+			// Columns whose DDIC type is CLNT.  RFC_READ_TABLE's OPTIONS parser rejects
+			// any clause naming the client field, so these are never pushed.
+			std::set<std::string> client_columns;
 			std::vector<RfcReadColumnStateMachine> column_state_machines;
 			std::atomic<unsigned int> persistent_slots_used{0};
 			// Filters that could not be translated into OPTIONS, keyed by projected

@@ -501,10 +501,21 @@ namespace duckdb
         column_names = req_fields;
         
         column_types.clear();
+        client_columns.clear();
         for (auto &req_field : req_fields) {
             auto fm = req_field_metas[req_field];
             auto rfc_type = GetRfcTypeForFieldMeta(fm);
             column_types.push_back(rfc_type);
+
+            // The client is implicit in the RFC call itself, and RFC_READ_TABLE's parser
+            // rejects any OPTIONS clause that names the client field ("The client field
+            // ... "). A join on MANDT produces exactly such a predicate, so remember
+            // which columns are CLNT and keep them out of the generated WHERE.
+            // DATATYPE is the only place this is visible -- RfcType maps CLNT onto
+            // RFCTYPE_CHAR, so by then it is indistinguishable from an ordinary CHAR.
+            if (ValueHelper(fm)["DATATYPE"].ToString() == "CLNT") {
+                client_columns.insert(req_field);
+            }
         }
 
         auto needs_string_support = std::any_of(column_types.begin(), column_types.end(), [](auto &t) {
@@ -691,7 +702,12 @@ namespace duckdb
         for (auto &[projected_column_idx, filter] : filter_set->filters)
         {
             auto column_name = GetProjectedColumnName(projected_column_idx);
-            auto transformed = TransformFilter(column_name, *filter);
+            // Never generate a predicate on the client field; SAP refuses the whole
+            // clause if one appears.  DuckDB still needs the filter applied, so it goes
+            // to the residual path rather than being dropped.
+            auto transformed = client_columns.count(column_name) > 0
+                             ? std::string()
+                             : TransformFilter(column_name, *filter);
             if (!transformed.empty()) {
                 filter_entries.push_back(transformed);
                 pushed_filters = true;
