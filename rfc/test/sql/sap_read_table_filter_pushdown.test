@@ -84,7 +84,7 @@ SET erpl_rfc_pushdown_filters = false;
 statement ok
 CREATE TABLE rng_ref AS
 SELECT * FROM sap_read_table('/DMO/FLIGHT')
-WHERE FLIGHT_DATE >= '20200101' AND FLIGHT_DATE <= '20301231';
+WHERE FLIGHT_DATE >= DATE '2026-01-01' AND FLIGHT_DATE <= DATE '2026-12-31';
 
 statement ok
 SET erpl_rfc_pushdown_filters = true;
@@ -92,7 +92,7 @@ SET erpl_rfc_pushdown_filters = true;
 statement ok
 CREATE TABLE rng_push AS
 SELECT * FROM sap_read_table('/DMO/FLIGHT')
-WHERE FLIGHT_DATE >= '20200101' AND FLIGHT_DATE <= '20301231';
+WHERE FLIGHT_DATE >= DATE '2026-01-01' AND FLIGHT_DATE <= DATE '2026-12-31';
 
 query I
 SELECT count(*) FROM (
@@ -105,6 +105,13 @@ SELECT count(*) FROM (
 
 query I
 SELECT count(*) > 0 FROM rng_ref;
+----
+true
+
+# Anchor against the trial's own data: the window must actually split the table,
+# otherwise "both sides agree" would be satisfied by returning everything.
+query I
+SELECT (SELECT count(*) FROM rng_ref) < (SELECT count(*) FROM sap_read_table('/DMO/FLIGHT'));
 ----
 true
 
