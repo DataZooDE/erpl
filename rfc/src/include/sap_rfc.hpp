@@ -199,6 +199,10 @@ namespace duckdb
 			// column index.  Copied because the TableFilterSet belongs to the plan.
 			std::vector<std::pair<idx_t, duckdb::unique_ptr<TableFilter>>> residual_filters;
 			unsigned int fetch_size_override = 0;
+			// projected column index -> RFC column index, built once by
+			// ActivateColumns() and read-only afterwards.  Keeps the projection
+			// reachable without the state machines.
+			std::vector<idx_t> projected_to_rfc_column;
 			// Defaults to RfcReadColumnStateMachine::MAX_BATCH_SIZE (that class
 			// is defined later in this header, so we can't name the constant
 			// here); Step() overwrites this with the column-count-aware cap.

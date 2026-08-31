@@ -158,15 +158,14 @@ namespace duckdb
 
     std::string RfcReadTableBindData::GetProjectedColumnName(unsigned int projected_column_idx) 
     {
-        auto rfc_column_idx = DConstants::INVALID_INDEX;
-        for (auto &sm : column_state_machines) {
-            if (sm.GetProjectedColumnIndex() == projected_column_idx) {
-                rfc_column_idx = sm.GetRfcColumnIndex();
-                break;
-            }
+        // Reads the projection map rather than scanning the state machines, so this
+        // keeps working when a partitioned scan moves them into its workers.
+        idx_t rfc_column_idx = (idx_t)DConstants::INVALID_INDEX;
+        if (projected_column_idx < projected_to_rfc_column.size()) {
+            rfc_column_idx = projected_to_rfc_column[projected_column_idx];
         }
 
-        if (rfc_column_idx == DConstants::INVALID_INDEX) {
+        if (rfc_column_idx == (idx_t)DConstants::INVALID_INDEX) {
             throw std::runtime_error(StringUtil::Format("Could not find column with projected index %d", projected_column_idx));
         }
 
@@ -567,6 +566,12 @@ namespace duckdb
             sm.SetInactive();
         }
 
+        // Record the projection as plain data as well as in the state machines.  The
+        // map is what GetProjectedColumnName() reads, so filter pushdown no longer
+        // depends on the state machines being reachable from the bind data -- a
+        // partitioned scan owns them per worker.  Built once here, read-only after.
+        projected_to_rfc_column.assign(column_ids.size(), (idx_t)DConstants::INVALID_INDEX);
+
         for (idx_t i = 0; i < column_ids.size(); i++) {
             auto is_row_id = IsRowIdColumnId(column_ids[i]);
             auto column_id = is_row_id ? 0 : column_ids[i];
@@ -574,6 +579,7 @@ namespace duckdb
             if (is_row_id) {
                 column_state_machines[column_id].SetRowIdColumnId();
             }
+            projected_to_rfc_column[i] = column_id;
         }
     }
 
