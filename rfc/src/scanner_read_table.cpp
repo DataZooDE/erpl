@@ -70,6 +70,9 @@ namespace duckdb
             bind_data->SetSecretName(secret_name);
         }
         bind_data->SetFetchSize(fetch_size);
+        if (named_params.find("PARTITIONS") != named_params.end()) {
+            bind_data->SetPartitionCount((idx_t)named_params["PARTITIONS"].GetValue<unsigned int>());
+        }
         bind_data->InitOptionsFromWhereClause(where_clause);
         try {
             bind_data->InitAndVerifyFields(fields);
@@ -96,7 +99,97 @@ namespace duckdb
         bind_data.ActivateColumns(column_ids);
         bind_data.AddOptionsFromFilters(input.filters);
 
-        return make_uniq<GlobalTableFunctionState>();
+        // Partitioning is opt-in.  With it off this returns a state whose MaxThreads()
+        // is 1 and whose scheduler is null, so DuckDB creates one worker and the scan
+        // runs the column-parallel path exactly as it always has.
+        auto partitions = bind_data.GetPartitionCount();
+        if (partitions <= 1) {
+            return make_uniq<RfcReadTableGlobalState>(1, nullptr);
+        }
+
+        auto batch_size = (idx_t)STANDARD_VECTOR_SIZE;
+        auto window = bind_data.GetPartitionWindowRows();
+        auto scheduler = make_uniq<RfcRowWindowScheduler>(window, batch_size,
+                                                          (idx_t)bind_data.GetLimit());
+        return make_uniq<RfcReadTableGlobalState>(partitions, std::move(scheduler));
+    }
+
+    static unique_ptr<LocalTableFunctionState> RfcReadTableInitLocalState(ExecutionContext &context,
+                                                                          TableFunctionInitInput &input,
+                                                                          GlobalTableFunctionState *global_state)
+    {
+        auto &gstate = global_state->Cast<RfcReadTableGlobalState>();
+        if (! gstate.IsPartitioned()) {
+            return nullptr;
+        }
+
+        auto &bind_data = input.bind_data->CastNoConst<RfcReadTableBindData>();
+        auto local = make_uniq<RfcReadTableWindowState>();
+        local->machines = bind_data.CreateWindowStateMachines();
+        return std::move(local);
+    }
+
+    // Drive one worker of a partitioned scan.
+    static void RfcReadTableScanPartitioned(ClientContext &context,
+                                            RfcReadTableBindData &bind_data,
+                                            RfcReadTableGlobalState &gstate,
+                                            RfcReadTableWindowState &lstate,
+                                            DataChunk &output)
+    {
+        while (true) {
+            if (! lstate.holds_window) {
+                idx_t offset = 0, rows = 0;
+                if (! gstate.scheduler->Claim(offset, rows)) {
+                    // Nothing left to claim; an empty chunk retires this worker.
+                    return;
+                }
+                for (auto &sm : lstate.machines) {
+                    if (sm.Active()) {
+                        sm.SetWindow(offset, (unsigned int)gstate.scheduler->BatchSize(),
+                                     (unsigned int)rows);
+                    }
+                }
+                lstate.holds_window = true;
+                lstate.window_rows = rows;
+            }
+
+            bool window_finished = true;
+            for (auto &sm : lstate.machines) {
+                if (sm.Active() && ! sm.Finished()) {
+                    window_finished = false;
+                    break;
+                }
+            }
+
+            if (! window_finished) {
+                bind_data.StepWindow(context, output, lstate.machines);
+                bind_data.ApplyResidualFilters(output);
+                if (output.size() > 0) {
+                    return;
+                }
+                // Everything in this batch was filtered out.  Reset before the next
+                // step: ApplyResidualFilters sliced the chunk, and Step would otherwise
+                // write through dictionary vectors as if they were flat.
+                output.Reset();
+                continue;
+            }
+
+            // The window is done.  If it yielded fewer rows than it asked for, the
+            // table ended inside it -- tell the scheduler to stop handing out new
+            // windows.  Workers already holding one still finish it.
+            idx_t produced = 0;
+            for (auto &sm : lstate.machines) {
+                if (sm.Active()) {
+                    produced = sm.GetTotalRows();
+                    break;
+                }
+            }
+            if (produced < lstate.window_rows) {
+                gstate.scheduler->ReportExhausted();
+            }
+            lstate.holds_window = false;
+            output.Reset();
+        }
     }
 
     static void RfcReadTableScan(ClientContext &context, 
@@ -104,6 +197,18 @@ namespace duckdb
                                  DataChunk &output) 
     {
         auto &bind_data = data.bind_data->CastNoConst<RfcReadTableBindData>();
+
+        if (data.global_state) {
+            auto &gstate = data.global_state->Cast<RfcReadTableGlobalState>();
+            if (gstate.IsPartitioned()) {
+                if (data.local_state == nullptr) {
+                    return;
+                }
+                auto &lstate = data.local_state->Cast<RfcReadTableWindowState>();
+                RfcReadTableScanPartitioned(context, bind_data, gstate, lstate, output);
+                return;
+            }
+        }
 
         // Loop, because an empty chunk is how a table function says "scan finished".
         // Residual filtering can legitimately reject every row of a batch, and returning
@@ -157,9 +262,11 @@ namespace duckdb
         auto fun = TableFunction("sap_read_table", { LogicalType::VARCHAR }, 
                                  RfcReadTableScan, 
                                  RfcReadTableBind, 
-                                 RfcReadTableInitGlobalState);
+                                 RfcReadTableInitGlobalState,
+                                 RfcReadTableInitLocalState);
         fun.named_parameters["THREADS"] = LogicalType::UINTEGER;
         fun.named_parameters["FETCH_SIZE"] = LogicalType::UINTEGER;
+        fun.named_parameters["PARTITIONS"] = LogicalType::UINTEGER;
         fun.named_parameters["COLUMNS"] = LogicalType::LIST(LogicalType::VARCHAR);
         fun.named_parameters["FILTER"] = LogicalType::VARCHAR;
         fun.named_parameters["MAX_ROWS"] = LogicalType::UINTEGER;
