@@ -50,6 +50,9 @@ namespace duckdb
 	void SetRfcPushdownFilters(bool enabled);
 	bool GetRfcPushdownFilters();
 
+	void SetRfcMaxThreads(unsigned int n);
+	unsigned int GetRfcMaxThreads();
+
 	class RfcReadTableBindData : public TableFunctionData
     {
 		public: 
@@ -153,6 +156,7 @@ namespace duckdb
 			// Filters that could not be translated into OPTIONS, keyed by projected
 			// column index.  Copied because the TableFilterSet belongs to the plan.
 			std::vector<std::pair<idx_t, duckdb::unique_ptr<TableFilter>>> residual_filters;
+			unsigned int fetch_size_override = 0;
 			// Defaults to RfcReadColumnStateMachine::MAX_BATCH_SIZE (that class
 			// is defined later in this header, so we can't name the constant
 			// here); Step() overwrites this with the column-count-aware cap.
@@ -186,6 +190,13 @@ namespace duckdb
 			// plan, so anything the scan does not apply is simply not applied.
 			void ApplyResidualFilters(DataChunk &output);
 			bool HasResidualFilters() const { return ! residual_filters.empty(); }
+
+			// Per-scan override for the concurrent-row budget (the `fetch_size` named
+			// parameter).  0 means "use the erpl_rfc_fetch_size session setting".
+			void SetFetchSize(unsigned int n) { fetch_size_override = n; }
+			unsigned int EffectiveFetchSize() const {
+				return fetch_size_override != 0 ? fetch_size_override : GetRfcReadTableBatchBudget();
+			}
     };
 
 	enum class ReadTableStates {

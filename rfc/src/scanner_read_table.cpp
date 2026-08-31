@@ -29,9 +29,11 @@ namespace duckdb
 
         auto table_name = input.inputs[0].ToString();
         auto &named_params = input.named_parameters;
+        // Per-query `threads` wins; otherwise the erpl_rfc_max_threads session default;
+        // otherwise 0, which means erpl decides (one RFC call per projected column).
         auto max_read_threads = named_params.find("THREADS") != named_params.end() 
                                     ? named_params["THREADS"].GetValue<unsigned int>()
-                                    : 0;
+                                    : GetRfcMaxThreads();
         auto limit = named_params.find("MAX_ROWS") != named_params.end() 
                                     ? named_params["MAX_ROWS"].GetValue<unsigned int>()
                                     : 0;
@@ -54,12 +56,20 @@ namespace duckdb
                                 ? named_params["SECRET"].ToString()
                                 : "";
 
+        // `fetch_size` is the shared name across sap_read_table, sap_odp_read_* and the
+        // BICS scanners.  Each protocol keeps its own natural unit -- here it is
+        // concurrent result rows, which is what bounds the SAP SDK's own buffer.
+        auto fetch_size = named_params.find("FETCH_SIZE") != named_params.end()
+                                ? named_params["FETCH_SIZE"].GetValue<unsigned int>()
+                                : 0;
+
         auto bind_data = make_uniq<RfcReadTableBindData>(table_name, max_read_threads, limit,
                                                          read_table_function, read_table_delimiter, read_table_function_user_set,
                                                          &DefaultRfcConnectionFactory, context);
         if (!secret_name.empty()) {
             bind_data->SetSecretName(secret_name);
         }
+        bind_data->SetFetchSize(fetch_size);
         bind_data->InitOptionsFromWhereClause(where_clause);
         try {
             bind_data->InitAndVerifyFields(fields);
@@ -149,6 +159,7 @@ namespace duckdb
                                  RfcReadTableBind, 
                                  RfcReadTableInitGlobalState);
         fun.named_parameters["THREADS"] = LogicalType::UINTEGER;
+        fun.named_parameters["FETCH_SIZE"] = LogicalType::UINTEGER;
         fun.named_parameters["COLUMNS"] = LogicalType::LIST(LogicalType::VARCHAR);
         fun.named_parameters["FILTER"] = LogicalType::VARCHAR;
         fun.named_parameters["MAX_ROWS"] = LogicalType::UINTEGER;

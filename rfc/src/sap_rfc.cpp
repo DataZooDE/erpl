@@ -61,6 +61,12 @@ namespace duckdb
     void SetRfcPushdownFilters(bool enabled) { g_rfc_pushdown_filters.store(enabled, std::memory_order_relaxed); }
     bool GetRfcPushdownFilters()             { return g_rfc_pushdown_filters.load(std::memory_order_relaxed); }
 
+    // Session default for the `threads` named parameter.  0 means "erpl decides",
+    // which today is one RFC call per projected column.
+    static std::atomic<unsigned int> g_rfc_max_threads{0};
+    void SetRfcMaxThreads(unsigned int n) { g_rfc_max_threads.store(n, std::memory_order_relaxed); }
+    unsigned int GetRfcMaxThreads()       { return g_rfc_max_threads.load(std::memory_order_relaxed); }
+
     // Concurrent-row budget that bounds the SAP SDK result buffer on wide
     // sap_read_table scans (issue #69).  See MaxBatchSizeForColumnCount.
     static std::atomic<unsigned int> g_rfc_read_table_batch_budget{RfcReadColumnStateMachine::DEFAULT_READ_TABLE_BATCH_BUDGET};
@@ -1074,7 +1080,7 @@ namespace duckdb
         // outside any per-state-machine lock — and read locklessly by the
         // tasks scheduled below; the active set is fixed for the whole scan.
         effective_max_batch_size = RfcReadColumnStateMachine::MaxBatchSizeForColumnCount(
-            (unsigned int)active.size(), GetRfcReadTableBatchBudget());
+            (unsigned int)active.size(), EffectiveFetchSize());
 
         // When max_threads > 0, the user wants at most that many concurrent
         // RFC calls. Enforce by scheduling tasks in batches. Each batch is
