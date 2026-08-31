@@ -1093,11 +1093,24 @@ namespace duckdb
         : batch_size(batch_size_p == 0 ? (idx_t)STANDARD_VECTOR_SIZE : batch_size_p),
           max_rows(max_rows_p)
     {
-        // Round the window up to a whole number of batches.  Every offset is then a
-        // multiple of batch_size, which is what keeps ROWSKIPS % ROWCOUNT == 0 for
-        // every call this scheduler will ever produce.
+        // Clamp before rounding.  erpl_rfc_partition_window_rows is a UBIGINT the user
+        // sets, and rounding a near-max value UP wraps -- a window_size of 0 would make
+        // Claim() hand the same offset to every worker forever, which is duplicated
+        // rows rather than an error.  Nothing above INT32_MAX is useful anyway: ROWSKIPS
+        // is an ABAP INT4, so no window can start beyond it.
         auto requested = window_size_p == 0 ? batch_size : window_size_p;
-        auto batches = requested / batch_size + (requested % batch_size != 0 ? 1 : 0);
+        auto ceiling = (idx_t)std::numeric_limits<int32_t>::max();
+        if (requested > ceiling) {
+            requested = ceiling;
+        }
+
+        // Round DOWN to a whole number of batches -- rounding down cannot overflow, and
+        // every offset stays a multiple of batch_size, which is what keeps
+        // ROWSKIPS % ROWCOUNT == 0 for every call this scheduler will ever produce.
+        auto batches = requested / batch_size;
+        if (batches == 0) {
+            batches = 1;
+        }
         window_size = batches * batch_size;
     }
 
@@ -1175,8 +1188,22 @@ namespace duckdb
                 active++;
             }
         }
+
+        // erpl_rfc_fetch_size bounds (columns x batch) for ONE reader.  Each partition
+        // worker owns its own state machines and therefore its own SDK result buffers,
+        // so without dividing here the budget would be per worker and peak memory would
+        // scale with the partition count -- the opposite of what a budget is for.
+        //
+        // Narrow scans, which is what partitioning is for, are unaffected: the batch is
+        // already capped at MAX_BATCH_SIZE long before the divided budget binds.
+        auto budget = EffectiveFetchSize();
+        auto workers = GetPartitionCount();
+        if (workers > 1 && budget > 0) {
+            budget = (unsigned int)std::max<idx_t>(1, (idx_t)budget / workers);
+        }
+
         effective_max_batch_size = RfcReadColumnStateMachine::MaxBatchSizeForColumnCount(
-            active, EffectiveFetchSize());
+            active, budget);
     }
 
     bool RfcReadTableBindData::HasMoreResults() 

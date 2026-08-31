@@ -159,3 +159,42 @@ TEST_CASE("concurrent claims never overlap and never skip a row", "[erpl_rfc][pa
 	}
 	REQUIRE(total == kMaxRows);
 }
+
+// ---------------------------------------------------------------------------
+// Overflow. erpl_rfc_partition_window_rows is a UBIGINT the user sets, and the
+// constructor rounds the window up to a whole number of batches. Rounding a
+// near-max value wraps; if window_size wrapped to 0 the scheduler would hand the
+// SAME offset to every claim forever, which is duplicated rows rather than an
+// error -- the worst failure this class can have.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("an absurd window size cannot wrap to zero", "[erpl_rfc][partition]") {
+	auto huge = std::numeric_limits<idx_t>::max() - 3;
+	RfcRowWindowScheduler sched(huge, /*batch_size=*/2048, /*max_rows=*/0);
+
+	REQUIRE(sched.WindowSize() > 0);
+	REQUIRE(sched.WindowSize() % 2048 == 0);
+
+	// Successive claims must still advance.
+	idx_t a_off = 0, a_count = 0, b_off = 0, b_count = 0;
+	REQUIRE(sched.Claim(a_off, a_count));
+	REQUIRE(sched.Claim(b_off, b_count));
+	REQUIRE(b_off > a_off);
+}
+
+TEST_CASE("claims never repeat an offset even at extreme window sizes",
+          "[erpl_rfc][partition]") {
+	for (auto w : {std::numeric_limits<idx_t>::max(),
+	               std::numeric_limits<idx_t>::max() / 2,
+	               (idx_t)1}) {
+		RfcRowWindowScheduler sched(w, /*batch_size=*/4096, /*max_rows=*/0);
+		REQUIRE(sched.WindowSize() > 0);
+
+		std::set<idx_t> seen;
+		idx_t off = 0, count = 0;
+		for (int i = 0; i < 5 && sched.Claim(off, count); i++) {
+			REQUIRE(seen.insert(off).second);   // never the same offset twice
+			REQUIRE(count > 0);
+		}
+	}
+}
