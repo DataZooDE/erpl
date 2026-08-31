@@ -203,6 +203,11 @@ namespace duckdb
 			// ActivateColumns() and read-only afterwards.  Keeps the projection
 			// reachable without the state machines.
 			std::vector<idx_t> projected_to_rfc_column;
+			// Guards the one post-bind write to the bind data: the runtime
+			// RFC_READ_TABLE fallback, which reassigns read_table_function.
+			std::mutex fallback_selection_lock;
+			bool fallback_selection_done = false;
+			bool fallback_selection_succeeded = false;
 			// Defaults to RfcReadColumnStateMachine::MAX_BATCH_SIZE (that class
 			// is defined later in this header, so we can't name the constant
 			// here); Step() overwrites this with the column-count-aware cap.

@@ -316,6 +316,17 @@ namespace duckdb
             return false;
         }
 
+        // Serialised because this is the one place the bind data is written after the
+        // scan starts, and it writes a std::string.  With column-parallel reads two
+        // tasks could already reach it together; a partitioned scan multiplies that by
+        // the worker count.  Under the lock a caller that arrives second sees the
+        // switch already made and reports success rather than probing again.
+        std::lock_guard<std::mutex> guard(fallback_selection_lock);
+        if (fallback_selection_done) {
+            return fallback_selection_succeeded;
+        }
+        fallback_selection_done = true;
+
         static const std::vector<std::string> fallback_functions = {
             "/SAPDS/RFC_READ_TABLE2",
             "/BODS/RFC_READ_TABLE2",
@@ -332,6 +343,7 @@ namespace duckdb
                 if (ReadTableFunctionSupportsEtData(connection, candidate)) {
                     read_table_function = candidate;
                     read_table_supports_et_data = true;
+                    fallback_selection_succeeded = true;
                     ERPL_TRACE_INFO_DATA("sap_rfc", "Using RFC_READ_TABLE fallback", candidate);
                     return true;
                 }
