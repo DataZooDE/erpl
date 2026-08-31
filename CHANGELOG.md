@@ -22,7 +22,11 @@ LOAD erpl;
 
 ---
 
-## Unreleased
+## v2026.08.31 — every predicate applied, and most of them pushed to SAP
+
+Two of the entries below are **silent wrong-results bugs in released erpl**, not
+regressions: `sap_read_table` has been returning unfiltered rows for ranges,
+conjunctions and wide `IN` lists. If you filter SAP tables from SQL, upgrade.
 
 ### Fixed
 
@@ -41,6 +45,17 @@ LOAD erpl;
 
 - **[rfc]** The `OPTIONS` line splitter broke inside quoted literals whenever one contained
   a space, leaving an unbalanced apostrophe on both lines.
+
+- **[rfc]** **A scan could stop early and truncate its result.** A table function signals
+  end-of-scan by returning a chunk with no rows, and client-side filtering can legitimately
+  reject every row of a batch — returning that empty chunk ended the scan and discarded
+  everything still unread. On `DD03L` this returned 25,578 rows instead of 114,566. Only
+  reachable on tables large enough to span several batches, which is why it survived a
+  suite that tests against a 40-row table.
+
+- **[rfc]** A `TIME` literal with a fractional second was pushed truncated. SAP `TIMS` is
+  second-precision, so `t < TIME '09:05:03.500'` became `t < '090503'` and wrongly rejected
+  rows stored as `09:05:03`. Such values are no longer pushed; erpl applies them exactly.
 
 ### Added
 
