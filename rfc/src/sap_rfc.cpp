@@ -228,7 +228,16 @@ namespace duckdb
 
     std::string RfcReadTableBindData::GetReadTableFunctionName()
     {
+        // Guarded because TrySelectFallbackReadTableFunction can reassign this at
+        // execute time.  Returned by value so the caller holds a stable copy.
+        std::lock_guard<std::mutex> guard(fallback_selection_lock);
         return read_table_function;
+    }
+
+    std::string RfcReadTableBindData::GetReadTableResultPath()
+    {
+        std::lock_guard<std::mutex> guard(fallback_selection_lock);
+        return read_table_result_path.empty() ? std::string("/DATA") : read_table_result_path;
     }
 
     std::string RfcReadTableBindData::GetReadTableDelimiter()
@@ -373,6 +382,9 @@ namespace duckdb
                     // truncation, which is the worst thing this code can do.
                     read_table_result_path.clear();
                     read_table_import_params.clear();
+                    // Safe to call while holding fallback_selection_lock: both read
+                    // read_table_function directly rather than through the locking
+                    // accessors, so there is no re-entrancy.
                     ResolveReadTableResultPath(connection);
                     ResolveReadTableImportParams(connection);
 
@@ -446,6 +458,11 @@ namespace duckdb
 
     bool RfcReadTableBindData::ReadTableHasParam(const std::string &param_name)
     {
+        // read_table_import_params is cleared and refilled by the runtime fallback.
+        // Reading a std::set while another thread rebuilds it is undefined behaviour,
+        // not merely a stale answer, and a partitioned scan has several workers
+        // building RFC calls while one of them may be falling back.
+        std::lock_guard<std::mutex> guard(fallback_selection_lock);
         return read_table_import_params.find(param_name) != read_table_import_params.end();
     }
 
@@ -1136,6 +1153,15 @@ namespace duckdb
 
         auto claimed = next_offset.fetch_add(window_size, std::memory_order_relaxed);
 
+        // ROWSKIPS is an ABAP INT4, so a window can never legitimately start beyond
+        // INT32_MAX.  Stopping here also keeps next_offset from ever wrapping, which
+        // would start handing out offsets that have already been read -- duplicated
+        // rows rather than an error.
+        if (claimed > (idx_t)std::numeric_limits<int32_t>::max() - window_size) {
+            exhausted.store(true, std::memory_order_release);
+            return false;
+        }
+
         if (max_rows > 0) {
             if (claimed >= max_rows) {
                 return false;
@@ -1795,13 +1821,21 @@ namespace duckdb
     {
         auto bind_data = owning_state_machine->bind_data;
         auto rfc_type = bind_data->GetColumnType(owning_state_machine->column_idx);
-        auto data_path = bind_data->read_table_result_path.empty() ? std::string("/DATA") : bind_data->read_table_result_path;
+        std::string data_path;
         bool use_et_data = false;
 
         int attempt = 0;
         int max_attempts = 5;
         int initial_delay = 10000; // milliseconds
         while (attempt < max_attempts) {
+            // Re-read every attempt.  A failed attempt can switch the read-table
+            // function underneath us (TrySelectFallbackReadTableFunction), which
+            // reprobes the result path and import parameters for the new function.
+            // Capturing these once before the loop meant the retry asked
+            // /SAPDS/RFC_READ_TABLE2 for RFC_READ_TABLE's "/DATA", found nothing, and
+            // returned zero rows -- which a partitioned worker reads as end-of-table.
+            data_path = bind_data->GetReadTableResultPath();
+            use_et_data = false;
             std::shared_ptr<RfcConnection> connection;
             // Whether this batch's connection is owned by the state machine
             // (don't close on success) vs. per-batch (close on success).

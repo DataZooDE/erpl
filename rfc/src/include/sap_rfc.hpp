@@ -148,6 +148,8 @@ namespace duckdb
 			bool ReadTableSupportsEtData();
 			bool TrySelectFallbackReadTableFunction(std::shared_ptr<RfcConnection> connection);
 			void ResolveReadTableResultPath(std::shared_ptr<RfcConnection> connection);
+			// Guarded read of the result path; the runtime fallback can reassign it.
+			std::string GetReadTableResultPath();
 			void ResolveReadTableImportParams(std::shared_ptr<RfcConnection> connection);
 			bool ReadTableHasParam(const std::string &param_name);
 			

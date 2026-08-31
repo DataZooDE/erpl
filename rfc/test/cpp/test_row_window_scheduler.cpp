@@ -172,14 +172,21 @@ TEST_CASE("an absurd window size cannot wrap to zero", "[erpl_rfc][partition]") 
 	auto huge = std::numeric_limits<idx_t>::max() - 3;
 	RfcRowWindowScheduler sched(huge, /*batch_size=*/2048, /*max_rows=*/0);
 
+	// The wrap this guards against would leave window_size at 0, and every claim
+	// would then return offset 0 -- every worker reading the same rows.
 	REQUIRE(sched.WindowSize() > 0);
 	REQUIRE(sched.WindowSize() % 2048 == 0);
 
-	// Successive claims must still advance.
-	idx_t a_off = 0, a_count = 0, b_off = 0, b_count = 0;
+	// A window this size covers everything ROWSKIPS can address, so exactly one
+	// claim is possible and the next is refused rather than advancing past the
+	// ABAP INT4 ceiling. What must never happen is a second claim at the SAME
+	// offset, which is what wrapping would produce.
+	idx_t a_off = 1, a_count = 0, b_off = 1, b_count = 0;
 	REQUIRE(sched.Claim(a_off, a_count));
-	REQUIRE(sched.Claim(b_off, b_count));
-	REQUIRE(b_off > a_off);
+	REQUIRE(a_off == 0);
+	REQUIRE(a_count > 0);
+
+	REQUIRE_FALSE(sched.Claim(b_off, b_count));
 }
 
 TEST_CASE("claims never repeat an offset even at extreme window sizes",
@@ -211,8 +218,8 @@ TEST_CASE("an absurd batch size cannot break alignment either", "[erpl_rfc][part
 	REQUIRE(sched.WindowSize() > 0);
 	REQUIRE(sched.WindowSize() % sched.BatchSize() == 0);
 
-	idx_t a = 0, b = 0, c = 0, d = 0;
+	idx_t a = 0, c = 0;
 	REQUIRE(sched.Claim(a, c));
-	REQUIRE(sched.Claim(b, d));
-	REQUIRE(b > a);
+	REQUIRE(a == 0);
+	REQUIRE(c > 0);
 }
