@@ -1,0 +1,131 @@
+# name: test/sql/sap_read_table_tuning_api.test
+# description: The shared tuning vocabulary -- threads / fetch_size and their
+#              erpl_rfc_* session defaults -- must change only how the data is
+#              fetched, never which rows come back.
+# group: [rfc]
+
+# `threads` and `fetch_size` mean the same thing in every erpl extension, so what a
+# user learns on sap_read_table applies to sap_odp_read_* too. The invariant that
+# makes them safe to tune is that they are pure transport settings: identical result
+# sets at every value.
+#
+# erpl_rfc_read_table_batch_budget is the original spelling of erpl_rfc_fetch_size.
+# They are two names for one knob, not two knobs -- both write the same value.
+
+require erpl_rfc
+
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
+
+statement ok
+CREATE SECRET abap_trial (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}'
+);
+
+# ---------------------------------------------------------------------
+# Both spellings of the fetch-size knob exist and are settable.
+# ---------------------------------------------------------------------
+statement ok
+SET erpl_rfc_fetch_size = 32768;
+
+query I
+SELECT current_setting('erpl_rfc_fetch_size');
+----
+32768
+
+statement ok
+SET erpl_rfc_read_table_batch_budget = 65536;
+
+query I
+SELECT current_setting('erpl_rfc_read_table_batch_budget');
+----
+65536
+
+statement ok
+SET erpl_rfc_max_threads = 4;
+
+query I
+SELECT current_setting('erpl_rfc_max_threads');
+----
+4
+
+statement ok
+SET erpl_rfc_max_threads = 0;
+
+# ---------------------------------------------------------------------
+# The named parameters are accepted and do not change the result.
+#
+# fetch_size is deliberately pushed far below the row count so the scan is
+# forced through many more round-trips than the default would use -- if batch
+# boundaries could drop or duplicate a row, this is where it would show.
+# ---------------------------------------------------------------------
+statement ok
+SET erpl_rfc_fetch_size = 1310720;
+
+statement ok
+CREATE TABLE tune_ref AS
+SELECT TABNAME, TABCLASS FROM sap_read_table('DD02L');
+
+statement ok
+CREATE TABLE tune_small AS
+SELECT TABNAME, TABCLASS FROM sap_read_table('DD02L', fetch_size = 4096);
+
+statement ok
+CREATE TABLE tune_threads AS
+SELECT TABNAME, TABCLASS FROM sap_read_table('DD02L', fetch_size = 8192, threads = 2);
+
+query I
+SELECT count(*) > 50000 FROM tune_ref;
+----
+true
+
+query I
+SELECT count(*) FROM (
+    (SELECT * FROM tune_ref   EXCEPT ALL SELECT * FROM tune_small)
+    UNION ALL
+    (SELECT * FROM tune_small EXCEPT ALL SELECT * FROM tune_ref)
+);
+----
+0
+
+query I
+SELECT count(*) FROM (
+    (SELECT * FROM tune_ref     EXCEPT ALL SELECT * FROM tune_threads)
+    UNION ALL
+    (SELECT * FROM tune_threads EXCEPT ALL SELECT * FROM tune_ref)
+);
+----
+0
+
+# The session default applies when no named parameter is given, and is likewise
+# transport-only.
+statement ok
+SET erpl_rfc_fetch_size = 4096;
+
+statement ok
+CREATE TABLE tune_session AS
+SELECT TABNAME, TABCLASS FROM sap_read_table('DD02L');
+
+query I
+SELECT count(*) FROM (
+    (SELECT * FROM tune_ref     EXCEPT ALL SELECT * FROM tune_session)
+    UNION ALL
+    (SELECT * FROM tune_session EXCEPT ALL SELECT * FROM tune_ref)
+);
+----
+0

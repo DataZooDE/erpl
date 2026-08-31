@@ -161,6 +161,10 @@ namespace duckdb {
         SetRfcPushdownFilters(parameter.GetValue<bool>());
     }
 
+    static void OnRfcMaxThreads(ClientContext &, SetScope, Value &parameter) {
+        SetRfcMaxThreads(parameter.GetValue<unsigned int>());
+    }
+
     static void OnRfcBackend(ClientContext &, SetScope, Value &parameter) {
         SetRfcBackend(parameter.GetValue<string>());
     }
@@ -265,6 +269,33 @@ namespace duckdb {
             LogicalType::UINTEGER,
             Value::UINTEGER(RfcReadColumnStateMachine::DEFAULT_READ_TABLE_BATCH_BUDGET),
             OnReadTableBatchBudget);
+
+        // The shared tuning vocabulary: `erpl_<ext>_fetch_size` and
+        // `erpl_<ext>_max_threads` mean the same thing in every extension, so what you
+        // learn on one applies to the others.  erpl_rfc_read_table_batch_budget above is
+        // the original name and keeps working -- both write the same value, so setting
+        // either takes effect; they are two spellings of one knob, not two knobs.
+        config.AddExtensionOption(
+            "erpl_rfc_fetch_size",
+            "How much sap_read_table asks SAP for at a time, as a target upper bound on "
+            "concurrent result rows (projected columns x per-column batch).  Lower it to "
+            "cap memory harder at the cost of more RFC round-trips; raise it for fewer "
+            "round-trips on narrow tables.  0 disables the cap.  Override per query with "
+            "the fetch_size named parameter.  Alias of erpl_rfc_read_table_batch_budget.",
+            LogicalType::UINTEGER,
+            Value::UINTEGER(RfcReadColumnStateMachine::DEFAULT_READ_TABLE_BATCH_BUDGET),
+            OnReadTableBatchBudget);
+
+        config.AddExtensionOption(
+            "erpl_rfc_max_threads",
+            "Default number of concurrent RFC calls a sap_read_table scan may make.  0 "
+            "(the default) lets erpl choose.  Override per query with the threads named "
+            "parameter.  How much parallelism helps depends on the SAP system's own "
+            "capacity -- work processes, application servers and database sessions -- so "
+            "raise it while watching throughput rather than setting it blindly.",
+            LogicalType::UINTEGER,
+            Value::UINTEGER(0),
+            OnRfcMaxThreads);
 
         config.AddExtensionOption(
             "erpl_rfc_pushdown_filters",

@@ -91,6 +91,7 @@ Read data from an SAP table or CDS view. Supports projection pushdown, filter pu
 | `THREADS` | UINTEGER | 0 | Number of parallel read threads |
 | `COLUMNS` | LIST(VARCHAR) | all | Columns to retrieve |
 | `FILTER` | VARCHAR | — | SAP WHERE clause filter |
+| `fetch_size` | UINTEGER | `erpl_rfc_fetch_size` | Concurrent result rows per round-trip; transport only, never changes the rows returned |
 | `MAX_ROWS` | UINTEGER | 0 (all) | Maximum rows to return |
 | `READ_TABLE_FUNCTION` | VARCHAR | `'RFC_READ_TABLE'` | RFC function to use (see note) |
 | `READ_TABLE_DELIMITER` | VARCHAR | — | Delimiter for TABLE2 variants |
@@ -1280,6 +1281,8 @@ Notes:
 | `erpl_rfc_persistent_connections` | BOOLEAN | `true` | Cache one RFC connection + function descriptor per column for a `sap_read_table` scan instead of reopening per batch |
 | `erpl_rfc_max_persistent_connections` | UINTEGER | 16 | Upper bound on RFC connections a scan caches concurrently (issue #67); columns past the cap use per-batch open/close |
 | `erpl_rfc_read_table_batch_budget` | UINTEGER | 1310720 | Target max concurrent result rows (projected columns × per-column batch) for `sap_read_table`; bounds peak memory on wide tables (issue #69). Lower = less memory but more RFC round-trips; `0` disables the cap |
+| `erpl_rfc_fetch_size` | UINTEGER | 1310720 | How much `sap_read_table` asks SAP for per round-trip, as concurrent result rows. Alias of `erpl_rfc_read_table_batch_budget`. See [Tuning large reads](#tuning-large-reads) |
+| `erpl_rfc_max_threads` | UINTEGER | 0 | Default for the `threads` named parameter; `0` lets erpl choose |
 | `erpl_rfc_pushdown_filters` | BOOLEAN | `true` | Translate SQL `WHERE` predicates into `RFC_READ_TABLE`'s `OPTIONS` table so SAP filters the rows instead of sending them all. Turning it off never changes which rows come back, only how many cross the wire. See [Filter Pushdown](#filter-pushdown) |
 | `erpl_rfc_backend` | VARCHAR | `'nwrfc'` | Which implementation serves RFC calls: `'nwrfc'` (SAP's NetWeaver RFC SDK) or `'proto'` (the pure-Rust erpl-proto implementation). Must be set **before the first SAP call**; frozen for the life of the process once resolved. Environment override: `ERPL_RFC_BACKEND` |
 | `erpl_rfc_backend_path` | VARCHAR | `''` | Explicit path to the RFC backend shared library, overriding the search. Empty means: next to the extension, then the loader's library path. Environment override: `ERPL_RFC_BACKEND_PATH` |
@@ -1403,13 +1406,41 @@ releases that reject the generated syntax, and as a way to check that a filter i
 not the cause of a discrepancy: the same query must return the same rows with it
 on and off.
 
-### Parallel Reads
+### Tuning large reads
 
-Use the `THREADS` parameter on `sap_read_table` and `sap_odp_read_full` for large tables:
+Paging and parallelism use the **same two names everywhere**, so what you learn on
+one extension applies to the others:
+
+| | Named parameter | Session setting | Meaning |
+|---|---|---|---|
+| Parallelism | `threads` | `erpl_<ext>_max_threads` | How many SAP calls run at once. `0` = let erpl decide |
+| Fetch granule | `fetch_size` | `erpl_<ext>_fetch_size` | How much is asked for per round-trip, in the protocol's own unit |
 
 ```sql
-SELECT * FROM sap_read_table('LARGE_TABLE', THREADS=8);
+-- per query
+SELECT * FROM sap_read_table('LARGE_TABLE', threads = 8, fetch_size = 262144);
+
+-- or as a session default
+SET erpl_rfc_fetch_size = 262144;
+SET erpl_rfc_max_threads = 8;
 ```
+
+The unit of `fetch_size` follows the protocol: for `sap_read_table` it is
+**concurrent result rows** (projected columns x per-column batch), which is what
+bounds the SAP SDK's own buffer on wide tables.
+
+**Both are transport settings only.** Every value returns exactly the same rows;
+they trade memory against round-trips, nothing else. Lower `fetch_size` to cap
+memory harder on a wide table, raise it for fewer round-trips on a narrow one.
+
+How much `threads` helps depends on the SAP system's capacity — work processes,
+application servers, database sessions — not on erpl. Raise it while watching
+throughput rather than setting it blindly, and check with your Basis team before
+running a large parallel extract against a production system.
+
+`erpl_rfc_read_table_batch_budget` is the original spelling of
+`erpl_rfc_fetch_size`. Both remain supported and write the same value — they are two
+names for one knob, not two knobs.
 
 ### SSH Tunnel + SAP Connection
 
