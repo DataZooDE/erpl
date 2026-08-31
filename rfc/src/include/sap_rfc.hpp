@@ -272,6 +272,9 @@ namespace duckdb
 				return partition_count != 0 ? partition_count : GetRfcPartitions();
 			}
 			idx_t GetPartitionWindowRows() const;
+			// Compute effective_max_batch_size from the active column count once, before
+			// any worker runs.  Step() does the same for the unpartitioned path.
+			void ResolveEffectiveMaxBatchSize();
 			unsigned int GetLimit() const { return limit; }
 			unsigned int EffectiveFetchSize() const {
 				return fetch_size_override != 0 ? fetch_size_override : GetRfcReadTableBatchBudget();

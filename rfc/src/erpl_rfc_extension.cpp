@@ -325,7 +325,7 @@ namespace duckdb {
             "balancing across workers; smaller ones the reverse. Only used when "
             "erpl_rfc_partitions is above 1.",
             LogicalType::UBIGINT,
-            Value::UBIGINT(64ULL * 2048ULL),
+            Value::UBIGINT(0),
             OnRfcPartitionWindowRows);
 
         config.AddExtensionOption(

@@ -1,4 +1,5 @@
 #include "duckdb.hpp"
+#include <limits>
 #include <cmath>
 #include <iostream>
 #include <numeric>
@@ -77,10 +78,11 @@ namespace duckdb
 
     // Rows per window.  Bigger windows mean fewer, larger RFC calls and coarser load
     // balancing across workers; smaller ones the reverse.
-    static std::atomic<idx_t> g_rfc_partition_window_rows{64u * STANDARD_VECTOR_SIZE};
+    // 0 means "one batch per window", which init_global resolves against the batch
+    // size actually in use.
+    static std::atomic<idx_t> g_rfc_partition_window_rows{0};
     void SetRfcPartitionWindowRows(idx_t n) {
-        g_rfc_partition_window_rows.store(n != 0 ? n : 64u * STANDARD_VECTOR_SIZE,
-                                          std::memory_order_relaxed);
+        g_rfc_partition_window_rows.store(n, std::memory_order_relaxed);
     }
     idx_t GetRfcPartitionWindowRows() {
         return g_rfc_partition_window_rows.load(std::memory_order_relaxed);
@@ -1165,6 +1167,18 @@ namespace duckdb
         return GetRfcPartitionWindowRows();
     }
 
+    void RfcReadTableBindData::ResolveEffectiveMaxBatchSize()
+    {
+        unsigned int active = 0;
+        for (auto &sm : column_state_machines) {
+            if (sm.Active()) {
+                active++;
+            }
+        }
+        effective_max_batch_size = RfcReadColumnStateMachine::MaxBatchSizeForColumnCount(
+            active, EffectiveFetchSize());
+    }
+
     bool RfcReadTableBindData::HasMoreResults() 
     {
         for (auto &sm : column_state_machines) {
@@ -1675,6 +1689,13 @@ namespace duckdb
                     if (limit > 0 && total_rows >= limit) {
                         pending_records = 0;
                         current_state = ReadTableStates::FINISHED;
+                        // Same release FINAL_LOAD_TO_DUCKDB does: drop the cached RFC
+                        // connection so a SAP work-process reservation is not held
+                        // until query teardown, and free the SDK result buffer now.
+                        owning_state_machine->InvalidateCachedConnection();
+                        owning_state_machine->current_invocation.reset();
+                        owning_state_machine->current_table_handle = nullptr;
+                        owning_state_machine->current_batch_rows = 0;
                         return_control_to_duck = true;
                         break;
                     }
@@ -1874,8 +1895,20 @@ namespace duckdb
             // ROWSKIPS is this window's start plus what the window has already read.
             // For an unpartitioned scan window_offset is 0 and this is the old
             // behaviour exactly.
-            args.Add("ROWSKIPS", Value::CreateValue<int32_t>(
-                (int32_t)(owning_state_machine->window_offset + total_rows)));
+            //
+            // The parameter is an ABAP INT4, so refuse rather than wrap.  A silent
+            // wrap would re-read an earlier range and duplicate rows -- the worst
+            // possible failure here, and one partitioning makes reachable because a
+            // worker can start at a large offset without having read its way there.
+            auto skip = (idx_t)owning_state_machine->window_offset + (idx_t)total_rows;
+            if (skip > (idx_t)std::numeric_limits<int32_t>::max()) {
+                throw std::runtime_error(StringUtil::Format(
+                    "sap_read_table cannot read past row %d of '%s': RFC_READ_TABLE's "
+                    "ROWSKIPS is a 32-bit integer. Narrow the read with a WHERE clause "
+                    "or MAX_ROWS.",
+                    std::numeric_limits<int32_t>::max(), table_name));
+            }
+            args.Add("ROWSKIPS", Value::CreateValue<int32_t>((int32_t)skip));
         }
         if (bind_data->ReadTableHasParam("ROWCOUNT")) {
             args.Add("ROWCOUNT", Value::CreateValue<int32_t>(actual_batch_size));

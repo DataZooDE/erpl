@@ -98,6 +98,9 @@ namespace duckdb
 
         bind_data.ActivateColumns(column_ids);
         bind_data.AddOptionsFromFilters(input.filters);
+        // The serial path computes this inside Step(); a partitioned scan needs it
+        // before any worker starts, and it must not be written afterwards.
+        bind_data.ResolveEffectiveMaxBatchSize();
 
         // Partitioning is opt-in.  With it off this returns a state whose MaxThreads()
         // is 1 and whose scheduler is null, so DuckDB creates one worker and the scan
@@ -107,8 +110,24 @@ namespace duckdb
             return make_uniq<RfcReadTableGlobalState>(1, nullptr);
         }
 
-        auto batch_size = (idx_t)STANDARD_VECTOR_SIZE;
+        // Use the same batch size the unpartitioned path warms up to, not
+        // STANDARD_VECTOR_SIZE.  A partitioned window cannot let the batch double --
+        // that would break ROWSKIPS alignment -- so whatever is chosen here is the size
+        // for the whole scan.  Pinning it at 2048 made a 131k-row window cost 64 RFC
+        // round-trips where the serial path's warm-up reaches 32768 and needs a
+        // handful, and measured ~2x SLOWER than not partitioning at all.
+        auto batch_size = (idx_t)bind_data.GetEffectiveMaxBatchSize();
+        if (batch_size == 0) {
+            batch_size = (idx_t)STANDARD_VECTOR_SIZE;
+        }
+
+        // One batch per window by default: the finest granularity that still issues
+        // full-size RFC calls, so workers share the table evenly instead of one worker
+        // taking a huge window while the rest idle.
         auto window = bind_data.GetPartitionWindowRows();
+        if (window == 0) {
+            window = batch_size;
+        }
         auto scheduler = make_uniq<RfcRowWindowScheduler>(window, batch_size,
                                                           (idx_t)bind_data.GetLimit());
         return make_uniq<RfcReadTableGlobalState>(partitions, std::move(scheduler));
