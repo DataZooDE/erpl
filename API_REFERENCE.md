@@ -1442,6 +1442,48 @@ running a large parallel extract against a production system.
 `erpl_rfc_fetch_size`. Both remain supported and write the same value — they are two
 names for one knob, not two knobs.
 
+#### Narrow tables: `threads` will not help
+
+`sap_read_table`'s parallelism is **per column**: it issues one concurrent
+`RFC_READ_TABLE` call per projected column. That is a good fit for a wide extract and
+no help at all for a narrow one — a single-column scan runs one call, and `threads`
+has nothing to spread.
+
+If you are extracting few columns from a large table, split it by a key range instead
+and let SQL run the pieces:
+
+```sql
+SELECT * FROM sap_read_table('DD02L') WHERE TABNAME <  'D'
+UNION ALL
+SELECT * FROM sap_read_table('DD02L') WHERE TABNAME >= 'D' AND TABNAME < 'R'
+UNION ALL
+SELECT * FROM sap_read_table('DD02L') WHERE TABNAME >= 'R' AND TABNAME < 'V'
+UNION ALL
+SELECT * FROM sap_read_table('DD02L') WHERE TABNAME >= 'V';
+```
+
+The range predicates are pushed to SAP (see [Filter Pushdown](#filter-pushdown)), so
+each branch reads only its own slice rather than filtering locally.
+
+**What to expect.** Measured on a 164,664-row single-column extract, four branches ran
+in 6.6s against 8.3s for the equivalent single scan — about **1.2x**, not 4x. Each
+branch pays its own connection and metadata round-trip, and the SAP system applies each
+range filter separately, so the gain is far smaller than the branch count suggests.
+Splitting into many small branches makes it worse, not better.
+
+Two things matter more than the branch count:
+
+- **Pick boundaries that split the data evenly.** A range that covers most of the table
+  leaves you with one long branch and three short ones, and the long one sets the wall
+  time.
+- **Split on an indexed key.** If SAP has to scan the whole table to evaluate each
+  range, you have multiplied the server's work rather than divided it.
+
+For a genuinely large extract, running several *processes* against SAP scales
+considerably better than either approach — concurrency limits on the SAP side apply per
+client program, so separate processes are not aggregated the way threads within one are.
+Check with your Basis team before pointing many parallel readers at a production system.
+
 ### SSH Tunnel + SAP Connection
 
 Complete workflow for connecting through an SSH jump host:
