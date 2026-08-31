@@ -364,6 +364,18 @@ namespace duckdb
                 if (ReadTableFunctionSupportsEtData(connection, candidate)) {
                     read_table_function = candidate;
                     read_table_supports_et_data = true;
+
+                    // The result path and import parameters were probed against the
+                    // PREVIOUS function at bind time and do not carry over.  Left stale,
+                    // a read would ask the new function for "/DATA", ResolveResultTable
+                    // would find nothing and return 0 rows -- and a partitioned worker
+                    // reads 0 rows as end-of-table and stops the whole scan.  Silent
+                    // truncation, which is the worst thing this code can do.
+                    read_table_result_path.clear();
+                    read_table_import_params.clear();
+                    ResolveReadTableResultPath(connection);
+                    ResolveReadTableImportParams(connection);
+
                     fallback_selection_succeeded = true;
                     ERPL_TRACE_INFO_DATA("sap_rfc", "Using RFC_READ_TABLE fallback", candidate);
                     return true;
@@ -1090,7 +1102,9 @@ namespace duckdb
     }
 
     RfcRowWindowScheduler::RfcRowWindowScheduler(idx_t window_size_p, idx_t batch_size_p, idx_t max_rows_p)
-        : batch_size(batch_size_p == 0 ? (idx_t)STANDARD_VECTOR_SIZE : batch_size_p),
+        : batch_size(batch_size_p == 0 || batch_size_p > (idx_t)std::numeric_limits<int32_t>::max()
+                         ? (idx_t)STANDARD_VECTOR_SIZE
+                         : batch_size_p),
           max_rows(max_rows_p)
     {
         // Clamp before rounding.  erpl_rfc_partition_window_rows is a UBIGINT the user

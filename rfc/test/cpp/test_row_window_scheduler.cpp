@@ -198,3 +198,21 @@ TEST_CASE("claims never repeat an offset even at extreme window sizes",
 		}
 	}
 }
+
+TEST_CASE("an absurd batch size cannot break alignment either", "[erpl_rfc][partition]") {
+	// Not reachable through sap_read_table today -- the batch size comes from
+	// MaxBatchSizeForColumnCount and is capped -- but the class should be total
+	// rather than rely on its only caller staying well behaved.
+	RfcRowWindowScheduler sched(/*window_size=*/4096,
+	                            /*batch_size=*/std::numeric_limits<idx_t>::max(),
+	                            /*max_rows=*/0);
+	REQUIRE(sched.BatchSize() > 0);
+	REQUIRE(sched.BatchSize() <= (idx_t)std::numeric_limits<int32_t>::max());
+	REQUIRE(sched.WindowSize() > 0);
+	REQUIRE(sched.WindowSize() % sched.BatchSize() == 0);
+
+	idx_t a = 0, b = 0, c = 0, d = 0;
+	REQUIRE(sched.Claim(a, c));
+	REQUIRE(sched.Claim(b, d));
+	REQUIRE(b > a);
+}
