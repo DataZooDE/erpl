@@ -2,7 +2,7 @@ PROJ_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 EXT_CONFIG=${PROJ_DIR}extension_config.cmake
 
-.PHONY: all clean format debug debug_tests release pull update wasm_mvp wasm_eh wasm_threads sql_tests_rfc sql_tests_bics sql_tests_odp sql_tests_rfc_proto sql_tests_bics_proto sql_tests_odp_proto sql_tests_all_backends smoke_test smoke_test_musl
+.PHONY: all clean format debug debug_tests release pull update wasm_mvp wasm_eh wasm_threads sql_tests_rfc sql_tests_bics sql_tests_odp sql_tests_rfc_proto sql_tests_bics_proto sql_tests_odp_proto sql_tests_all_backends delta_fixtures_odp delta_tests_odp smoke_test smoke_test_musl
 
 # Test file argument - if provided, run only that specific test
 TEST_FILE ?=
@@ -158,6 +158,23 @@ sql_tests_bics_proto: debug_tests
 
 sql_tests_odp_proto: debug_tests
 	$(call RUN_SQL_TESTS,odp,$(SAP_COMMON_VARS),$(PROTO_BACKEND_VARS),proto,odp/test/proto_known_failures.txt)
+
+# Real-change delta tests for sap_odp_read_delta.
+#
+# Deliberately NOT part of sql_tests_odp.  Every delta test in odp/test/sql runs against
+# 0D_FC_C01$F, a static fact cube that never changes -- so they can only ever assert
+# "a second call returns nothing".  This harness is the only thing in the repo that
+# proves the protocol streams actual inserts, updates and deletes, and it asserts real
+# values (VAL, REV, ODQ_CHANGEMODE), not row counts.
+#
+# It is separate because it MUTATES the SAP system: it writes rows to a Z table through
+# a CDS view, so it cannot run unattended alongside other suites on a shared trial.
+# Run delta_fixtures_odp once per fresh system, then delta_tests_odp as often as needed.
+delta_fixtures_odp:
+	./odp/test/harness/setup.sh
+
+delta_tests_odp: debug_tests
+	./odp/test/harness/run_delta_tests.sh
 
 # Every suite on every backend.  Serial on purpose: the suites share one SAP system and
 # one unittest binary, and running them concurrently corrupts both.
