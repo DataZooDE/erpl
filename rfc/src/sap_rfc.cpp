@@ -1050,6 +1050,53 @@ namespace duckdb
         return RfcType::FromTypeName(type_name, length, decimals);
     }
 
+    RfcRowWindowScheduler::RfcRowWindowScheduler(idx_t window_size_p, idx_t batch_size_p, idx_t max_rows_p)
+        : batch_size(batch_size_p == 0 ? (idx_t)STANDARD_VECTOR_SIZE : batch_size_p),
+          max_rows(max_rows_p)
+    {
+        // Round the window up to a whole number of batches.  Every offset is then a
+        // multiple of batch_size, which is what keeps ROWSKIPS % ROWCOUNT == 0 for
+        // every call this scheduler will ever produce.
+        auto requested = window_size_p == 0 ? batch_size : window_size_p;
+        auto batches = requested / batch_size + (requested % batch_size != 0 ? 1 : 0);
+        window_size = batches * batch_size;
+    }
+
+    bool RfcRowWindowScheduler::Claim(idx_t &offset, idx_t &count)
+    {
+        if (exhausted.load(std::memory_order_acquire)) {
+            return false;
+        }
+
+        auto claimed = next_offset.fetch_add(window_size, std::memory_order_relaxed);
+
+        if (max_rows > 0) {
+            if (claimed >= max_rows) {
+                return false;
+            }
+            // The last window under MAX_ROWS is short.  Only the LOGICAL count
+            // shrinks; the caller still requests whole batches from SAP and clips,
+            // because a non-aligned ROWCOUNT is rejected server-side.
+            auto remaining = max_rows - claimed;
+            count = remaining < window_size ? remaining : window_size;
+        } else {
+            count = window_size;
+        }
+
+        offset = claimed;
+        return true;
+    }
+
+    void RfcRowWindowScheduler::ReportExhausted()
+    {
+        exhausted.store(true, std::memory_order_release);
+    }
+
+    bool RfcRowWindowScheduler::IsExhausted() const
+    {
+        return exhausted.load(std::memory_order_acquire);
+    }
+
     bool RfcReadTableBindData::HasMoreResults() 
     {
         for (auto &sm : column_state_machines) {

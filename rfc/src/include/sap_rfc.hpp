@@ -53,6 +53,48 @@ namespace duckdb
 	void SetRfcMaxThreads(unsigned int n);
 	unsigned int GetRfcMaxThreads();
 
+	// Hands out disjoint row windows to the workers of a partitioned sap_read_table
+	// scan.  Kept free of any RFC dependency on purpose: this is the code that loses
+	// or duplicates rows if it is wrong, and the equivalent logic in erpl_odp could
+	// only be exercised through a live connection -- which is why an observed
+	// under-count there went unexplained.
+	//
+	// Two SAP-side rules shape it, both verified against the trial:
+	//   * RFC_READ_TABLE rejects ROWSKIPS % ROWCOUNT != 0 outright, so every offset
+	//     handed out is a multiple of the batch size.
+	//   * A read at or past the end returns zero rows rather than erroring, so a
+	//     short read is how a worker discovers the table is exhausted.
+	class RfcRowWindowScheduler
+	{
+		public:
+			// window_size is rounded up to a multiple of batch_size so that every
+			// offset stays batch-aligned.  max_rows == 0 means "no limit".
+			RfcRowWindowScheduler(idx_t window_size, idx_t batch_size, idx_t max_rows);
+
+			// Claims the next window.  Returns false once the table is exhausted or
+			// MAX_ROWS is reached.  `count` is the LOGICAL row count for the window,
+			// which may be smaller than the window size when MAX_ROWS clips it; the
+			// caller still asks SAP for whole batches and clips locally, because
+			// ROWCOUNT must stay batch-aligned.
+			bool Claim(idx_t &offset, idx_t &count);
+
+			// Called by a worker that read fewer rows than it asked for.  Prevents
+			// NEW claims only -- a worker already holding a window must always be
+			// allowed to finish it, which is exactly the invariant erpl_odp broke.
+			void ReportExhausted();
+
+			bool IsExhausted() const;
+			idx_t BatchSize() const { return batch_size; }
+			idx_t WindowSize() const { return window_size; }
+
+		private:
+			idx_t window_size;
+			idx_t batch_size;
+			idx_t max_rows;
+			std::atomic<idx_t> next_offset{0};
+			std::atomic<bool> exhausted{false};
+	};
+
 	class RfcReadTableBindData : public TableFunctionData
     {
 		public: 
