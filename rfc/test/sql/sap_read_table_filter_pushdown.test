@@ -1,0 +1,300 @@
+# name: test/sql/sap_read_table_filter_pushdown.test
+# description: Pushing a predicate into RFC_READ_TABLE's OPTIONS table must never
+#              change which rows come back -- only how many crossed the wire.
+# group: [rfc]
+
+# Pushdown is a pure optimisation: DuckDB re-evaluates every filter regardless, so
+# a pushed predicate that means something subtly different does not raise an error,
+# it silently returns the wrong rows.  erpl_rfc_pushdown_filters is the oracle --
+# every predicate below is run with pushdown off (the reference) and on, and the
+# two results must be identical as multisets.
+#
+# Order is deliberately NOT part of the contract: RFC_READ_TABLE guarantees no
+# ordering and DuckDB may reorder freely.  Comparison is therefore by symmetric
+# EXCEPT ALL, which preserves multiplicity and so catches dropped rows, duplicated
+# rows and corrupted values in a single assertion -- unlike COUNT(*), which a
+# drop-one/duplicate-one bug passes cleanly.
+
+require erpl_rfc
+
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
+
+statement ok
+CREATE SECRET abap_trial (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}'
+);
+
+# ---------------------------------------------------------------------
+# Equality -- the one operator that was already pushed.  Included so the
+# oracle itself is shown to work on a case that never changed.
+# ---------------------------------------------------------------------
+statement ok
+SET erpl_rfc_pushdown_filters = false;
+
+statement ok
+CREATE TABLE eq_ref AS
+SELECT * FROM sap_read_table('/DMO/FLIGHT') WHERE CARRIER_ID = 'LH';
+
+statement ok
+SET erpl_rfc_pushdown_filters = true;
+
+statement ok
+CREATE TABLE eq_push AS
+SELECT * FROM sap_read_table('/DMO/FLIGHT') WHERE CARRIER_ID = 'LH';
+
+query I
+SELECT count(*) FROM (
+    (SELECT * FROM eq_ref  EXCEPT ALL SELECT * FROM eq_push)
+    UNION ALL
+    (SELECT * FROM eq_push EXCEPT ALL SELECT * FROM eq_ref)
+);
+----
+0
+
+# The filter must actually select something, otherwise two empty sets would
+# compare equal and prove nothing.
+query I
+SELECT count(*) > 0 FROM eq_ref;
+----
+true
+
+# ---------------------------------------------------------------------
+# Range predicates.  These were previously dropped entirely, so the whole
+# column crossed the wire -- the single biggest cost on a large extract.
+# ---------------------------------------------------------------------
+statement ok
+SET erpl_rfc_pushdown_filters = false;
+
+statement ok
+CREATE TABLE rng_ref AS
+SELECT * FROM sap_read_table('/DMO/FLIGHT')
+WHERE FLIGHT_DATE >= DATE '2026-01-01' AND FLIGHT_DATE <= DATE '2026-12-31';
+
+statement ok
+SET erpl_rfc_pushdown_filters = true;
+
+statement ok
+CREATE TABLE rng_push AS
+SELECT * FROM sap_read_table('/DMO/FLIGHT')
+WHERE FLIGHT_DATE >= DATE '2026-01-01' AND FLIGHT_DATE <= DATE '2026-12-31';
+
+query I
+SELECT count(*) FROM (
+    (SELECT * FROM rng_ref  EXCEPT ALL SELECT * FROM rng_push)
+    UNION ALL
+    (SELECT * FROM rng_push EXCEPT ALL SELECT * FROM rng_ref)
+);
+----
+0
+
+query I
+SELECT count(*) > 0 FROM rng_ref;
+----
+true
+
+# Anchor against the trial's own data: the window must actually split the table,
+# otherwise "both sides agree" would be satisfied by returning everything.
+query I
+SELECT (SELECT count(*) FROM rng_ref) < (SELECT count(*) FROM sap_read_table('/DMO/FLIGHT'));
+----
+true
+
+# ---------------------------------------------------------------------
+# Inequality.  ABAP spells this '<>'; the generator previously emitted
+# '!=', which the dynamic WHERE does not accept.
+# ---------------------------------------------------------------------
+statement ok
+SET erpl_rfc_pushdown_filters = false;
+
+statement ok
+CREATE TABLE ne_ref AS
+SELECT * FROM sap_read_table('/DMO/FLIGHT') WHERE CARRIER_ID <> 'LH';
+
+statement ok
+SET erpl_rfc_pushdown_filters = true;
+
+statement ok
+CREATE TABLE ne_push AS
+SELECT * FROM sap_read_table('/DMO/FLIGHT') WHERE CARRIER_ID <> 'LH';
+
+query I
+SELECT count(*) FROM (
+    (SELECT * FROM ne_ref  EXCEPT ALL SELECT * FROM ne_push)
+    UNION ALL
+    (SELECT * FROM ne_push EXCEPT ALL SELECT * FROM ne_ref)
+);
+----
+0
+
+query I
+SELECT count(*) > 0 FROM ne_ref;
+----
+true
+
+# ---------------------------------------------------------------------
+# OR across values of one column, and an IN list wider than the old
+# five-value cap.
+# ---------------------------------------------------------------------
+statement ok
+SET erpl_rfc_pushdown_filters = false;
+
+statement ok
+CREATE TABLE in_ref AS
+SELECT * FROM sap_read_table('/DMO/FLIGHT')
+WHERE CARRIER_ID IN ('LH', 'AA', 'UA', 'SQ', 'JL', 'DL');
+
+statement ok
+SET erpl_rfc_pushdown_filters = true;
+
+statement ok
+CREATE TABLE in_push AS
+SELECT * FROM sap_read_table('/DMO/FLIGHT')
+WHERE CARRIER_ID IN ('LH', 'AA', 'UA', 'SQ', 'JL', 'DL');
+
+query I
+SELECT count(*) FROM (
+    (SELECT * FROM in_ref  EXCEPT ALL SELECT * FROM in_push)
+    UNION ALL
+    (SELECT * FROM in_push EXCEPT ALL SELECT * FROM in_ref)
+);
+----
+0
+
+query I
+SELECT count(*) > 0 FROM in_ref;
+----
+true
+
+# ---------------------------------------------------------------------
+# A predicate that must NOT be pushed (IS NULL has no ABAP equivalent).
+# The point is that declining to push still returns the right rows.
+# ---------------------------------------------------------------------
+statement ok
+SET erpl_rfc_pushdown_filters = false;
+
+statement ok
+CREATE TABLE nn_ref AS
+SELECT * FROM sap_read_table('/DMO/FLIGHT') WHERE CARRIER_ID IS NOT NULL;
+
+statement ok
+SET erpl_rfc_pushdown_filters = true;
+
+statement ok
+CREATE TABLE nn_push AS
+SELECT * FROM sap_read_table('/DMO/FLIGHT') WHERE CARRIER_ID IS NOT NULL;
+
+query I
+SELECT count(*) FROM (
+    (SELECT * FROM nn_ref  EXCEPT ALL SELECT * FROM nn_push)
+    UNION ALL
+    (SELECT * FROM nn_push EXCEPT ALL SELECT * FROM nn_ref)
+);
+----
+0
+
+# ---------------------------------------------------------------------
+# A literal containing an apostrophe.  Unescaped, it closes the ABAP
+# literal early and changes the predicate's meaning.  There is no such
+# carrier, so both sides must be empty -- but the query must not error.
+# ---------------------------------------------------------------------
+statement ok
+SET erpl_rfc_pushdown_filters = true;
+
+query I
+SELECT count(*) FROM sap_read_table('/DMO/FLIGHT') WHERE CARRIER_ID = 'O''X';
+----
+0
+
+# The toggle is a plain boolean setting and round-trips.
+statement ok
+SET erpl_rfc_pushdown_filters = false;
+
+query I
+SELECT current_setting('erpl_rfc_pushdown_filters');
+----
+false
+
+statement ok
+SET erpl_rfc_pushdown_filters = true;
+
+# ---------------------------------------------------------------------
+# Scale: a table large enough to span many batches.
+#
+# /DMO/FLIGHT has 40 rows and never fills a single vector, so none of the
+# cases above exercise the multi-batch path at all.  DD02L is ~165k rows
+# (~80 batches), and TABCLASS clusters by table name, so some batches contain
+# no matching row whatsoever.
+#
+# That is the case that broke: residual filtering emptied a batch, the scan
+# returned a zero-row chunk, and DuckDB read that as end-of-scan and discarded
+# everything still unread.  On DD03L it returned 25,578 rows instead of 114,566
+# while every small-table test stayed green.
+# ---------------------------------------------------------------------
+statement ok
+SET erpl_rfc_pushdown_filters = true;
+
+statement ok
+CREATE TABLE big_all AS SELECT TABNAME, TABCLASS, CONTFLAG FROM sap_read_table('DD02L');
+
+statement ok
+SET erpl_rfc_pushdown_filters = false;
+
+statement ok
+CREATE TABLE big_resid AS
+SELECT TABNAME, TABCLASS, CONTFLAG FROM sap_read_table('DD02L') WHERE TABCLASS = 'TRANSP';
+
+statement ok
+SET erpl_rfc_pushdown_filters = true;
+
+statement ok
+CREATE TABLE big_push AS
+SELECT TABNAME, TABCLASS, CONTFLAG FROM sap_read_table('DD02L') WHERE TABCLASS = 'TRANSP';
+
+# The row count is not written down: it drifts with the trial's repository
+# contents.  What must hold is that all three agree.
+query I
+SELECT count(*) FROM (
+    (SELECT * FROM big_all WHERE TABCLASS = 'TRANSP' EXCEPT ALL SELECT * FROM big_resid)
+    UNION ALL
+    (SELECT * FROM big_resid EXCEPT ALL SELECT * FROM big_all WHERE TABCLASS = 'TRANSP')
+);
+----
+0
+
+query I
+SELECT count(*) FROM (
+    (SELECT * FROM big_all WHERE TABCLASS = 'TRANSP' EXCEPT ALL SELECT * FROM big_push)
+    UNION ALL
+    (SELECT * FROM big_push EXCEPT ALL SELECT * FROM big_all WHERE TABCLASS = 'TRANSP')
+);
+----
+0
+
+# The scan must span many batches, or the regression above cannot recur here.
+query I
+SELECT count(*) > 50000 FROM big_all;
+----
+true
+
+# ...and the filter must reject a large majority, so that whole batches really
+# do come back empty.
+query I
+SELECT (SELECT count(*) FROM big_resid) * 2 < (SELECT count(*) FROM big_all);
+----
+true

@@ -1280,6 +1280,7 @@ Notes:
 | `erpl_rfc_persistent_connections` | BOOLEAN | `true` | Cache one RFC connection + function descriptor per column for a `sap_read_table` scan instead of reopening per batch |
 | `erpl_rfc_max_persistent_connections` | UINTEGER | 16 | Upper bound on RFC connections a scan caches concurrently (issue #67); columns past the cap use per-batch open/close |
 | `erpl_rfc_read_table_batch_budget` | UINTEGER | 1310720 | Target max concurrent result rows (projected columns × per-column batch) for `sap_read_table`; bounds peak memory on wide tables (issue #69). Lower = less memory but more RFC round-trips; `0` disables the cap |
+| `erpl_rfc_pushdown_filters` | BOOLEAN | `true` | Translate SQL `WHERE` predicates into `RFC_READ_TABLE`'s `OPTIONS` table so SAP filters the rows instead of sending them all. Turning it off never changes which rows come back, only how many cross the wire. See [Filter Pushdown](#filter-pushdown) |
 | `erpl_rfc_backend` | VARCHAR | `'nwrfc'` | Which implementation serves RFC calls: `'nwrfc'` (SAP's NetWeaver RFC SDK) or `'proto'` (the pure-Rust erpl-proto implementation). Must be set **before the first SAP call**; frozen for the life of the process once resolved. Environment override: `ERPL_RFC_BACKEND` |
 | `erpl_rfc_backend_path` | VARCHAR | `''` | Explicit path to the RFC backend shared library, overriding the search. Empty means: next to the extension, then the loader's library path. Environment override: `ERPL_RFC_BACKEND_PATH` |
 
@@ -1374,6 +1375,33 @@ SELECT * FROM sap_read_table('SFLIGHT', FILTER='CARRID = ''LH''');
 -- DuckDB-side filter pushdown (automatically pushed to SAP when possible)
 SELECT * FROM sap_read_table('SFLIGHT') WHERE CARRID = 'LH';
 ```
+
+On a large table this is the single biggest lever available: a predicate SAP can
+evaluate turns a multi-million-row transfer into a few thousand rows. What reaches
+the server:
+
+| Predicate | Pushed |
+|---|---|
+| `=`, `<>`, `<`, `>`, `<=`, `>=` | yes |
+| `AND` / `OR` over one column, including `BETWEEN` | yes, all arms or none |
+| `IN (...)` | yes, until the generated clause exceeds ~4000 characters |
+| `IS NULL` / `IS NOT NULL` | no — ABAP has no NULL |
+| Predicates on the client field (`MANDT`, DDIC type `CLNT`) | no — RFC_READ_TABLE rejects a clause naming the client |
+| Literals of type `TIMESTAMP`, `BLOB`, `FLOAT`, `DOUBLE` | no — no unambiguous ABAP spelling |
+
+Literals are rendered the way the DDIC expects them: `DATE` as `YYYYMMDD`, `TIME`
+as `HHMMSS`, character and numeric values quoted with embedded apostrophes
+doubled. A type whose ABAP spelling is not established is not pushed rather than
+guessed at.
+
+**Anything not pushed is still applied** — erpl evaluates it after reading, so the
+result set is identical either way. Only the volume transferred changes.
+
+`erpl_rfc_pushdown_filters = false` disables the translation entirely and makes
+erpl evaluate every predicate itself. It exists as an escape hatch for SAP
+releases that reject the generated syntax, and as a way to check that a filter is
+not the cause of a discrepancy: the same query must return the same rows with it
+on and off.
 
 ### Parallel Reads
 

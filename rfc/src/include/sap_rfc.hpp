@@ -1,5 +1,6 @@
 #pragma once
 
+#include <set>
 #include <atomic>
 #include <mutex>
 #include <optional>
@@ -46,10 +47,18 @@ namespace duckdb
 	typedef std::shared_ptr<RfcConnection> (* RfcConnectionFactory_t)(ClientContext &context);
 	std::shared_ptr<RfcConnection> DefaultRfcConnectionFactory(ClientContext &context);
 
+	void SetRfcPushdownFilters(bool enabled);
+	bool GetRfcPushdownFilters();
+
 	class RfcReadTableBindData : public TableFunctionData
     {
 		public: 
-			static const idx_t MAX_OPTION_LEN = 70;
+			static constexpr idx_t MAX_OPTION_LEN = 70;
+			// Budget for the whole generated pushdown clause.  The OPTIONS table holds
+			// 512 lines, but spending all of it on one predicate risks tripping ABAP's
+			// own dynamic-WHERE limits, and a pathological IN list is never worth it --
+			// pushing nothing is always correct, just slower.
+			static constexpr idx_t MAX_PUSHDOWN_CLAUSE_LEN = 4000;
 
 			RfcReadTableBindData(std::string table_name, 
 								 int max_read_threads,
@@ -136,8 +145,14 @@ namespace duckdb
 			ClientContext &client_context;
 			std::vector<std::string> column_names;
 			std::vector<RfcType> column_types;
+			// Columns whose DDIC type is CLNT.  RFC_READ_TABLE's OPTIONS parser rejects
+			// any clause naming the client field, so these are never pushed.
+			std::set<std::string> client_columns;
 			std::vector<RfcReadColumnStateMachine> column_state_machines;
 			std::atomic<unsigned int> persistent_slots_used{0};
+			// Filters that could not be translated into OPTIONS, keyed by projected
+			// column index.  Copied because the TableFilterSet belongs to the plan.
+			std::vector<std::pair<idx_t, duckdb::unique_ptr<TableFilter>>> residual_filters;
 			// Defaults to RfcReadColumnStateMachine::MAX_BATCH_SIZE (that class
 			// is defined later in this header, so we can't name the constant
 			// here); Step() overwrites this with the column-count-aware cap.
@@ -155,7 +170,22 @@ namespace duckdb
 			static std::string TransformLiteral(const Value &val);
 			static std::string TransformBlob(const std::string &val);
 			static std::string CreateExpression(string &column_name, vector<unique_ptr<TableFilter>> &filters, string op);
+			static std::string TransformConjunction(std::string &column_name,
+			                                        vector<unique_ptr<TableFilter>> &children,
+			                                        const std::string &op);
 			static std::string TransformComparision(ExpressionType type);
+
+			// Split a generated WHERE clause into OPTIONS lines.  Never splits inside a
+			// quoted literal: ABAP literals may contain spaces, so the obvious
+			// "back up to the previous whitespace" rule can land in the middle of one
+			// and leave an unbalanced apostrophe on both lines.
+			static std::vector<std::string> ChunkWhereClause(const std::string &where_clause, idx_t max_len);
+
+			// Apply the predicates RFC_READ_TABLE could not express.  Required, not
+			// optional: filter_pushdown = true makes DuckDB drop the filter from the
+			// plan, so anything the scan does not apply is simply not applied.
+			void ApplyResidualFilters(DataChunk &output);
+			bool HasResidualFilters() const { return ! residual_filters.empty(); }
     };
 
 	enum class ReadTableStates {

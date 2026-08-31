@@ -85,3 +85,7 @@ python-env/*
 # Experiments
 /examples/experiments/*
 .adt.creds
+
+# Local agent scratch (not part of the extension)
+.codex-delegate/
+.antigravitycli/

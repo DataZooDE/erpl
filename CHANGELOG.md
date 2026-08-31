@@ -22,6 +22,44 @@ LOAD erpl;
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **[rfc]** **`sap_read_table` returned unfiltered rows for any predicate it could not
+  push to SAP.** `filter_pushdown = true` tells DuckDB the scan applies every filter it
+  is handed, and DuckDB removes the filter from the plan accordingly — `EXPLAIN` shows no
+  `FILTER` operator above `SAP_READ_TABLE`. erpl translated what `RFC_READ_TABLE` could
+  express and silently ignored the rest, so ranges, conjunctions and wide `IN` lists were
+  dropped: `WHERE SEATS_MAX > 350` on `/DMO/FLIGHT` returned all 40 rows instead of 14.
+  Predicates that cannot go to the server are now evaluated by erpl instead, so the result
+  is the same whether or not one reaches SAP.
+
+- **[rfc]** Comparison literals were built without escaping, so a value containing an
+  apostrophe closed the ABAP literal early and changed the predicate's meaning. Inequality
+  was emitted as `!=`, which ABAP's dynamic `WHERE` does not accept.
+
+- **[rfc]** The `OPTIONS` line splitter broke inside quoted literals whenever one contained
+  a space, leaving an unbalanced apostrophe on both lines.
+
+### Added
+
+- **[rfc]** **Range predicates, `AND`/`OR` combinations and `IN` lists wider than five
+  values are now pushed to SAP.** Previously only `=` and `IN` with at most five values
+  reached the server, so a date-window predicate transferred the whole table and filtered
+  it locally. `BETWEEN` in particular pushed nothing at all, because DuckDB expresses it as
+  a conjunction. Literals are rendered as the DDIC expects them (`DATE` → `YYYYMMDD`,
+  `TIME` → `HHMMSS`); types with no unambiguous ABAP spelling are left to erpl rather than
+  guessed at. Predicates on the client field are never pushed — `RFC_READ_TABLE` rejects
+  any clause naming it.
+
+- **[rfc]** `erpl_rfc_pushdown_filters` (default `true`) to disable the translation. It
+  changes only where a predicate is evaluated, never which rows come back, which makes it
+  both an escape hatch for SAP releases that reject the generated syntax and a way to rule
+  a filter out as the cause of a discrepancy.
+
+---
+
 ## v2026.08.29 — BEx result sets that fit in memory
 
 ### Fixed

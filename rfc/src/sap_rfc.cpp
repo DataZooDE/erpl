@@ -9,6 +9,7 @@
 #include "duckdb/parser/parser.hpp"
 #include "duckdb/parser/expression/cast_expression.hpp"
 #include "duckdb/common/types/date.hpp"
+#include "duckdb/common/types/time.hpp"
 #include "duckdb/common/types/timestamp.hpp"
 #include "duckdb/storage/table/row_group.hpp"
 #include "duckdb/main/client_context.hpp"
@@ -49,6 +50,16 @@ namespace duckdb
     static std::atomic<unsigned int> g_rfc_max_persistent_connections{16};
     void SetRfcMaxPersistentConnections(unsigned int n) { g_rfc_max_persistent_connections.store(n, std::memory_order_relaxed); }
     unsigned int GetRfcMaxPersistentConnections()       { return g_rfc_max_persistent_connections.load(std::memory_order_relaxed); }
+
+    // Whether SQL predicates are translated into RFC_READ_TABLE's OPTIONS table.
+    // Pushdown is a pure optimisation -- DuckDB re-evaluates every filter regardless --
+    // so turning this off can only cost throughput, never change results.  That is
+    // exactly what makes it the test suite's oracle: the same query with it on and off
+    // must return the same rows.  It is also the escape hatch if a particular SAP
+    // release rejects the generated syntax.
+    static std::atomic<bool> g_rfc_pushdown_filters{true};
+    void SetRfcPushdownFilters(bool enabled) { g_rfc_pushdown_filters.store(enabled, std::memory_order_relaxed); }
+    bool GetRfcPushdownFilters()             { return g_rfc_pushdown_filters.load(std::memory_order_relaxed); }
 
     // Concurrent-row budget that bounds the SAP SDK result buffer on wide
     // sap_read_table scans (issue #69).  See MaxBatchSizeForColumnCount.
@@ -394,33 +405,62 @@ namespace duckdb
         AddOptionsFromWhereClause(where_clause);
     }
 
-    void RfcReadTableBindData::AddOptionsFromWhereClause(std::string &where_clause)
+    std::vector<std::string> RfcReadTableBindData::ChunkWhereClause(const std::string &where_clause,
+                                                                    idx_t max_len)
     {
-        
-        auto opt_start = where_clause.begin();
-        
-        while (opt_start != where_clause.end()) {
-            auto opt_end = opt_start;
-            std::advance(opt_end, MAX_OPTION_LEN);
+        std::vector<std::string> parts;
+        if (where_clause.empty()) {
+            return parts;
+        }
 
-            if (opt_end < where_clause.end()) {
-                // Find the closest previous whitespace
-                while (opt_end != opt_start && ! std::isspace(*opt_end)) {
-                    --opt_end;
-                }
-
-                // If we couldn't find a whitespace, we just split at the 70 character mark
-                if (opt_end == opt_start) {
-                    throw std::runtime_error("Could not split WHERE clause into options, "
-                                             "the maximal lenght of a single part of the "
-                                             "clause is 70 characters.");
-                }
+        // Mark every position that sits inside a quoted literal.  ABAP escapes an
+        // apostrophe by doubling it, and a naive flip-on-every-quote scan handles that
+        // for free: the pair flips the state twice and nets out.
+        std::vector<bool> in_literal(where_clause.size(), false);
+        bool inside = false;
+        for (idx_t i = 0; i < where_clause.size(); i++) {
+            if (where_clause[i] == '\'') {
+                inside = ! inside;
+                in_literal[i] = true;
             } else {
-                opt_end = where_clause.end();
+                in_literal[i] = inside;
+            }
+        }
+
+        idx_t start = 0;
+        while (start < where_clause.size()) {
+            if (where_clause.size() - start <= max_len) {
+                parts.push_back(where_clause.substr(start));
+                break;
             }
 
-            options.push_back(std::string(opt_start, opt_end));
-            opt_start = opt_end;
+            // Walk back from the hard limit to the last whitespace that is NOT inside a
+            // literal.  Breaking inside one -- which the previous whitespace-only rule
+            // did whenever a literal contained a space -- leaves an unbalanced
+            // apostrophe on both lines and a syntax error on the ABAP side.
+            idx_t split = start + max_len;
+            while (split > start &&
+                   ! (std::isspace(static_cast<unsigned char>(where_clause[split])) && ! in_literal[split])) {
+                --split;
+            }
+
+            if (split == start) {
+                throw std::runtime_error("Could not split WHERE clause into options, "
+                                         "the maximal length of a single part of the "
+                                         "clause is 70 characters.");
+            }
+
+            parts.push_back(where_clause.substr(start, split - start));
+            start = split;
+        }
+
+        return parts;
+    }
+
+    void RfcReadTableBindData::AddOptionsFromWhereClause(std::string &where_clause)
+    {
+        for (auto &part : ChunkWhereClause(where_clause, MAX_OPTION_LEN)) {
+            options.push_back(part);
         }
     }
 
@@ -461,10 +501,21 @@ namespace duckdb
         column_names = req_fields;
         
         column_types.clear();
+        client_columns.clear();
         for (auto &req_field : req_fields) {
             auto fm = req_field_metas[req_field];
             auto rfc_type = GetRfcTypeForFieldMeta(fm);
             column_types.push_back(rfc_type);
+
+            // The client is implicit in the RFC call itself, and RFC_READ_TABLE's parser
+            // rejects any OPTIONS clause that names the client field ("The client field
+            // ... "). A join on MANDT produces exactly such a predicate, so remember
+            // which columns are CLNT and keep them out of the generated WHERE.
+            // DATATYPE is the only place this is visible -- RfcType maps CLNT onto
+            // RFCTYPE_CHAR, so by then it is indistinguishable from an ordinary CHAR.
+            if (ValueHelper(fm)["DATATYPE"].ToString() == "CLNT") {
+                client_columns.insert(req_field);
+            }
         }
 
         auto needs_string_support = std::any_of(column_types.begin(), column_types.end(), [](auto &t) {
@@ -520,9 +571,136 @@ namespace duckdb
         }
     }
 
+    // Evaluate one filter against one already-materialised value.
+    //
+    // Only ever used for predicates that could NOT be handed to SAP.  Row-at-a-time is
+    // slow, but this path is the difference between right and wrong answers, and it
+    // only runs for the residue.
+    static bool FilterMatchesValue(const TableFilter &filter, const Value &val)
+    {
+        switch (filter.filter_type) {
+            case TableFilterType::CONSTANT_COMPARISON: {
+                auto &const_filter = filter.Cast<ConstantFilter>();
+                // SQL three-valued logic: a comparison against NULL is never true.
+                return val.IsNull() ? false : const_filter.Compare(val);
+            }
+            case TableFilterType::IS_NULL:
+                return val.IsNull();
+            case TableFilterType::IS_NOT_NULL:
+                return ! val.IsNull();
+            case TableFilterType::CONJUNCTION_AND: {
+                auto &conj = filter.Cast<ConjunctionAndFilter>();
+                for (auto &child : conj.child_filters) {
+                    if (! FilterMatchesValue(*child, val)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            case TableFilterType::CONJUNCTION_OR: {
+                auto &conj = filter.Cast<ConjunctionOrFilter>();
+                for (auto &child : conj.child_filters) {
+                    if (FilterMatchesValue(*child, val)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            case TableFilterType::IN_FILTER: {
+                auto &in_filter = filter.Cast<InFilter>();
+                if (val.IsNull()) {
+                    return false;
+                }
+                for (auto &v : in_filter.values) {
+                    if (! v.IsNull() && v.type() == val.type() && v == val) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            case TableFilterType::OPTIONAL_FILTER: {
+                // Enforced, not skipped.  DuckDB's own OptionalFilter::FilterSelection is
+                // a no-op, but that is a performance choice rather than a statement that
+                // the predicate may be violated: CheckStatistics delegates to the child
+                // for zone-map pruning, and table_scan.cpp feeds the child into index-scan
+                // comparison extraction.  Both eliminate rows, so the predicate is implied
+                // by the query.  DuckDB can afford to skip the exact check because
+                // something downstream re-applies it; here the filter was removed from the
+                // plan, so nothing would.
+                auto &optional_filter = filter.Cast<OptionalFilter>();
+                return optional_filter.child_filter == nullptr
+                     ? true
+                     : FilterMatchesValue(*optional_filter.child_filter, val);
+            }
+            case TableFilterType::STRUCT_EXTRACT: {
+                auto &struct_filter = filter.Cast<StructFilter>();
+                if (val.IsNull()) {
+                    return false;
+                }
+                auto &children = StructValue::GetChildren(val);
+                if (struct_filter.child_idx >= children.size()) {
+                    return true;
+                }
+                return FilterMatchesValue(*struct_filter.child_filter, children[struct_filter.child_idx]);
+            }
+            default:
+                // An unrecognised filter kind must not silently delete rows.  Keeping the
+                // row over-produces, which is the same thing that happened before this
+                // function existed; dropping it would be a new way to be wrong.
+                return true;
+        }
+    }
+
+    // DuckDB removes a pushed-down filter from the plan entirely -- TableFunction's
+    // `filter_pushdown` is documented as "if NOT supported a filter will be added",
+    // so setting it true makes the scan solely responsible for every predicate it is
+    // handed.  erpl pushed what RFC_READ_TABLE could express and silently ignored the
+    // rest, so a predicate that did not translate returned unfiltered rows.  Confirmed
+    // against the trial: `WHERE SEATS_MAX > 350` returned all 40 rows of /DMO/FLIGHT
+    // instead of 14, and EXPLAIN shows no FILTER operator above SAP_READ_TABLE.
+    //
+    // Everything that could not be pushed is therefore applied here instead.
+    void RfcReadTableBindData::ApplyResidualFilters(DataChunk &output)
+    {
+        if (residual_filters.empty() || output.size() == 0) {
+            return;
+        }
+
+        SelectionVector sel(STANDARD_VECTOR_SIZE);
+        idx_t kept = 0;
+        for (idx_t row = 0; row < output.size(); row++) {
+            bool matches = true;
+            for (auto &entry : residual_filters) {
+                auto val = output.GetValue(entry.first, row);
+                if (! FilterMatchesValue(*entry.second, val)) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches) {
+                sel.set_index(kept++, row);
+            }
+        }
+
+        if (kept != output.size()) {
+            output.Slice(sel, kept);
+        }
+    }
+
     void RfcReadTableBindData::AddOptionsFromFilters(duckdb::optional_ptr<duckdb::TableFilterSet> filter_set) 
     {
+        residual_filters.clear();
         if (filter_set == nullptr || filter_set->filters.empty()) {
+            return;
+        }
+
+        // The kill switch only stops predicates reaching SAP; it must not stop them being
+        // applied, or turning it off would change the answer rather than just the speed.
+        if (! GetRfcPushdownFilters()) {
+            ERPL_TRACE_DEBUG("sap_rfc", "Filter pushdown disabled by erpl_rfc_pushdown_filters");
+            for (auto &[projected_column_idx, filter] : filter_set->filters) {
+                residual_filters.emplace_back(projected_column_idx, filter->Copy());
+            }
             return;
         }
 
@@ -532,17 +710,25 @@ namespace duckdb
         for (auto &[projected_column_idx, filter] : filter_set->filters)
         {
             auto column_name = GetProjectedColumnName(projected_column_idx);
-            auto transformed = TransformFilter(column_name, *filter);
+            // Never generate a predicate on the client field; SAP refuses the whole
+            // clause if one appears.  DuckDB still needs the filter applied, so it goes
+            // to the residual path rather than being dropped.
+            auto transformed = client_columns.count(column_name) > 0
+                             ? std::string()
+                             : TransformFilter(column_name, *filter);
             if (!transformed.empty()) {
                 filter_entries.push_back(transformed);
                 pushed_filters = true;
             } else {
                 skipped_filters = true;
+                // Not expressible in ABAP -- so it has to be applied on this side.
+                residual_filters.emplace_back(projected_column_idx, filter->Copy());
             }
         }
 
         if (!pushed_filters) {
             ERPL_TRACE_DEBUG("sap_rfc", "Skipping filter pushdown; RFC_READ_TABLE cannot represent any conditions");
+            // residual_filters already holds every one of them.
             return;
         }
 
@@ -565,22 +751,57 @@ namespace duckdb
     {
         switch(filter.filter_type)
         {
+            // DuckDB expresses `BETWEEN a AND b` on one column as a CONJUNCTION_AND of
+            // two ConstantFilters, so without this a range window reaches the server as
+            // nothing at all and the full column crosses the wire.
+            //
+            // All-or-nothing on purpose.  Dropping one arm of an AND widens the
+            // predicate (harmless -- DuckDB re-filters), but dropping one arm of an OR
+            // *narrows* it and would silently lose rows.  Rather than encode two
+            // different rules, neither is pushed partially.
             case TableFilterType::CONJUNCTION_AND: {
-                // For joins, don't push down complex AND expressions - let DuckDB handle them
-                return std::string();
+                auto &conj = filter.Cast<ConjunctionAndFilter>();
+                return TransformConjunction(column_name, conj.child_filters, "AND");
             }
             case TableFilterType::CONJUNCTION_OR: {
-                // OR expressions are not supported by RFC_READ_TABLE
-                return std::string();
+                auto &conj = filter.Cast<ConjunctionOrFilter>();
+                return TransformConjunction(column_name, conj.child_filters, "OR");
             }
             case TableFilterType::CONSTANT_COMPARISON: {
                 auto &const_filter = filter.Cast<ConstantFilter>();
-                if (const_filter.comparison_type != ExpressionType::COMPARE_EQUAL) {
+
+                // TransformComparision maps all six comparison operators; ranges are
+                // exactly the shape a date-window extract uses, and leaving them to
+                // DuckDB means transferring the whole column first.
+                std::string operator_string;
+                switch (const_filter.comparison_type) {
+                    case ExpressionType::COMPARE_EQUAL:
+                    case ExpressionType::COMPARE_NOTEQUAL:
+                    case ExpressionType::COMPARE_LESSTHAN:
+                    case ExpressionType::COMPARE_GREATERTHAN:
+                    case ExpressionType::COMPARE_LESSTHANOREQUALTO:
+                    case ExpressionType::COMPARE_GREATERTHANOREQUALTO:
+                        operator_string = TransformComparision(const_filter.comparison_type);
+                        break;
+                    default:
+                        return std::string();
+                }
+
+                // TransformLiteral doubles embedded apostrophes.  The previous
+                // StringUtil::Format("'%s'", ...) did not, so a value like O'Brien
+                // closed the literal early and changed what the predicate meant.
+                auto constant_string = TransformLiteral(const_filter.constant);
+                if (constant_string.empty()) {
                     return std::string();
                 }
 
-                auto constant_string = StringUtil::Format("'%s'", const_filter.constant.ToString());
-                auto operator_string = TransformComparision(const_filter.comparison_type);
+                // A literal that cannot fit on one 70-char OPTIONS line cannot be sent
+                // at all, and the chunker would have to fail on it later.  Decline here,
+                // where declining is still free.
+                if (constant_string.size() > MAX_OPTION_LEN) {
+                    return std::string();
+                }
+
                 return StringUtil::Format("%s %s %s", column_name, operator_string, constant_string);
             }
             case TableFilterType::OPTIONAL_FILTER: {
@@ -595,18 +816,33 @@ namespace duckdb
 	        }
             case TableFilterType::IN_FILTER: {
                 auto &in_filter = filter.Cast<InFilter>();
-                // Only support IN filters with a small number of values to avoid complex ABAP
-                if (in_filter.values.size() > 5) {
+                if (in_filter.values.empty()) {
                     return std::string();
                 }
+
+                // The old cap was an arbitrary five values, which sent anything wider
+                // across the wire in full.  The real constraint is the length of the
+                // generated clause, so that is what is checked -- and when it is
+                // exceeded the whole list is dropped rather than truncated, because a
+                // truncated IN list is a different, narrower predicate.
                 string in_list;
-                for(auto &val : in_filter.values) {
-                    if (!in_list.empty()) {
+                for (auto &val : in_filter.values) {
+                    auto literal = TransformLiteral(val);
+                    if (literal.empty() || literal.size() > MAX_OPTION_LEN) {
+                        return std::string();
+                    }
+                    if (! in_list.empty()) {
                         in_list += ", ";
                     }
-                    in_list += TransformLiteral(val);
+                    in_list += literal;
+                    if (in_list.size() > MAX_PUSHDOWN_CLAUSE_LEN) {
+                        return std::string();
+                    }
                 }
-                return column_name + " IN (" + in_list + ")";
+
+                // Spaces inside the parentheses are deliberate: they give the 70-char
+                // chunker somewhere legal to break a long list.
+                return column_name + " IN ( " + in_list + " )";
             }
             case TableFilterType::DYNAMIC_FILTER: {
                 return std::string();
@@ -626,12 +862,72 @@ namespace duckdb
         }
     }
 
+    // Render a constant the way ABAP's dynamic WHERE expects it, or return "" to
+    // decline pushing the predicate at all.
+    //
+    // The DDIC validates every literal against the field's own type, so a value
+    // rendered in DuckDB's spelling is rejected outright: a DATE arrives as
+    // '2020-01-01' and the server answers "is not a valid value for D(8,0)" --
+    // breaking a query that previously worked, merely because it was never pushed
+    // before.  Verified against the trial: quoted CHAR, quoted integers and quoted
+    // decimals are all accepted, and DATS wants YYYYMMDD.
+    //
+    // Anything whose ABAP spelling is not established here is declined rather than
+    // guessed.  Declining costs throughput; guessing wrong costs correctness.
     std::string RfcReadTableBindData::TransformLiteral(const Value &val) {
+        if (val.IsNull()) {
+            return std::string();
+        }
+
         switch (val.type().id()) {
-            case LogicalTypeId::BLOB:
-                return TransformBlob(StringValue::Get(val));
-            default:
+            case LogicalTypeId::VARCHAR:
                 return KeywordHelper::WriteQuoted(val.ToString());
+
+            // Quoted numerics are accepted for NUMC/INT/CURR/QUAN/DEC alike, and
+            // quoting sidesteps any difference in how ABAP parses a bare number.
+            case LogicalTypeId::TINYINT:
+            case LogicalTypeId::SMALLINT:
+            case LogicalTypeId::INTEGER:
+            case LogicalTypeId::BIGINT:
+            case LogicalTypeId::HUGEINT:
+            case LogicalTypeId::UTINYINT:
+            case LogicalTypeId::USMALLINT:
+            case LogicalTypeId::UINTEGER:
+            case LogicalTypeId::UBIGINT:
+            case LogicalTypeId::DECIMAL:
+                return KeywordHelper::WriteQuoted(val.ToString());
+
+            case LogicalTypeId::DATE: {
+                int32_t year, month, day;
+                Date::Convert(DateValue::Get(val), year, month, day);
+                return StringUtil::Format("'%04d%02d%02d'", year, month, day);
+            }
+
+            case LogicalTypeId::TIME: {
+                int32_t hour, minute, second, micros;
+                Time::Convert(TimeValue::Get(val), hour, minute, second, micros);
+
+                // SAP TIMS is second-precision; DuckDB TIME is not.  Truncating the
+                // fraction changes the predicate rather than approximating it:
+                // `t < TIME '09:05:03.500'` must keep a row stored as 09:05:03, but
+                // `t < '090503'` rejects it.  `>=` fails the mirror-image way.  Rounding
+                // correctly would have to depend on the comparison operator, which this
+                // function cannot see -- so decline and let the residual path handle it.
+                if (micros != 0) {
+                    return std::string();
+                }
+                return StringUtil::Format("'%02d%02d%02d'", hour, minute, second);
+            }
+
+            // Deliberately not pushed:
+            //  - TIMESTAMP: SAP splits date and time across two fields, and UTCLONG
+            //    is not ISO, so there is no single correct spelling here.
+            //  - BLOB: TransformBlob emits Postgres' '\xAB'::BYTEA, which is not ABAP.
+            //  - FLOAT/DOUBLE: round-tripping a binary float through a decimal
+            //    literal can select a different set of rows than DuckDB would.
+            //  - BOOLEAN and everything else: no established ABAP spelling.
+            default:
+                return std::string();
         }
     }
 
@@ -646,6 +942,36 @@ namespace duckdb
         }
         result += "'::BYTEA";
         return result;
+    }
+
+    std::string RfcReadTableBindData::TransformConjunction(std::string &column_name,
+                                                          vector<unique_ptr<TableFilter>> &children,
+                                                          const std::string &op)
+    {
+        if (children.empty()) {
+            return std::string();
+        }
+
+        std::string result;
+        for (auto &child : children) {
+            auto transformed = TransformFilter(column_name, *child);
+            // One unrepresentable arm poisons the whole conjunction -- see the
+            // all-or-nothing note at the call site.
+            if (transformed.empty()) {
+                return std::string();
+            }
+            if (! result.empty()) {
+                result += " " + op + " ";
+            }
+            result += transformed;
+            if (result.size() > MAX_PUSHDOWN_CLAUSE_LEN) {
+                return std::string();
+            }
+        }
+
+        // Explicit parentheses: this subtree may itself be an arm of an enclosing
+        // conjunction, and ABAP's precedence is not worth relying on.
+        return "( " + result + " )";
     }
 
     std::string RfcReadTableBindData::CreateExpression(string &column_name, vector<unique_ptr<TableFilter>> &filters, string op) 
@@ -670,7 +996,8 @@ namespace duckdb
             case ExpressionType::COMPARE_EQUAL:
                 return "=";
             case ExpressionType::COMPARE_NOTEQUAL:
-                return "!=";
+                // ABAP's dynamic WHERE does not accept '!='.
+                return "<>";
             case ExpressionType::COMPARE_LESSTHAN:
                 return "<";
             case ExpressionType::COMPARE_GREATERTHAN:
