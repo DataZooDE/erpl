@@ -1,0 +1,62 @@
+# name: test/sql/sap_rfc_invoke_all_tables.test
+# description: sap_rfc_invoke on a function whose result parameters are ALL tables.
+#
+#              RfcResultSet::FetchNextResult unnests the result into rows when every
+#              result value is a LIST ("tabular"). That is correct for a path-selected
+#              list, whose schema is pivoted to the row's fields -- but for a bare
+#              invoke the schema is LIST(STRUCT) per parameter, so unnesting wrote a
+#              STRUCT into a STRUCT[] column and the scan died with
+#                "Unimplemented type for cast (STRUCT(WA VARCHAR) -> STRUCT(WA VARCHAR)[])".
+#
+#              Any module with no scalar or structure export triggers it. RFC_READ_TABLE
+#              is the canonical one: its results are DATA, FIELDS and OPTIONS, all tables.
+# group: [rfc]
+
+require erpl_rfc
+
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
+
+statement ok
+CREATE SECRET abap_trial (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}'
+);
+
+# A bare invoke returns one row, with each TABLES parameter as a list column.
+query III
+SELECT len(DATA), len(FIELDS) >= 1, len(OPTIONS)
+FROM sap_rfc_invoke('RFC_READ_TABLE', {'QUERY_TABLE': 'T000', 'ROWCOUNT': 2});
+----
+2	true	0
+
+# The rows are reachable through the list, and carry real data.
+query I
+SELECT count(*) FROM (
+    SELECT unnest(DATA) AS r
+    FROM sap_rfc_invoke('RFC_READ_TABLE', {'QUERY_TABLE': 'T000', 'ROWCOUNT': 2})
+) WHERE length(r.WA) > 0;
+----
+2
+
+# Selecting the table through a path still pivots to the row's fields -- the behaviour
+# the tabular branch exists for, and which must not regress.
+query I
+SELECT count(*) FROM sap_rfc_invoke('RFC_READ_TABLE',
+       {'QUERY_TABLE': 'T000', 'ROWCOUNT': 2}, path := '/DATA');
+----
+2

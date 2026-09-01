@@ -2275,10 +2275,28 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
     }
 
     bool RfcResultSet::IsTabularResult() {
-        auto all_lists = std::all_of(_result_data.begin(), _result_data.end(), [](Value &v) {
-            return v.type().id() == LogicalTypeId::LIST;
-        });
-        return all_lists;
+        // "Tabular" means the data has been PIVOTED: one LIST per output column, whose
+        // element type is that column's declared type, so the rows can be unnested into
+        // the chunk. That is what a path-selected table produces.
+        //
+        // Being list-shaped is not enough. A bare invoke of a module whose results are
+        // all tables (RFC_READ_TABLE: DATA, FIELDS, OPTIONS) also yields all-LIST data,
+        // but its declared type is LIST(STRUCT) per parameter -- unnesting it wrote a
+        // STRUCT into a STRUCT[] column. Comparing element type against declared type
+        // separates the two cases exactly.
+        if (_result_data.empty() || _result_data.size() != _result_types.size()) {
+            return false;
+        }
+        for (std::size_t i = 0; i < _result_data.size(); i++) {
+            auto &value = _result_data[i];
+            if (value.type().id() != LogicalTypeId::LIST) {
+                return false;
+            }
+            if (ListType::GetChildType(value.type()) != _result_types[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     std::string RfcResultSet::ToSQLString() 
