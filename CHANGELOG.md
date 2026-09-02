@@ -39,6 +39,17 @@ LOAD erpl;
 
 ### Fixed
 
+- **[rfc]** **`sap_rfc_invoke` failed on any module whose result parameters are all
+  tables.** `RFC_READ_TABLE` is the canonical case — its results are `DATA`, `FIELDS`
+  and `OPTIONS`, with no scalar export — and invoking it raised
+  `Unimplemented type for cast (STRUCT(WA VARCHAR) -> STRUCT(WA VARCHAR)[])`.
+
+  The result was treated as *pivoted* whenever every value happened to be list-shaped,
+  so rows were unnested into columns still declared `LIST(STRUCT)`. Detection now also
+  requires each element type to match its declared column type, which distinguishes
+  genuinely pivoted (path-selected) data from a bare invoke. Selecting a table through
+  `path :=` still pivots to the row's fields, as before.
+
 - **[rfc]** `MAX_ROWS` combined with `partitions` hung. The unpartitioned path trims
   `ROWCOUNT` to land exactly on the limit, which a partitioned window cannot do because
   `ROWCOUNT` must stay batch-aligned; it over-fetches the final batch, and the clip then
