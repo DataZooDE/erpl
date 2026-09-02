@@ -22,6 +22,21 @@ LOAD erpl;
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **[rfc]** **`sap_rfc_invoke` failed on any module whose result parameters are all
+  tables.** `RFC_READ_TABLE` is the canonical case — its results are `DATA`, `FIELDS`
+  and `OPTIONS`, with no scalar export — and invoking it raised
+  `Unimplemented type for cast (STRUCT(WA VARCHAR) -> STRUCT(WA VARCHAR)[])`.
+
+  The result was treated as *pivoted* whenever every value happened to be list-shaped,
+  so rows were unnested into columns still declared `LIST(STRUCT)`. Detection now also
+  requires each element type to match its declared column type, which distinguishes
+  genuinely pivoted (path-selected) data from a bare invoke. Selecting a table through
+  `path :=` still pivots to the row's fields, as before.
+
 ## v2026.08.31 — every predicate applied, and most of them pushed to SAP
 
 Two of the entries below are **silent wrong-results bugs in released erpl**, not
