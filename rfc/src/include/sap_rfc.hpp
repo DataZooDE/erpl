@@ -53,6 +53,53 @@ namespace duckdb
 	void SetRfcMaxThreads(unsigned int n);
 	unsigned int GetRfcMaxThreads();
 
+	void SetRfcPartitions(idx_t n);
+	idx_t GetRfcPartitions();
+	void SetRfcPartitionWindowRows(idx_t n);
+	idx_t GetRfcPartitionWindowRows();
+
+	// Hands out disjoint row windows to the workers of a partitioned sap_read_table
+	// scan.  Kept free of any RFC dependency on purpose: this is the code that loses
+	// or duplicates rows if it is wrong, and the equivalent logic in erpl_odp could
+	// only be exercised through a live connection -- which is why an observed
+	// under-count there went unexplained.
+	//
+	// Two SAP-side rules shape it, both verified against the trial:
+	//   * RFC_READ_TABLE rejects ROWSKIPS % ROWCOUNT != 0 outright, so every offset
+	//     handed out is a multiple of the batch size.
+	//   * A read at or past the end returns zero rows rather than erroring, so a
+	//     short read is how a worker discovers the table is exhausted.
+	class RfcRowWindowScheduler
+	{
+		public:
+			// window_size is rounded up to a multiple of batch_size so that every
+			// offset stays batch-aligned.  max_rows == 0 means "no limit".
+			RfcRowWindowScheduler(idx_t window_size, idx_t batch_size, idx_t max_rows);
+
+			// Claims the next window.  Returns false once the table is exhausted or
+			// MAX_ROWS is reached.  `count` is the LOGICAL row count for the window,
+			// which may be smaller than the window size when MAX_ROWS clips it; the
+			// caller still asks SAP for whole batches and clips locally, because
+			// ROWCOUNT must stay batch-aligned.
+			bool Claim(idx_t &offset, idx_t &count);
+
+			// Called by a worker that read fewer rows than it asked for.  Prevents
+			// NEW claims only -- a worker already holding a window must always be
+			// allowed to finish it, which is exactly the invariant erpl_odp broke.
+			void ReportExhausted();
+
+			bool IsExhausted() const;
+			idx_t BatchSize() const { return batch_size; }
+			idx_t WindowSize() const { return window_size; }
+
+		private:
+			idx_t window_size;
+			idx_t batch_size;
+			idx_t max_rows;
+			std::atomic<idx_t> next_offset{0};
+			std::atomic<bool> exhausted{false};
+	};
+
 	class RfcReadTableBindData : public TableFunctionData
     {
 		public: 
@@ -101,6 +148,8 @@ namespace duckdb
 			bool ReadTableSupportsEtData();
 			bool TrySelectFallbackReadTableFunction(std::shared_ptr<RfcConnection> connection);
 			void ResolveReadTableResultPath(std::shared_ptr<RfcConnection> connection);
+			// Guarded read of the result path; the runtime fallback can reassign it.
+			std::string GetReadTableResultPath();
 			void ResolveReadTableImportParams(std::shared_ptr<RfcConnection> connection);
 			bool ReadTableHasParam(const std::string &param_name);
 			
@@ -157,6 +206,16 @@ namespace duckdb
 			// column index.  Copied because the TableFilterSet belongs to the plan.
 			std::vector<std::pair<idx_t, duckdb::unique_ptr<TableFilter>>> residual_filters;
 			unsigned int fetch_size_override = 0;
+			// projected column index -> RFC column index, built once by
+			// ActivateColumns() and read-only afterwards.  Keeps the projection
+			// reachable without the state machines.
+			std::vector<idx_t> projected_to_rfc_column;
+			idx_t partition_count = 0;
+			// Guards the one post-bind write to the bind data: the runtime
+			// RFC_READ_TABLE fallback, which reassigns read_table_function.
+			std::mutex fallback_selection_lock;
+			bool fallback_selection_done = false;
+			bool fallback_selection_succeeded = false;
 			// Defaults to RfcReadColumnStateMachine::MAX_BATCH_SIZE (that class
 			// is defined later in this header, so we can't name the constant
 			// here); Step() overwrites this with the column-count-aware cap.
@@ -189,11 +248,36 @@ namespace duckdb
 			// optional: filter_pushdown = true makes DuckDB drop the filter from the
 			// plan, so anything the scan does not apply is simply not applied.
 			void ApplyResidualFilters(DataChunk &output);
+
+			// A fresh set of state machines carrying the current projection, for one
+			// worker of a partitioned scan.  Built from the projection recorded by
+			// ActivateColumns() so a worker's set matches the bind-owned one.
+			std::vector<RfcReadColumnStateMachine> CreateWindowStateMachines();
+
+			// Read one step of `machines` into `output`.  Columns are read one after
+			// another rather than fanned out: a partitioned scan already has one RFC
+			// call in flight per worker, and fanning out per column inside each worker
+			// would multiply concurrent calls by the column count with nothing bounding
+			// the product.
+			void StepWindow(ClientContext &context, DataChunk &output,
+			                std::vector<RfcReadColumnStateMachine> &machines);
 			bool HasResidualFilters() const { return ! residual_filters.empty(); }
 
 			// Per-scan override for the concurrent-row budget (the `fetch_size` named
 			// parameter).  0 means "use the erpl_rfc_fetch_size session setting".
 			void SetFetchSize(unsigned int n) { fetch_size_override = n; }
+
+			// Row-range partitioning (opt-in).  0 or 1 means the scan runs the
+			// column-parallel path unchanged.
+			void SetPartitionCount(idx_t n) { partition_count = n; }
+			idx_t GetPartitionCount() const {
+				return partition_count != 0 ? partition_count : GetRfcPartitions();
+			}
+			idx_t GetPartitionWindowRows() const;
+			// Compute effective_max_batch_size from the active column count once, before
+			// any worker runs.  Step() does the same for the unpartitioned path.
+			void ResolveEffectiveMaxBatchSize();
+			unsigned int GetLimit() const { return limit; }
 			unsigned int EffectiveFetchSize() const {
 				return fetch_size_override != 0 ? fetch_size_override : GetRfcReadTableBatchBudget();
 			}
@@ -228,6 +312,7 @@ namespace duckdb
 			bool IsRowIdColumnId();
 			void SetRowIdColumnId();
 			unsigned int GetCardinality();
+			unsigned int GetTotalRows() const { return total_rows; }
 			unsigned int GetBatchCount();
 			unsigned int GetDesiredBatchSize();
 			std::string ToString();
@@ -252,6 +337,10 @@ namespace duckdb
 			// won a persistent slot from the bind-data budget.  Used by
 			// ExecuteNextTableReadForColumn to decide whether to close the
 			// connection at the end of a successful batch.
+			// Point this state machine at one window of a partitioned scan.  The batch
+			// size is pinned for the window's lifetime; see CreateFunctionArguments.
+			void SetWindow(idx_t offset, unsigned int batch_size, unsigned int rows_in_window);
+
 			bool HasApprovedPersistentSlot() const {
 				return persistent_decision == PersistentDecision::APPROVED;
 			}
@@ -306,6 +395,12 @@ namespace duckdb
 			bool active = true;
 			bool row_id_column_id = false;
 			unsigned int desired_batch_size = STANDARD_VECTOR_SIZE;
+			// Partitioned scans only.  window_offset is the first row of the window
+			// this state machine is reading; fixed_batch_size pins desired_batch_size
+			// so it never doubles, which is what keeps every ROWSKIPS a multiple of
+			// ROWCOUNT once an offset is involved.
+			idx_t window_offset = 0;
+			bool fixed_batch_size = false;
 			unsigned int pending_records = 0;
 			unsigned int cardinality = 0;
 			unsigned int batch_count = 0;
@@ -352,6 +447,32 @@ namespace duckdb
 			std::string wa_field_name;
 
 			std::mutex thread_lock;
+	};
+
+	// Per-scan state for a partitioned read.  Holds the window scheduler; a null
+	// scheduler means the scan runs the unpartitioned, column-parallel path exactly as
+	// before.
+	class RfcReadTableGlobalState : public duckdb::GlobalTableFunctionState
+	{
+		public:
+			RfcReadTableGlobalState(idx_t max_threads_p,
+			                        duckdb::unique_ptr<RfcRowWindowScheduler> scheduler_p)
+				: max_threads(max_threads_p), scheduler(std::move(scheduler_p)) { }
+
+			idx_t MaxThreads() const override { return max_threads; }
+			bool IsPartitioned() const { return scheduler != nullptr; }
+
+			idx_t max_threads;
+			duckdb::unique_ptr<RfcRowWindowScheduler> scheduler;
+	};
+
+	// One worker of a partitioned scan: its own state machines, reading its own window.
+	class RfcReadTableWindowState : public duckdb::LocalTableFunctionState
+	{
+		public:
+			std::vector<RfcReadColumnStateMachine> machines;
+			bool holds_window = false;
+			idx_t window_rows = 0;
 	};
 
 	class RfcReadColumnTask : public duckdb::BaseExecutorTask 

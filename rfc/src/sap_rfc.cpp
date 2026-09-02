@@ -1,4 +1,5 @@
 #include "duckdb.hpp"
+#include <limits>
 #include <cmath>
 #include <iostream>
 #include <numeric>
@@ -66,6 +67,26 @@ namespace duckdb
     static std::atomic<unsigned int> g_rfc_max_threads{0};
     void SetRfcMaxThreads(unsigned int n) { g_rfc_max_threads.store(n, std::memory_order_relaxed); }
     unsigned int GetRfcMaxThreads()       { return g_rfc_max_threads.load(std::memory_order_relaxed); }
+
+    // Row-range partitioning.  Off by default: a partitioned scan returns rows in
+    // worker-completion order, whereas RFC_READ_TABLE is called with GET_SORTED='X'
+    // and an unpartitioned scan returns them sorted.  That is an observable change,
+    // so it is opt-in.
+    static std::atomic<idx_t> g_rfc_partitions{0};
+    void SetRfcPartitions(idx_t n) { g_rfc_partitions.store(n, std::memory_order_relaxed); }
+    idx_t GetRfcPartitions()       { return g_rfc_partitions.load(std::memory_order_relaxed); }
+
+    // Rows per window.  Bigger windows mean fewer, larger RFC calls and coarser load
+    // balancing across workers; smaller ones the reverse.
+    // 0 means "one batch per window", which init_global resolves against the batch
+    // size actually in use.
+    static std::atomic<idx_t> g_rfc_partition_window_rows{0};
+    void SetRfcPartitionWindowRows(idx_t n) {
+        g_rfc_partition_window_rows.store(n, std::memory_order_relaxed);
+    }
+    idx_t GetRfcPartitionWindowRows() {
+        return g_rfc_partition_window_rows.load(std::memory_order_relaxed);
+    }
 
     // Concurrent-row budget that bounds the SAP SDK result buffer on wide
     // sap_read_table scans (issue #69).  See MaxBatchSizeForColumnCount.
@@ -158,15 +179,14 @@ namespace duckdb
 
     std::string RfcReadTableBindData::GetProjectedColumnName(unsigned int projected_column_idx) 
     {
-        auto rfc_column_idx = DConstants::INVALID_INDEX;
-        for (auto &sm : column_state_machines) {
-            if (sm.GetProjectedColumnIndex() == projected_column_idx) {
-                rfc_column_idx = sm.GetRfcColumnIndex();
-                break;
-            }
+        // Reads the projection map rather than scanning the state machines, so this
+        // keeps working when a partitioned scan moves them into its workers.
+        idx_t rfc_column_idx = (idx_t)DConstants::INVALID_INDEX;
+        if (projected_column_idx < projected_to_rfc_column.size()) {
+            rfc_column_idx = projected_to_rfc_column[projected_column_idx];
         }
 
-        if (rfc_column_idx == DConstants::INVALID_INDEX) {
+        if (rfc_column_idx == (idx_t)DConstants::INVALID_INDEX) {
             throw std::runtime_error(StringUtil::Format("Could not find column with projected index %d", projected_column_idx));
         }
 
@@ -208,7 +228,16 @@ namespace duckdb
 
     std::string RfcReadTableBindData::GetReadTableFunctionName()
     {
+        // Guarded because TrySelectFallbackReadTableFunction can reassign this at
+        // execute time.  Returned by value so the caller holds a stable copy.
+        std::lock_guard<std::mutex> guard(fallback_selection_lock);
         return read_table_function;
+    }
+
+    std::string RfcReadTableBindData::GetReadTableResultPath()
+    {
+        std::lock_guard<std::mutex> guard(fallback_selection_lock);
+        return read_table_result_path.empty() ? std::string("/DATA") : read_table_result_path;
     }
 
     std::string RfcReadTableBindData::GetReadTableDelimiter()
@@ -317,6 +346,17 @@ namespace duckdb
             return false;
         }
 
+        // Serialised because this is the one place the bind data is written after the
+        // scan starts, and it writes a std::string.  With column-parallel reads two
+        // tasks could already reach it together; a partitioned scan multiplies that by
+        // the worker count.  Under the lock a caller that arrives second sees the
+        // switch already made and reports success rather than probing again.
+        std::lock_guard<std::mutex> guard(fallback_selection_lock);
+        if (fallback_selection_done) {
+            return fallback_selection_succeeded;
+        }
+        fallback_selection_done = true;
+
         static const std::vector<std::string> fallback_functions = {
             "/SAPDS/RFC_READ_TABLE2",
             "/BODS/RFC_READ_TABLE2",
@@ -333,6 +373,22 @@ namespace duckdb
                 if (ReadTableFunctionSupportsEtData(connection, candidate)) {
                     read_table_function = candidate;
                     read_table_supports_et_data = true;
+
+                    // The result path and import parameters were probed against the
+                    // PREVIOUS function at bind time and do not carry over.  Left stale,
+                    // a read would ask the new function for "/DATA", ResolveResultTable
+                    // would find nothing and return 0 rows -- and a partitioned worker
+                    // reads 0 rows as end-of-table and stops the whole scan.  Silent
+                    // truncation, which is the worst thing this code can do.
+                    read_table_result_path.clear();
+                    read_table_import_params.clear();
+                    // Safe to call while holding fallback_selection_lock: both read
+                    // read_table_function directly rather than through the locking
+                    // accessors, so there is no re-entrancy.
+                    ResolveReadTableResultPath(connection);
+                    ResolveReadTableImportParams(connection);
+
+                    fallback_selection_succeeded = true;
                     ERPL_TRACE_INFO_DATA("sap_rfc", "Using RFC_READ_TABLE fallback", candidate);
                     return true;
                 }
@@ -402,6 +458,11 @@ namespace duckdb
 
     bool RfcReadTableBindData::ReadTableHasParam(const std::string &param_name)
     {
+        // read_table_import_params is cleared and refilled by the runtime fallback.
+        // Reading a std::set while another thread rebuilds it is undefined behaviour,
+        // not merely a stale answer, and a partitioned scan has several workers
+        // building RFC calls while one of them may be falling back.
+        std::lock_guard<std::mutex> guard(fallback_selection_lock);
         return read_table_import_params.find(param_name) != read_table_import_params.end();
     }
 
@@ -567,6 +628,12 @@ namespace duckdb
             sm.SetInactive();
         }
 
+        // Record the projection as plain data as well as in the state machines.  The
+        // map is what GetProjectedColumnName() reads, so filter pushdown no longer
+        // depends on the state machines being reachable from the bind data -- a
+        // partitioned scan owns them per worker.  Built once here, read-only after.
+        projected_to_rfc_column.assign(column_ids.size(), (idx_t)DConstants::INVALID_INDEX);
+
         for (idx_t i = 0; i < column_ids.size(); i++) {
             auto is_row_id = IsRowIdColumnId(column_ids[i]);
             auto column_id = is_row_id ? 0 : column_ids[i];
@@ -574,6 +641,7 @@ namespace duckdb
             if (is_row_id) {
                 column_state_machines[column_id].SetRowIdColumnId();
             }
+            projected_to_rfc_column[i] = column_id;
         }
     }
 
@@ -1050,6 +1118,134 @@ namespace duckdb
         return RfcType::FromTypeName(type_name, length, decimals);
     }
 
+    RfcRowWindowScheduler::RfcRowWindowScheduler(idx_t window_size_p, idx_t batch_size_p, idx_t max_rows_p)
+        : batch_size(batch_size_p == 0 || batch_size_p > (idx_t)std::numeric_limits<int32_t>::max()
+                         ? (idx_t)STANDARD_VECTOR_SIZE
+                         : batch_size_p),
+          max_rows(max_rows_p)
+    {
+        // Clamp before rounding.  erpl_rfc_partition_window_rows is a UBIGINT the user
+        // sets, and rounding a near-max value UP wraps -- a window_size of 0 would make
+        // Claim() hand the same offset to every worker forever, which is duplicated
+        // rows rather than an error.  Nothing above INT32_MAX is useful anyway: ROWSKIPS
+        // is an ABAP INT4, so no window can start beyond it.
+        auto requested = window_size_p == 0 ? batch_size : window_size_p;
+        auto ceiling = (idx_t)std::numeric_limits<int32_t>::max();
+        if (requested > ceiling) {
+            requested = ceiling;
+        }
+
+        // Round DOWN to a whole number of batches -- rounding down cannot overflow, and
+        // every offset stays a multiple of batch_size, which is what keeps
+        // ROWSKIPS % ROWCOUNT == 0 for every call this scheduler will ever produce.
+        auto batches = requested / batch_size;
+        if (batches == 0) {
+            batches = 1;
+        }
+        window_size = batches * batch_size;
+    }
+
+    bool RfcRowWindowScheduler::Claim(idx_t &offset, idx_t &count)
+    {
+        if (exhausted.load(std::memory_order_acquire)) {
+            return false;
+        }
+
+        auto claimed = next_offset.fetch_add(window_size, std::memory_order_relaxed);
+
+        // ROWSKIPS is an ABAP INT4, so a window can never legitimately start beyond
+        // INT32_MAX.  Stopping here also keeps next_offset from ever wrapping, which
+        // would start handing out offsets that have already been read -- duplicated
+        // rows rather than an error.
+        if (claimed > (idx_t)std::numeric_limits<int32_t>::max() - window_size) {
+            exhausted.store(true, std::memory_order_release);
+            return false;
+        }
+
+        if (max_rows > 0) {
+            if (claimed >= max_rows) {
+                return false;
+            }
+            // The last window under MAX_ROWS is short.  Only the LOGICAL count
+            // shrinks; the caller still requests whole batches from SAP and clips,
+            // because a non-aligned ROWCOUNT is rejected server-side.
+            auto remaining = max_rows - claimed;
+            count = remaining < window_size ? remaining : window_size;
+        } else {
+            count = window_size;
+        }
+
+        offset = claimed;
+        return true;
+    }
+
+    void RfcRowWindowScheduler::ReportExhausted()
+    {
+        exhausted.store(true, std::memory_order_release);
+    }
+
+    bool RfcRowWindowScheduler::IsExhausted() const
+    {
+        return exhausted.load(std::memory_order_acquire);
+    }
+
+    void RfcReadColumnStateMachine::SetWindow(idx_t offset, unsigned int batch_size,
+                                             unsigned int rows_in_window)
+    {
+        window_offset = offset;
+        desired_batch_size = batch_size;
+        fixed_batch_size = true;
+
+        // `limit` does double duty here, exactly as it does for MAX_ROWS on an
+        // unpartitioned scan: it terminates the window, it stops the batch size
+        // doubling (the warm-up is guarded by `limit == 0`, and doubling would break
+        // ROWSKIPS alignment once an offset is involved), and it makes
+        // LoadNextBatchToDuckDBColumn clip the tail when a short final window has to
+        // be over-fetched to keep ROWCOUNT batch-aligned.
+        limit = rows_in_window;
+
+        total_rows = 0;
+        pending_records = 0;
+        batch_count = 0;
+        duck_count = 0;
+        cardinality = 0;
+        current_invocation = nullptr;
+        current_table_handle = nullptr;
+        current_batch_rows = 0;
+        current_state = ReadTableStates::INIT;
+    }
+
+    idx_t RfcReadTableBindData::GetPartitionWindowRows() const
+    {
+        return GetRfcPartitionWindowRows();
+    }
+
+    void RfcReadTableBindData::ResolveEffectiveMaxBatchSize()
+    {
+        unsigned int active = 0;
+        for (auto &sm : column_state_machines) {
+            if (sm.Active()) {
+                active++;
+            }
+        }
+
+        // erpl_rfc_fetch_size bounds (columns x batch) for ONE reader.  Each partition
+        // worker owns its own state machines and therefore its own SDK result buffers,
+        // so without dividing here the budget would be per worker and peak memory would
+        // scale with the partition count -- the opposite of what a budget is for.
+        //
+        // Narrow scans, which is what partitioning is for, are unaffected: the batch is
+        // already capped at MAX_BATCH_SIZE long before the divided budget binds.
+        auto budget = EffectiveFetchSize();
+        auto workers = GetPartitionCount();
+        if (workers > 1 && budget > 0) {
+            budget = (unsigned int)std::max<idx_t>(1, (idx_t)budget / workers);
+        }
+
+        effective_max_batch_size = RfcReadColumnStateMachine::MaxBatchSizeForColumnCount(
+            active, budget);
+    }
+
     bool RfcReadTableBindData::HasMoreResults() 
     {
         for (auto &sm : column_state_machines) {
@@ -1059,6 +1255,63 @@ namespace duckdb
         }
 
         return false;
+    }
+
+    std::vector<RfcReadColumnStateMachine> RfcReadTableBindData::CreateWindowStateMachines()
+    {
+        auto machines = CreateReadColumnStateMachines();
+        for (auto &sm : machines) {
+            sm.SetInactive();
+        }
+        // Re-apply the projection recorded by ActivateColumns(), so a worker's set is
+        // activated identically to the bind-owned one.
+        for (idx_t projected = 0; projected < projected_to_rfc_column.size(); projected++) {
+            auto rfc_col = projected_to_rfc_column[projected];
+            if (rfc_col == (idx_t)DConstants::INVALID_INDEX) {
+                continue;
+            }
+            machines[rfc_col].SetActive(projected);
+        }
+        // The synthetic rowid column is flagged on the bind-owned set; mirror it.
+        for (idx_t i = 0; i < column_state_machines.size() && i < machines.size(); i++) {
+            if (column_state_machines[i].IsRowIdColumnId()) {
+                machines[i].SetRowIdColumnId();
+            }
+        }
+        return machines;
+    }
+
+    void RfcReadTableBindData::StepWindow(ClientContext &context, DataChunk &output,
+                                          std::vector<RfcReadColumnStateMachine> &machines)
+    {
+        auto &scheduler = TaskScheduler::GetScheduler(context);
+
+        // One column at a time.  A partitioned scan already has one RFC call in flight
+        // per worker; fanning out per column inside each worker would make the
+        // concurrent-call count workers x columns, which nothing bounds.  Row
+        // parallelism and column parallelism are alternatives here, not a product.
+        unsigned int cardinality = 0;
+        bool first = true;
+        for (auto &sm : machines) {
+            if (! sm.Active()) {
+                continue;
+            }
+            TaskExecutor executor(scheduler);
+            auto task = sm.CreateTaskForNextStep(executor, output.data[sm.GetProjectedColumnIndex()]);
+            executor.ScheduleTask(std::move(task));
+            executor.WorkOnTasks();
+
+            if (first) {
+                cardinality = sm.GetCardinality();
+                first = false;
+            } else if (sm.GetCardinality() != cardinality) {
+                throw std::runtime_error(
+                    "Cardinality of column state machines is not the same within a window. "
+                    "This should not happen.");
+            }
+        }
+
+        output.SetCardinality(cardinality);
     }
 
     void RfcReadTableBindData::Step(ClientContext &context, DataChunk &output)
@@ -1491,7 +1744,29 @@ namespace duckdb
                     duck_count += 1;
                     pending_records -= cardinality;
                     total_rows += cardinality;
-                    
+
+                    // Reaching the limit ends the read even with rows left in the SDK
+                    // batch.  LoadNextBatchToDuckDBColumn clips at `limit` and then
+                    // returns 0 for every later call, so without this pending_records
+                    // never drains and the state machine spins in LOAD_TO_DUCKDB
+                    // forever.  The unpartitioned path avoids it by trimming ROWCOUNT
+                    // to land exactly on the limit; a partitioned window cannot do that
+                    // because ROWCOUNT has to stay batch-aligned, so it over-fetches the
+                    // final batch and discards the surplus here.
+                    if (limit > 0 && total_rows >= limit) {
+                        pending_records = 0;
+                        current_state = ReadTableStates::FINISHED;
+                        // Same release FINAL_LOAD_TO_DUCKDB does: drop the cached RFC
+                        // connection so a SAP work-process reservation is not held
+                        // until query teardown, and free the SDK result buffer now.
+                        owning_state_machine->InvalidateCachedConnection();
+                        owning_state_machine->current_invocation.reset();
+                        owning_state_machine->current_table_handle = nullptr;
+                        owning_state_machine->current_batch_rows = 0;
+                        return_control_to_duck = true;
+                        break;
+                    }
+
                     current_state = (pending_records > 0) 
                                         ? ReadTableStates::LOAD_TO_DUCKDB 
                                         : ReadTableStates::EXTRACT_FROM_SAP;
@@ -1504,6 +1779,11 @@ namespace duckdb
                     duck_count += 1;
                     pending_records -= cardinality;
                     total_rows += cardinality;
+
+                    // Same clip-vs-pending_records trap as LOAD_TO_DUCKDB above.
+                    if (limit > 0 && total_rows >= limit) {
+                        pending_records = 0;
+                    }
 
                     current_state = (pending_records > 0)
                                         ? ReadTableStates::FINAL_LOAD_TO_DUCKDB
@@ -1541,13 +1821,21 @@ namespace duckdb
     {
         auto bind_data = owning_state_machine->bind_data;
         auto rfc_type = bind_data->GetColumnType(owning_state_machine->column_idx);
-        auto data_path = bind_data->read_table_result_path.empty() ? std::string("/DATA") : bind_data->read_table_result_path;
+        std::string data_path;
         bool use_et_data = false;
 
         int attempt = 0;
         int max_attempts = 5;
         int initial_delay = 10000; // milliseconds
         while (attempt < max_attempts) {
+            // Re-read every attempt.  A failed attempt can switch the read-table
+            // function underneath us (TrySelectFallbackReadTableFunction), which
+            // reprobes the result path and import parameters for the new function.
+            // Capturing these once before the loop meant the retry asked
+            // /SAPDS/RFC_READ_TABLE2 for RFC_READ_TABLE's "/DATA", found nothing, and
+            // returned zero rows -- which a partitioned worker reads as end-of-table.
+            data_path = bind_data->GetReadTableResultPath();
+            use_et_data = false;
             std::shared_ptr<RfcConnection> connection;
             // Whether this batch's connection is owned by the state machine
             // (don't close on success) vs. per-batch (close on success).
@@ -1651,8 +1939,19 @@ namespace duckdb
         // When MAX_ROWS would force a final batch with an illegal ROWCOUNT,
         // we over-fetch and let LoadNextBatchToDuckDBColumn() clip the
         // surplus client-side.
-        auto actual_batch_size = RfcReadColumnStateMachine::TrimmedActualBatchSize(
-            desired_batch_size, total_rows, limit);
+        //
+        // A partitioned scan does NOT use that trim.  Its batch size is fixed for the
+        // life of the window and its offsets are multiples of it, which is what keeps
+        // ROWSKIPS % ROWCOUNT == 0 -- the server rejects anything else outright with
+        // "RFC_READ_TABLE (ROWSKIPS MOD ROWCOUNT <> 0)".  TrimmedActualBatchSize
+        // reasons from this state machine's own total_rows alone and knows nothing
+        // about the window offset, so applying it here would break alignment.  The
+        // short final window is clipped client-side instead.
+        auto actual_batch_size = owning_state_machine->window_offset > 0 ||
+                                 owning_state_machine->fixed_batch_size
+                               ? desired_batch_size
+                               : RfcReadColumnStateMachine::TrimmedActualBatchSize(
+                                     desired_batch_size, total_rows, limit);
 
         if (!bind_data->options.empty()) {
             auto options_str = StringUtil::Join(bind_data->options, bind_data->options.size(), " | ", [](auto &o) { return o; });
@@ -1668,7 +1967,23 @@ namespace duckdb
             // We satisfy that by only doubling desired_batch_size when
             // total_rows is divisible by the new size, so total_rows is
             // always a valid (multiple-of-current-ROWCOUNT) offset.
-            args.Add("ROWSKIPS", Value::CreateValue<int32_t>(total_rows));
+            // ROWSKIPS is this window's start plus what the window has already read.
+            // For an unpartitioned scan window_offset is 0 and this is the old
+            // behaviour exactly.
+            //
+            // The parameter is an ABAP INT4, so refuse rather than wrap.  A silent
+            // wrap would re-read an earlier range and duplicate rows -- the worst
+            // possible failure here, and one partitioning makes reachable because a
+            // worker can start at a large offset without having read its way there.
+            auto skip = (idx_t)owning_state_machine->window_offset + (idx_t)total_rows;
+            if (skip > (idx_t)std::numeric_limits<int32_t>::max()) {
+                throw std::runtime_error(StringUtil::Format(
+                    "sap_read_table cannot read past row %d of '%s': RFC_READ_TABLE's "
+                    "ROWSKIPS is a 32-bit integer. Narrow the read with a WHERE clause "
+                    "or MAX_ROWS.",
+                    std::numeric_limits<int32_t>::max(), table_name));
+            }
+            args.Add("ROWSKIPS", Value::CreateValue<int32_t>((int32_t)skip));
         }
         if (bind_data->ReadTableHasParam("ROWCOUNT")) {
             args.Add("ROWCOUNT", Value::CreateValue<int32_t>(actual_batch_size));

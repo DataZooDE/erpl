@@ -6,3 +6,15 @@
 # unchallenged. Remove a line as soon as its gap closes.
 #
 # See ERPL_PROTO_INTEGRATION_PLAN.md, Phase 6.
+
+# Table parameters whose row needs trailing alignment padding are rejected:
+#   "unexpected record during table delta: a 29-byte row for TAB2, whose rows are 32 bytes"
+# Bisected to erpl-proto fea9e44 ("five decoding defects"), which rewrote table-delta
+# handling; its direct parent ce59c98 passes. Present in every tagged release, so there is
+# no pin that both is a release and avoids it. Passes on nwrfc.
+#
+# FIXED upstream in erpl-proto v2026.9.2, but we cannot pin to it yet: that release
+# regresses BICS from 45/45 to 23/45 via a nested-TTYP basXML defect.
+# https://github.com/DataZooDE/erpl-proto/issues/54
+# https://github.com/DataZooDE/erpl-proto/issues/60
+sap_rfc_struct_layout.test

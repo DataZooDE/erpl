@@ -1,0 +1,207 @@
+# name: test/sql/sap_read_table_partitions.test
+# description: Row-range partitioning must change only how the table is read, never
+#              which rows come back.
+# group: [rfc]
+
+# sap_read_table parallelises per COLUMN, so a narrow extract gets no parallelism at
+# all. `partitions` splits the row space instead: each worker claims a window and
+# reads it with ROWSKIPS/ROWCOUNT.
+#
+# Three SAP-side facts shape the implementation, all verified against the trial:
+#   * RFC_READ_TABLE rejects ROWSKIPS % ROWCOUNT != 0 outright, so window offsets and
+#     the batch size must stay aligned. A drift shows up as a loud ABAP error.
+#   * Disjoint ROWSKIPS windows tile a table exactly under GET_SORTED='X'.
+#   * A read at or past the end returns zero rows rather than erroring.
+#
+# Row ORDER is deliberately not asserted: workers finish in whatever order they
+# finish, which is exactly why partitioning is opt-in. Every comparison below is by
+# symmetric EXCEPT ALL, which preserves multiplicity and so catches a dropped window,
+# a duplicated window and a corrupted value in one assertion.
+
+require erpl_rfc
+
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
+
+statement ok
+CREATE SECRET abap_trial (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}'
+);
+
+# ---------------------------------------------------------------------
+# The reference: an ordinary unpartitioned scan.
+# DD02L is ~165k rows, so it spans many windows and many batches.
+# ---------------------------------------------------------------------
+statement ok
+CREATE TABLE part_ref AS
+SELECT TABNAME, TABCLASS, CONTFLAG FROM sap_read_table('DD02L');
+
+query I
+SELECT count(*) > 50000 FROM part_ref;
+----
+true
+
+# ---------------------------------------------------------------------
+# Partitioned reads return the same multiset at several worker counts.
+# An odd count is included on purpose: the row space does not divide evenly
+# by 3, so the final window is short and gets clipped.
+# ---------------------------------------------------------------------
+statement ok
+CREATE TABLE part_3 AS
+SELECT TABNAME, TABCLASS, CONTFLAG FROM sap_read_table('DD02L', partitions = 3);
+
+statement ok
+CREATE TABLE part_8 AS
+SELECT TABNAME, TABCLASS, CONTFLAG FROM sap_read_table('DD02L', partitions = 8);
+
+query I
+SELECT count(*) FROM (
+    (SELECT * FROM part_ref EXCEPT ALL SELECT * FROM part_3)
+    UNION ALL
+    (SELECT * FROM part_3   EXCEPT ALL SELECT * FROM part_ref)
+);
+----
+0
+
+query I
+SELECT count(*) FROM (
+    (SELECT * FROM part_ref EXCEPT ALL SELECT * FROM part_8)
+    UNION ALL
+    (SELECT * FROM part_8   EXCEPT ALL SELECT * FROM part_ref)
+);
+----
+0
+
+# ---------------------------------------------------------------------
+# A small window forces many more windows than workers, so workers hand off
+# repeatedly and the claim path is exercised rather than being one window each.
+# ---------------------------------------------------------------------
+statement ok
+SET erpl_rfc_partition_window_rows = 4096;
+
+statement ok
+CREATE TABLE part_small_window AS
+SELECT TABNAME, TABCLASS, CONTFLAG FROM sap_read_table('DD02L', partitions = 8);
+
+query I
+SELECT count(*) FROM (
+    (SELECT * FROM part_ref           EXCEPT ALL SELECT * FROM part_small_window)
+    UNION ALL
+    (SELECT * FROM part_small_window  EXCEPT ALL SELECT * FROM part_ref)
+);
+----
+0
+
+statement ok
+RESET erpl_rfc_partition_window_rows;
+
+# ---------------------------------------------------------------------
+# More workers than the table has windows. Most workers find the queue
+# already drained and must retire cleanly rather than reading past the end.
+# ---------------------------------------------------------------------
+query I
+SELECT count(*) FROM sap_read_table('/DMO/FLIGHT', partitions = 8);
+----
+40
+
+# ---------------------------------------------------------------------
+# MAX_ROWS is a scan-wide limit. A per-worker limit would return
+# partitions x MAX_ROWS rows -- the failure this pins.
+#
+# It also exercises the clip path: a partitioned window cannot trim ROWCOUNT to
+# land exactly on the limit (ROWCOUNT must stay batch-aligned), so it over-fetches
+# the final batch and discards the surplus.
+# ---------------------------------------------------------------------
+query I
+SELECT count(*) FROM sap_read_table('DD02L', partitions = 4, MAX_ROWS = 5000);
+----
+5000
+
+query I
+SELECT count(*) FROM sap_read_table('DD02L', partitions = 1, MAX_ROWS = 5000);
+----
+5000
+
+# ---------------------------------------------------------------------
+# Filters and partitioning together: the predicate is pushed to SAP once per
+# window, and residual filtering runs per chunk inside each worker.
+# ---------------------------------------------------------------------
+statement ok
+CREATE TABLE part_filtered AS
+SELECT TABNAME, TABCLASS, CONTFLAG FROM sap_read_table('DD02L', partitions = 4)
+WHERE TABCLASS = 'TRANSP';
+
+query I
+SELECT count(*) FROM (
+    (SELECT * FROM part_filtered EXCEPT ALL SELECT * FROM part_ref WHERE TABCLASS = 'TRANSP')
+    UNION ALL
+    (SELECT * FROM part_ref WHERE TABCLASS = 'TRANSP' EXCEPT ALL SELECT * FROM part_filtered)
+);
+----
+0
+
+# The filter must select a strict subset, or "both agree" would be satisfied by
+# returning everything.
+query I
+SELECT (SELECT count(*) FROM part_filtered) < (SELECT count(*) FROM part_ref);
+----
+true
+
+# ---------------------------------------------------------------------
+# partitions = 0 and 1 both mean "unpartitioned", and must behave exactly as
+# no parameter at all.
+# ---------------------------------------------------------------------
+statement ok
+CREATE TABLE part_zero AS
+SELECT TABNAME, TABCLASS, CONTFLAG FROM sap_read_table('DD02L', partitions = 0);
+
+query I
+SELECT count(*) FROM (
+    (SELECT * FROM part_ref  EXCEPT ALL SELECT * FROM part_zero)
+    UNION ALL
+    (SELECT * FROM part_zero EXCEPT ALL SELECT * FROM part_ref)
+);
+----
+0
+
+# ---------------------------------------------------------------------
+# The session setting applies when no named parameter is given.
+# ---------------------------------------------------------------------
+statement ok
+SET erpl_rfc_partitions = 4;
+
+query I
+SELECT current_setting('erpl_rfc_partitions');
+----
+4
+
+statement ok
+CREATE TABLE part_session AS
+SELECT TABNAME, TABCLASS, CONTFLAG FROM sap_read_table('DD02L');
+
+query I
+SELECT count(*) FROM (
+    (SELECT * FROM part_ref     EXCEPT ALL SELECT * FROM part_session)
+    UNION ALL
+    (SELECT * FROM part_session EXCEPT ALL SELECT * FROM part_ref)
+);
+----
+0
+
+statement ok
+RESET erpl_rfc_partitions;

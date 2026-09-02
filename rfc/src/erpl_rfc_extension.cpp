@@ -165,6 +165,14 @@ namespace duckdb {
         SetRfcMaxThreads(parameter.GetValue<unsigned int>());
     }
 
+    static void OnRfcPartitions(ClientContext &, SetScope, Value &parameter) {
+        SetRfcPartitions((idx_t)parameter.GetValue<uint64_t>());
+    }
+
+    static void OnRfcPartitionWindowRows(ClientContext &, SetScope, Value &parameter) {
+        SetRfcPartitionWindowRows((idx_t)parameter.GetValue<uint64_t>());
+    }
+
     static void OnRfcBackend(ClientContext &, SetScope, Value &parameter) {
         SetRfcBackend(parameter.GetValue<string>());
     }
@@ -296,6 +304,29 @@ namespace duckdb {
             LogicalType::UINTEGER,
             Value::UINTEGER(0),
             OnRfcMaxThreads);
+
+        config.AddExtensionOption(
+            "erpl_rfc_partitions",
+            "Split a sap_read_table scan into this many row ranges read in parallel. "
+            "0 (the default) reads the table in one pass, parallelising across COLUMNS "
+            "instead -- which is what helps a wide extract and does nothing for a narrow "
+            "one. Set it above 1 when you are reading few columns from a large table. "
+            "Rows then come back in worker-completion order rather than the sorted order "
+            "an unpartitioned scan produces, so this is opt-in. Override per query with "
+            "the partitions named parameter.",
+            LogicalType::UBIGINT,
+            Value::UBIGINT(0),
+            OnRfcPartitions);
+
+        config.AddExtensionOption(
+            "erpl_rfc_partition_window_rows",
+            "Rows per window handed to one worker of a partitioned scan (default "
+            "131072). Larger windows mean fewer, bigger RFC calls and coarser load "
+            "balancing across workers; smaller ones the reverse. Only used when "
+            "erpl_rfc_partitions is above 1.",
+            LogicalType::UBIGINT,
+            Value::UBIGINT(0),
+            OnRfcPartitionWindowRows);
 
         config.AddExtensionOption(
             "erpl_rfc_pushdown_filters",

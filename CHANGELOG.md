@@ -24,6 +24,19 @@ LOAD erpl;
 
 ## Unreleased
 
+### Added
+
+- **[rfc]** **`sap_read_table` can now split a scan by rows.** Parallelism was per
+  *column* — one concurrent `RFC_READ_TABLE` call per projected column — so a narrow
+  extract got none at all, and raising `threads` did nothing. `partitions` hands each
+  worker a row window read with `ROWSKIPS`/`ROWCOUNT`. Measured on a 164,664-row
+  single-column extract: 2.23s unpartitioned, 0.83s at eight partitions (**2.7x**),
+  with the knee visible at eight. Opt-in, because partitioned workers finish in
+  whatever order they finish while an unpartitioned scan returns rows sorted.
+
+- **[rfc]** `erpl_rfc_partitions` and `erpl_rfc_partition_window_rows`, plus a
+  `partitions` named parameter.
+
 ### Fixed
 
 - **[rfc]** **`sap_rfc_invoke` failed on any module whose result parameters are all
@@ -36,6 +49,17 @@ LOAD erpl;
   requires each element type to match its declared column type, which distinguishes
   genuinely pivoted (path-selected) data from a bare invoke. Selecting a table through
   `path :=` still pivots to the row's fields, as before.
+
+- **[rfc]** `MAX_ROWS` combined with `partitions` hung. The unpartitioned path trims
+  `ROWCOUNT` to land exactly on the limit, which a partitioned window cannot do because
+  `ROWCOUNT` must stay batch-aligned; it over-fetches the final batch, and the clip then
+  left the read spinning with rows it would never emit.
+
+- **[rfc]** The runtime `RFC_READ_TABLE` fallback reassigned a `std::string` on the
+  bind data from execute time. Column-parallel reads already made that reachable from
+  two tasks at once; it is now serialised.
+
+---
 
 ## v2026.08.31 — every predicate applied, and most of them pushed to SAP
 

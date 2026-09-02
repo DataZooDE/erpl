@@ -92,6 +92,7 @@ Read data from an SAP table or CDS view. Supports projection pushdown, filter pu
 | `COLUMNS` | LIST(VARCHAR) | all | Columns to retrieve |
 | `FILTER` | VARCHAR | — | SAP WHERE clause filter |
 | `fetch_size` | UINTEGER | `erpl_rfc_fetch_size` | Concurrent result rows per round-trip; transport only, never changes the rows returned |
+| `partitions` | UINTEGER | `erpl_rfc_partitions` | Read this many row ranges in parallel. Same rows, unspecified order |
 | `MAX_ROWS` | UINTEGER | 0 (all) | Maximum rows to return |
 | `READ_TABLE_FUNCTION` | VARCHAR | `'RFC_READ_TABLE'` | RFC function to use (see note) |
 | `READ_TABLE_DELIMITER` | VARCHAR | — | Delimiter for TABLE2 variants |
@@ -1283,6 +1284,8 @@ Notes:
 | `erpl_rfc_read_table_batch_budget` | UINTEGER | 1310720 | Target max concurrent result rows (projected columns × per-column batch) for `sap_read_table`; bounds peak memory on wide tables (issue #69). Lower = less memory but more RFC round-trips; `0` disables the cap |
 | `erpl_rfc_fetch_size` | UINTEGER | 1310720 | How much `sap_read_table` asks SAP for per round-trip, as concurrent result rows. Alias of `erpl_rfc_read_table_batch_budget`. See [Tuning large reads](#tuning-large-reads) |
 | `erpl_rfc_max_threads` | UINTEGER | 0 | Default for the `threads` named parameter; `0` lets erpl choose |
+| `erpl_rfc_partitions` | UBIGINT | 0 | Split a `sap_read_table` scan into this many row ranges read in parallel. `0` reads in one pass, parallelising across columns instead. See [Narrow tables](#narrow-tables-use-partitions-not-threads) |
+| `erpl_rfc_partition_window_rows` | UBIGINT | 0 | Rows a partition worker claims at a time; `0` uses one RFC batch per window |
 | `erpl_rfc_pushdown_filters` | BOOLEAN | `true` | Translate SQL `WHERE` predicates into `RFC_READ_TABLE`'s `OPTIONS` table so SAP filters the rows instead of sending them all. Turning it off never changes which rows come back, only how many cross the wire. See [Filter Pushdown](#filter-pushdown) |
 | `erpl_rfc_backend` | VARCHAR | `'nwrfc'` | Which implementation serves RFC calls: `'nwrfc'` (SAP's NetWeaver RFC SDK) or `'proto'` (the pure-Rust erpl-proto implementation). Must be set **before the first SAP call**; frozen for the life of the process once resolved. Environment override: `ERPL_RFC_BACKEND` |
 | `erpl_rfc_backend_path` | VARCHAR | `''` | Explicit path to the RFC backend shared library, overriding the search. Empty means: next to the extension, then the loader's library path. Environment override: `ERPL_RFC_BACKEND_PATH` |
@@ -1441,6 +1444,54 @@ running a large parallel extract against a production system.
 `erpl_rfc_read_table_batch_budget` is the original spelling of
 `erpl_rfc_fetch_size`. Both remain supported and write the same value — they are two
 names for one knob, not two knobs.
+
+#### Narrow tables: use `partitions`, not `threads`
+
+`threads` parallelises across **columns** — one concurrent `RFC_READ_TABLE` call per
+projected column. That suits a wide extract and does nothing for a narrow one: a
+single-column scan issues one call, and `threads` has nothing to spread.
+
+`partitions` splits the **rows** instead. Each worker claims a window of the table and
+reads it with `ROWSKIPS`/`ROWCOUNT`:
+
+```sql
+SELECT * FROM sap_read_table('DD02L', partitions = 8);
+
+-- or as a session default
+SET erpl_rfc_partitions = 8;
+```
+
+**What to expect.** Measured on a 164,664-row single-column extract, release build:
+
+| `partitions` | 1 | 2 | 4 | 8 | 16 |
+|---|---|---|---|---|---|
+| wall | 2.23s | 1.45s | 1.11s | 0.83s | 0.92s |
+
+About **2.7x at eight workers**, with the knee clearly visible — past it, more workers
+cost more than they return. Where the knee falls is a property of the SAP system's
+capacity, not of erpl, so find it by raising the value and watching throughput.
+
+**Rows come back unordered.** An unpartitioned scan calls `RFC_READ_TABLE` with
+`GET_SORTED='X'` and returns rows in that order; partitioned workers finish in whatever
+order they finish. That is why this is opt-in rather than the default. Add an
+`ORDER BY` if you need one.
+
+`erpl_rfc_partition_window_rows` sets how many rows a worker claims at a time. The
+default is one RFC batch per window, which shares the table evenly across workers;
+larger windows mean fewer, coarser hand-offs.
+
+Two caveats worth knowing:
+
+- `ROWSKIPS` is a 32-bit integer, so a partitioned scan cannot start a window beyond
+  row 2,147,483,647. erpl refuses rather than wrapping, because a wrap would silently
+  re-read an earlier range and duplicate rows. Narrow the read with a `WHERE` clause.
+- Windows are offsets into a server-side sort, not a snapshot. If the table is written
+  while you read it, rows can shift between windows. That is true of an unpartitioned
+  scan too — it also pages by offset — but partitioning makes it easier to observe.
+
+For a genuinely large extract, running several *processes* against SAP still scales
+better than any in-process approach, because SAP-side concurrency limits apply per
+client program. Check with your Basis team first.
 
 ### SSH Tunnel + SAP Connection
 
