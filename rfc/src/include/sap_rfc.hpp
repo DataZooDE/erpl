@@ -76,12 +76,18 @@ namespace duckdb
 			// offset stays batch-aligned.  max_rows == 0 means "no limit".
 			RfcRowWindowScheduler(idx_t window_size, idx_t batch_size, idx_t max_rows);
 
-			// Claims the next window.  Returns false once the table is exhausted or
-			// MAX_ROWS is reached.  `count` is the LOGICAL row count for the window,
+			// Claims the next window.  `count` is the LOGICAL row count for the window,
 			// which may be smaller than the window size when MAX_ROWS clips it; the
 			// caller still asks SAP for whole batches and clips locally, because
 			// ROWCOUNT must stay batch-aligned.
-			bool Claim(idx_t &offset, idx_t &count);
+			//
+			// EXHAUSTED and ADDRESS_LIMIT must NOT be collapsed into one "false".  A
+			// worker retires on an empty chunk, and DuckDB reads an empty chunk as
+			// end-of-scan -- so returning the same answer for both would turn the
+			// ROWSKIPS ceiling into a silently truncated result, which is exactly what
+			// the ceiling exists to prevent.
+			enum class ClaimResult { CLAIMED, EXHAUSTED, ADDRESS_LIMIT };
+			ClaimResult Claim(idx_t &offset, idx_t &count);
 
 			// Called by a worker that read fewer rows than it asked for.  Prevents
 			// NEW claims only -- a worker already holding a window must always be
