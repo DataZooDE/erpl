@@ -22,7 +22,15 @@ LOAD erpl;
 
 ---
 
-## Unreleased
+## v2026.09.02 — a narrow extract can finally use more than one connection
+
+`sap_read_table` parallelised across *columns*, so reading a few columns out of a very
+large table — the shape most incremental extracts have — could not parallelise at all,
+and `threads` did nothing. `partitions` splits the scan by rows instead: **4.5x on 2.9
+million rows** at eight workers, for 1.7x the memory.
+
+Also here: one tuning vocabulary across all three extensions, and a delta-cursor cleanup
+that had been silently doing nothing at all.
 
 ### Added
 
@@ -37,7 +45,47 @@ LOAD erpl;
 - **[rfc]** `erpl_rfc_partitions` and `erpl_rfc_partition_window_rows`, plus a
   `partitions` named parameter.
 
+- **[rfc]** **One tuning vocabulary across the extensions.** Paging and parallelism were
+  spelled differently everywhere: RFC had `THREADS` plus `erpl_rfc_read_table_batch_budget`,
+  ODP had `threads` and no settings at all, BICS had neither. `threads` /
+  `erpl_rfc_max_threads` and `fetch_size` / `erpl_rfc_fetch_size` now mean the same thing
+  wherever they appear, and `fetch_size` is settable per query rather than per session.
+  No breaking renames — `erpl_rfc_read_table_batch_budget` still works and writes the same
+  value.
+
+- **[odp]** `erpl_odp_fetch_size` and `erpl_odp_max_threads`, ODP's first settings.
+  `I_MAXPACKAGESIZE` was compiled in at 2 MiB and reachable from nowhere, so round-trips
+  could not be traded against per-packet memory.
+
+- **[bics]** `sap_bics_begin` honours its `rows`, `columns` and `filters` parameters.
+  They were declared and never read — accepted with no error and no effect. Building a
+  query this way also costs three fewer full session round-trips.
+
 ### Fixed
+
+- **[odp]** **`PRAGMA sap_odp_close_delta_cursor` never closed anything.** It matched the
+  cursor on `(SUBSCRIBER_PROC, QUEUENAME)` and took the first row, but SAP retains every
+  closed cursor as history, so that pair routinely has a dozen rows — the open one was
+  found at position 7 behind six closed rows from previous days. The pragma reported
+  `'CLOSED'` without ever calling `RODPS_REPL_ODP_CLOSE`, so delta cursors accumulated
+  server-side while cleanup looked like it was working.
+
+  Two more defects sat in the branch that made unreachable: every exception was reported
+  as `'CLOSED'`, and the call's `ET_RETURN` was never read — `RODPS_REPL_ODP_CLOSE` returns
+  `RFC_OK` even when it refuses, so a rejected close was indistinguishable from a
+  successful one. **Behaviour change:** two new results, neither of which raises —
+  `'REFUSED: <SAP message>'` when SAP rejects the close (typically
+  `ILLEGAL_REQ_STATE_FOR_CONFIRM`, meaning the request was left mid-fetch and only
+  `sap_odp_drop` will clear it) and `'STILL_OPEN'` when the cursor survives a call that
+  reported no error.
+
+- **[odp]** `sap_odp_read_full` crashed at `threads := 8` on a source with fewer packages
+  than workers — a null local state, dereferenced unconditionally.
+
+- **[bics]** The result-size refusal message stated what a query would really cost. BICS
+  memory scales with result **rows**, not data cells, so the cell-derived figure it used
+  to quote understated a 46,755-row result by 19x — and suggested raising a setting that
+  would have let the query through and then run the process out of memory.
 
 - **[rfc]** **`sap_rfc_invoke` failed on any module whose result parameters are all
   tables.** `RFC_READ_TABLE` is the canonical case — its results are `DATA`, `FIELDS`
@@ -58,6 +106,13 @@ LOAD erpl;
 - **[rfc]** The runtime `RFC_READ_TABLE` fallback reassigned a `std::string` on the
   bind data from execute time. Column-parallel reads already made that reachable from
   two tasks at once; it is now serialised.
+
+### Build
+
+- **[all]** The `erpl-proto` backend is pinned to the `v2026.8.29.1` release rather than
+  an untagged commit. Newer proto releases fix a table-delta padding gap
+  (`sap_rfc_struct_layout`, tracked as a known gap on that backend) but regress BICS from
+  45/45 to 23/45 on a nested-`TTYP` basXML defect, so the pin stays until that is closed.
 
 ---
 
