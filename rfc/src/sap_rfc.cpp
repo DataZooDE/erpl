@@ -1234,8 +1234,8 @@ namespace duckdb
         // so without dividing here the budget would be per worker and peak memory would
         // scale with the partition count -- the opposite of what a budget is for.
         //
-        // Narrow scans, which is what partitioning is for, are unaffected: the batch is
-        // already capped at MAX_BATCH_SIZE long before the divided budget binds.
+        // Narrow scans are the point of partitioning, so they must feel this division
+        // too -- see MaxBatchSizeForColumnCount, which no longer exempts a single column.
         auto budget = EffectiveFetchSize();
         auto workers = GetPartitionCount();
         if (workers > 1 && budget > 0) {
@@ -1580,7 +1580,15 @@ namespace duckdb
         // concurrent-row budget, floored to a power of two in
         // [STANDARD_VECTOR_SIZE, MAX_BATCH_SIZE] so the doubling warm-up still
         // reaches the cap cleanly and ROWSKIPS % ROWCOUNT stays valid.
-        if (num_columns <= 1 || concurrent_row_budget == 0) {
+        // A zero budget disables the cap, and a scan with no projected column has
+        // nothing to bound. Note that num_columns == 1 is NOT exempt: it used to be,
+        // on the reasoning that a narrow scan is already under any sane budget -- but
+        // ResolveEffectiveMaxBatchSize divides the budget by the partition count, and
+        // a narrow scan is precisely what partitioning is for. Exempting it meant
+        // erpl_rfc_fetch_size and partitions silently did nothing to the batch for the
+        // one scan shape that most needed them (heaptrack showed 32768-row batches on
+        // every worker at partitions=8).
+        if (num_columns == 0 || concurrent_row_budget == 0) {
             return MAX_BATCH_SIZE;
         }
         unsigned int per_col = concurrent_row_budget / num_columns;
