@@ -78,13 +78,39 @@ TEST_CASE("NextDesiredBatchSize doubles geometrically while keeping ROWSKIPS val
 	REQUIRE(size == SM::MAX_BATCH_SIZE);
 }
 
+TEST_CASE("A single-column scan honours a small budget instead of ignoring it",
+          "[erpl_rfc][batching]") {
+	using SM = RfcReadColumnStateMachine;
+
+	// ResolveEffectiveMaxBatchSize divides the budget across partition workers so that
+	// peak memory does not scale with the worker count. A single-column scan used to
+	// short-circuit to MAX_BATCH_SIZE before the divided budget was ever consulted, so
+	// every worker asked SAP for ROWCOUNT=32768 no matter what erpl_rfc_fetch_size or
+	// partitions said -- confirmed on a4h by heaptrack, which showed 32768-row batches
+	// under partitions=8. Narrow scans are exactly what partitioning is for, so this is
+	// the case where the budget matters most.
+	REQUIRE(SM::MaxBatchSizeForColumnCount(1, 2048) == (unsigned int)STANDARD_VECTOR_SIZE);
+	REQUIRE(SM::MaxBatchSizeForColumnCount(1, 8192) == 8192u);
+
+	// The default fetch size (16384 concurrent rows) split across 8 workers.
+	REQUIRE(SM::MaxBatchSizeForColumnCount(1, 16384u / 8u) == (unsigned int)STANDARD_VECTOR_SIZE);
+
+	// A budget large enough for the full batch still yields it -- the cap binds, it does
+	// not shrink for its own sake.
+	REQUIRE(SM::MaxBatchSizeForColumnCount(1, 256u * 1024u) == SM::MAX_BATCH_SIZE);
+
+	// Zero columns still means "no projection to bound"; a zero budget still disables it.
+	REQUIRE(SM::MaxBatchSizeForColumnCount(0, 2048) == SM::MAX_BATCH_SIZE);
+	REQUIRE(SM::MaxBatchSizeForColumnCount(1, 0) == SM::MAX_BATCH_SIZE);
+}
+
 TEST_CASE("MaxBatchSizeForColumnCount bounds the SDK buffer on wide scans",
           "[erpl_rfc][batching]") {
 	using SM = RfcReadColumnStateMachine;
 	// Use an explicit budget so the test is independent of the runtime default.
 	constexpr unsigned int BUDGET = 256u * 1024u;
 
-	// Narrow scans keep the full batch for throughput.
+	// Narrow scans keep the full batch when the budget is large enough to allow it.
 	REQUIRE(SM::MaxBatchSizeForColumnCount(0, BUDGET) == SM::MAX_BATCH_SIZE);
 	REQUIRE(SM::MaxBatchSizeForColumnCount(1, BUDGET) == SM::MAX_BATCH_SIZE);
 	REQUIRE(SM::MaxBatchSizeForColumnCount(2, BUDGET) == SM::MAX_BATCH_SIZE);

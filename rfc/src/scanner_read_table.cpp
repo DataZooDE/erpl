@@ -172,6 +172,13 @@ namespace duckdb
                 }
                 if (claim != RfcRowWindowScheduler::ClaimResult::CLAIMED) {
                     // Nothing left to claim; an empty chunk retires this worker.
+#ifdef __GLIBC__
+                    // Mirror the serial path: this worker is done, its per-column SDK
+                    // handles are released, and each worker thread has its own glibc
+                    // arena. Without this the arenas keep their high-water mark and
+                    // getrusage still reports the peak long after the rows are gone.
+                    malloc_trim(0);
+#endif
                     return;
                 }
                 for (auto &sm : lstate.machines) {

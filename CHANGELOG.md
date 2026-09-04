@@ -26,6 +26,24 @@ LOAD erpl;
 
 ### Fixed
 
+- **[rfc]** **`fetch_size` and `partitions` did nothing to the batch size of a
+  single-column scan.** `MaxBatchSizeForColumnCount` returned the full 32768-row cap
+  whenever a scan projected one column, discarding the budget that
+  `ResolveEffectiveMaxBatchSize` had just divided across the partition workers — so every
+  worker asked SAP for `ROWCOUNT=32768` however `erpl_rfc_fetch_size` and `partitions`
+  were set. The exemption was deliberate, on the reasoning that a narrow scan is already
+  under any sane budget; that reasoning ignored the division, and a narrow scan is
+  precisely what partitioning exists for.
+
+  Measured on a 300,000-row single-column read at `partitions = 8`: peak RSS **405 MB →
+  307 MB (−24%)** with no loss of throughput (2.17s → 2.07s). The budget now binds for
+  every column count; only a zero budget or a scan with no projected column bypasses it.
+
+- **[rfc]** A partitioned scan never returned its allocator arenas to the OS. The serial
+  path calls `malloc_trim(0)` when the scan finishes, but each partition worker retires on
+  a different code path that did not, so every worker thread's glibc arena kept its
+  high-water mark — which is what `getrusage` reports.
+
 - **[rfc]** **A partitioned scan past the `ROWSKIPS` ceiling returned a truncated result
   instead of refusing.** The row-window scheduler signalled the ABAP `INT4` limit by
   returning "no more windows", which is the same answer it gives at the end of a table —
