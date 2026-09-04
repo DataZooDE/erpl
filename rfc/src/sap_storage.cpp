@@ -347,9 +347,13 @@ static vector<string> ResolveTablePatterns(ClientContext &context, const string 
 
 		DataChunk chunk;
 		chunk.Initialize(Allocator::Get(context), bind_data->GetReturnTypes());
-		while (bind_data->HasMoreResults()) {
+		// Local machine set: this helper builds fresh bind data per call, so there is
+		// no re-scan hazard here, but the state machines are per-scan state and are
+		// now owned as such rather than living on the shared bind data.
+		auto machines = bind_data->CreateWindowStateMachines();
+		while (bind_data->HasMoreResults(machines)) {
 			chunk.Reset();
-			bind_data->Step(context, chunk);
+			bind_data->Step(context, chunk, machines);
 			for (idx_t i = 0; i < chunk.size(); i++) {
 				auto val = chunk.GetValue(0, i);
 				if (val.IsNull()) {

@@ -6,6 +6,24 @@
 
 namespace duckdb 
 {
+
+    // Process-wide count of RFC connections erpl has opened and closed.
+    //
+    // Exists so a test can assert that a scan releases what it acquired -- every open
+    // connection is a session and a work-process reservation on the SAP system, and
+    // wall-clock timing does not reveal one that is never released. Deliberately a
+    // plain counter rather than a registry: it must be cheap enough to leave on in
+    // release builds, and it is read by `PRAGMA sap_rfc_connection_stats`.
+    struct RfcConnectionStats {
+        static void NoteOpened();
+        static void NoteClosed();
+        static uint64_t Opened();
+        static uint64_t Closed();
+        // Opened - Closed. Non-zero after a query has finished means erpl is still
+        // holding SAP sessions.
+        static int64_t Live();
+        static void Reset();
+    };
 	typedef struct RfcConnectionAttributes
 	{
 		std::string destination;

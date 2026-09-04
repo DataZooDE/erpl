@@ -218,9 +218,32 @@ namespace duckdb
         return ret;
     }
 
+    void RfcReadTableBindData::PinAuthParams()
+    {
+        if (secret_name.empty()) {
+            return;
+        }
+        // Resolve once per execution. Re-resolving on every open let a scan follow a
+        // secret that was replaced mid-query -- half its windows read one system and
+        // half another, with no error and no way to tell from the result.
+        auto resolved = std::make_shared<RfcAuthParams>(
+            RfcAuthParams::FromContext(client_context, secret_name));
+        std::lock_guard<std::mutex> guard(pinned_auth_lock);
+        pinned_auth = std::move(resolved);
+    }
+
     std::shared_ptr<RfcConnection> RfcReadTableBindData::OpenNewConnection()
     {
         if (!secret_name.empty()) {
+            std::shared_ptr<RfcAuthParams> auth;
+            {
+                std::lock_guard<std::mutex> guard(pinned_auth_lock);
+                auth = pinned_auth;
+            }
+            if (auth) {
+                return auth->Connect();
+            }
+            // No pin (a helper that never went through init-global): resolve now.
             return RfcAuthParams::FromContext(client_context, secret_name).Connect();
         }
         return connection_factory(client_context);
@@ -264,9 +287,28 @@ namespace duckdb
         }
         auto previous = persistent_slots_used.fetch_add(1, std::memory_order_relaxed);
         if (previous >= cap) {
+            // Give the slot straight back. Leaving it counted made the budget
+            // monotonic: once `cap` attempts had been made the counter never fell
+            // below the cap again, so every later machine -- and every later
+            // execution, since this lives on bind data -- was denied.
+            persistent_slots_used.fetch_sub(1, std::memory_order_relaxed);
             return false;
         }
         return true;
+    }
+
+    void RfcReadTableBindData::ReleasePersistentSlot()
+    {
+        auto previous = persistent_slots_used.load(std::memory_order_relaxed);
+        while (previous > 0 &&
+               !persistent_slots_used.compare_exchange_weak(previous, previous - 1,
+                                                            std::memory_order_relaxed)) {
+        }
+    }
+
+    void RfcReadTableBindData::ResetPersistentSlots()
+    {
+        persistent_slots_used.store(0, std::memory_order_relaxed);
     }
 
     void RfcReadTableBindData::ValidateReadTableFunctionName()
@@ -1246,9 +1288,9 @@ namespace duckdb
             active, budget);
     }
 
-    bool RfcReadTableBindData::HasMoreResults() 
+    bool RfcReadTableBindData::HasMoreResults(std::vector<RfcReadColumnStateMachine> &machines)
     {
-        for (auto &sm : column_state_machines) {
+        for (auto &sm : machines) {
             if (sm.Active() && !sm.Finished()) {
                 return true;
             }
@@ -1314,15 +1356,16 @@ namespace duckdb
         output.SetCardinality(cardinality);
     }
 
-    void RfcReadTableBindData::Step(ClientContext &context, DataChunk &output)
+    void RfcReadTableBindData::Step(ClientContext &context, DataChunk &output,
+                                   std::vector<RfcReadColumnStateMachine> &machines)
     {
         auto &scheduler = TaskScheduler::GetScheduler(context);
 
         // Snapshot the active state machines so we can throttle scheduling
-        // without iterating column_state_machines twice.
+        // without iterating the machine set twice.
         std::vector<RfcReadColumnStateMachine *> active;
-        active.reserve(column_state_machines.size());
-        for (auto &sm : column_state_machines) {
+        active.reserve(machines.size());
+        for (auto &sm : machines) {
             if (sm.Active()) {
                 active.push_back(&sm);
             }
@@ -1364,11 +1407,11 @@ namespace duckdb
             executor.WorkOnTasks();
         }
 
-        if (! AreActiveStateMachineCaridnalitiesEqual()) {
+        if (! AreActiveStateMachineCaridnalitiesEqual(machines)) {
             throw std::runtime_error("Cardinality of column state machines is not the same. This should not happen.");
         }
 
-        auto cardinality = FirstActiveStateMachineCardinality();
+        auto cardinality = FirstActiveStateMachineCardinality(machines);
         output.SetCardinality(cardinality);
     }
 
@@ -1379,9 +1422,10 @@ namespace duckdb
     }
 
 
-    unsigned int RfcReadTableBindData::FirstActiveStateMachineCardinality() 
+    unsigned int RfcReadTableBindData::FirstActiveStateMachineCardinality(
+        std::vector<RfcReadColumnStateMachine> &machines)
     {
-        for (auto &sm : column_state_machines) {
+        for (auto &sm : machines) {
             if (sm.Active()) {
                 return sm.GetCardinality();
             }
@@ -1390,19 +1434,20 @@ namespace duckdb
     }
 
     
-    bool RfcReadTableBindData::AreActiveStateMachineCaridnalitiesEqual() 
+    bool RfcReadTableBindData::AreActiveStateMachineCaridnalitiesEqual(
+        std::vector<RfcReadColumnStateMachine> &machines)
     {
-        if (column_state_machines.empty()) {
+        if (machines.empty()) {
             return false;
         }
 
-        auto ref_state_machine = std::find_if(column_state_machines.begin(), column_state_machines.end(), 
+        auto ref_state_machine = std::find_if(machines.begin(), machines.end(),
                                                        [](auto &sm) { return sm.Active(); });
-        if (ref_state_machine == column_state_machines.end()) {
+        if (ref_state_machine == machines.end()) {
             throw std::runtime_error("No active state machine found. This should not happen.");
         }
 
-        for (auto &sm : column_state_machines) {
+        for (auto &sm : machines) {
             if (! sm.Active()) {
                 continue;
             }
@@ -1665,6 +1710,14 @@ namespace duckdb
         // Caller already holds thread_lock.
         cached_function.reset();
         cached_function_name.clear();
+        // The slot is a lease on a live cached connection. Dropping the connection
+        // returns it, so a partitioned worker that finishes a window does not keep the
+        // budget reserved for a connection it no longer holds, and the next window (or
+        // another machine) can win it.
+        if (persistent_decision == PersistentDecision::APPROVED && bind_data != nullptr) {
+            bind_data->ReleasePersistentSlot();
+            persistent_decision = PersistentDecision::UNDECIDED;
+        }
         if (cached_connection) {
             try {
                 cached_connection->Close();

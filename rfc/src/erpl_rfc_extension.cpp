@@ -190,6 +190,27 @@ namespace duckdb {
         ConstantVector::GetData<string_t>(result)[0] = StringVector::AddString(result, name);
     }
 
+    // Number of RFC connections erpl currently holds open: opened minus closed.
+    //
+    // Exists so a test can assert that a scan RELEASES what it acquired. Every open
+    // connection is a session and a work-process reservation on the SAP system, and
+    // client-side timing shows nothing when one is never released -- the cost is
+    // entirely on the source system.
+    static void RfcLiveConnectionsFunction(DataChunk &, ExpressionState &, Vector &result) {
+        result.SetVectorType(VectorType::CONSTANT_VECTOR);
+        ConstantVector::GetData<int64_t>(result)[0] = RfcConnectionStats::Live();
+    }
+
+    static void RfcConnectionsOpenedFunction(DataChunk &, ExpressionState &, Vector &result) {
+        result.SetVectorType(VectorType::CONSTANT_VECTOR);
+        ConstantVector::GetData<int64_t>(result)[0] = (int64_t)RfcConnectionStats::Opened();
+    }
+
+    static void RfcConnectionsClosedFunction(DataChunk &, ExpressionState &, Vector &result) {
+        result.SetVectorType(VectorType::CONSTANT_VECTOR);
+        ConstantVector::GetData<int64_t>(result)[0] = (int64_t)RfcConnectionStats::Closed();
+    }
+
     static void RegisterConfiguration(ExtensionLoader &loader)
     {
         auto &instance = loader.GetDatabaseInstance();
@@ -364,6 +385,34 @@ namespace duckdb {
             desc.categories  = {"sap"};
             info.descriptions.push_back(std::move(desc));
             loader.RegisterFunction(std::move(info));
+        }
+
+        {
+            // Registered together: same shape, same volatility, same reason to exist.
+            using StatFnPtr = void (*)(DataChunk &, ExpressionState &, Vector &);
+            struct StatFn { const char *name; StatFnPtr fn; const char *doc; };
+            const StatFn stat_fns[] = {
+                {"sap_rfc_live_connections", RfcLiveConnectionsFunction,
+                 "Number of SAP RFC connections erpl currently holds open (opened minus closed). "
+                 "Should be 0 between queries; a non-zero value means SAP sessions are still reserved."},
+                {"sap_rfc_connections_opened", RfcConnectionsOpenedFunction,
+                 "Total SAP RFC connections erpl has opened in this process."},
+                {"sap_rfc_connections_closed", RfcConnectionsClosedFunction,
+                 "Total SAP RFC connections erpl has closed in this process."},
+            };
+            for (auto &sf : stat_fns) {
+                ScalarFunction f(sf.name, {}, LogicalType::BIGINT, sf.fn);
+                // Process-wide state, not a function of the arguments: must never be
+                // constant-folded at bind time or reused across statements.
+                f.stability = FunctionStability::VOLATILE;
+                CreateScalarFunctionInfo info(f);
+                FunctionDescription desc;
+                desc.description = sf.doc;
+                desc.examples    = {std::string("SELECT ") + sf.name + "()"};
+                desc.categories  = {"sap"};
+                info.descriptions.push_back(std::move(desc));
+                loader.RegisterFunction(std::move(info));
+            }
         }
 
         {

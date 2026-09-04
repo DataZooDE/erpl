@@ -1,0 +1,133 @@
+# name: test/sql/sap_read_table_rescan.test
+# description: A plan may scan one table function more than once. Every execution must
+#              return the full result.
+#
+#              sap_read_table kept its column state machines in BIND data, which DuckDB
+#              shares across executions of the same bound plan. The second scan therefore
+#              resumed from an exhausted cursor and returned nothing:
+#
+#                  PREPARE q AS SELECT count(*) FROM sap_read_table('SFLIGHT');
+#                  EXECUTE q;  -- 94
+#                  EXECUTE q;  --  0   <-- silent, no error
+#
+#              Wrong results with no error, on ordinary usage: a prepared statement, a
+#              nested-loop join, or an un-materialised CTE referenced twice.
+#
+#              The PARTITIONS cases are the non-regression guard: that path already
+#              builds its machines into per-worker local state and was always correct,
+#              and it is the pattern the fix follows.
+# group: [rfc]
+
+require erpl_rfc
+
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
+
+statement ok
+CREATE SECRET abap_trial (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}'
+);
+
+# -------------------------------------------------------------------------
+# 1. A prepared statement executed repeatedly.
+# -------------------------------------------------------------------------
+statement ok
+PREPARE q_count AS SELECT count(*) FROM sap_read_table('SFLIGHT');
+
+query I
+EXECUTE q_count;
+----
+94
+
+query I
+EXECUTE q_count;
+----
+94
+
+query I
+EXECUTE q_count;
+----
+94
+
+# -------------------------------------------------------------------------
+# 2. Row VALUES must be stable across executions, not merely the count.
+#    A count-only assertion passes while the rows differ, so this hashes the
+#    content. sum(hash(..)) is order-insensitive, which matters because
+#    RFC_READ_TABLE gives no ordering guarantee.
+# -------------------------------------------------------------------------
+statement ok
+PREPARE q_ck AS SELECT sum(hash(CARRID || CONNID)::HUGEINT) AS ck FROM sap_read_table('SFLIGHT');
+
+query I
+EXECUTE q_ck;
+----
+635163459561984897428
+
+query I
+EXECUTE q_ck;
+----
+635163459561984897428
+
+# -------------------------------------------------------------------------
+# 3. One statement that scans the same function twice.
+# -------------------------------------------------------------------------
+query I
+SELECT (SELECT count(*) FROM sap_read_table('SFLIGHT'))
+     + (SELECT count(*) FROM sap_read_table('SFLIGHT'));
+----
+188
+
+# -------------------------------------------------------------------------
+# 4. A LIMIT that stops the scan early must not poison the next execution.
+#    This is the sharper case: the first execution leaves the machines mid-table
+#    rather than exhausted.
+# -------------------------------------------------------------------------
+statement ok
+PREPARE q_limited AS SELECT count(*) FROM (SELECT CARRID FROM sap_read_table('SFLIGHT') LIMIT 2);
+
+query I
+EXECUTE q_limited;
+----
+2
+
+query I
+EXECUTE q_limited;
+----
+2
+
+query I
+EXECUTE q_limited;
+----
+2
+
+# -------------------------------------------------------------------------
+# 5. Non-regression: the partitioned path builds per-worker local state and
+#    was already correct. It must stay correct.
+# -------------------------------------------------------------------------
+statement ok
+PREPARE q_part AS SELECT count(*) FROM sap_read_table('SFLIGHT', PARTITIONS=4);
+
+query I
+EXECUTE q_part;
+----
+94
+
+query I
+EXECUTE q_part;
+----
+94

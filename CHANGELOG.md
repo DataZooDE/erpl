@@ -22,6 +22,51 @@ LOAD erpl;
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **[rfc]** **A re-scanned `sap_read_table` silently returned nothing.** The column state
+  machines lived in *bind* data, which DuckDB reuses across executions of one bound plan,
+  so the second scan resumed from an exhausted cursor:
+
+  ```sql
+  PREPARE q AS SELECT count(*) FROM sap_read_table('SFLIGHT');
+  EXECUTE q;   -- 94
+  EXECUTE q;   --  0   <- no error
+  ```
+
+  Any re-scanned plan hit it: a prepared statement, a nested-loop join, an
+  un-materialised CTE referenced twice. Serial scans now build their machines in the
+  *global* state, which DuckDB rebuilds per execution — the pattern the partitioned path
+  already used, which is why `PARTITIONS` was never affected.
+
+  The same defect was present in `sap_show_tables`, `sap_odp_show_subscriptions` and the
+  internal table lister behind `ATTACH`; all three are fixed.
+
+- **[rfc]** **The persistent-connection budget was spent permanently.**
+  `erpl_rfc_max_persistent_connections` was a monotonic counter on bind data that never
+  released a slot, so a second execution of a bound plan began with the budget already
+  exhausted and every scan fell back to per-batch open/close. Slots are now leased:
+  released when the connection is dropped, reset per execution.
+
+- **[rfc]** **A long scan could follow a secret replaced underneath it.** The DuckDB
+  secret was re-resolved on *every* connection open, so replacing it mid-query could send
+  later windows of the same scan to a different SAP system, with no error. Credentials are
+  now resolved once per execution.
+
+- **[rfc]** **Setting a trace option while tracing was enabled deadlocked the process.**
+  `erpl_trace_level`, `erpl_trace_output` and the other setters logged their own change
+  while holding the tracer mutex, which the writer re-locks. The sequence documented for
+  diagnosing SAP communication was itself the trigger; it presents as a hung query.
+
+### Added
+
+- **[rfc]** `sap_rfc_live_connections()`, `sap_rfc_connections_opened()` and
+  `sap_rfc_connections_closed()` report how many SAP RFC connections erpl has opened,
+  closed and still holds. Between queries the live count should be 0 — a non-zero value
+  means SAP sessions are still reserved, which client-side timing cannot reveal.
+
 ## v2026.09.02 — a narrow extract can finally use more than one connection
 
 `sap_read_table` parallelised across *columns*, so reading a few columns out of a very
