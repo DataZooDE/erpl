@@ -44,6 +44,23 @@ LOAD erpl;
   a different code path that did not, so every worker thread's glibc arena kept its
   high-water mark — which is what `getrusage` reports.
 
+- **[rfc]** **A partitioned scan past the `ROWSKIPS` ceiling returned a truncated result
+  instead of refusing.** The row-window scheduler signalled the ABAP `INT4` limit by
+  returning "no more windows", which is the same answer it gives at the end of a table —
+  and a worker retires on an empty chunk, which DuckDB reads as end-of-scan. A scan beyond
+  2,147,483,647 rows therefore produced a silently short answer, while `API_REFERENCE`
+  states that erpl refuses rather than wrapping. It now raises, naming the limit.
+
+  The same guard was off by one and refused the **last legal window** (start
+  2,147,450,880 at a 32768-row window). Both are covered by new boundary tests.
+
+- **[rfc]** **The `RFC_READ_TABLE` fallback could retry without limit.** After the runtime
+  fallback had switched functions, the selection call returns a cached success, and the
+  retry branch neither counted the attempt nor slept — so a second `TABLE_WITHOUT_DATA`
+  from the fallback function became a tight loop against the SAP system, once per
+  partition worker. It now retries only when the selected function actually changed, and
+  otherwise reports the original error.
+
 ## v2026.09.02 — a narrow extract can finally use more than one connection
 
 `sap_read_table` parallelised across *columns*, so reading a few columns out of a very

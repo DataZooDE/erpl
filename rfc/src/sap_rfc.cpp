@@ -1145,10 +1145,10 @@ namespace duckdb
         window_size = batches * batch_size;
     }
 
-    bool RfcRowWindowScheduler::Claim(idx_t &offset, idx_t &count)
+    RfcRowWindowScheduler::ClaimResult RfcRowWindowScheduler::Claim(idx_t &offset, idx_t &count)
     {
         if (exhausted.load(std::memory_order_acquire)) {
-            return false;
+            return ClaimResult::EXHAUSTED;
         }
 
         auto claimed = next_offset.fetch_add(window_size, std::memory_order_relaxed);
@@ -1157,14 +1157,26 @@ namespace duckdb
         // INT32_MAX.  Stopping here also keeps next_offset from ever wrapping, which
         // would start handing out offsets that have already been read -- duplicated
         // rows rather than an error.
-        if (claimed > (idx_t)std::numeric_limits<int32_t>::max() - window_size) {
+        //
+        // This is reported apart from EXHAUSTED and never as an empty chunk: DuckDB
+        // reads an empty chunk as end-of-scan, so collapsing the two would answer a
+        // 2.1-billion-row scan with a silently truncated prefix -- trading the
+        // duplicate-rows failure this guard prevents for a missing-rows one, which is
+        // no better and is what API_REFERENCE promises we do not do.
+        //
+        // The bound is `claimed > INT32_MAX`, not `> INT32_MAX - window_size`:
+        // next_offset is 64-bit so subtracting the window buys no wrap protection, and
+        // every individual ROWSKIPS inside the last window is already range-checked
+        // loudly in CreateFunctionArguments.  The old bound refused the last legal
+        // window start (2,147,450,880 at a 32768 window).
+        if (claimed > (idx_t)std::numeric_limits<int32_t>::max()) {
             exhausted.store(true, std::memory_order_release);
-            return false;
+            return ClaimResult::ADDRESS_LIMIT;
         }
 
         if (max_rows > 0) {
             if (claimed >= max_rows) {
-                return false;
+                return ClaimResult::EXHAUSTED;
             }
             // The last window under MAX_ROWS is short.  Only the LOGICAL count
             // shrinks; the caller still requests whole batches from SAP and clips,
@@ -1176,7 +1188,7 @@ namespace duckdb
         }
 
         offset = claimed;
-        return true;
+        return ClaimResult::CLAIMED;
     }
 
     void RfcRowWindowScheduler::ReportExhausted()
@@ -1911,11 +1923,19 @@ namespace duckdb
                 std::string err_msg(e.what());
                 if (!IsRetryableRfcError(err_msg)) {
                     if (rfc_type.IsStringType() && err_msg.find("TABLE_WITHOUT_DATA") != std::string::npos) {
+                        // Retry only if this attempt actually CHANGED the function we
+                        // call. TrySelectFallbackReadTableFunction returns a cached
+                        // success once the switch has happened, and this branch does not
+                        // increment `attempt` and does not sleep -- so retrying on a
+                        // cached success is an unbounded tight loop hammering SAP, once
+                        // per partition worker. Switching is a one-way move, so a second
+                        // TABLE_WITHOUT_DATA from the fallback is a real failure.
+                        auto before = bind_data->GetReadTableFunctionName();
                         auto fallback_connection = bind_data->OpenNewConnection();
-                        auto fallback_selected = bind_data->TrySelectFallbackReadTableFunction(fallback_connection);
+                        bind_data->TrySelectFallbackReadTableFunction(fallback_connection);
                         fallback_connection->Close();
-                        if (fallback_selected) {
-                            // retry immediately with the fallback function
+                        if (bind_data->GetReadTableFunctionName() != before) {
+                            // retry immediately with the newly selected function
                             continue;
                         }
                     }
