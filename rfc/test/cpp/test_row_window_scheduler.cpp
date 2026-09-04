@@ -30,15 +30,15 @@ TEST_CASE("windows are handed out in order and do not overlap", "[erpl_rfc][part
 	RfcRowWindowScheduler sched(/*window_size=*/4096, /*batch_size=*/2048, /*max_rows=*/0);
 
 	idx_t off = 0, count = 0;
-	REQUIRE(sched.Claim(off, count));
+	REQUIRE(sched.Claim(off, count) == RfcRowWindowScheduler::ClaimResult::CLAIMED);
 	REQUIRE(off == 0);
 	REQUIRE(count == 4096);
 
-	REQUIRE(sched.Claim(off, count));
+	REQUIRE(sched.Claim(off, count) == RfcRowWindowScheduler::ClaimResult::CLAIMED);
 	REQUIRE(off == 4096);
 	REQUIRE(count == 4096);
 
-	REQUIRE(sched.Claim(off, count));
+	REQUIRE(sched.Claim(off, count) == RfcRowWindowScheduler::ClaimResult::CLAIMED);
 	REQUIRE(off == 8192);
 }
 
@@ -48,7 +48,7 @@ TEST_CASE("every offset is a multiple of the batch size", "[erpl_rfc][partition]
 	RfcRowWindowScheduler sched(/*window_size=*/6144, /*batch_size=*/2048, /*max_rows=*/0);
 	idx_t off = 0, count = 0;
 	for (int i = 0; i < 10; i++) {
-		REQUIRE(sched.Claim(off, count));
+		REQUIRE(sched.Claim(off, count) == RfcRowWindowScheduler::ClaimResult::CLAIMED);
 		REQUIRE(off % 2048 == 0);
 	}
 }
@@ -56,13 +56,13 @@ TEST_CASE("every offset is a multiple of the batch size", "[erpl_rfc][partition]
 TEST_CASE("a short read stops further claims", "[erpl_rfc][partition]") {
 	RfcRowWindowScheduler sched(/*window_size=*/4096, /*batch_size=*/2048, /*max_rows=*/0);
 	idx_t off = 0, count = 0;
-	REQUIRE(sched.Claim(off, count));
-	REQUIRE(sched.Claim(off, count));
+	REQUIRE(sched.Claim(off, count) == RfcRowWindowScheduler::ClaimResult::CLAIMED);
+	REQUIRE(sched.Claim(off, count) == RfcRowWindowScheduler::ClaimResult::CLAIMED);
 
 	// The second worker found the table ends inside its window.
 	sched.ReportExhausted();
 
-	REQUIRE_FALSE(sched.Claim(off, count));
+	REQUIRE(sched.Claim(off, count) != RfcRowWindowScheduler::ClaimResult::CLAIMED);
 }
 
 TEST_CASE("exhaustion does not invalidate a window already claimed", "[erpl_rfc][partition]") {
@@ -73,15 +73,15 @@ TEST_CASE("exhaustion does not invalidate a window already claimed", "[erpl_rfc]
 	RfcRowWindowScheduler sched(/*window_size=*/4096, /*batch_size=*/2048, /*max_rows=*/0);
 	idx_t a_off = 0, a_count = 0;
 	idx_t b_off = 0, b_count = 0;
-	REQUIRE(sched.Claim(a_off, a_count));
-	REQUIRE(sched.Claim(b_off, b_count));
+	REQUIRE(sched.Claim(a_off, a_count) == RfcRowWindowScheduler::ClaimResult::CLAIMED);
+	REQUIRE(sched.Claim(b_off, b_count) == RfcRowWindowScheduler::ClaimResult::CLAIMED);
 
 	sched.ReportExhausted();
 
 	// Both claims stay valid and stay disjoint; only NEW claims are refused.
 	REQUIRE(a_off + a_count == b_off);
 	idx_t off = 0, count = 0;
-	REQUIRE_FALSE(sched.Claim(off, count));
+	REQUIRE(sched.Claim(off, count) != RfcRowWindowScheduler::ClaimResult::CLAIMED);
 }
 
 // ---------------------------------------------------------------------------
@@ -93,31 +93,31 @@ TEST_CASE("MAX_ROWS is a scan-wide limit, not a per-worker one", "[erpl_rfc][par
 	RfcRowWindowScheduler sched(/*window_size=*/4096, /*batch_size=*/2048, /*max_rows=*/5000);
 
 	idx_t off = 0, count = 0;
-	REQUIRE(sched.Claim(off, count));
+	REQUIRE(sched.Claim(off, count) == RfcRowWindowScheduler::ClaimResult::CLAIMED);
 	REQUIRE(off == 0);
 	REQUIRE(count == 4096);
 
 	// Only 904 rows remain under the limit.
-	REQUIRE(sched.Claim(off, count));
+	REQUIRE(sched.Claim(off, count) == RfcRowWindowScheduler::ClaimResult::CLAIMED);
 	REQUIRE(off == 4096);
 	REQUIRE(count == 904);
 
-	REQUIRE_FALSE(sched.Claim(off, count));
+	REQUIRE(sched.Claim(off, count) != RfcRowWindowScheduler::ClaimResult::CLAIMED);
 }
 
 TEST_CASE("a MAX_ROWS below one window still yields exactly that many", "[erpl_rfc][partition]") {
 	RfcRowWindowScheduler sched(/*window_size=*/4096, /*batch_size=*/2048, /*max_rows=*/10);
 	idx_t off = 0, count = 0;
-	REQUIRE(sched.Claim(off, count));
+	REQUIRE(sched.Claim(off, count) == RfcRowWindowScheduler::ClaimResult::CLAIMED);
 	REQUIRE(off == 0);
 	REQUIRE(count == 10);
-	REQUIRE_FALSE(sched.Claim(off, count));
+	REQUIRE(sched.Claim(off, count) != RfcRowWindowScheduler::ClaimResult::CLAIMED);
 }
 
 TEST_CASE("the total handed out never exceeds MAX_ROWS", "[erpl_rfc][partition]") {
 	RfcRowWindowScheduler sched(/*window_size=*/1024, /*batch_size=*/512, /*max_rows=*/3000);
 	idx_t off = 0, count = 0, total = 0;
-	while (sched.Claim(off, count)) {
+	while (sched.Claim(off, count) == RfcRowWindowScheduler::ClaimResult::CLAIMED) {
 		total += count;
 	}
 	REQUIRE(total == 3000);
@@ -138,7 +138,7 @@ TEST_CASE("concurrent claims never overlap and never skip a row", "[erpl_rfc][pa
 	for (int t = 0; t < 8; t++) {
 		threads.emplace_back([&]() {
 			idx_t off = 0, count = 0;
-			while (sched.Claim(off, count)) {
+			while (sched.Claim(off, count) == RfcRowWindowScheduler::ClaimResult::CLAIMED) {
 				std::lock_guard<std::mutex> g(m);
 				claims.emplace_back(off, count);
 			}
@@ -177,16 +177,27 @@ TEST_CASE("an absurd window size cannot wrap to zero", "[erpl_rfc][partition]") 
 	REQUIRE(sched.WindowSize() > 0);
 	REQUIRE(sched.WindowSize() % 2048 == 0);
 
-	// A window this size covers everything ROWSKIPS can address, so exactly one
-	// claim is possible and the next is refused rather than advancing past the
-	// ABAP INT4 ceiling. What must never happen is a second claim at the SAME
-	// offset, which is what wrapping would produce.
-	idx_t a_off = 1, a_count = 0, b_off = 1, b_count = 0;
-	REQUIRE(sched.Claim(a_off, a_count));
+	// The constructor clamps the window to INT32_MAX before rounding down to whole
+	// batches, so the window is 2,147,481,600 rows. Two starts are therefore legal --
+	// 0 and 2,147,481,600, the latter still below the ROWSKIPS ceiling -- and only the
+	// third exceeds it. (The previous bound, `claimed > INT32_MAX - window_size`,
+	// refused the second and made the last legal window unreachable.) Any ROWSKIPS
+	// inside that final window that does cross the ceiling is refused loudly by
+	// CreateFunctionArguments, not here.
+	//
+	// What must never happen is a second claim at the SAME offset, which is what a
+	// wrapped window_size would produce.
+	idx_t a_off = 1, a_count = 0, b_off = 1, c_off = 1, b_count = 0, c_count = 0;
+	REQUIRE(sched.Claim(a_off, a_count) == RfcRowWindowScheduler::ClaimResult::CLAIMED);
 	REQUIRE(a_off == 0);
 	REQUIRE(a_count > 0);
 
-	REQUIRE_FALSE(sched.Claim(b_off, b_count));
+	REQUIRE(sched.Claim(b_off, b_count) == RfcRowWindowScheduler::ClaimResult::CLAIMED);
+	REQUIRE(b_off != a_off);
+	REQUIRE(b_off <= (idx_t)std::numeric_limits<int32_t>::max());
+
+	// Past the ceiling: refused loudly, and distinguishable from a normal end-of-scan.
+	REQUIRE(sched.Claim(c_off, c_count) == RfcRowWindowScheduler::ClaimResult::ADDRESS_LIMIT);
 }
 
 TEST_CASE("claims never repeat an offset even at extreme window sizes",
@@ -199,7 +210,7 @@ TEST_CASE("claims never repeat an offset even at extreme window sizes",
 
 		std::set<idx_t> seen;
 		idx_t off = 0, count = 0;
-		for (int i = 0; i < 5 && sched.Claim(off, count); i++) {
+		for (int i = 0; i < 5 && sched.Claim(off, count) == RfcRowWindowScheduler::ClaimResult::CLAIMED; i++) {
 			REQUIRE(seen.insert(off).second);   // never the same offset twice
 			REQUIRE(count > 0);
 		}
@@ -219,7 +230,62 @@ TEST_CASE("an absurd batch size cannot break alignment either", "[erpl_rfc][part
 	REQUIRE(sched.WindowSize() % sched.BatchSize() == 0);
 
 	idx_t a = 0, c = 0;
-	REQUIRE(sched.Claim(a, c));
+	REQUIRE(sched.Claim(a, c) == RfcRowWindowScheduler::ClaimResult::CLAIMED);
 	REQUIRE(a == 0);
 	REQUIRE(c > 0);
+}
+
+TEST_CASE("The ROWSKIPS ceiling is refused loudly, not reported as end-of-scan",
+          "[erpl_rfc][partition]") {
+	using Sched = RfcRowWindowScheduler;
+	constexpr idx_t INT32_MAX_ROWS = 2147483647;
+	constexpr idx_t BATCH = 32768;
+
+	// A worker retires on an empty chunk and DuckDB reads that as end-of-scan, so
+	// EXHAUSTED and ADDRESS_LIMIT must stay distinguishable: collapsing them turns a
+	// 2.1-billion-row scan into a silently truncated prefix.
+	Sched sched(BATCH, BATCH, 0);
+
+	// The last legal window start is the greatest batch-aligned offset <= INT32_MAX.
+	// The previous guard (claimed > INT32_MAX - window_size) refused it.
+	const idx_t last_legal = (INT32_MAX_ROWS / BATCH) * BATCH;
+
+	idx_t offset = 0, count = 0;
+	idx_t seen_last_legal = 0;
+	for (idx_t i = 0;; i++) {
+		auto r = sched.Claim(offset, count);
+		if (r == Sched::ClaimResult::CLAIMED) {
+			if (offset == last_legal) {
+				seen_last_legal++;
+			}
+			REQUIRE(offset <= INT32_MAX_ROWS);
+			continue;
+		}
+		// Unbounded scan: the only way out is the address limit, never EXHAUSTED.
+		REQUIRE(r == Sched::ClaimResult::ADDRESS_LIMIT);
+		break;
+	}
+	REQUIRE(seen_last_legal == 1);
+
+	// Once the limit is hit the scheduler stays stopped, and a later caller must not be
+	// told "exhausted" -- it would draw the same wrong conclusion.
+	auto again = sched.Claim(offset, count);
+	REQUIRE(again == Sched::ClaimResult::EXHAUSTED);
+}
+
+TEST_CASE("A bounded scan reports EXHAUSTED, never the address limit",
+          "[erpl_rfc][partition]") {
+	using Sched = RfcRowWindowScheduler;
+	Sched sched(2048, 2048, 10000);
+
+	idx_t offset = 0, count = 0, total = 0;
+	while (true) {
+		auto r = sched.Claim(offset, count);
+		if (r != Sched::ClaimResult::CLAIMED) {
+			REQUIRE(r == Sched::ClaimResult::EXHAUSTED);
+			break;
+		}
+		total += count;
+	}
+	REQUIRE(total == 10000);
 }

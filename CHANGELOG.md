@@ -26,6 +26,41 @@ LOAD erpl;
 
 ### Fixed
 
+- **[rfc]** **`fetch_size` and `partitions` did nothing to the batch size of a
+  single-column scan.** `MaxBatchSizeForColumnCount` returned the full 32768-row cap
+  whenever a scan projected one column, discarding the budget that
+  `ResolveEffectiveMaxBatchSize` had just divided across the partition workers — so every
+  worker asked SAP for `ROWCOUNT=32768` however `erpl_rfc_fetch_size` and `partitions`
+  were set. The exemption was deliberate, on the reasoning that a narrow scan is already
+  under any sane budget; that reasoning ignored the division, and a narrow scan is
+  precisely what partitioning exists for.
+
+  Measured on a 300,000-row single-column read at `partitions = 8`: peak RSS **405 MB →
+  307 MB (−24%)** with no loss of throughput (2.17s → 2.07s). The budget now binds for
+  every column count; only a zero budget or a scan with no projected column bypasses it.
+
+- **[rfc]** A partitioned scan never returned its allocator arenas to the OS. The serial
+  path calls `malloc_trim(0)` when the scan finishes, but each partition worker retires on
+  a different code path that did not, so every worker thread's glibc arena kept its
+  high-water mark — which is what `getrusage` reports.
+
+- **[rfc]** **A partitioned scan past the `ROWSKIPS` ceiling returned a truncated result
+  instead of refusing.** The row-window scheduler signalled the ABAP `INT4` limit by
+  returning "no more windows", which is the same answer it gives at the end of a table —
+  and a worker retires on an empty chunk, which DuckDB reads as end-of-scan. A scan beyond
+  2,147,483,647 rows therefore produced a silently short answer, while `API_REFERENCE`
+  states that erpl refuses rather than wrapping. It now raises, naming the limit.
+
+  The same guard was off by one and refused the **last legal window** (start
+  2,147,450,880 at a 32768-row window). Both are covered by new boundary tests.
+
+- **[rfc]** **The `RFC_READ_TABLE` fallback could retry without limit.** After the runtime
+  fallback had switched functions, the selection call returns a cached success, and the
+  retry branch neither counted the attempt nor slept — so a second `TABLE_WITHOUT_DATA`
+  from the fallback function became a tight loop against the SAP system, once per
+  partition worker. It now retries only when the selected function actually changed, and
+  otherwise reports the original error.
+
 - **[rfc]** **A re-scanned `sap_read_table` silently returned nothing.** The column state
   machines lived in *bind* data, which DuckDB reuses across executions of one bound plan,
   so the second scan resumed from an exhausted cursor:

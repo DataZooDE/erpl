@@ -1,3 +1,4 @@
+#include <limits>
 #include <regex>
 #ifdef __GLIBC__
 #include <malloc.h>
@@ -168,8 +169,26 @@ namespace duckdb
         while (true) {
             if (! lstate.holds_window) {
                 idx_t offset = 0, rows = 0;
-                if (! gstate.scheduler->Claim(offset, rows)) {
+                auto claim = gstate.scheduler->Claim(offset, rows);
+                if (claim == RfcRowWindowScheduler::ClaimResult::ADDRESS_LIMIT) {
+                    // Refuse loudly. Retiring the worker here would return a truncated
+                    // prefix and call it success, because DuckDB reads the empty chunk
+                    // that retires a worker as end-of-scan.
+                    throw InvalidInputException(
+                        "sap_read_table: a partitioned scan reached the ROWSKIPS limit of %d rows "
+                        "(ABAP INT4). Restrict the scan with a WHERE clause on an indexed column, "
+                        "or read it in ranges; erpl will not silently return a partial result.",
+                        std::numeric_limits<int32_t>::max());
+                }
+                if (claim != RfcRowWindowScheduler::ClaimResult::CLAIMED) {
                     // Nothing left to claim; an empty chunk retires this worker.
+#ifdef __GLIBC__
+                    // Mirror the serial path: this worker is done, its per-column SDK
+                    // handles are released, and each worker thread has its own glibc
+                    // arena. Without this the arenas keep their high-water mark and
+                    // getrusage still reports the peak long after the rows are gone.
+                    malloc_trim(0);
+#endif
                     return;
                 }
                 for (auto &sm : lstate.machines) {
