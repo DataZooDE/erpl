@@ -1018,6 +1018,24 @@ SELECT * FROM sap_odp_get_subscriptions('ABAP_CDS', 'MY_CDS_VIEW$E');
 
 ---
 
+#### `sap_rfc_live_connections()` / `sap_rfc_connections_opened()` / `sap_rfc_connections_closed()`
+
+Scalar functions returning how many SAP RFC connections erpl has opened and closed in
+this process, and how many it currently holds open (`opened - closed`).
+
+Every open connection is a session and a work-process reservation on the SAP system, so
+`sap_rfc_live_connections()` is the number that matters to a Basis team. **Between
+queries it should be 0.** A non-zero value means erpl is still holding SAP sessions.
+
+```sql
+SELECT sap_rfc_live_connections();   -- 0 between queries
+```
+
+These are process-wide counters, not per-connection state, and they are `VOLATILE` so
+DuckDB never constant-folds them at bind time. Their intended use is asserting in tests
+and in the field that a scan released what it acquired — client-side timing shows nothing
+when a connection is never released, because the entire cost falls on the SAP system.
+
 #### `PRAGMA sap_odp_close_delta_cursor(odp_context, subscriber_process, odp_name [, secret=...])`
 
 Graceful counterpart to `sap_odp_drop`. Looks up the cursor for the given

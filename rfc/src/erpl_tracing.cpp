@@ -53,43 +53,60 @@ void ErplTracer::SetEnabled(bool enable_flag)
 
 void ErplTracer::SetLevel(TraceLevel trace_level)
 {
-    std::lock_guard<std::mutex> lock(trace_mutex);
-    level = trace_level;
+    // Log AFTER releasing the lock. Info() -> Trace() -> WriteToFile() takes
+    // trace_mutex, which is a plain std::mutex, so logging while holding it
+    // deadlocks the calling thread and every later tracer call with it. That
+    // presents as a hung query, not as a lock error. SetEnabled already scopes
+    // its lock this way; these setters did not.
+    {
+        std::lock_guard<std::mutex> lock(trace_mutex);
+        level = trace_level;
+    }
     Info("TRACER", "Trace level set to: " + LevelToString(trace_level));
 }
 
 void ErplTracer::SetTraceDirectory(const std::string &directory)
 {
-    std::lock_guard<std::mutex> lock(trace_mutex);
-    trace_directory = directory;
-    std::filesystem::path path(directory);
-    if (!std::filesystem::exists(path)) {
-        std::filesystem::create_directories(path);
+    // EnsureTraceFile must stay INSIDE the lock (it touches trace_file); only the
+    // Info() call moves out, for the reason given on SetLevel.
+    {
+        std::lock_guard<std::mutex> lock(trace_mutex);
+        trace_directory = directory;
+        std::filesystem::path path(directory);
+        if (!std::filesystem::exists(path)) {
+            std::filesystem::create_directories(path);
+        }
+        if (enabled) {
+            EnsureTraceFile();
+        }
     }
     Info("TRACER", "Trace directory set to: " + directory);
-    if (enabled) {
-        EnsureTraceFile();
-    }
 }
 
 void ErplTracer::SetOutputMode(const std::string &mode)
 {
-    std::lock_guard<std::mutex> lock(trace_mutex);
-    output_mode = mode;
+    {
+        std::lock_guard<std::mutex> lock(trace_mutex);
+        output_mode = mode;
+    }
     Info("TRACER", "Trace output mode set to: " + mode);
 }
 
 void ErplTracer::SetMaxFileSize(int64_t max_size)
 {
-    std::lock_guard<std::mutex> lock(trace_mutex);
-    max_file_size = max_size;
+    {
+        std::lock_guard<std::mutex> lock(trace_mutex);
+        max_file_size = max_size;
+    }
     Info("TRACER", "Trace max file size set to: " + std::to_string(max_size));
 }
 
 void ErplTracer::SetRotation(bool rotation)
 {
-    std::lock_guard<std::mutex> lock(trace_mutex);
-    rotation_enabled = rotation;
+    {
+        std::lock_guard<std::mutex> lock(trace_mutex);
+        rotation_enabled = rotation;
+    }
     Info("TRACER", "Trace rotation " + std::string(rotation ? "enabled" : "disabled"));
 }
 

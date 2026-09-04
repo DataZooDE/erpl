@@ -99,6 +99,10 @@ namespace duckdb
 
         bind_data.ActivateColumns(column_ids);
         bind_data.AddOptionsFromFilters(input.filters);
+        // Per-execution setup: pin the credentials for this run, and hand back every
+        // persistent-connection slot the previous execution left counted.
+        bind_data.PinAuthParams();
+        bind_data.ResetPersistentSlots();
         // The serial path computes this inside Step(); a partitioned scan needs it
         // before any worker starts, and it must not be written afterwards.
         bind_data.ResolveEffectiveMaxBatchSize();
@@ -108,7 +112,13 @@ namespace duckdb
         // runs the column-parallel path exactly as it always has.
         auto partitions = bind_data.GetPartitionCount();
         if (partitions <= 1) {
-            return make_uniq<RfcReadTableGlobalState>(1, nullptr);
+            // Build this execution's OWN machines. Global state is created per
+            // execution; bind data is not. Reusing the bind-owned set made the second
+            // EXECUTE of a prepared statement resume from an exhausted cursor and
+            // return zero rows with no error.
+            auto gstate = make_uniq<RfcReadTableGlobalState>(1, nullptr);
+            gstate->serial_machines = bind_data.CreateWindowStateMachines();
+            return std::move(gstate);
         }
 
         // Use the same batch size the unpartitioned path warms up to, not
@@ -248,6 +258,14 @@ namespace duckdb
             }
         }
 
+        // Serial path. The machines belong to this execution's global state, so a
+        // re-scan of the same bound plan starts from INIT instead of resuming an
+        // exhausted cursor.
+        if (data.global_state == nullptr) {
+            throw InternalException("sap_read_table: serial scan without global state");
+        }
+        auto &serial_machines = data.global_state->Cast<RfcReadTableGlobalState>().serial_machines;
+
         // Loop, because an empty chunk is how a table function says "scan finished".
         // Residual filtering can legitimately reject every row of a batch, and returning
         // that empty chunk would end the scan and silently discard everything still
@@ -255,7 +273,7 @@ namespace duckdb
         // and returned 25,578 rows instead of 114,566.  Keep pulling until a batch has a
         // surviving row or the table is genuinely exhausted.
         while (true) {
-            if (! bind_data.HasMoreResults()) {
+            if (! bind_data.HasMoreResults(serial_machines)) {
 #ifdef __GLIBC__
                 // Scan finished: per-column SDK handles were released at FINISHED
                 // and the streaming reader holds no whole-batch buffers, so hand
@@ -266,7 +284,7 @@ namespace duckdb
                 return;
             }
 
-            bind_data.Step(context, output);
+            bind_data.Step(context, output, serial_machines);
             if (! bind_data.HasResidualFilters()) {
                 return;
             }

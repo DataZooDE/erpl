@@ -63,7 +63,12 @@ static unique_ptr<GlobalTableFunctionState> RfcShowTablesInitGlobalState(ClientC
 
     bind_data.ActivateColumns(column_ids);
 
-    return make_uniq<GlobalTableFunctionState>();
+    // Own the state machines per EXECUTION, not per bind: DuckDB reuses bind data
+    // across executions of a bound plan, so bind-owned machines make a re-scan resume
+    // from an exhausted cursor and return nothing.
+    auto gstate = make_uniq<RfcReadTableGlobalState>(1, nullptr);
+    gstate->serial_machines = bind_data.CreateWindowStateMachines();
+    return std::move(gstate);
 }
 
 static void RfcShowTablesScan(ClientContext &context, 
@@ -71,12 +76,13 @@ static void RfcShowTablesScan(ClientContext &context,
                                 DataChunk &output) 
 {
     auto &bind_data = data.bind_data->CastNoConst<RfcReadTableBindData>();
+    auto &machines = data.global_state->Cast<RfcReadTableGlobalState>().serial_machines;
 
-    if (! bind_data.HasMoreResults()) {
+    if (! bind_data.HasMoreResults(machines)) {
         return;
     }
 
-    bind_data.Step(context, output);
+    bind_data.Step(context, output, machines);
 }
 
 TableFunction CreateRfcShowTablesScanFunction() 

@@ -159,8 +159,17 @@ namespace duckdb
 			void ResolveReadTableImportParams(std::shared_ptr<RfcConnection> connection);
 			bool ReadTableHasParam(const std::string &param_name);
 			
-			bool HasMoreResults();
-			void Step(ClientContext &context, DataChunk &output);
+			// The machine set is passed in rather than read from bind data. DuckDB
+			// shares bind data across executions of one bound plan, so state machines
+			// living there make a second scan resume from an exhausted cursor and
+			// return nothing -- silently. The partitioned path already owned its
+			// machines per worker; these overloads let the serial path own them per
+			// execution, in the global state.
+			bool HasMoreResults(std::vector<RfcReadColumnStateMachine> &machines);
+			void Step(ClientContext &context, DataChunk &output,
+			          std::vector<RfcReadColumnStateMachine> &machines);
+			bool AreActiveStateMachineCaridnalitiesEqual(std::vector<RfcReadColumnStateMachine> &machines);
+			unsigned int FirstActiveStateMachineCardinality(std::vector<RfcReadColumnStateMachine> &machines);
 
 			// Per-scan ceiling for the warm-up batch doubling, capped so that
 			// (projected columns x batch_size) stays within a fixed row budget
@@ -196,17 +205,35 @@ namespace duckdb
 			// released until the bind data dies (the connections live for
 			// the whole scan), so the counter is monotonically increasing.
 			bool TryReservePersistentSlot();
+			void ReleasePersistentSlot();
+			void ResetPersistentSlots();
+
+			// Resolve the SAP credentials ONCE per execution and reuse them.
+			// OpenNewConnection used to re-resolve the DuckDB secret on every open, so a
+			// scan that opens a connection per window could silently move to a different
+			// system mid-query if the secret was replaced underneath it.
+			void PinAuthParams();
 
 		private:
 			std::string secret_name;
 			RfcConnectionFactory_t connection_factory;
 			ClientContext &client_context;
+			// Set by PinAuthParams() at init-global; read by OpenNewConnection().
+			std::shared_ptr<RfcAuthParams> pinned_auth;
+			std::mutex pinned_auth_lock;
 			std::vector<std::string> column_names;
 			std::vector<RfcType> column_types;
 			// Columns whose DDIC type is CLNT.  RFC_READ_TABLE's OPTIONS parser rejects
 			// any clause naming the client field, so these are never pushed.
 			std::set<std::string> client_columns;
 			std::vector<RfcReadColumnStateMachine> column_state_machines;
+			// Slots are LEASED, not consumed. The counter used to be a monotonic
+			// fetch_add that never gave a slot back, and it lives on bind data -- which
+			// DuckDB reuses across executions -- so a second execution of a bound plan
+			// started with the budget already spent and every machine was denied a
+			// persistent connection. ResetPersistentSlots() is called once per
+			// execution from init-global; ReleasePersistentSlot() returns a slot when
+			// its connection is dropped.
 			std::atomic<unsigned int> persistent_slots_used{0};
 			// Filters that could not be translated into OPTIONS, keyed by projected
 			// column index.  Copied because the TableFilterSet belongs to the plan.
@@ -229,8 +256,6 @@ namespace duckdb
 
 			std::vector<RfcReadColumnStateMachine> CreateReadColumnStateMachines();
 			unsigned int NActiveStateMachines();
-			unsigned int FirstActiveStateMachineCardinality();
-			bool AreActiveStateMachineCaridnalitiesEqual();
 		public:
 			static std::vector<Value> GetTableFieldMetas(std::shared_ptr<RfcConnection> connection, std::string table_name);
 			static RfcType GetRfcTypeForFieldMeta(Value &DFIES_entry);
@@ -464,6 +489,11 @@ namespace duckdb
 			RfcReadTableGlobalState(idx_t max_threads_p,
 			                        duckdb::unique_ptr<RfcRowWindowScheduler> scheduler_p)
 				: max_threads(max_threads_p), scheduler(std::move(scheduler_p)) { }
+
+			// Serial (unpartitioned) scans own their state machines here, one set per
+			// EXECUTION. Global state is rebuilt for every execution of a bound plan;
+			// bind data is not, which is why these cannot live there.
+			std::vector<RfcReadColumnStateMachine> serial_machines;
 
 			idx_t MaxThreads() const override { return max_threads; }
 			bool IsPartitioned() const { return scheduler != nullptr; }

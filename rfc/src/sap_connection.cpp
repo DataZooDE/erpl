@@ -1,4 +1,6 @@
 #include "duckdb.hpp"
+#include <atomic>
+
 #include "sap_connection.hpp"
 #include "sap_type_conversion.hpp"
 #include "sap_secret.hpp"
@@ -172,6 +174,7 @@ namespace duckdb
         }
         // Telemetry: feature_used {feature="connection_opened", auth_kind}.
         erpl_telemetry::CaptureConnectionOpened(auth);
+        RfcConnectionStats::NoteOpened();
         return std::make_shared<RfcConnection>(connection_handle);
     }
 
@@ -234,6 +237,11 @@ namespace duckdb
         RFC_ERROR_INFO error_info;
 
         rc = RfcCloseConnection(handle, &error_info);
+        // Counted regardless of rc: the handle is released either way (it is nulled
+        // below), so for "what does erpl still hold open" purposes this connection is
+        // gone. Counting only RFC_OK would report a permanent leak whenever the
+        // gateway had already dropped the connection.
+        RfcConnectionStats::NoteClosed();
         // Regardless of the outcome the handle must not be reused: a second
         // RfcCloseConnection on the same handle yields RFC_INVALID_HANDLE.
         // Nulling here prevents the double-close path (issue #78).
@@ -298,5 +306,28 @@ namespace duckdb
     }
 
     // RfcConnnection -----------------------------------------------------------
+
+
+    // --- RfcConnectionStats ----------------------------------------------------
+
+    namespace {
+        std::atomic<uint64_t> g_connections_opened{0};
+        std::atomic<uint64_t> g_connections_closed{0};
+    }
+
+    void RfcConnectionStats::NoteOpened() { g_connections_opened.fetch_add(1, std::memory_order_relaxed); }
+    void RfcConnectionStats::NoteClosed() { g_connections_closed.fetch_add(1, std::memory_order_relaxed); }
+    uint64_t RfcConnectionStats::Opened()  { return g_connections_opened.load(std::memory_order_relaxed); }
+    uint64_t RfcConnectionStats::Closed()  { return g_connections_closed.load(std::memory_order_relaxed); }
+    int64_t RfcConnectionStats::Live()
+    {
+        return (int64_t)g_connections_opened.load(std::memory_order_relaxed) -
+               (int64_t)g_connections_closed.load(std::memory_order_relaxed);
+    }
+    void RfcConnectionStats::Reset()
+    {
+        g_connections_opened.store(0, std::memory_order_relaxed);
+        g_connections_closed.store(0, std::memory_order_relaxed);
+    }
 
 } // namespace duckdb

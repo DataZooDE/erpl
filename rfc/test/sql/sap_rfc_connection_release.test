@@ -1,0 +1,118 @@
+# name: test/sql/sap_rfc_connection_release.test
+# description: A scan must release every RFC connection it opens.
+#
+#              Each open connection is a session and a work-process reservation on the
+#              SAP system. Client-side timing shows nothing when one is never released
+#              -- the whole cost lands on the source system -- so this asserts the
+#              connection count directly.
+#
+#              sap_rfc_live_connections() is opened-minus-closed, process-wide. Between
+#              statements it must be 0. It is deliberately asserted as a DELTA against a
+#              baseline taken in the same session rather than as an absolute, so the
+#              file does not depend on what ran before it.
+# group: [rfc]
+
+require erpl_rfc
+
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
+
+statement ok
+CREATE SECRET abap_trial (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}'
+);
+
+statement ok
+CREATE TABLE baseline AS SELECT sap_rfc_live_connections() AS live;
+
+# -------------------------------------------------------------------------
+# 1. A plain scan releases everything it opened.
+# -------------------------------------------------------------------------
+statement ok
+SELECT count(*) FROM sap_read_table('SFLIGHT');
+
+query I
+SELECT sap_rfc_live_connections() - (SELECT live FROM baseline);
+----
+0
+
+# -------------------------------------------------------------------------
+# 2. A partitioned scan opens several connections; all must come back.
+# -------------------------------------------------------------------------
+statement ok
+SELECT count(*) FROM sap_read_table('SFLIGHT', PARTITIONS=4);
+
+query I
+SELECT sap_rfc_live_connections() - (SELECT live FROM baseline);
+----
+0
+
+# -------------------------------------------------------------------------
+# 3. A LIMIT abandons the scan early -- the connections still must not leak.
+#    This is the path where a worker never reaches a natural end.
+# -------------------------------------------------------------------------
+statement ok
+SELECT CARRID FROM sap_read_table('SFLIGHT', PARTITIONS=4) LIMIT 1;
+
+query I
+SELECT sap_rfc_live_connections() - (SELECT live FROM baseline);
+----
+0
+
+# -------------------------------------------------------------------------
+# 4. A failing scan must not strand a connection either.
+# -------------------------------------------------------------------------
+statement error
+SELECT count(*) FROM sap_read_table('THIS_TABLE_DOES_NOT_EXIST_XYZ');
+----
+
+query I
+SELECT sap_rfc_live_connections() - (SELECT live FROM baseline);
+----
+0
+
+# -------------------------------------------------------------------------
+# 5. Repeated executions of one prepared plan must not accumulate connections.
+#    The persistent-slot budget used to be monotonic and bind-scoped, so it
+#    behaved differently on the second execution than on the first.
+# -------------------------------------------------------------------------
+statement ok
+PREPARE q_rel AS SELECT count(*) FROM sap_read_table('SFLIGHT');
+
+statement ok
+EXECUTE q_rel;
+
+statement ok
+EXECUTE q_rel;
+
+statement ok
+EXECUTE q_rel;
+
+query I
+SELECT sap_rfc_live_connections() - (SELECT live FROM baseline);
+----
+0
+
+# -------------------------------------------------------------------------
+# 6. And the counters must actually be moving -- a stub returning 0 would pass
+#    every assertion above.
+# -------------------------------------------------------------------------
+query I
+SELECT sap_rfc_connections_opened() > 0 AND sap_rfc_connections_closed() > 0;
+----
+true
