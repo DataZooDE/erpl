@@ -22,9 +22,99 @@ LOAD erpl;
 
 ---
 
-## Unreleased
+## v2026.09.04 — scans that can be run twice, and a backend with no known gaps
+
+`sap_read_table` gains row-range partitioning, and the three extensions gain one tuning
+vocabulary. The reason this is one release rather than two is the second half of the list:
+**four separate silent wrong-results defects**, all in released erpl, all returning data
+rather than failing.
+
+The sharpest is that a re-scanned `sap_read_table` returned nothing at all — a prepared
+statement, a nested-loop join or an un-materialised CTE referenced twice would silently
+answer zero rows on the second scan. If you use erpl from a prepared statement or in a
+join, upgrade.
+
+The `erpl-proto` backend also passes every suite with no recorded gaps for the first time.
+
+### Added
+
+- **[rfc]** **`sap_read_table` can now split a scan by rows.** Parallelism was per
+  *column* — one concurrent `RFC_READ_TABLE` call per projected column — so a narrow
+  extract got none at all, and raising `threads` did nothing. `partitions` hands each
+  worker a row window read with `ROWSKIPS`/`ROWCOUNT`. Measured on a 164,664-row
+  single-column extract: 2.23s unpartitioned, 0.83s at eight partitions (**2.7x**),
+  with the knee visible at eight. Opt-in, because partitioned workers finish in
+  whatever order they finish while an unpartitioned scan returns rows sorted.
+
+- **[rfc]** `erpl_rfc_partitions` and `erpl_rfc_partition_window_rows`, plus a
+  `partitions` named parameter.
+
+- **[rfc]** **One tuning vocabulary across the extensions.** Paging and parallelism were
+  spelled differently everywhere: RFC had `THREADS` plus `erpl_rfc_read_table_batch_budget`,
+  ODP had `threads` and no settings at all, BICS had neither. `threads` /
+  `erpl_rfc_max_threads` and `fetch_size` / `erpl_rfc_fetch_size` now mean the same thing
+  wherever they appear, and `fetch_size` is settable per query rather than per session.
+  No breaking renames — `erpl_rfc_read_table_batch_budget` still works and writes the same
+  value.
+
+- **[odp]** `erpl_odp_fetch_size` and `erpl_odp_max_threads`, ODP's first settings.
+  `I_MAXPACKAGESIZE` was compiled in at 2 MiB and reachable from nowhere, so round-trips
+  could not be traded against per-packet memory.
+
+- **[bics]** `sap_bics_begin` honours its `rows`, `columns` and `filters` parameters.
+  They were declared and never read — accepted with no error and no effect. Building a
+  query this way also costs three fewer full session round-trips.
+
+- **[rfc]** `sap_rfc_live_connections()`, `sap_rfc_connections_opened()` and
+  `sap_rfc_connections_closed()` report how many SAP RFC connections erpl has opened,
+  closed and still holds. Between queries the live count should be 0 — a non-zero value
+  means SAP sessions are still reserved, which client-side timing cannot reveal.
 
 ### Fixed
+
+- **[odp]** **`PRAGMA sap_odp_close_delta_cursor` never closed anything.** It matched the
+  cursor on `(SUBSCRIBER_PROC, QUEUENAME)` and took the first row, but SAP retains every
+  closed cursor as history, so that pair routinely has a dozen rows — the open one was
+  found at position 7 behind six closed rows from previous days. The pragma reported
+  `'CLOSED'` without ever calling `RODPS_REPL_ODP_CLOSE`, so delta cursors accumulated
+  server-side while cleanup looked like it was working.
+
+  Two more defects sat in the branch that made unreachable: every exception was reported
+  as `'CLOSED'`, and the call's `ET_RETURN` was never read — `RODPS_REPL_ODP_CLOSE` returns
+  `RFC_OK` even when it refuses, so a rejected close was indistinguishable from a
+  successful one. **Behaviour change:** two new results, neither of which raises —
+  `'REFUSED: <SAP message>'` when SAP rejects the close (typically
+  `ILLEGAL_REQ_STATE_FOR_CONFIRM`, meaning the request was left mid-fetch and only
+  `sap_odp_drop` will clear it) and `'STILL_OPEN'` when the cursor survives a call that
+  reported no error.
+
+- **[odp]** `sap_odp_read_full` crashed at `threads := 8` on a source with fewer packages
+  than workers — a null local state, dereferenced unconditionally.
+
+- **[bics]** The result-size refusal message stated what a query would really cost. BICS
+  memory scales with result **rows**, not data cells, so the cell-derived figure it used
+  to quote understated a 46,755-row result by 19x — and suggested raising a setting that
+  would have let the query through and then run the process out of memory.
+
+- **[rfc]** **`sap_rfc_invoke` failed on any module whose result parameters are all
+  tables.** `RFC_READ_TABLE` is the canonical case — its results are `DATA`, `FIELDS`
+  and `OPTIONS`, with no scalar export — and invoking it raised
+  `Unimplemented type for cast (STRUCT(WA VARCHAR) -> STRUCT(WA VARCHAR)[])`.
+
+  The result was treated as *pivoted* whenever every value happened to be list-shaped,
+  so rows were unnested into columns still declared `LIST(STRUCT)`. Detection now also
+  requires each element type to match its declared column type, which distinguishes
+  genuinely pivoted (path-selected) data from a bare invoke. Selecting a table through
+  `path :=` still pivots to the row's fields, as before.
+
+- **[rfc]** `MAX_ROWS` combined with `partitions` hung. The unpartitioned path trims
+  `ROWCOUNT` to land exactly on the limit, which a partitioned window cannot do because
+  `ROWCOUNT` must stay batch-aligned; it over-fetches the final batch, and the clip then
+  left the read spinning with rows it would never emit.
+
+- **[rfc]** The runtime `RFC_READ_TABLE` fallback reassigned a `std::string` on the
+  bind data from execute time. Column-parallel reads already made that reachable from
+  two tasks at once; it is now serialised.
 
 - **[rfc]** **`fetch_size` and `partitions` did nothing to the batch size of a
   single-column scan.** `MaxBatchSizeForColumnCount` returned the full 32768-row cap
@@ -103,98 +193,6 @@ LOAD erpl;
   23/45 on a nested-`TTYP` basXML defect. Both are now fixed upstream, so every suite
   passes on the proto backend with no recorded gaps for the first time: RFC 34/34,
   ODP 25/25, BICS 45/45.
-
-### Added
-
-- **[rfc]** `sap_rfc_live_connections()`, `sap_rfc_connections_opened()` and
-  `sap_rfc_connections_closed()` report how many SAP RFC connections erpl has opened,
-  closed and still holds. Between queries the live count should be 0 — a non-zero value
-  means SAP sessions are still reserved, which client-side timing cannot reveal.
-
-## v2026.09.02 — a narrow extract can finally use more than one connection
-
-`sap_read_table` parallelised across *columns*, so reading a few columns out of a very
-large table — the shape most incremental extracts have — could not parallelise at all,
-and `threads` did nothing. `partitions` splits the scan by rows instead: **4.5x on 2.9
-million rows** at eight workers, for 1.7x the memory.
-
-Also here: one tuning vocabulary across all three extensions, and a delta-cursor cleanup
-that had been silently doing nothing at all.
-
-### Added
-
-- **[rfc]** **`sap_read_table` can now split a scan by rows.** Parallelism was per
-  *column* — one concurrent `RFC_READ_TABLE` call per projected column — so a narrow
-  extract got none at all, and raising `threads` did nothing. `partitions` hands each
-  worker a row window read with `ROWSKIPS`/`ROWCOUNT`. Measured on a 164,664-row
-  single-column extract: 2.23s unpartitioned, 0.83s at eight partitions (**2.7x**),
-  with the knee visible at eight. Opt-in, because partitioned workers finish in
-  whatever order they finish while an unpartitioned scan returns rows sorted.
-
-- **[rfc]** `erpl_rfc_partitions` and `erpl_rfc_partition_window_rows`, plus a
-  `partitions` named parameter.
-
-- **[rfc]** **One tuning vocabulary across the extensions.** Paging and parallelism were
-  spelled differently everywhere: RFC had `THREADS` plus `erpl_rfc_read_table_batch_budget`,
-  ODP had `threads` and no settings at all, BICS had neither. `threads` /
-  `erpl_rfc_max_threads` and `fetch_size` / `erpl_rfc_fetch_size` now mean the same thing
-  wherever they appear, and `fetch_size` is settable per query rather than per session.
-  No breaking renames — `erpl_rfc_read_table_batch_budget` still works and writes the same
-  value.
-
-- **[odp]** `erpl_odp_fetch_size` and `erpl_odp_max_threads`, ODP's first settings.
-  `I_MAXPACKAGESIZE` was compiled in at 2 MiB and reachable from nowhere, so round-trips
-  could not be traded against per-packet memory.
-
-- **[bics]** `sap_bics_begin` honours its `rows`, `columns` and `filters` parameters.
-  They were declared and never read — accepted with no error and no effect. Building a
-  query this way also costs three fewer full session round-trips.
-
-### Fixed
-
-- **[odp]** **`PRAGMA sap_odp_close_delta_cursor` never closed anything.** It matched the
-  cursor on `(SUBSCRIBER_PROC, QUEUENAME)` and took the first row, but SAP retains every
-  closed cursor as history, so that pair routinely has a dozen rows — the open one was
-  found at position 7 behind six closed rows from previous days. The pragma reported
-  `'CLOSED'` without ever calling `RODPS_REPL_ODP_CLOSE`, so delta cursors accumulated
-  server-side while cleanup looked like it was working.
-
-  Two more defects sat in the branch that made unreachable: every exception was reported
-  as `'CLOSED'`, and the call's `ET_RETURN` was never read — `RODPS_REPL_ODP_CLOSE` returns
-  `RFC_OK` even when it refuses, so a rejected close was indistinguishable from a
-  successful one. **Behaviour change:** two new results, neither of which raises —
-  `'REFUSED: <SAP message>'` when SAP rejects the close (typically
-  `ILLEGAL_REQ_STATE_FOR_CONFIRM`, meaning the request was left mid-fetch and only
-  `sap_odp_drop` will clear it) and `'STILL_OPEN'` when the cursor survives a call that
-  reported no error.
-
-- **[odp]** `sap_odp_read_full` crashed at `threads := 8` on a source with fewer packages
-  than workers — a null local state, dereferenced unconditionally.
-
-- **[bics]** The result-size refusal message stated what a query would really cost. BICS
-  memory scales with result **rows**, not data cells, so the cell-derived figure it used
-  to quote understated a 46,755-row result by 19x — and suggested raising a setting that
-  would have let the query through and then run the process out of memory.
-
-- **[rfc]** **`sap_rfc_invoke` failed on any module whose result parameters are all
-  tables.** `RFC_READ_TABLE` is the canonical case — its results are `DATA`, `FIELDS`
-  and `OPTIONS`, with no scalar export — and invoking it raised
-  `Unimplemented type for cast (STRUCT(WA VARCHAR) -> STRUCT(WA VARCHAR)[])`.
-
-  The result was treated as *pivoted* whenever every value happened to be list-shaped,
-  so rows were unnested into columns still declared `LIST(STRUCT)`. Detection now also
-  requires each element type to match its declared column type, which distinguishes
-  genuinely pivoted (path-selected) data from a bare invoke. Selecting a table through
-  `path :=` still pivots to the row's fields, as before.
-
-- **[rfc]** `MAX_ROWS` combined with `partitions` hung. The unpartitioned path trims
-  `ROWCOUNT` to land exactly on the limit, which a partitioned window cannot do because
-  `ROWCOUNT` must stay batch-aligned; it over-fetches the final batch, and the clip then
-  left the read spinning with rows it would never emit.
-
-- **[rfc]** The runtime `RFC_READ_TABLE` fallback reassigned a `std::string` on the
-  bind data from execute time. Column-parallel reads already made that reachable from
-  two tasks at once; it is now serialised.
 
 ### Build
 
