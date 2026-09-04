@@ -95,6 +95,15 @@ LOAD erpl;
   while holding the tracer mutex, which the writer re-locks. The sequence documented for
   diagnosing SAP communication was itself the trigger; it presents as a hung query.
 
+### Changed
+
+- **[all]** **The `erpl-proto` backend is pinned to `v2026.9.2.1`, and its known-failure
+  list is now empty.** The previous pin carried a table-delta padding gap
+  (`sap_rfc_struct_layout`), and the releases that fixed it regressed BICS from 45/45 to
+  23/45 on a nested-`TTYP` basXML defect. Both are now fixed upstream, so every suite
+  passes on the proto backend with no recorded gaps for the first time: RFC 34/34,
+  ODP 25/25, BICS 45/45.
+
 ### Added
 
 - **[rfc]** `sap_rfc_live_connections()`, `sap_rfc_connections_opened()` and
@@ -190,9 +199,7 @@ that had been silently doing nothing at all.
 ### Build
 
 - **[all]** The `erpl-proto` backend is pinned to the `v2026.8.29.1` release rather than
-  an untagged commit. Newer proto releases fix a table-delta padding gap
-  (`sap_rfc_struct_layout`, tracked as a known gap on that backend) but regress BICS from
-  45/45 to 23/45 on a nested-`TTYP` basXML defect, so the pin stays until that is closed.
+  an untagged commit.
 
 ---
 
