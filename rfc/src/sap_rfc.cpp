@@ -330,6 +330,28 @@ namespace duckdb
         }
     }
 
+    std::string NormalizeAndValidateReadTableFunctionName(const std::string &input)
+    {
+        auto fn = input;
+        StringUtil::Trim(fn);
+        if (fn.empty()) {
+            return "";
+        }
+        fn = StringUtil::Upper(fn);
+        ValidateReadTableFunctionName(fn);
+        return fn;
+    }
+
+    void ValidateReadTableDelimiter(const std::string &delimiter)
+    {
+        if (delimiter.empty()) {
+            return;
+        }
+        if (delimiter.size() != 1) {
+            throw InvalidInputException("READ_TABLE_DELIMITER must be a single character, got '%s'", delimiter);
+        }
+    }
+
     ReadTableFunctionOptions ResolveReadTableFunctionOptions(
         ClientContext &context,
         const named_parameter_map_t *named_params,
@@ -342,40 +364,34 @@ namespace duckdb
         if (named_params) {
             auto it = named_params->find("READ_TABLE_FUNCTION");
             if (it != named_params->end() && !it->second.IsNull()) {
-                auto fn = it->second.ToString();
-                StringUtil::Trim(fn);
+                auto fn = NormalizeAndValidateReadTableFunctionName(it->second.ToString());
                 if (!fn.empty()) {
-                    fn = StringUtil::Upper(fn);
-                    ValidateReadTableFunctionName(fn);
                     opts.function_name = fn;
                     opts.user_set = true;
                 }
             }
             auto del_it = named_params->find("READ_TABLE_DELIMITER");
             if (del_it != named_params->end() && !del_it->second.IsNull()) {
-                opts.delimiter = del_it->second.ToString();
+                auto del = del_it->second.ToString();
+                ValidateReadTableDelimiter(del);
+                opts.delimiter = del;
             }
         }
 
         // Level 2: ATTACH override
         if (opts.function_name.empty() && !attach_override.empty()) {
-            auto fn = attach_override;
-            StringUtil::Trim(fn);
+            auto fn = NormalizeAndValidateReadTableFunctionName(attach_override);
             if (!fn.empty()) {
-                fn = StringUtil::Upper(fn);
-                ValidateReadTableFunctionName(fn);
                 opts.function_name = fn;
                 opts.user_set = true;
             }
         }
 
-        // Level 3: Secret option
-        if (opts.function_name.empty() && !secret_name.empty()) {
+        // Level 3: Secret option (checks named secret or default scoped secret if empty)
+        if (opts.function_name.empty()) {
             auto fn = LookupSecretOption(context, secret_name, "read_table_function");
-            StringUtil::Trim(fn);
+            fn = NormalizeAndValidateReadTableFunctionName(fn);
             if (!fn.empty()) {
-                fn = StringUtil::Upper(fn);
-                ValidateReadTableFunctionName(fn);
                 opts.function_name = fn;
                 opts.user_set = true;
             }
@@ -385,11 +401,8 @@ namespace duckdb
         if (opts.function_name.empty()) {
             Value session_val;
             if (context.TryGetCurrentSetting("erpl_rfc_read_table_function", session_val) && !session_val.IsNull()) {
-                auto fn = session_val.ToString();
-                StringUtil::Trim(fn);
+                auto fn = NormalizeAndValidateReadTableFunctionName(session_val.ToString());
                 if (!fn.empty()) {
-                    fn = StringUtil::Upper(fn);
-                    ValidateReadTableFunctionName(fn);
                     opts.function_name = fn;
                     opts.user_set = true;
                 }
@@ -505,12 +518,26 @@ namespace duckdb
             }
         } catch (const InvalidInputException &) {
             throw;
+        } catch (const std::exception &ex) {
+            ERPL_TRACE_WARN("sap_rfc", StringUtil::Format("Inspect failed for '%s': %s", function_name, ex.what()));
+            desc.result_path = "/DATA";
+            desc.query_table_param = "QUERY_TABLE";
+            desc.has_fields = true;
+            desc.has_options = true;
+            desc.has_rowskips = true;
+            desc.has_rowcount = true;
+            desc.has_delimiter = true;
+            desc.has_get_sorted = true;
         } catch (...) {
-            if (desc.result_path.empty()) {
-                desc.result_path = "/DATA";
-                desc.query_table_param = "QUERY_TABLE";
-                desc.has_fields = true;
-            }
+            ERPL_TRACE_WARN("sap_rfc", StringUtil::Format("Inspect failed with unknown exception for '%s'", function_name));
+            desc.result_path = "/DATA";
+            desc.query_table_param = "QUERY_TABLE";
+            desc.has_fields = true;
+            desc.has_options = true;
+            desc.has_rowskips = true;
+            desc.has_rowcount = true;
+            desc.has_delimiter = true;
+            desc.has_get_sorted = true;
         }
 
         return desc;
@@ -640,37 +667,16 @@ namespace duckdb
             return;
         }
 
-        if (read_table_function == "RFC_READ_TABLE") {
-            read_table_result_path = "/DATA";
-            return;
+        auto desc = ReadTableFunctionDescriptor::Inspect(connection, read_table_function);
+        read_table_result_path = desc.result_path;
+        if (!read_table_supports_et_data_switch.has_value()) {
+            read_table_supports_et_data_switch = desc.supports_et_data;
         }
 
-        auto func = std::make_shared<RfcFunction>(connection, read_table_function);
-        auto result_infos = func->GetResultInfos();
-        static const std::vector<std::string> table_candidates = {
-            "TBLOUT30000",
-            "TBLOUT8192",
-            "TBLOUT2048",
-            "TBLOUT512",
-            "TBLOUT128"
-        };
-
-        for (auto &candidate : table_candidates) {
-            auto it = std::find_if(result_infos.begin(), result_infos.end(), [&](auto &param) {
-                return param.GetName() == candidate;
-            });
-            if (it != result_infos.end()) {
-                read_table_result_path = "/" + candidate;
-                return;
-            }
-        }
-
-        // fallback to DATA if present
-        auto it = std::find_if(result_infos.begin(), result_infos.end(), [&](auto &param) {
-            return param.GetName() == "DATA";
-        });
-        if (it != result_infos.end()) {
-            read_table_result_path = "/DATA";
+        if (read_table_result_path.empty()) {
+            throw InvalidInputException(
+                "RFC function '%s' does not satisfy the RFC_READ_TABLE interface contract: no supported tabular output parameter (DATA, ET_DATA, or TBLOUT*).",
+                read_table_function);
         }
     }
 
@@ -2116,22 +2122,42 @@ namespace duckdb
 
                 auto read_table_function = bind_data->GetReadTableFunctionName();
                 auto read_table_delimiter = bind_data->GetReadTableDelimiter();
-                if (read_table_function == "RFC_READ_TABLE" && rfc_type.IsStringType()) {
-                    if (!bind_data->read_table_supports_et_data_switch.has_value()) {
-                        bind_data->read_table_supports_et_data_switch = bind_data->ReadTableSupportsEtDataSwitch(connection, read_table_function);
-                    }
-                    if (!bind_data->read_table_supports_et_data_switch.value()) {
+                if (rfc_type.IsStringType()) {
+                    if (read_table_function == "RFC_READ_TABLE") {
+                        if (!bind_data->read_table_supports_et_data_switch.has_value()) {
+                            bind_data->read_table_supports_et_data_switch = bind_data->ReadTableSupportsEtDataSwitch(connection, read_table_function);
+                        }
+                        if (!bind_data->read_table_supports_et_data_switch.value()) {
+                            auto col_name = bind_data->GetRfcColumnNames()[owning_state_machine->column_idx];
+                            throw std::runtime_error(StringUtil::Format(
+                                "Cannot read string/xstring column '%s' from table '%s'. "
+                                "RFC_READ_TABLE does not support USE_ET_DATA_4_RETURN/ET_DATA on this system.",
+                                col_name, bind_data->table_name));
+                        }
+                        use_et_data = true;
+                        data_path = "/ET_DATA";
+                        if (read_table_delimiter.empty()) {
+                            read_table_delimiter = "~";
+                        }
+                    } else if (bind_data->read_table_supports_et_data_switch.value_or(false)) {
+                        use_et_data = true;
+                        data_path = "/ET_DATA";
+                        if (read_table_delimiter.empty()) {
+                            read_table_delimiter = "~";
+                        }
+                    } else if (bind_data->read_table_function_user_set) {
                         auto col_name = bind_data->GetRfcColumnNames()[owning_state_machine->column_idx];
-                        throw std::runtime_error(StringUtil::Format(
-                            "Cannot read string/xstring column '%s' from table '%s'. "
-                            "RFC_READ_TABLE does not support USE_ET_DATA_4_RETURN/ET_DATA on this system.",
-                            col_name, bind_data->table_name));
+                        throw InvalidInputException(
+                            "Cannot read string/xstring column '%s' from table '%s' using custom read table function '%s'. "
+                            "The function does not support ET_DATA / USE_ET_DATA_4_RETURN, and automatic fallback is disabled when READ_TABLE_FUNCTION is explicitly set.",
+                            col_name, bind_data->table_name, read_table_function);
                     }
-                    use_et_data = true;
-                    data_path = "/ET_DATA";
-                    if (read_table_delimiter.empty()) {
-                        read_table_delimiter = "~";
-                    }
+                }
+
+                if (!read_table_delimiter.empty() && !bind_data->ReadTableHasParam("DELIMITER")) {
+                    throw InvalidInputException(
+                        "RFC function '%s' does not accept a DELIMITER parameter, but READ_TABLE_DELIMITER was specified.",
+                        read_table_function);
                 }
 
                 auto func = owning_state_machine->AcquireFunction(connection, read_table_function);

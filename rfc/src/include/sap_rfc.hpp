@@ -107,6 +107,8 @@ namespace duckdb
 	};
 
 	void ValidateReadTableFunctionName(const std::string &name);
+	std::string NormalizeAndValidateReadTableFunctionName(const std::string &input);
+	void ValidateReadTableDelimiter(const std::string &delimiter);
 
 	struct ReadTableFunctionOptions {
 		std::string function_name;

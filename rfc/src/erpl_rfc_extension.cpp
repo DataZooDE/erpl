@@ -170,13 +170,8 @@ namespace duckdb {
     }
 
     static void OnRfcReadTableFunction(ClientContext &, SetScope, Value &parameter) {
-        auto val = parameter.GetValue<string>();
-        StringUtil::Trim(val);
-        if (!val.empty()) {
-            val = StringUtil::Upper(val);
-            ValidateReadTableFunctionName(val);
-            parameter = Value(val);
-        }
+        auto val = NormalizeAndValidateReadTableFunctionName(parameter.GetValue<string>());
+        parameter = Value(val);
     }
 
     static void OnRfcPartitionWindowRows(ClientContext &, SetScope, Value &parameter) {
@@ -376,7 +371,7 @@ namespace duckdb {
         config.AddExtensionOption(
             "erpl_rfc_read_table_function",
             "Default RFC function module used by sap_read_table, sap_show_tables, ATTACH (TYPE SAP), "
-            "and BICS catalog metadata lookups. When unset or empty, defaults to RFC_READ_TABLE with "
+            "and BICS query resolution. When unset or empty, defaults to RFC_READ_TABLE with "
             "automatic fallback to ET_DATA-capable functions (/SAPDS/RFC_READ_TABLE2, /BODS/RFC_READ_TABLE2, etc.) "
             "when string columns are encountered. When explicitly set, only the configured function is used and "
             "no automatic fallback is performed.",
@@ -439,8 +434,9 @@ namespace duckdb {
         {
             CreateTableFunctionInfo info(CreateRfcReadTableScanFunction());
             FunctionDescription desc;
-            desc.description = "Read data from an SAP table or CDS view using RFC_READ_TABLE. Supports projection pushdown, filter pushdown, and parallel reads via THREADS.";
+            desc.description = "Read data from an SAP table or CDS view using RFC_READ_TABLE (or a custom reader via READ_TABLE_FUNCTION / erpl_rfc_read_table_function). Supports projection pushdown, filter pushdown, and parallel reads via THREADS.";
             desc.examples    = {"SELECT * FROM sap_read_table('SFLIGHT')",
+                                "SELECT * FROM sap_read_table('SFLIGHT', read_table_function='/SAPDS/RFC_READ_TABLE2')",
                                 "SELECT * FROM sap_read_table('SFLIGHT', FILTER='CARRID = ''LH''', THREADS=4)"};
             desc.categories  = {"sap"};
             desc.parameter_names = {"table_name"};
@@ -499,9 +495,10 @@ namespace duckdb {
         {
             CreateTableFunctionInfo info(CreateRfcShowTablesScanFunction());
             FunctionDescription desc;
-            desc.description = "List SAP tables and views from the data dictionary (DD02V). Filter by TABLENAME or TEXT patterns using wildcards (*).";
+            desc.description = "List SAP tables and views from the data dictionary (DD02V). Supports TABLENAME and TEXT patterns, SECRET, and custom READ_TABLE_FUNCTION.";
             desc.examples    = {"SELECT * FROM sap_show_tables()",
-                                "SELECT * FROM sap_show_tables(TABLENAME='*FLIGHT*')"};
+                                "SELECT * FROM sap_show_tables(TABLENAME='*FLIGHT*')",
+                                "SELECT * FROM sap_show_tables(TABLENAME='*FLIGHT*', read_table_function='/SAPDS/RFC_READ_TABLE2')"};
             desc.categories  = {"sap"};
             info.descriptions.push_back(std::move(desc));
             loader.RegisterFunction(std::move(info));

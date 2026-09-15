@@ -100,19 +100,51 @@ SELECT COUNT(*) FROM sap_show_tables(tablename='/DMO/FLIGHT', read_table_functio
 1
 
 # ---------------------------------------------------------------------
-# Test 7: Validation error on invalid function name
-statement error
+# Test 7: ATTACH with lowercase read_table_function (normalization)
+statement ok
+ATTACH '' AS sap_lower (
+    TYPE sap_rfc,
+    SECRET 'abap_trial',
+    read_table_function '/sapds/rfc_read_table2',
+    TABLES '/DMO/FLIGHT'
+);
+
+query I
+SELECT COUNT(*) FROM sap_lower."/DMO/FLIGHT";
+----
+40
+
+statement ok
+DETACH sap_lower;
+
+# ---------------------------------------------------------------------
+# Test 8: Validation error on invalid function name
+statement error Invalid READ_TABLE_FUNCTION name
 SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', read_table_function='; DROP TABLE;--');
 ----
 
-statement error
+statement error Invalid READ_TABLE_FUNCTION name
 SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', read_table_function='123_INVALID');
 ----
 
-statement error
+statement error Invalid READ_TABLE_FUNCTION name
 ATTACH '' AS bad_sap (
     TYPE sap_rfc,
     SECRET 'abap_trial',
     read_table_function '123_INVALID'
 );
 ----
+
+statement error Invalid READ_TABLE_FUNCTION name
+CREATE SECRET bad_sec (
+    TYPE sap_rfc,
+    read_table_function '123_INVALID'
+);
+----
+
+# ---------------------------------------------------------------------
+# Test 9: Delimiter validation
+statement error READ_TABLE_DELIMITER must be a single character
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', read_table_delimiter='~~');
+----
+

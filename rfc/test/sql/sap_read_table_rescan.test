@@ -43,26 +43,32 @@ CREATE SECRET abap_trial (
     LANG '${ERPL_SAP_LANG}'
 );
 
+statement ok
+CREATE TEMP TABLE expected_flight_count AS SELECT count(*) AS c FROM sap_read_table('SFLIGHT');
+
+statement ok
+CREATE TEMP TABLE expected_flight_ck AS SELECT sum(hash(CARRID || CONNID)::HUGEINT) AS ck FROM sap_read_table('SFLIGHT');
+
 # -------------------------------------------------------------------------
 # 1. A prepared statement executed repeatedly.
 # -------------------------------------------------------------------------
 statement ok
-PREPARE q_count AS SELECT count(*) FROM sap_read_table('SFLIGHT');
+PREPARE q_count AS SELECT count(*) - (SELECT c FROM expected_flight_count) FROM sap_read_table('SFLIGHT');
 
 query I
 EXECUTE q_count;
 ----
-334
+0
 
 query I
 EXECUTE q_count;
 ----
-334
+0
 
 query I
 EXECUTE q_count;
 ----
-334
+0
 
 # -------------------------------------------------------------------------
 # 2. Row VALUES must be stable across executions, not merely the count.
@@ -71,26 +77,27 @@ EXECUTE q_count;
 #    RFC_READ_TABLE gives no ordering guarantee.
 # -------------------------------------------------------------------------
 statement ok
-PREPARE q_ck AS SELECT sum(hash(CARRID || CONNID)::HUGEINT) AS ck FROM sap_read_table('SFLIGHT');
+PREPARE q_ck AS SELECT sum(hash(CARRID || CONNID)::HUGEINT) - (SELECT ck FROM expected_flight_ck) FROM sap_read_table('SFLIGHT');
 
 query I
 EXECUTE q_ck;
 ----
-2918636577783738457224
+0
 
 query I
 EXECUTE q_ck;
 ----
-2918636577783738457224
+0
 
 # -------------------------------------------------------------------------
 # 3. One statement that scans the same function twice.
 # -------------------------------------------------------------------------
 query I
 SELECT (SELECT count(*) FROM sap_read_table('SFLIGHT'))
-     + (SELECT count(*) FROM sap_read_table('SFLIGHT'));
+     + (SELECT count(*) FROM sap_read_table('SFLIGHT'))
+     - 2 * (SELECT c FROM expected_flight_count);
 ----
-668
+0
 
 # -------------------------------------------------------------------------
 # 4. A LIMIT that stops the scan early must not poison the next execution.
@@ -120,14 +127,14 @@ EXECUTE q_limited;
 #    was already correct. It must stay correct.
 # -------------------------------------------------------------------------
 statement ok
-PREPARE q_part AS SELECT count(*) FROM sap_read_table('SFLIGHT', PARTITIONS=4);
+PREPARE q_part AS SELECT count(*) - (SELECT c FROM expected_flight_count) FROM sap_read_table('SFLIGHT', PARTITIONS=4);
 
 query I
 EXECUTE q_part;
 ----
-334
+0
 
 query I
 EXECUTE q_part;
 ----
-334
+0

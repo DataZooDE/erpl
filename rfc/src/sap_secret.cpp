@@ -3,6 +3,7 @@
 
 #include "sap_secret.hpp"
 #include "sap_connection.hpp"
+#include "sap_rfc.hpp"
 
 #include <algorithm>
 
@@ -44,7 +45,11 @@ unique_ptr<BaseSecret> CreateSapSecretFunction(ClientContext &context, CreateSec
 			// an INTERNAL error.
 			throw InvalidInputException("Unknown parameter '%s' for secret type 'sap_rfc'", lower_name);
 		}
-		result->secret_map[lower_name] = named_param.second.ToString();
+		if (lower_name == "read_table_function") {
+			result->secret_map[lower_name] = NormalizeAndValidateReadTableFunctionName(named_param.second.ToString());
+		} else {
+			result->secret_map[lower_name] = named_param.second.ToString();
+		}
 	}
 
 	//! Set redact keys. The key names are the secret map keys, so `passwd` —
@@ -143,26 +148,39 @@ RfcAuthParams GetAuthParamsFromContext(ClientContext &context, const std::string
 
 std::string LookupSecretOption(ClientContext &context, const std::string &secret_name, const std::string &key) 
 {
-	if (secret_name.empty()) {
-		return "";
-	}
 	auto &secret_manager = SecretManager::Get(context);
 	auto transaction = context.transaction.HasActiveTransaction()
 	                       ? CatalogTransaction::GetSystemCatalogTransaction(context)
 	                       : CatalogTransaction::GetSystemTransaction(*context.db);
-	auto secret_entry = secret_manager.GetSecretByName(transaction, secret_name);
-	if (!secret_entry || !secret_entry->secret) {
+
+	auto extract_val = [&](const KeyValueSecret &kv_secret) -> std::string {
+		auto it = kv_secret.secret_map.find(StringUtil::Lower(key));
+		if (it == kv_secret.secret_map.end() || it->second.IsNull()) {
+			return "";
+		}
+		return it->second.ToString();
+	};
+
+	if (!secret_name.empty() && secret_name != SAP_SECRET_DEFAULT_PATH) {
+		auto secret_entry = secret_manager.GetSecretByName(transaction, secret_name);
+		if (secret_entry && secret_entry->secret) {
+			auto *kv = dynamic_cast<const KeyValueSecret *>(secret_entry->secret.get());
+			if (kv) {
+				return extract_val(*kv);
+			}
+		}
 		return "";
 	}
-	const auto *kv_secret = dynamic_cast<const KeyValueSecret *>(secret_entry->secret.get());
-	if (!kv_secret) {
-		return "";
+
+	auto match = secret_manager.LookupSecret(transaction, "", "sap_rfc");
+	if (match.HasMatch()) {
+		auto *kv = dynamic_cast<const KeyValueSecret *>(&match.GetSecret());
+		if (kv) {
+			return extract_val(*kv);
+		}
 	}
-	auto it = kv_secret->secret_map.find(StringUtil::Lower(key));
-	if (it == kv_secret->secret_map.end() || it->second.IsNull()) {
-		return "";
-	}
-	return it->second.ToString();
+
+	return "";
 }
 
 } // namespace duckdb 

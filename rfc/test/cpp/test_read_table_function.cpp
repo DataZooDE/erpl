@@ -88,11 +88,45 @@ TEST_CASE("read_table_function does not leak into RfcAuthParams or RfcOpenConnec
 	}
 }
 
+TEST_CASE("NormalizeAndValidateReadTableFunctionName normalizes and validates", "[erpl_rfc][read_table_func]") {
+	REQUIRE(NormalizeAndValidateReadTableFunctionName("") == "");
+	REQUIRE(NormalizeAndValidateReadTableFunctionName("   ") == "");
+	REQUIRE(NormalizeAndValidateReadTableFunctionName("  rfc_read_table  ") == "RFC_READ_TABLE");
+	REQUIRE(NormalizeAndValidateReadTableFunctionName("/sapds/rfc_read_table2") == "/SAPDS/RFC_READ_TABLE2");
+	REQUIRE_THROWS_AS(NormalizeAndValidateReadTableFunctionName("bad name!"), InvalidInputException);
+}
+
+TEST_CASE("ValidateReadTableDelimiter validates delimiter length", "[erpl_rfc][read_table_func]") {
+	REQUIRE_NOTHROW(ValidateReadTableDelimiter(""));
+	REQUIRE_NOTHROW(ValidateReadTableDelimiter("~"));
+	REQUIRE_NOTHROW(ValidateReadTableDelimiter("|"));
+	REQUIRE_THROWS_AS(ValidateReadTableDelimiter("~~"), InvalidInputException);
+	REQUIRE_THROWS_AS(ValidateReadTableDelimiter("DELIM"), InvalidInputException);
+}
+
+TEST_CASE("CREATE SECRET validates read_table_function", "[erpl_rfc][read_table_func]") {
+	DuckDB db(nullptr);
+	db.LoadStaticExtension<ErplRfcExtension>();
+	Connection conn(db);
+	auto res = conn.Query("CREATE SECRET sec_invalid (TYPE sap_rfc, ashost 's4', user 'demo', read_table_function 'bad-name!')");
+	REQUIRE(res->HasError());
+	REQUIRE(res->GetError().find("Invalid READ_TABLE_FUNCTION name") != string::npos);
+
+	auto res_ok = conn.Query("CREATE SECRET sec_valid (TYPE sap_rfc, ashost 's4', user 'demo', read_table_function ' /sapds/rfc_read_table2 ')");
+	REQUIRE(!res_ok->HasError());
+}
+
 TEST_CASE("ResolveReadTableFunctionOptions follows 5-tier precedence hierarchy", "[erpl_rfc][read_table_func]") {
 	DuckDB db(nullptr);
 	db.LoadStaticExtension<ErplRfcExtension>();
 	Connection conn(db);
 	auto &context = *conn.context;
+
+	auto run_query = [&](const string &q) {
+		auto res = conn.Query(q);
+		REQUIRE(!res->HasError());
+		return res;
+	};
 
 	// Level 5: Default when nothing is set
 	{
@@ -104,13 +138,13 @@ TEST_CASE("ResolveReadTableFunctionOptions follows 5-tier precedence hierarchy",
 
 	// Level 4: Session setting erpl_rfc_read_table_function
 	{
-		conn.Query("SET erpl_rfc_read_table_function = 'Z_SESSION_FUNC'");
+		run_query("SET erpl_rfc_read_table_function = 'Z_SESSION_FUNC'");
 		auto opts = ResolveReadTableFunctionOptions(context);
 		REQUIRE(opts.function_name == "Z_SESSION_FUNC");
 		REQUIRE(opts.user_set == true);
 
 		// Reset session setting to empty
-		conn.Query("SET erpl_rfc_read_table_function = ''");
+		run_query("SET erpl_rfc_read_table_function = ''");
 		opts = ResolveReadTableFunctionOptions(context);
 		REQUIRE(opts.function_name == "RFC_READ_TABLE");
 		REQUIRE(opts.user_set == false);
@@ -118,34 +152,34 @@ TEST_CASE("ResolveReadTableFunctionOptions follows 5-tier precedence hierarchy",
 
 	// Level 3: Secret option overrides session setting
 	{
-		conn.Query("CREATE SECRET sec_custom (TYPE sap_rfc, ashost 's4', user 'demo', read_table_function 'Z_SECRET_FUNC')");
-		conn.Query("SET erpl_rfc_read_table_function = 'Z_SESSION_FUNC'");
+		run_query("CREATE SECRET sec_custom (TYPE sap_rfc, ashost 's4', user 'demo', read_table_function 'Z_SECRET_FUNC')");
+		run_query("SET erpl_rfc_read_table_function = 'Z_SESSION_FUNC'");
 
 		auto opts = ResolveReadTableFunctionOptions(context, nullptr, "sec_custom");
 		REQUIRE(opts.function_name == "Z_SECRET_FUNC");
 		REQUIRE(opts.user_set == true);
 
-		conn.Query("DROP SECRET sec_custom");
-		conn.Query("SET erpl_rfc_read_table_function = ''");
+		run_query("DROP SECRET sec_custom");
+		run_query("SET erpl_rfc_read_table_function = ''");
 	}
 
 	// Level 2: ATTACH option overrides secret and session setting
 	{
-		conn.Query("CREATE SECRET sec_custom (TYPE sap_rfc, ashost 's4', user 'demo', read_table_function 'Z_SECRET_FUNC')");
-		conn.Query("SET erpl_rfc_read_table_function = 'Z_SESSION_FUNC'");
+		run_query("CREATE SECRET sec_custom (TYPE sap_rfc, ashost 's4', user 'demo', read_table_function 'Z_SECRET_FUNC')");
+		run_query("SET erpl_rfc_read_table_function = 'Z_SESSION_FUNC'");
 
 		auto opts = ResolveReadTableFunctionOptions(context, nullptr, "sec_custom", "Z_ATTACH_FUNC");
 		REQUIRE(opts.function_name == "Z_ATTACH_FUNC");
 		REQUIRE(opts.user_set == true);
 
-		conn.Query("DROP SECRET sec_custom");
-		conn.Query("SET erpl_rfc_read_table_function = ''");
+		run_query("DROP SECRET sec_custom");
+		run_query("SET erpl_rfc_read_table_function = ''");
 	}
 
 	// Level 1: Named parameter overrides ATTACH, secret, and session
 	{
-		conn.Query("CREATE SECRET sec_custom (TYPE sap_rfc, ashost 's4', user 'demo', read_table_function 'Z_SECRET_FUNC')");
-		conn.Query("SET erpl_rfc_read_table_function = 'Z_SESSION_FUNC'");
+		run_query("CREATE SECRET sec_custom (TYPE sap_rfc, ashost 's4', user 'demo', read_table_function 'Z_SECRET_FUNC')");
+		run_query("SET erpl_rfc_read_table_function = 'Z_SESSION_FUNC'");
 
 		named_parameter_map_t named_params;
 		named_params["READ_TABLE_FUNCTION"] = Value("z_named_func"); // lowercase should be normalized
@@ -156,16 +190,16 @@ TEST_CASE("ResolveReadTableFunctionOptions follows 5-tier precedence hierarchy",
 		REQUIRE(opts.delimiter == "~");
 		REQUIRE(opts.user_set == true);
 
-		conn.Query("DROP SECRET sec_custom");
-		conn.Query("SET erpl_rfc_read_table_function = ''");
+		run_query("DROP SECRET sec_custom");
+		run_query("SET erpl_rfc_read_table_function = ''");
 	}
 
 	// Explicit setting of RFC_READ_TABLE preserves user_set = true
 	{
-		conn.Query("SET erpl_rfc_read_table_function = 'RFC_READ_TABLE'");
+		run_query("SET erpl_rfc_read_table_function = 'RFC_READ_TABLE'");
 		auto opts = ResolveReadTableFunctionOptions(context);
 		REQUIRE(opts.function_name == "RFC_READ_TABLE");
 		REQUIRE(opts.user_set == true);
-		conn.Query("SET erpl_rfc_read_table_function = ''");
+		run_query("SET erpl_rfc_read_table_function = ''");
 	}
 }

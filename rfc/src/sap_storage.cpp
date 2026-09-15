@@ -86,8 +86,8 @@ public:
 		//     surfaces as an INTERNAL assertion further up the stack.
 		vector<string> names;
 		vector<LogicalType> types;
-		auto rtf_opts = ResolveReadTableFunctionOptions(context, nullptr, secret_name, read_table_function);
 		try {
+			auto rtf_opts = ResolveReadTableFunctionOptions(context, nullptr, secret_name, read_table_function);
 			auto bind_data = make_uniq<RfcReadTableBindData>(
 			    entry_name, /*max_read_threads=*/0, /*limit=*/0, rtf_opts.function_name, rtf_opts.delimiter,
 			    rtf_opts.user_set, &DefaultRfcConnectionFactory, context);
@@ -394,8 +394,7 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
 		if (lower_name == "secret") {
 			secret_name = entry.second.ToString();
 		} else if (lower_name == "read_table_function") {
-			read_table_function = entry.second.ToString();
-			ValidateReadTableFunctionName(read_table_function);
+			read_table_function = NormalizeAndValidateReadTableFunctionName(entry.second.ToString());
 		} else if (lower_name == "tables") {
 			auto tables_str = entry.second.ToString();
 			auto split = StringUtil::Split(tables_str, ',');
@@ -421,7 +420,9 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
 	// Validate secret exists if specified
 	if (!secret_name.empty()) {
 		auto &secret_manager = SecretManager::Get(context);
-		auto transaction = CatalogTransaction::GetSystemCatalogTransaction(context);
+		auto transaction = context.transaction.HasActiveTransaction()
+		                       ? CatalogTransaction::GetSystemCatalogTransaction(context)
+		                       : CatalogTransaction::GetSystemTransaction(*context.db);
 		auto secret_entry = secret_manager.GetSecretByName(transaction, secret_name);
 		if (!secret_entry) {
 			throw InvalidInputException("Secret '%s' not found", secret_name);

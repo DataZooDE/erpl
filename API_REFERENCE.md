@@ -94,11 +94,19 @@ Read data from an SAP table or CDS view. Supports projection pushdown, filter pu
 | `fetch_size` | UINTEGER | `erpl_rfc_fetch_size` | Concurrent result rows per round-trip; transport only, never changes the rows returned |
 | `partitions` | UINTEGER | `erpl_rfc_partitions` | Read this many row ranges in parallel. Same rows, unspecified order |
 | `MAX_ROWS` | UINTEGER | 0 (all) | Maximum rows to return |
-| `READ_TABLE_FUNCTION` | VARCHAR | `'RFC_READ_TABLE'` | RFC function to use (see note) |
-| `READ_TABLE_DELIMITER` | VARCHAR | — | Delimiter for TABLE2 variants |
+| `READ_TABLE_FUNCTION` | VARCHAR | `'RFC_READ_TABLE'` | RFC function module to use for table extraction (see note) |
+| `READ_TABLE_DELIMITER` | VARCHAR | — | Single-character delimiter (e.g. `'~'`, `'|'`) for custom or TABLE2 reader functions |
 | `SECRET` | VARCHAR | — | Named secret to use |
 
-**Supported `READ_TABLE_FUNCTION` values:** `RFC_READ_TABLE`, `/BODS/RFC_READ_TABLE`, `/SAPDS/RFC_READ_TABLE`, `/BODS/RFC_READ_TABLE2`, `/SAPDS/RFC_READ_TABLE2`
+**Custom `READ_TABLE_FUNCTION` & Precedence:**
+Any RFC-enabled function module that implements the standard `RFC_READ_TABLE` interface contract (import parameter `QUERY_TABLE`, table parameter `FIELDS`, and a supported tabular data output parameter such as `DATA`, `ET_DATA`, or `TBLOUT*`) can be used. Supported examples include standard `RFC_READ_TABLE`, `/BODS/RFC_READ_TABLE2`, `/SAPDS/RFC_READ_TABLE2`, or custom customer modules (`Z_RFC_READ_TABLE`, `/MYNS/READ_TABLE`).
+
+The function module is resolved via a 5-tier precedence hierarchy:
+1. Per-query named parameter: `sap_read_table(..., READ_TABLE_FUNCTION='...')`
+2. Catalog mount option: `ATTACH '' AS sap (TYPE sap_rfc, read_table_function '...')`
+3. Secret configuration: `CREATE SECRET (TYPE sap_rfc, read_table_function '...')`
+4. Session setting: `SET erpl_rfc_read_table_function = '...'`
+5. Default: `RFC_READ_TABLE` (with automatic runtime fallback to ET_DATA-capable functions such as `/SAPDS/RFC_READ_TABLE2` when string/xstring columns are encountered). When explicitly set at any tier, automatic fallback is disabled and only the configured function is invoked.
 
 ```sql
 -- Basic read
@@ -147,21 +155,25 @@ SELECT * FROM sap_rfc_invoke('BAPI_FLIGHT_GETLIST',
 
 ### Discovery & Metadata
 
-#### `sap_show_tables([TABLENAME, TEXT, THREADS])`
+#### `sap_show_tables([TABLENAME, TEXT, THREADS, SECRET, READ_TABLE_FUNCTION, READ_TABLE_DELIMITER])`
 
-Search for SAP tables and views. No positional arguments.
+Search for SAP tables and views from the data dictionary (`DD02V`). No positional arguments.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `TABLENAME` | VARCHAR | `'%'` | Table name pattern (supports `*` and `%` wildcards) |
 | `TEXT` | VARCHAR | `'%'` | Description text pattern |
 | `THREADS` | UINTEGER | 0 | Parallel read threads |
+| `SECRET` | VARCHAR | — | Named secret to use |
+| `READ_TABLE_FUNCTION` | VARCHAR | — | Custom RFC function module to read `DD02V` |
+| `READ_TABLE_DELIMITER` | VARCHAR | — | Single-character delimiter for custom reader function |
 
 **Returns:** `table_name`, `text`, `class` (VIEW, TRANSP, POOL, CLUSTER)
 
 ```sql
 SELECT * FROM sap_show_tables(TABLENAME='*FLIGHT*');
 SELECT * FROM sap_show_tables(TEXT='%booking%');
+SELECT * FROM sap_show_tables(TABLENAME='*FLIGHT*', read_table_function='/SAPDS/RFC_READ_TABLE2');
 ```
 
 ---
@@ -381,6 +393,7 @@ DETACH sap;
 |--------|------|-------------|
 | `TYPE` | — | Must be `sap_rfc` |
 | `SECRET` | VARCHAR | Named secret for SAP connection |
+| `read_table_function` | VARCHAR | RFC function module to use for catalog schema discovery and table queries (defaults to `RFC_READ_TABLE`) |
 | `TABLES` | VARCHAR | Comma-separated list of exact table names and/or glob patterns (`*`, `?`) to expose. Empty = on-demand lookup. |
 
 **`SHOW TABLES` and table enumeration.** A SAP system exposes tens of thousands of
@@ -1305,6 +1318,7 @@ Notes:
 | `erpl_rfc_partitions` | UBIGINT | 0 | Split a `sap_read_table` scan into this many row ranges read in parallel. `0` reads in one pass, parallelising across columns instead. See [Narrow tables](#narrow-tables-use-partitions-not-threads) |
 | `erpl_rfc_partition_window_rows` | UBIGINT | 0 | Rows a partition worker claims at a time; `0` uses one RFC batch per window |
 | `erpl_rfc_pushdown_filters` | BOOLEAN | `true` | Translate SQL `WHERE` predicates into `RFC_READ_TABLE`'s `OPTIONS` table so SAP filters the rows instead of sending them all. Turning it off never changes which rows come back, only how many cross the wire. See [Filter Pushdown](#filter-pushdown) |
+| `erpl_rfc_read_table_function` | VARCHAR | `''` | Default RFC function module used by `sap_read_table`, `sap_show_tables`, `ATTACH (TYPE sap_rfc)`, and BICS query resolution. Empty = `RFC_READ_TABLE` with auto-fallback to ET_DATA-capable functions on string columns. |
 | `erpl_rfc_backend` | VARCHAR | `'nwrfc'` | Which implementation serves RFC calls: `'nwrfc'` (SAP's NetWeaver RFC SDK) or `'proto'` (the pure-Rust erpl-proto implementation). Must be set **before the first SAP call**; frozen for the life of the process once resolved. Environment override: `ERPL_RFC_BACKEND` |
 | `erpl_rfc_backend_path` | VARCHAR | `''` | Explicit path to the RFC backend shared library, overriding the search. Empty means: next to the extension, then the loader's library path. Environment override: `ERPL_RFC_BACKEND_PATH` |
 
