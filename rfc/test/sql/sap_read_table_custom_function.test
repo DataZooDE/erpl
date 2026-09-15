@@ -229,7 +229,55 @@ SELECT count(*) FROM (
 0
 
 # Attempting to read string column (SOURCE) with custom reader lacking ET_DATA throws hard error
-statement error reader does not support ET_DATA
+statement error
 SELECT SOURCE FROM sap_read_table('ACMDCLSRC', read_table_function='/SAPDS/RFC_READ_TABLE2') WHERE DCLNAME LIKE 'DEMO_%';
 ----
+reader does not support ET_DATA
+
+# ---------------------------------------------------------------------
+# Test 12: Custom delimiter reaching the wire and working across columns
+query I
+SELECT count(*) > 0 FROM sap_read_table('/DMO/FLIGHT', read_table_delimiter='|');
+----
+true
+
+query I
+SELECT count(*) FROM (
+    (SELECT carrier_id, connection_id, flight_date FROM sap_read_table('/DMO/FLIGHT', read_table_delimiter='|'))
+    EXCEPT ALL
+    (SELECT carrier_id, connection_id, flight_date FROM sap_read_table('/DMO/FLIGHT', read_table_delimiter='~'))
+);
+----
+0
+
+# ---------------------------------------------------------------------
+# Test 13: ATTACH with options applies to catalog scans and catalog-qualified sap_show_tables
+statement ok
+ATTACH 'ASHOST=${ERPL_SAP_ASHOST} SYSNR=${ERPL_SAP_SYSNR} CLIENT=${ERPL_SAP_CLIENT} USER=${ERPL_SAP_USER} PASSWD=${ERPL_SAP_PASSWORD} LANG=${ERPL_SAP_LANG} READ_TABLE_FUNCTION=RFC_READ_TABLE READ_TABLE_DELIMITER=|' AS sap_custom (TYPE sap_rfc);
+
+query I
+SELECT count(*) > 0 FROM sap_custom.T000;
+----
+true
+
+query I
+SELECT count(*) > 0 FROM sap_custom.sap_show_tables(TABLENAME='T000');
+----
+true
+
+statement ok
+DETACH sap_custom;
+
+# ---------------------------------------------------------------------
+# Test 14: Non-existent secret name fails at bind time
+statement error
+SELECT * FROM sap_read_table('/DMO/FLIGHT', secret='non_existent_secret');
+----
+Secret 'non_existent_secret' not found
+
+statement error
+SELECT * FROM sap_show_tables(secret='non_existent_secret');
+----
+Secret 'non_existent_secret' not found
+
 

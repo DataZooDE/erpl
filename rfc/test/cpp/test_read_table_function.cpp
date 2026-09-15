@@ -371,7 +371,13 @@ TEST_CASE("ReadTableFunctionDescriptor contract validation and helper methods", 
 	ReadTableFunctionDescriptor desc;
 	desc.function_name = "Z_MY_READER";
 
+	// Default-constructed descriptor is not valid (positive check requires result_path, FIELDS, QUERY_TABLE)
+	REQUIRE(!desc.IsValidContract());
+
 	// Valid descriptor
+	desc.result_path = "/DATA";
+	desc.settable_params = {"QUERY_TABLE", "FIELDS", "OPTIONS", "ROWSKIPS", "ROWCOUNT"};
+	desc.has_fields = true;
 	desc.contract_error.clear();
 	REQUIRE(desc.IsValidContract());
 	REQUIRE_NOTHROW(desc.ValidateContract());
@@ -392,6 +398,9 @@ TEST_CASE("Fallback candidate filtering requires valid contract and supports_et_
 	// A candidate lacking ET_DATA or with invalid contract must not qualify as a string fallback
 	ReadTableFunctionDescriptor valid_et_data;
 	valid_et_data.function_name = "/SAPDS/RFC_READ_TABLE2";
+	valid_et_data.result_path = "/ET_DATA";
+	valid_et_data.settable_params = {"QUERY_TABLE", "FIELDS", "OPTIONS", "ROWSKIPS", "ROWCOUNT"};
+	valid_et_data.has_fields = true;
 	valid_et_data.supports_et_data = true;
 	valid_et_data.contract_error.clear();
 	REQUIRE(valid_et_data.IsValidContract());
@@ -399,6 +408,9 @@ TEST_CASE("Fallback candidate filtering requires valid contract and supports_et_
 
 	ReadTableFunctionDescriptor no_et_data;
 	no_et_data.function_name = "/SAPDS/RFC_READ_TABLE";
+	no_et_data.result_path = "/DATA";
+	no_et_data.settable_params = {"QUERY_TABLE", "FIELDS", "OPTIONS", "ROWSKIPS", "ROWCOUNT"};
+	no_et_data.has_fields = true;
 	no_et_data.supports_et_data = false;
 	no_et_data.contract_error.clear();
 	REQUIRE(no_et_data.IsValidContract());
@@ -581,6 +593,32 @@ TEST_CASE("PlanReadCall provides rich error context when reader lacks ET_DATA", 
 		REQUIRE(msg.find("reader does not support ET_DATA") != string::npos);
 	}
 }
+
+TEST_CASE("TrySelectFallbackReadTableFunction and accessor concurrent thread safety", "[erpl_rfc][read_table_func]") {
+	DuckDB db(nullptr);
+	Connection conn(db);
+	auto &context = *conn.context;
+
+	auto opts = ReadTableFunctionOptions();
+	opts.function_name = "RFC_READ_TABLE";
+	opts.explicitly_set = false;
+
+	RfcReadTableBindData bind_data("DEMO_TAB", 4, 0, opts, &DefaultRfcConnectionFactory, context);
+
+	std::vector<std::thread> threads;
+	for (int i = 0; i < 8; ++i) {
+		threads.emplace_back([&]() {
+			bind_data.TrySelectFallbackReadTableFunction(nullptr);
+			(void)bind_data.GetReadTableFunctionName();
+			(void)bind_data.GetReadTableDelimiter();
+		});
+	}
+	for (auto &t : threads) {
+		t.join();
+	}
+	REQUIRE(bind_data.GetReadTableFunctionName() == "RFC_READ_TABLE");
+}
+
 
 TEST_CASE("ReadTableFunctionDescriptor::Inspect validates connection", "[erpl_rfc][read_table_func]") {
 	REQUIRE_THROWS_AS(ReadTableFunctionDescriptor::Inspect(nullptr, "ANY_FUNC"), InvalidInputException);

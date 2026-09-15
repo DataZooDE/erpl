@@ -157,8 +157,8 @@ The function module and delimiter are resolved independently using the 5-tier pr
 | `function='Z_CUSTOM', delimiter='~'` | `READ_TABLE_FUNCTION='RFC_READ_TABLE', READ_TABLE_DELIMITER=''` | `RFC_READ_TABLE` (pinned) | default (cleared by per-query `''`) |
 | `function='Z_CUSTOM', delimiter='~'` | `READ_TABLE_FUNCTION=''` | `RFC_READ_TABLE` (unpinned) | `~` (inherited from secret) |
 
-*Automatic Fallback & Strings:*
-When reading string or xstring columns, `ET_DATA` is required. When the reader is left at its built-in default (`RFC_READ_TABLE`), automatic runtime fallback to verified ET_DATA-capable functions (`/SAPDS/RFC_READ_TABLE2`, `/BODS/RFC_READ_TABLE2`) is enabled if the host SAP system lacks `USE_ET_DATA_4_RETURN`. Explicitly pinning `RFC_READ_TABLE` or specifying a custom reader disables automatic fallback. If the configured reader lacks `ET_DATA` support, querying string or xstring columns fails immediately with an `InvalidInputException` naming the table, column, reader module, and configuration source.
+*String/Xstring Column Requirements:*
+When reading string or xstring columns, `ET_DATA` is required. Standard `RFC_READ_TABLE` supports `ET_DATA` when SAP Note 2246160 is installed (`USE_ET_DATA_4_RETURN`). Alternatively, a custom reader function declaring `ET_DATA` may be configured. If the active reader function lacks `ET_DATA` support, querying string or xstring columns fails immediately with an `InvalidInputException` naming the table, column, reader module, and configuration source.
 
 *BICS and ODP Requirements:*
 The configured read table function applies to `sap_read_table`, `sap_show_tables`, `ATTACH (TYPE sap_rfc)`, BICS query execution (`sap_bics_query`, `sap_bics_query_cube`), and ODP subscription queries (`sap_odp_show_subscriptions`). BICS query execution requires a `DELIMITER` parameter in the reader function module; if a custom reader lacking `DELIMITER` is configured, query execution fails fast with an `InvalidInputException`. (Note: BICS catalog metadata scanners `sap_bics_meta_*` currently use standard `RFC_READ_TABLE`).

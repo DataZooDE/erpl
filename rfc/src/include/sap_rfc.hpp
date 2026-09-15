@@ -150,7 +150,7 @@ namespace duckdb
 		}
 
 		bool IsValidContract() const {
-			return contract_error.empty();
+			return contract_error.empty() && !result_path.empty() && HasParam("FIELDS") && HasParam("QUERY_TABLE");
 		}
 
 		void ValidateContract(const std::string &source = "") const;

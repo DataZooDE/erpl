@@ -546,7 +546,7 @@ namespace duckdb
         plan.delimiter = configured_delimiter;
 
         if (rfc_type.IsStringType()) {
-            if (!desc.supports_et_data || (!desc.supports_et_data_switch && desc.result_path != "/ET_DATA")) {
+            if (!desc.supports_et_data || (desc.HasParam("USE_ET_DATA_4_RETURN") && !desc.supports_et_data_switch)) {
                 std::string col_info = col_name.empty() ? "" : StringUtil::Format(" column '%s'", SanitizeForErrorMessage(col_name));
                 std::string tbl_info = table_name.empty() ? "" : StringUtil::Format(" from table '%s'", SanitizeForErrorMessage(table_name));
                 std::string src_info = function_source.empty() ? "" : StringUtil::Format(" (configured via %s)", function_source);
@@ -648,7 +648,7 @@ namespace duckdb
         // Validate interface contract and record first contract violation if any
         if (!desc.HasParam("QUERY_TABLE")) {
             desc.contract_error = "missing required parameter 'QUERY_TABLE'";
-        } else if (!found_fields) {
+        } else if (!desc.HasParam("FIELDS")) {
             desc.contract_error = "missing required table parameter 'FIELDS'";
         } else if (!desc.HasParam("OPTIONS")) {
             desc.contract_error = "missing required table parameter 'OPTIONS'";
@@ -665,19 +665,23 @@ namespace duckdb
 
     void RfcReadTableBindData::EnsureReadTableDescriptor(std::shared_ptr<RfcConnection> connection)
     {
+        std::string fn;
+        std::string src;
         {
             std::lock_guard<std::mutex> guard(fallback_selection_lock);
             if (read_table_descriptor) {
                 return;
             }
+            fn = read_table_function;
+            src = read_table_function_source;
         }
         if (!connection || !connection->handle) {
             throw InvalidInputException("Cannot inspect RFC read table function '%s': invalid or null connection",
-                                        SanitizeForErrorMessage(read_table_function));
+                                        SanitizeForErrorMessage(fn));
         }
         // Inspect outside the lock to avoid holding the mutex during remote network I/O
-        auto desc = ReadTableFunctionDescriptor::Inspect(connection, read_table_function);
-        desc.ValidateContract(read_table_function_source);
+        auto desc = ReadTableFunctionDescriptor::Inspect(connection, fn);
+        desc.ValidateContract(src);
         std::lock_guard<std::mutex> guard(fallback_selection_lock);
         if (!read_table_descriptor) {
             read_table_descriptor = std::make_shared<const ReadTableFunctionDescriptor>(std::move(desc));
@@ -696,46 +700,10 @@ namespace duckdb
             return false;
         }
 
-        {
-            std::lock_guard<std::mutex> guard(fallback_selection_lock);
-            if (fallback_selection_done) {
-                return fallback_selection_succeeded;
-            }
-        }
-
-        static const std::vector<std::string> fallback_functions = {
-            "/SAPDS/RFC_READ_TABLE2",
-            "/BODS/RFC_READ_TABLE2"
-        };
-
-        for (auto &candidate : fallback_functions) {
-            if (candidate == read_table_function) {
-                continue;
-            }
-            try {
-                // Inspect outside the lock to avoid holding the mutex across RFC network calls
-                auto desc = ReadTableFunctionDescriptor::Inspect(connection, candidate);
-                if (!desc.IsValidContract() || !desc.supports_et_data || (!desc.supports_et_data_switch && desc.result_path != "/ET_DATA")) {
-                    continue;
-                }
-                std::lock_guard<std::mutex> guard(fallback_selection_lock);
-                if (!fallback_selection_done) {
-                    read_table_function = candidate;
-                    read_table_descriptor = std::make_shared<const ReadTableFunctionDescriptor>(std::move(desc));
-                    fallback_selection_succeeded = true;
-                    fallback_selection_done = true;
-                    ERPL_TRACE_INFO_DATA("sap_rfc", "Using RFC_READ_TABLE fallback", candidate);
-                    return true;
-                }
-                return fallback_selection_succeeded;
-            } catch (std::exception &) {
-                continue;
-            }
-        }
-
         std::lock_guard<std::mutex> guard(fallback_selection_lock);
         fallback_selection_done = true;
-        return fallback_selection_succeeded;
+        fallback_selection_succeeded = false;
+        return false;
     }
 
     bool RfcReadTableBindData::ReadTableHasParam(const std::string &param_name)
@@ -2153,10 +2121,8 @@ namespace duckdb
                             auto col_name = bind_data->GetRfcColumnNames()[owning_state_machine->column_idx];
                             throw InvalidInputException(
                                 "Cannot read string/xstring column '%s' from table '%s'. "
-                                "RFC_READ_TABLE does not support USE_ET_DATA_4_RETURN/ET_DATA on this system, "
-                                "and fallback to /SAPDS/RFC_READ_TABLE2 or /BODS/RFC_READ_TABLE2 was unavailable. "
-                                "Specify a reader function that supports ET_DATA (e.g. SET erpl_rfc_read_table_function = '/SAPDS/RFC_READ_TABLE2') "
-                                "or apply SAP Note 2246160.",
+                                "RFC_READ_TABLE does not support USE_ET_DATA_4_RETURN/ET_DATA on this system. "
+                                "Apply SAP Note 2246160 or configure a custom reader function that supports ET_DATA.",
                                 SanitizeForErrorMessage(col_name), SanitizeForErrorMessage(bind_data->table_name));
                         }
                     }
@@ -2215,8 +2181,13 @@ namespace duckdb
                         // TABLE_WITHOUT_DATA from the fallback is a real failure.
                         auto before = bind_data->GetReadTableFunctionName();
                         auto fallback_connection = bind_data->OpenNewConnection();
-                        bind_data->TrySelectFallbackReadTableFunction(fallback_connection);
-                        fallback_connection->Close();
+                        try {
+                            bind_data->TrySelectFallbackReadTableFunction(fallback_connection);
+                            fallback_connection->Close();
+                        } catch (...) {
+                            try { fallback_connection->Close(); } catch (...) {}
+                            throw;
+                        }
                         if (bind_data->GetReadTableFunctionName() != before) {
                             // retry immediately with the newly selected function
                             continue;
