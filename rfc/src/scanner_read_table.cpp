@@ -41,21 +41,17 @@ namespace duckdb
         auto where_clause = named_params.find("FILTER") != named_params.end() 
                                 ? named_params["FILTER"].ToString()
                                 : "";
-        auto read_table_function = named_params.find("READ_TABLE_FUNCTION") != named_params.end()
-                                ? named_params["READ_TABLE_FUNCTION"].ToString()
-                                : "RFC_READ_TABLE";
-        auto read_table_delimiter = named_params.find("READ_TABLE_DELIMITER") != named_params.end()
-                                ? named_params["READ_TABLE_DELIMITER"].ToString()
+        auto secret_name = named_params.find("SECRET") != named_params.end()
+                                ? named_params["SECRET"].ToString()
                                 : "";
-        auto read_table_function_user_set = named_params.find("READ_TABLE_FUNCTION") != named_params.end();
+        auto rtf_opts = ResolveReadTableFunctionOptions(context, &named_params, secret_name);
+        auto read_table_function = rtf_opts.function_name;
+        auto read_table_delimiter = rtf_opts.delimiter;
+        auto read_table_function_user_set = rtf_opts.user_set;
         
         auto fields = named_params.find("COLUMNS") != named_params.end() 
                             ? ConvertListValueToVector<std::string>(named_params["COLUMNS"])
                             : std::vector<std::string>();
-
-        auto secret_name = named_params.find("SECRET") != named_params.end()
-                                ? named_params["SECRET"].ToString()
-                                : "";
 
         // `fetch_size` is the shared name across sap_read_table, sap_odp_read_* and the
         // BICS scanners.  Each protocol keeps its own natural unit -- here it is

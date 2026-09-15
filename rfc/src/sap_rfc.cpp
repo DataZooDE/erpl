@@ -410,70 +410,106 @@ namespace duckdb
     {
         ReadTableFunctionDescriptor desc;
         desc.function_name = function_name;
-        auto func = std::make_shared<RfcFunction>(connection, function_name);
+        desc.query_table_param = "QUERY_TABLE";
+        desc.has_fields = true;
+        desc.has_options = true;
+        desc.has_rowskips = true;
+        desc.has_rowcount = true;
+        desc.has_delimiter = true;
+        desc.has_get_sorted = true;
+        desc.result_path = "/DATA";
 
-        for (auto &param : func->GetParameterInfos()) {
-            auto name = param.GetName();
-            if (name == "QUERY_TABLE") {
-                desc.query_table_param = name;
-            } else if (name == "FIELDS") {
-                desc.has_fields = true;
-            } else if (name == "OPTIONS") {
-                desc.has_options = true;
-            } else if (name == "ROWSKIPS") {
-                desc.has_rowskips = true;
-            } else if (name == "ROWCOUNT") {
-                desc.has_rowcount = true;
-            } else if (name == "DELIMITER") {
-                desc.has_delimiter = true;
-            } else if (name == "GET_SORTED") {
-                desc.has_get_sorted = true;
-            } else if (name == "USE_ET_DATA_4_RETURN") {
-                desc.has_use_et_data_4_return = true;
+        if (!connection) {
+            return desc;
+        }
+
+        try {
+            auto func = std::make_shared<RfcFunction>(connection, function_name);
+
+            bool found_query_table = false;
+            bool found_fields = false;
+            desc.has_rowskips = false;
+            desc.has_rowcount = false;
+            desc.has_delimiter = false;
+            desc.has_get_sorted = false;
+            desc.has_options = false;
+            desc.has_use_et_data_4_return = false;
+            desc.supports_et_data = false;
+            desc.result_path.clear();
+
+            for (auto &param : func->GetParameterInfos()) {
+                auto name = param.GetName();
+                if (name == "QUERY_TABLE") {
+                    desc.query_table_param = name;
+                    found_query_table = true;
+                } else if (name == "FIELDS") {
+                    found_fields = true;
+                } else if (name == "OPTIONS") {
+                    desc.has_options = true;
+                } else if (name == "ROWSKIPS") {
+                    desc.has_rowskips = true;
+                } else if (name == "ROWCOUNT") {
+                    desc.has_rowcount = true;
+                } else if (name == "DELIMITER") {
+                    desc.has_delimiter = true;
+                } else if (name == "GET_SORTED") {
+                    desc.has_get_sorted = true;
+                } else if (name == "USE_ET_DATA_4_RETURN") {
+                    desc.has_use_et_data_4_return = true;
+                }
             }
-        }
 
-        auto result_infos = func->GetResultInfos();
-        for (auto &param : result_infos) {
-            auto name = param.GetName();
-            if (name == "FIELDS") {
-                desc.has_fields = true;
-            } else if (name == "ET_DATA") {
-                desc.supports_et_data = true;
+            auto result_infos = func->GetResultInfos();
+            for (auto &param : result_infos) {
+                auto name = param.GetName();
+                if (name == "FIELDS") {
+                    found_fields = true;
+                } else if (name == "ET_DATA") {
+                    desc.supports_et_data = true;
+                }
             }
-        }
 
-        if (desc.query_table_param.empty()) {
-            throw InvalidInputException(
-                "RFC function '%s' does not satisfy the RFC_READ_TABLE interface contract: missing required parameter 'QUERY_TABLE'.",
-                function_name);
-        }
-        if (!desc.has_fields) {
-            throw InvalidInputException(
-                "RFC function '%s' does not satisfy the RFC_READ_TABLE interface contract: missing required table parameter 'FIELDS'.",
-                function_name);
-        }
-
-        static const std::vector<std::string> candidates = {
-            "TBLOUT30000", "TBLOUT8192", "TBLOUT2048", "TBLOUT512", "TBLOUT128", "DATA"
-        };
-        for (auto &cand : candidates) {
-            auto it = std::find_if(result_infos.begin(), result_infos.end(), [&](auto &p) {
-                return p.GetName() == cand;
-            });
-            if (it != result_infos.end()) {
-                desc.result_path = "/" + cand;
-                break;
-            }
-        }
-
-        if (desc.result_path.empty()) {
-            if (desc.supports_et_data) {
-                desc.result_path = "/ET_DATA";
-            } else {
+            if (!found_query_table) {
                 throw InvalidInputException(
-                    "RFC function '%s' does not satisfy the RFC_READ_TABLE interface contract: no supported tabular output parameter (DATA, ET_DATA, or TBLOUT*).",
+                    "RFC function '%s' does not satisfy the RFC_READ_TABLE interface contract: missing required parameter 'QUERY_TABLE'.",
                     function_name);
+            }
+            if (!found_fields) {
+                throw InvalidInputException(
+                    "RFC function '%s' does not satisfy the RFC_READ_TABLE interface contract: missing required table parameter 'FIELDS'.",
+                    function_name);
+            }
+            desc.has_fields = true;
+
+            static const std::vector<std::string> candidates = {
+                "TBLOUT30000", "TBLOUT8192", "TBLOUT2048", "TBLOUT512", "TBLOUT128", "DATA"
+            };
+            for (auto &cand : candidates) {
+                auto it = std::find_if(result_infos.begin(), result_infos.end(), [&](auto &p) {
+                    return p.GetName() == cand;
+                });
+                if (it != result_infos.end()) {
+                    desc.result_path = "/" + cand;
+                    break;
+                }
+            }
+
+            if (desc.result_path.empty()) {
+                if (desc.supports_et_data) {
+                    desc.result_path = "/ET_DATA";
+                } else {
+                    throw InvalidInputException(
+                        "RFC function '%s' does not satisfy the RFC_READ_TABLE interface contract: no supported tabular output parameter (DATA, ET_DATA, or TBLOUT*).",
+                        function_name);
+                }
+            }
+        } catch (const InvalidInputException &) {
+            throw;
+        } catch (...) {
+            if (desc.result_path.empty()) {
+                desc.result_path = "/DATA";
+                desc.query_table_param = "QUERY_TABLE";
+                desc.has_fields = true;
             }
         }
 

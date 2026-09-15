@@ -33,6 +33,7 @@ const AuthRow AUTH_ROWS[] = {
     {"erpl_rfc", "sap_read_table", "/BODS/RFC_READ_TABLE2", "fallback", "String-capable reader (ET_DATA) variant."},
     {"erpl_rfc", "sap_read_table", "/SAPDS/RFC_READ_TABLE", "fallback", "String-capable reader variant."},
     {"erpl_rfc", "sap_read_table", "/BODS/RFC_READ_TABLE", "fallback", "String-capable reader variant."},
+    {"erpl_rfc", "sap_read_table", "<custom read table function>", "optional", "User-configured RFC read table function module via READ_TABLE_FUNCTION, secret, or erpl_rfc_read_table_function."},
     {"erpl_rfc", "sap_read_table", "DDIF_FIELDINFO_GET", "metadata", "Field names / types / lengths for the requested table at bind time."},
     {"erpl_rfc", "sap_rfc_invoke", "<user-specified>", "user-specified", "Invokes the function module passed as the first argument; grant S_RFC for whatever you call."},
     {"erpl_rfc", "sap_rfc_show_functions", "RFC_FUNCTION_SEARCH", "always", "Search RFC-enabled function modules by name/group pattern."},

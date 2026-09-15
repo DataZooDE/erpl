@@ -15,7 +15,7 @@ namespace duckdb {
 class SapTableEntry : public TableCatalogEntry {
 public:
 	SapTableEntry(Catalog &catalog, SchemaCatalogEntry &schema, CreateTableInfo &info,
-	              string sap_table_name, string secret_name);
+	              string sap_table_name, string secret_name, string read_table_function = "");
 
 	TableFunction GetScanFunction(ClientContext &context, unique_ptr<FunctionData> &bind_data) override;
 
@@ -26,6 +26,7 @@ public:
 private:
 	string sap_table_name;
 	string secret_name;
+	string read_table_function;
 };
 
 } // namespace duckdb

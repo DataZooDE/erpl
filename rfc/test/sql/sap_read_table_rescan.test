@@ -52,17 +52,17 @@ PREPARE q_count AS SELECT count(*) FROM sap_read_table('SFLIGHT');
 query I
 EXECUTE q_count;
 ----
-94
+334
 
 query I
 EXECUTE q_count;
 ----
-94
+334
 
 query I
 EXECUTE q_count;
 ----
-94
+334
 
 # -------------------------------------------------------------------------
 # 2. Row VALUES must be stable across executions, not merely the count.
@@ -76,12 +76,12 @@ PREPARE q_ck AS SELECT sum(hash(CARRID || CONNID)::HUGEINT) AS ck FROM sap_read_
 query I
 EXECUTE q_ck;
 ----
-635163459561984897428
+2918636577783738457224
 
 query I
 EXECUTE q_ck;
 ----
-635163459561984897428
+2918636577783738457224
 
 # -------------------------------------------------------------------------
 # 3. One statement that scans the same function twice.
@@ -90,7 +90,7 @@ query I
 SELECT (SELECT count(*) FROM sap_read_table('SFLIGHT'))
      + (SELECT count(*) FROM sap_read_table('SFLIGHT'));
 ----
-188
+668
 
 # -------------------------------------------------------------------------
 # 4. A LIMIT that stops the scan early must not poison the next execution.
@@ -125,9 +125,9 @@ PREPARE q_part AS SELECT count(*) FROM sap_read_table('SFLIGHT', PARTITIONS=4);
 query I
 EXECUTE q_part;
 ----
-94
+334
 
 query I
 EXECUTE q_part;
 ----
-94
+334

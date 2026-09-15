@@ -8,9 +8,9 @@
 namespace duckdb {
 
 SapTableEntry::SapTableEntry(Catalog &catalog, SchemaCatalogEntry &schema, CreateTableInfo &info,
-                             string sap_table_name_p, string secret_name_p)
+                             string sap_table_name_p, string secret_name_p, string read_table_function_p)
     : TableCatalogEntry(catalog, schema, info), sap_table_name(std::move(sap_table_name_p)),
-      secret_name(std::move(secret_name_p)) {
+      secret_name(std::move(secret_name_p)), read_table_function(std::move(read_table_function_p)) {
 }
 
 TableFunction SapTableEntry::GetScanFunction(ClientContext &context, unique_ptr<FunctionData> &bind_data) {
@@ -25,9 +25,10 @@ TableFunction SapTableEntry::GetScanFunction(ClientContext &context, unique_ptr<
 	// We therefore rely on (a) the divisibility-preserving warm-up starting
 	// at STANDARD_VECTOR_SIZE for cheap first batches and (b) DuckDB's LIMIT
 	// operator stopping pulls from the scan.  Do not guess a limit here.
+	auto rtf_opts = ResolveReadTableFunctionOptions(context, nullptr, secret_name, read_table_function);
 	auto data = make_uniq<RfcReadTableBindData>(sap_table_name, /*max_read_threads=*/0,
-	                                            /*limit=*/0, "RFC_READ_TABLE", "",
-	                                            /*read_table_function_user_set=*/false,
+	                                            /*limit=*/0, rtf_opts.function_name, rtf_opts.delimiter,
+	                                            rtf_opts.user_set,
 	                                            &DefaultRfcConnectionFactory, context);
 	if (!secret_name.empty()) {
 		data->SetSecretName(secret_name);

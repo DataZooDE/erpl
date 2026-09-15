@@ -42,10 +42,18 @@ static unique_ptr<FunctionData> RfcShowTablesBind(ClientContext &context,
         table_search_str, text_search_str
     );
 
+    auto secret_name = named_params.find("SECRET") != named_params.end()
+                            ? named_params["SECRET"].ToString()
+                            : "";
+    auto rtf_opts = ResolveReadTableFunctionOptions(context, &named_params, secret_name);
+
     auto fields =  std::vector<std::string>({ "TABNAME", "DDTEXT", "TABCLASS" });
     auto result = make_uniq<RfcReadTableBindData>("DD02V", max_read_threads, 0,
-                                                  "RFC_READ_TABLE", "", false,
+                                                  rtf_opts.function_name, rtf_opts.delimiter, rtf_opts.user_set,
                                                   &DefaultRfcConnectionFactory, context);
+    if (!secret_name.empty()) {
+        result->SetSecretName(secret_name);
+    }
     result->InitOptionsFromWhereClause(where_clause);
     result->InitAndVerifyFields(fields);
 
@@ -62,6 +70,9 @@ static unique_ptr<GlobalTableFunctionState> RfcShowTablesInitGlobalState(ClientC
     auto column_ids = input.column_ids;
 
     bind_data.ActivateColumns(column_ids);
+    bind_data.PinAuthParams();
+    bind_data.ResetPersistentSlots();
+    bind_data.ResolveEffectiveMaxBatchSize();
 
     // Own the state machines per EXECUTION, not per bind: DuckDB reuses bind data
     // across executions of a bound plan, so bind-owned machines make a re-scan resume
@@ -72,8 +83,8 @@ static unique_ptr<GlobalTableFunctionState> RfcShowTablesInitGlobalState(ClientC
 }
 
 static void RfcShowTablesScan(ClientContext &context, 
-                                TableFunctionInput &data, 
-                                DataChunk &output) 
+                              TableFunctionInput &data, 
+                              DataChunk &output) 
 {
     auto &bind_data = data.bind_data->CastNoConst<RfcReadTableBindData>();
     auto &machines = data.global_state->Cast<RfcReadTableGlobalState>().serial_machines;
@@ -94,6 +105,9 @@ TableFunction CreateRfcShowTablesScanFunction()
     fun.named_parameters["TABLENAME"] = LogicalType::VARCHAR;
     fun.named_parameters["TEXT"] = LogicalType::VARCHAR;
     fun.named_parameters["THREADS"] = LogicalType::UINTEGER;
+    fun.named_parameters["SECRET"] = LogicalType::VARCHAR;
+    fun.named_parameters["READ_TABLE_FUNCTION"] = LogicalType::VARCHAR;
+    fun.named_parameters["READ_TABLE_DELIMITER"] = LogicalType::VARCHAR;
     fun.projection_pushdown = true;
 
     return TableFunction(fun);

@@ -1,0 +1,118 @@
+# name: test/sql/sap_read_table_custom_function.test
+# description: test custom read table function configuration across all hierarchy levels
+# group: [rfc]
+
+require erpl_rfc
+
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
+
+statement ok
+CREATE SECRET abap_trial (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}'
+);
+
+# ---------------------------------------------------------------------
+# Test 1: Direct function argument with /SAPDS/RFC_READ_TABLE2
+query I
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', read_table_function='/SAPDS/RFC_READ_TABLE2');
+----
+40
+
+# ---------------------------------------------------------------------
+# Test 2: Direct function argument with /BODS/RFC_READ_TABLE2
+query I
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', read_table_function='/BODS/RFC_READ_TABLE2');
+----
+40
+
+# ---------------------------------------------------------------------
+# Test 3: Session variable erpl_rfc_read_table_function
+statement ok
+SET erpl_rfc_read_table_function = '/SAPDS/RFC_READ_TABLE2';
+
+query I
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT');
+----
+40
+
+# Reset session variable
+statement ok
+RESET erpl_rfc_read_table_function;
+
+# ---------------------------------------------------------------------
+# Test 4: Secret with read_table_function
+statement ok
+CREATE SECRET custom_reader_secret (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}',
+    read_table_function '/SAPDS/RFC_READ_TABLE2'
+);
+
+query I
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', secret='custom_reader_secret');
+----
+40
+
+# ---------------------------------------------------------------------
+# Test 5: ATTACH with read_table_function
+statement ok
+ATTACH '' AS sap_custom (
+    TYPE sap_rfc,
+    SECRET 'abap_trial',
+    read_table_function '/SAPDS/RFC_READ_TABLE2',
+    TABLES '/DMO/FLIGHT'
+);
+
+query I
+SELECT COUNT(*) FROM sap_custom."/DMO/FLIGHT";
+----
+40
+
+statement ok
+DETACH sap_custom;
+
+# ---------------------------------------------------------------------
+# Test 6: sap_show_tables with read_table_function
+query I
+SELECT COUNT(*) FROM sap_show_tables(tablename='/DMO/FLIGHT', read_table_function='/SAPDS/RFC_READ_TABLE2');
+----
+1
+
+# ---------------------------------------------------------------------
+# Test 7: Validation error on invalid function name
+statement error
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', read_table_function='; DROP TABLE;--');
+----
+
+statement error
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', read_table_function='123_INVALID');
+----
+
+statement error
+ATTACH '' AS bad_sap (
+    TYPE sap_rfc,
+    SECRET 'abap_trial',
+    read_table_function '123_INVALID'
+);
+----
