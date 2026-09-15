@@ -17,7 +17,7 @@ const vector<RfcSecretOptionDefinition> &RfcSecretOptionDefinitions() {
 	return defs;
 }
 
-const vector<string> &SapSecretParameterNames() {
+const vector<string> &SapSecretAcceptedKeys() {
 	static const vector<string> names = []() {
 		vector<string> result;
 		for (auto &definition : RfcAuthParamDefinitions()) {
@@ -35,7 +35,7 @@ unique_ptr<BaseSecret> CreateSapSecretFunction(ClientContext &context, CreateSec
 	// apply any overridden settings
 	vector<string> prefix_paths;
 	auto result = make_uniq<KeyValueSecret>(prefix_paths, "sap_rfc", "config", input.name);
-	auto &names = SapSecretParameterNames();
+	auto &names = SapSecretAcceptedKeys();
 	for (const auto &named_param : input.options) {
 		auto lower_name = StringUtil::Lower(named_param.first);
 
@@ -151,17 +151,21 @@ RfcAuthParams GetAuthParamsFromContext(ClientContext &context, const std::string
 	return auth_params;
 }
 
-std::string LookupSecretOption(ClientContext &context, const std::string &secret_name, const std::string &key) 
+RfcSecretOptions LookupSecretOptions(ClientContext &context, const std::string &secret_name)
 {
+	RfcSecretOptions result;
 	auto &secret_manager = SecretManager::Get(context);
 	auto transaction = SapSystemTransaction(context);
 
-	auto extract_val = [&](const KeyValueSecret &kv_secret) -> std::string {
-		auto it = kv_secret.secret_map.find(StringUtil::Lower(key));
-		if (it == kv_secret.secret_map.end() || it->second.IsNull()) {
-			return "";
+	auto extract_opts = [&](const KeyValueSecret &kv_secret) {
+		auto it_fn = kv_secret.secret_map.find("read_table_function");
+		if (it_fn != kv_secret.secret_map.end() && !it_fn->second.IsNull()) {
+			result.read_table_function = it_fn->second.ToString();
 		}
-		return it->second.ToString();
+		auto it_del = kv_secret.secret_map.find("read_table_delimiter");
+		if (it_del != kv_secret.secret_map.end() && !it_del->second.IsNull()) {
+			result.read_table_delimiter = it_del->second.ToString();
+		}
 	};
 
 	if (!secret_name.empty() && secret_name != SAP_SECRET_DEFAULT_PATH) {
@@ -178,32 +182,41 @@ std::string LookupSecretOption(ClientContext &context, const std::string &secret
 			}
 			auto *kv = dynamic_cast<const KeyValueSecret *>(secret_entry->secret.get());
 			if (kv) {
-				return extract_val(*kv);
+				extract_opts(*kv);
+				return result;
 			}
 			throw InvalidInputException("Secret '%s' is of type '%s', expected 'key_value'",
 			                            SanitizeForErrorMessage(secret_name),
 			                            SanitizeForErrorMessage(secret_entry->secret->GetType()));
 		}
-		return "";
+		return result;
 	}
 
 	auto match = secret_manager.LookupSecret(transaction, SAP_SECRET_DEFAULT_PATH, "sap_rfc");
 	if (match.HasMatch()) {
 		if (match.GetSecret().GetType() != SAP_SECRET_TYPE_NAME) {
-			throw InvalidInputException("Secret '%s' is of type '%s', expected '%s'",
-			                            SanitizeForErrorMessage(match.GetSecret().GetName()),
-			                            SanitizeForErrorMessage(match.GetSecret().GetType()),
-			                            SAP_SECRET_TYPE_NAME);
+			return result;
 		}
 		auto *kv = dynamic_cast<const KeyValueSecret *>(&match.GetSecret());
 		if (kv) {
-			return extract_val(*kv);
+			extract_opts(*kv);
+			return result;
 		}
-		throw InvalidInputException("Secret '%s' is of type '%s', expected 'key_value'",
-		                            SanitizeForErrorMessage(match.GetSecret().GetName()),
-		                            SanitizeForErrorMessage(match.GetSecret().GetType()));
 	}
 
+	return result;
+}
+
+std::string LookupSecretOption(ClientContext &context, const std::string &secret_name, const std::string &key) 
+{
+	auto opts = LookupSecretOptions(context, secret_name);
+	auto lower = StringUtil::Lower(key);
+	if (lower == "read_table_function") {
+		return opts.read_table_function;
+	}
+	if (lower == "read_table_delimiter") {
+		return opts.read_table_delimiter;
+	}
 	return "";
 }
 

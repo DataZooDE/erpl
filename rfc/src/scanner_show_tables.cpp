@@ -6,6 +6,7 @@
 #include "scanner_show_tables.hpp"
 #include "duckdb_argument_helper.hpp"
 #include "sap_rfc.hpp"
+#include "sap_storage.hpp"
 #include "telemetry.hpp"
 
 namespace duckdb 
@@ -45,7 +46,15 @@ static unique_ptr<FunctionData> RfcShowTablesBind(ClientContext &context,
     auto secret_name = named_params.find("SECRET") != named_params.end()
                             ? named_params["SECRET"].ToString()
                             : "";
-    auto rtf_opts = ResolveReadTableFunctionOptions(context, &named_params, secret_name);
+    string attach_fn, attach_del;
+    if (input.info) {
+        auto *injector = dynamic_cast<SapSecretInjectorInfo*>(input.info.get());
+        if (injector) {
+            attach_fn = injector->read_table_function;
+            attach_del = injector->read_table_delimiter;
+        }
+    }
+    auto rtf_opts = ResolveReadTableFunctionOptions(context, &named_params, secret_name, attach_fn, attach_del);
 
     auto fields =  std::vector<std::string>({ "TABNAME", "DDTEXT", "TABCLASS" });
     auto result = make_uniq<RfcReadTableBindData>("DD02V", max_read_threads, 0,

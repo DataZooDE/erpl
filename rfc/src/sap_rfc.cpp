@@ -154,16 +154,6 @@ namespace duckdb
           client_context(client_context)
     { }
 
-    RfcReadTableBindData::RfcReadTableBindData(std::string table_name,
-                                               int max_read_threads,
-                                               unsigned int limit,
-                                               RfcConnectionFactory_t connection_factory,
-                                               ClientContext &client_context)
-        : RfcReadTableBindData(std::move(table_name), max_read_threads, limit,
-                               ResolveReadTableFunctionOptions(client_context, nullptr, ""),
-                               connection_factory, client_context)
-    { }
-
     void RfcReadTableBindData::PrepareForExecution(ClientContext &context)
     {
         // Note: read_table_descriptor and fallback_selection_* are intentionally sticky
@@ -459,15 +449,14 @@ namespace duckdb
         // Tier 3: Secret options (checks named secret or default scoped secret if empty)
         {
             TierData t3{3, StringUtil::Format("secret '%s'", secret_name.empty() ? "(default)" : secret_name)};
-            auto fn = LookupSecretOption(context, secret_name, "read_table_function");
-            auto del = LookupSecretOption(context, secret_name, "read_table_delimiter");
-            if (!fn.empty()) {
+            auto sec_opts = LookupSecretOptions(context, secret_name);
+            if (!sec_opts.read_table_function.empty()) {
                 t3.has_fn = true;
-                t3.fn = fn;
+                t3.fn = sec_opts.read_table_function;
             }
-            if (!del.empty()) {
+            if (!sec_opts.read_table_delimiter.empty()) {
                 t3.has_del = true;
-                t3.del = del;
+                t3.del = sec_opts.read_table_delimiter;
             }
             tiers.push_back(std::move(t3));
         }
@@ -492,11 +481,15 @@ namespace duckdb
         // 1. Resolve function by independent precedence (highest tier wins; default "RFC_READ_TABLE")
         size_t fn_tier_idx = tiers.size();
         std::string fn_source = "default";
+        opts.explicitly_set = false;
         for (size_t i = 0; i < tiers.size(); i++) {
             if (tiers[i].has_fn) {
                 opts.function_name = NormalizeAndValidateReadTableFunctionName(tiers[i].fn);
                 if (opts.function_name.empty()) {
                     opts.function_name = "RFC_READ_TABLE";
+                    opts.explicitly_set = false;
+                } else {
+                    opts.explicitly_set = true;
                 }
                 fn_tier_idx = i;
                 fn_source = tiers[i].name;
@@ -505,6 +498,7 @@ namespace duckdb
         }
         if (fn_tier_idx == tiers.size()) {
             opts.function_name = "RFC_READ_TABLE";
+            opts.explicitly_set = false;
         }
         opts.function_source = fn_source;
 
@@ -542,7 +536,10 @@ namespace duckdb
     ReadCallPlan PlanReadCall(
         const ReadTableFunctionDescriptor &desc,
         const RfcType &rfc_type,
-        const std::string &configured_delimiter)
+        const std::string &configured_delimiter,
+        const std::string &col_name,
+        const std::string &table_name,
+        const std::string &function_source)
     {
         ReadCallPlan plan;
         plan.function_name = desc.function_name;
@@ -550,9 +547,13 @@ namespace duckdb
 
         if (rfc_type.IsStringType()) {
             if (!desc.supports_et_data || (!desc.supports_et_data_switch && desc.result_path != "/ET_DATA")) {
+                std::string col_info = col_name.empty() ? "" : StringUtil::Format(" column '%s'", SanitizeForErrorMessage(col_name));
+                std::string tbl_info = table_name.empty() ? "" : StringUtil::Format(" from table '%s'", SanitizeForErrorMessage(table_name));
+                std::string src_info = function_source.empty() ? "" : StringUtil::Format(" (configured via %s)", function_source);
                 throw InvalidInputException(
-                    "Cannot read string/xstring column using reader '%s': reader does not support ET_DATA.",
-                    desc.function_name);
+                    "Cannot read string/xstring%s%s using custom reader '%s'%s: reader does not support ET_DATA. "
+                    "Specify a reader function that supports ET_DATA.",
+                    col_info, tbl_info, SanitizeForErrorMessage(desc.function_name), src_info);
             }
             plan.use_et_data = true;
             plan.data_path = "/ET_DATA";
@@ -740,10 +741,10 @@ namespace duckdb
     bool RfcReadTableBindData::ReadTableHasParam(const std::string &param_name)
     {
         std::lock_guard<std::mutex> guard(fallback_selection_lock);
-        if (read_table_descriptor) {
-            return read_table_descriptor->HasParam(param_name);
+        if (!read_table_descriptor) {
+            throw InternalException("RfcReadTableBindData: read_table_descriptor not initialized before checking parameter");
         }
-        return false;
+        return read_table_descriptor->HasParam(param_name);
     }
 
     void RfcReadTableBindData::InitOptionsFromWhereClause(std::string &where_clause)
@@ -2146,33 +2147,25 @@ namespace duckdb
 
                 if (rfc_type.IsStringType() && read_table_function == "RFC_READ_TABLE") {
                     if (!bind_data->SupportsEtDataSwitch(connection)) {
-                        if (bind_data->allow_fallback && bind_data->TrySelectFallbackReadTableFunction(connection)) {
+                        if (bind_data->AllowsFallback() && bind_data->TrySelectFallbackReadTableFunction(connection)) {
                             read_table_function = bind_data->GetReadTableFunctionName();
                         } else {
                             auto col_name = bind_data->GetRfcColumnNames()[owning_state_machine->column_idx];
                             throw InvalidInputException(
                                 "Cannot read string/xstring column '%s' from table '%s'. "
-                                "RFC_READ_TABLE does not support USE_ET_DATA_4_RETURN/ET_DATA on this system. "
-                                "Specify a reader function that supports ET_DATA or apply SAP Note 2246160.",
+                                "RFC_READ_TABLE does not support USE_ET_DATA_4_RETURN/ET_DATA on this system, "
+                                "and fallback to /SAPDS/RFC_READ_TABLE2 or /BODS/RFC_READ_TABLE2 was unavailable. "
+                                "Specify a reader function that supports ET_DATA (e.g. SET erpl_rfc_read_table_function = '/SAPDS/RFC_READ_TABLE2') "
+                                "or apply SAP Note 2246160.",
                                 SanitizeForErrorMessage(col_name), SanitizeForErrorMessage(bind_data->table_name));
                         }
                     }
                 }
 
                 auto desc_snapshot = bind_data->GetReadTableDescriptor();
-                ReadCallPlan plan;
-                try {
-                    plan = PlanReadCall(*desc_snapshot, rfc_type, read_table_delimiter);
-                } catch (const InvalidInputException &) {
-                    auto col_name = bind_data->GetRfcColumnNames()[owning_state_machine->column_idx];
-                    std::string fn_info = bind_data->read_table_function_source.empty() ? "" :
-                        StringUtil::Format(" (configured via %s)", bind_data->read_table_function_source);
-                    throw InvalidInputException(
-                        "Cannot read string/xstring column '%s' from table '%s' using custom reader '%s'%s: reader does not support ET_DATA. "
-                        "Specify a reader function that supports ET_DATA.",
-                        SanitizeForErrorMessage(col_name), SanitizeForErrorMessage(bind_data->table_name),
-                        SanitizeForErrorMessage(desc_snapshot->function_name), fn_info);
-                }
+                auto col_name = bind_data->GetRfcColumnNames()[owning_state_machine->column_idx];
+                auto plan = PlanReadCall(*desc_snapshot, rfc_type, read_table_delimiter,
+                                         col_name, bind_data->table_name, bind_data->GetReadTableFunctionSource());
                 use_et_data = plan.use_et_data;
                 data_path = plan.data_path;
                 read_table_function = plan.function_name;

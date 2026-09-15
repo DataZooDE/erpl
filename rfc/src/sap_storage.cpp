@@ -14,6 +14,7 @@
 // TABLES pattern-expansion helper (ResolveTablePatterns), which runs for every
 // DuckDB version.
 #include "sap_rfc.hpp"
+#include "sap_storage.hpp"
 #include "erpl_tracing.hpp"
 
 // entry_lookup_info.hpp was introduced alongside TryLookupEntryInternal in DuckDB v1.5+
@@ -230,17 +231,6 @@ private:
 
 #if DUCKDB_MINOR_VERSION >= 5
 
-struct SapSecretInjectorInfo : public TableFunctionInfo {
-	string secret_name;
-	string read_table_function;
-	string read_table_delimiter;
-	table_function_bind_t orig_bind;
-	SapSecretInjectorInfo(string secret, string rtf, string delim, table_function_bind_t bind)
-	    : secret_name(std::move(secret)), read_table_function(std::move(rtf)),
-	      read_table_delimiter(std::move(delim)), orig_bind(bind) {
-	}
-};
-
 static unique_ptr<FunctionData> SapSecretBind(ClientContext &ctx, TableFunctionBindInput &input,
                                               vector<LogicalType> &return_types, vector<string> &names) {
 	D_ASSERT(input.info);
@@ -248,14 +238,6 @@ static unique_ptr<FunctionData> SapSecretBind(ClientContext &ctx, TableFunctionB
 	if (!injector.secret_name.empty() && input.table_function.named_parameters.count("secret") &&
 	    input.named_parameters.find("secret") == input.named_parameters.end()) {
 		input.named_parameters["secret"] = Value(injector.secret_name);
-	}
-	if (!injector.read_table_function.empty() && input.table_function.named_parameters.count("read_table_function") &&
-	    input.named_parameters.find("read_table_function") == input.named_parameters.end()) {
-		input.named_parameters["read_table_function"] = Value(injector.read_table_function);
-	}
-	if (!injector.read_table_delimiter.empty() && input.table_function.named_parameters.count("read_table_delimiter") &&
-	    input.named_parameters.find("read_table_delimiter") == input.named_parameters.end()) {
-		input.named_parameters["read_table_delimiter"] = Value(injector.read_table_delimiter);
 	}
 	return injector.orig_bind(ctx, input, return_types, names);
 }
@@ -419,12 +401,9 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
 			secret_name = entry.second.ToString();
 		} else if (lower_name == "read_table_function") {
 			read_table_function = NormalizeAndValidateReadTableFunctionName(entry.second.ToString());
-		} else if (lower_name == "read_table_delimiter" || lower_name == "delimiter") {
+		} else if (lower_name == "read_table_delimiter") {
 			read_table_delimiter = entry.second.ToString();
 			ValidateReadTableDelimiter(read_table_delimiter);
-			if (lower_name == "delimiter") {
-				ERPL_TRACE_WARN("sap_storage", "ATTACH option 'delimiter' is deprecated; use 'read_table_delimiter' instead");
-			}
 		} else if (lower_name == "tables") {
 			auto tables_str = entry.second.ToString();
 			auto split = StringUtil::Split(tables_str, ',');
@@ -444,7 +423,7 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
 
 	// Remove consumed options so SingleFileStorageManager doesn't reject them
 	static const std::unordered_set<std::string> consumed = {
-		"secret", "read_table_function", "read_table_delimiter", "delimiter", "tables"
+		"secret", "read_table_function", "read_table_delimiter", "tables"
 	};
 	for (auto it = attach_options.options.begin(); it != attach_options.options.end(); ) {
 		if (consumed.count(StringUtil::Lower(it->first))) {

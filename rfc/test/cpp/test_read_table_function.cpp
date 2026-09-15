@@ -225,12 +225,12 @@ TEST_CASE("ResolveReadTableFunctionOptions follows 5-tier precedence hierarchy",
 		REQUIRE_THROWS_AS(ResolveReadTableFunctionOptions(context, nullptr, "nonexistent_secret"), InvalidInputException);
 	}
 
-	// Explicit setting of RFC_READ_TABLE preserves allow_fallback = true
+	// Explicit setting of RFC_READ_TABLE pins the reader: allow_fallback is false (F4)
 	{
 		run_query("SET erpl_rfc_read_table_function = 'RFC_READ_TABLE'");
 		auto opts = ResolveReadTableFunctionOptions(context);
 		REQUIRE(opts.function_name == "RFC_READ_TABLE");
-		REQUIRE(opts.AllowsFallback() == true);
+		REQUIRE(opts.AllowsFallback() == false);
 		run_query("SET erpl_rfc_read_table_function = ''");
 	}
 }
@@ -297,13 +297,14 @@ TEST_CASE("ResolveReadTableFunctionOptions coupling, clearing, and fallback rule
 	{
 		run_query("CREATE SECRET sec_bods (TYPE sap_rfc, ashost 's4', user 'demo', read_table_function '/BODS/RFC_READ_TABLE', read_table_delimiter '~')");
 		
-		// Query specifies function only -> delimiter is inherited from secret ('~') independently
+		// Query specifies function only -> delimiter is inherited from secret ('~') independently.
+		// Explicit RFC_READ_TABLE query override pins the reader (AllowsFallback is false).
 		named_parameter_map_t fn_override_params;
 		fn_override_params["READ_TABLE_FUNCTION"] = Value("RFC_READ_TABLE");
 		auto opts = ResolveReadTableFunctionOptions(context, &fn_override_params, "sec_bods");
 		REQUIRE(opts.function_name == "RFC_READ_TABLE");
 		REQUIRE(opts.delimiter == "~");
-		REQUIRE(opts.AllowsFallback() == true);
+		REQUIRE(opts.AllowsFallback() == false);
 
 		// Query specifies delimiter only -> function is inherited from secret ('/BODS/RFC_READ_TABLE'), delimiter is overridden by query ('^')
 		named_parameter_map_t del_override_params;
@@ -316,16 +317,16 @@ TEST_CASE("ResolveReadTableFunctionOptions coupling, clearing, and fallback rule
 		run_query("DROP SECRET sec_bods");
 	}
 
-	// 3. AllowsFallback rules: true for RFC_READ_TABLE (default or explicit), false for custom
+	// 3. AllowsFallback rules: true for default RFC_READ_TABLE, false for pinned or custom (F4)
 	{
 		// Default
 		auto opts_def = ResolveReadTableFunctionOptions(context);
 		REQUIRE(opts_def.AllowsFallback() == true);
 
-		// Explicit RFC_READ_TABLE via session
+		// Explicit RFC_READ_TABLE via session pins the reader (AllowsFallback is false)
 		run_query("SET erpl_rfc_read_table_function = 'RFC_READ_TABLE'");
 		auto opts_rfc = ResolveReadTableFunctionOptions(context);
-		REQUIRE(opts_rfc.AllowsFallback() == true);
+		REQUIRE(opts_rfc.AllowsFallback() == false);
 		run_query("SET erpl_rfc_read_table_function = ''");
 
 		// Custom function via session
@@ -507,8 +508,81 @@ TEST_CASE("LookupSecretOption throws InvalidInputException on wrong secret type"
 
 	REQUIRE_THROWS_AS(LookupSecretOption(context, "sec_wrong_type", "read_table_function"), InvalidInputException);
 	REQUIRE_THROWS_AS(LookupSecretOption(context, "sec_wrong_kv", "read_table_function"), InvalidInputException);
+
+	// Default secret with non-sap_rfc type does not throw (F8)
+	auto default_wrong = make_uniq<BaseSecret>(vector<string>(), "custom_dummy", "config", "default_wrong");
+	secret_manager.RegisterSecret(transaction,
+		std::move(default_wrong),
+		OnCreateConflict::ERROR_ON_CONFLICT,
+		SecretPersistType::TEMPORARY);
+	auto default_opts = LookupSecretOptions(context, "");
+	REQUIRE(default_opts.read_table_function.empty());
+	REQUIRE(default_opts.read_table_delimiter.empty());
+}
+
+TEST_CASE("AllowsFallback accurately distinguishes default from pinned RFC_READ_TABLE", "[erpl_rfc][read_table_func]") {
+	DuckDB db(nullptr);
+	db.LoadStaticExtension<ErplRfcExtension>();
+	Connection conn(db);
+	auto &context = *conn.context;
+
+	// 1. Default (no tier sets anything): AllowsFallback is true
+	auto def_opts = ResolveReadTableFunctionOptions(context, nullptr, "");
+	REQUIRE(def_opts.function_name == "RFC_READ_TABLE");
+	REQUIRE(!def_opts.explicitly_set);
+	REQUIRE(def_opts.AllowsFallback());
+
+	// 2. Query parameter pins RFC_READ_TABLE: AllowsFallback is false
+	named_parameter_map_t params;
+	params["read_table_function"] = Value("RFC_READ_TABLE");
+	auto pinned_opts = ResolveReadTableFunctionOptions(context, &params, "");
+	REQUIRE(pinned_opts.function_name == "RFC_READ_TABLE");
+	REQUIRE(pinned_opts.explicitly_set);
+	REQUIRE(!pinned_opts.AllowsFallback());
+
+	// 3. Custom function: AllowsFallback is false
+	params["read_table_function"] = Value("Z_CUSTOM_TABLE");
+	auto custom_opts = ResolveReadTableFunctionOptions(context, &params, "");
+	REQUIRE(custom_opts.function_name == "Z_CUSTOM_TABLE");
+	REQUIRE(custom_opts.explicitly_set);
+	REQUIRE(!custom_opts.AllowsFallback());
+
+	// 4. Session setting pins RFC_READ_TABLE: AllowsFallback is false
+	conn.Query("SET erpl_rfc_read_table_function = 'RFC_READ_TABLE'");
+	auto sess_opts = ResolveReadTableFunctionOptions(context, nullptr, "");
+	REQUIRE(sess_opts.function_name == "RFC_READ_TABLE");
+	REQUIRE(sess_opts.explicitly_set);
+	REQUIRE(!sess_opts.AllowsFallback());
+
+	// 5. Session setting cleared with '': AllowsFallback is true again
+	conn.Query("SET erpl_rfc_read_table_function = ''");
+	auto reset_opts = ResolveReadTableFunctionOptions(context, nullptr, "");
+	REQUIRE(reset_opts.function_name == "RFC_READ_TABLE");
+	REQUIRE(!reset_opts.explicitly_set);
+	REQUIRE(reset_opts.AllowsFallback());
+}
+
+TEST_CASE("PlanReadCall provides rich error context when reader lacks ET_DATA", "[erpl_rfc][read_table_func]") {
+	ReadTableFunctionDescriptor desc;
+	desc.function_name = "Z_OLD_READER";
+	desc.supports_et_data = false;
+	desc.result_path = "/DATA";
+
+	RfcType str_type(RFCTYPE_STRING, 0);
+	try {
+		PlanReadCall(desc, str_type, "", "NOTE_TEXT", "STXH", "query parameter");
+		FAIL("Expected InvalidInputException");
+	} catch (const InvalidInputException &ex) {
+		string msg = ex.what();
+		REQUIRE(msg.find("column 'NOTE_TEXT'") != string::npos);
+		REQUIRE(msg.find("table 'STXH'") != string::npos);
+		REQUIRE(msg.find("custom reader 'Z_OLD_READER'") != string::npos);
+		REQUIRE(msg.find("configured via query parameter") != string::npos);
+		REQUIRE(msg.find("reader does not support ET_DATA") != string::npos);
+	}
 }
 
 TEST_CASE("ReadTableFunctionDescriptor::Inspect validates connection", "[erpl_rfc][read_table_func]") {
 	REQUIRE_THROWS_AS(ReadTableFunctionDescriptor::Inspect(nullptr, "ANY_FUNC"), InvalidInputException);
 }
+

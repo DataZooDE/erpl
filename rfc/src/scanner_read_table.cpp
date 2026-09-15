@@ -10,6 +10,7 @@
 #include "scanner_read_table.hpp"
 #include "duckdb_argument_helper.hpp"
 #include "sap_rfc.hpp"
+#include "sap_storage.hpp"
 #include "telemetry.hpp"
 #include "erpl_telemetry.hpp"
 
@@ -44,7 +45,15 @@ namespace duckdb
         auto secret_name = named_params.find("SECRET") != named_params.end()
                                 ? named_params["SECRET"].ToString()
                                 : "";
-        auto rtf_opts = ResolveReadTableFunctionOptions(context, &named_params, secret_name);
+        string attach_fn, attach_del;
+        if (input.info) {
+            auto *injector = dynamic_cast<SapSecretInjectorInfo*>(input.info.get());
+            if (injector) {
+                attach_fn = injector->read_table_function;
+                attach_del = injector->read_table_delimiter;
+            }
+        }
+        auto rtf_opts = ResolveReadTableFunctionOptions(context, &named_params, secret_name, attach_fn, attach_del);
         
         auto fields = named_params.find("COLUMNS") != named_params.end() 
                             ? ConvertListValueToVector<std::string>(named_params["COLUMNS"])

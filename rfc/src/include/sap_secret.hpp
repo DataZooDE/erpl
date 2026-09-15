@@ -12,10 +12,10 @@ static constexpr const char *SAP_SECRET_PROVIDER = "config";
 static constexpr const char *SAP_SECRET_TYPE_NAME = "sap_rfc";
 static constexpr const char *SAP_SECRET_DEFAULT_PATH = "*";
 
-// The parameter names accepted by a `sap_rfc` secret. Derived from
-// RfcAuthParamDefinitions() in sap_connection.hpp, which is the single source
-// of truth for the supported RfcOpenConnection parameters.
-const vector<string> &SapSecretParameterNames();
+// The keys accepted by a `sap_rfc` secret. Derived from
+// RfcAuthParamDefinitions() in sap_connection.hpp and RfcSecretOptionDefinitions().
+const vector<string> &SapSecretAcceptedKeys();
+inline const vector<string> &SapSecretParameterNames() { return SapSecretAcceptedKeys(); }
 
 // Convert a DuckDB secret to an RfcAuthParams
 RfcAuthParams ConvertSecretToAuthParams(const KeyValueSecret &duck_secret);
@@ -27,7 +27,13 @@ struct RfcSecretOptionDefinition {
 
 const vector<RfcSecretOptionDefinition> &RfcSecretOptionDefinitions();
 
-// Look up a non-connection option on a named secret
+struct RfcSecretOptions {
+	std::string read_table_function;
+	std::string read_table_delimiter;
+};
+
+// Look up non-connection options on a named secret
+RfcSecretOptions LookupSecretOptions(ClientContext &context, const std::string &secret_name);
 std::string LookupSecretOption(ClientContext &context, const std::string &secret_name, const std::string &key);
 
 // Register the SAP secret type with DuckDB

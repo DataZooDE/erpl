@@ -46,6 +46,11 @@ CREATE SECRET abap_trial (
 statement ok
 CREATE TEMP TABLE expected_flight_count AS SELECT count(*) AS c FROM sap_read_table('SFLIGHT');
 
+query I
+SELECT (SELECT c FROM expected_flight_count) >= 90;
+----
+true
+
 statement ok
 CREATE TEMP TABLE expected_flight_ck AS SELECT sum(hash(CARRID || CONNID)::HUGEINT) AS ck FROM sap_read_table('SFLIGHT');
 

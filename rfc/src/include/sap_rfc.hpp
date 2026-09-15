@@ -118,9 +118,10 @@ namespace duckdb
 		std::string delimiter;
 		std::string function_source = "default";
 		std::string delimiter_source = "default";
+		bool explicitly_set = false;
 
 		bool AllowsFallback() const {
-			return function_name == "RFC_READ_TABLE";
+			return !explicitly_set && function_name == "RFC_READ_TABLE";
 		}
 	};
 
@@ -167,7 +168,10 @@ namespace duckdb
 	ReadCallPlan PlanReadCall(
 		const ReadTableFunctionDescriptor &desc,
 		const RfcType &rfc_type,
-		const std::string &configured_delimiter);
+		const std::string &configured_delimiter,
+		const std::string &col_name = "",
+		const std::string &table_name = "",
+		const std::string &function_source = "");
 
 	class RfcReadTableBindData : public TableFunctionData
     {
@@ -184,11 +188,6 @@ namespace duckdb
 								 unsigned int limit, 
 								 const ReadTableFunctionOptions &function_options,
 								 RfcConnectionFactory_t connection_factory, 
-								 ClientContext &context);
-			RfcReadTableBindData(std::string table_name,
-								 int max_read_threads,
-								 unsigned int limit,
-								 RfcConnectionFactory_t connection_factory,
 								 ClientContext &context);
 
 			void PrepareForExecution(ClientContext &context);
@@ -209,6 +208,9 @@ namespace duckdb
 			std::string GetReadTableFunctionName();
 			std::string GetReadTableDelimiter();
 			std::shared_ptr<const ReadTableFunctionDescriptor> GetReadTableDescriptor() const;
+			bool AllowsFallback() const { return allow_fallback; }
+			const std::string &GetReadTableFunctionSource() const { return read_table_function_source; }
+			const std::string &GetReadTableDelimiterSource() const { return read_table_delimiter_source; }
 			bool SupportsEtDataSwitch(std::shared_ptr<RfcConnection> connection);
 			bool TrySelectFallbackReadTableFunction(std::shared_ptr<RfcConnection> connection);
 			void EnsureReadTableDescriptor(std::shared_ptr<RfcConnection> connection);
@@ -241,12 +243,6 @@ namespace duckdb
 			std::vector<std::string> options;
 			unsigned int limit = 0;
 			unsigned int max_threads = 0;
-			std::string read_table_function;
-			std::string read_table_delimiter;
-			std::string read_table_function_source = "default";
-			std::string read_table_delimiter_source = "default";
-			bool allow_fallback = true;
-			std::shared_ptr<const ReadTableFunctionDescriptor> read_table_descriptor;
 
 			void SetSecretName(const std::string &name) { secret_name = name; }
 			const std::string &GetSecretName() const { return secret_name; }
@@ -269,6 +265,13 @@ namespace duckdb
 			void PinAuthParams(ClientContext &context);
 
 		private:
+			std::string read_table_function;
+			std::string read_table_delimiter;
+			std::string read_table_function_source = "default";
+			std::string read_table_delimiter_source = "default";
+			bool allow_fallback = true;
+			std::shared_ptr<const ReadTableFunctionDescriptor> read_table_descriptor;
+
 			std::string secret_name;
 			RfcConnectionFactory_t connection_factory;
 			ClientContext &client_context;
