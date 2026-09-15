@@ -154,9 +154,7 @@ RfcAuthParams GetAuthParamsFromContext(ClientContext &context, const std::string
 std::string LookupSecretOption(ClientContext &context, const std::string &secret_name, const std::string &key) 
 {
 	auto &secret_manager = SecretManager::Get(context);
-	auto transaction = context.transaction.HasActiveTransaction()
-	                       ? CatalogTransaction::GetSystemCatalogTransaction(context)
-	                       : CatalogTransaction::GetSystemTransaction(*context.db);
+	auto transaction = SapSystemTransaction(context);
 
 	auto extract_val = [&](const KeyValueSecret &kv_secret) -> std::string {
 		auto it = kv_secret.secret_map.find(StringUtil::Lower(key));
@@ -169,23 +167,41 @@ std::string LookupSecretOption(ClientContext &context, const std::string &secret
 	if (!secret_name.empty() && secret_name != SAP_SECRET_DEFAULT_PATH) {
 		auto secret_entry = secret_manager.GetSecretByName(transaction, secret_name);
 		if (!secret_entry) {
-			throw InvalidInputException("Secret '%s' not found", secret_name);
+			throw InvalidInputException("Secret '%s' not found", SanitizeForErrorMessage(secret_name));
 		}
 		if (secret_entry->secret) {
+			if (secret_entry->secret->GetType() != SAP_SECRET_TYPE_NAME) {
+				throw InvalidInputException("Secret '%s' is of type '%s', expected '%s'",
+				                            SanitizeForErrorMessage(secret_name),
+				                            SanitizeForErrorMessage(secret_entry->secret->GetType()),
+				                            SAP_SECRET_TYPE_NAME);
+			}
 			auto *kv = dynamic_cast<const KeyValueSecret *>(secret_entry->secret.get());
 			if (kv) {
 				return extract_val(*kv);
 			}
+			throw InvalidInputException("Secret '%s' is of type '%s', expected 'key_value'",
+			                            SanitizeForErrorMessage(secret_name),
+			                            SanitizeForErrorMessage(secret_entry->secret->GetType()));
 		}
 		return "";
 	}
 
-	auto match = secret_manager.LookupSecret(transaction, "", "sap_rfc");
+	auto match = secret_manager.LookupSecret(transaction, SAP_SECRET_DEFAULT_PATH, "sap_rfc");
 	if (match.HasMatch()) {
+		if (match.GetSecret().GetType() != SAP_SECRET_TYPE_NAME) {
+			throw InvalidInputException("Secret '%s' is of type '%s', expected '%s'",
+			                            SanitizeForErrorMessage(match.GetSecret().GetName()),
+			                            SanitizeForErrorMessage(match.GetSecret().GetType()),
+			                            SAP_SECRET_TYPE_NAME);
+		}
 		auto *kv = dynamic_cast<const KeyValueSecret *>(&match.GetSecret());
 		if (kv) {
 			return extract_val(*kv);
 		}
+		throw InvalidInputException("Secret '%s' is of type '%s', expected 'key_value'",
+		                            SanitizeForErrorMessage(match.GetSecret().GetName()),
+		                            SanitizeForErrorMessage(match.GetSecret().GetType()));
 	}
 
 	return "";

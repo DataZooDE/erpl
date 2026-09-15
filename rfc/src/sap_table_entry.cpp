@@ -29,8 +29,7 @@ TableFunction SapTableEntry::GetScanFunction(ClientContext &context, unique_ptr<
 	// operator stopping pulls from the scan.  Do not guess a limit here.
 	auto rtf_opts = ResolveReadTableFunctionOptions(context, nullptr, secret_name, read_table_function, read_table_delimiter);
 	auto data = make_uniq<RfcReadTableBindData>(sap_table_name, /*max_read_threads=*/0,
-	                                            /*limit=*/0, rtf_opts.function_name, rtf_opts.delimiter,
-	                                            rtf_opts.user_set,
+	                                            /*limit=*/0, rtf_opts,
 	                                            &DefaultRfcConnectionFactory, context);
 	if (!secret_name.empty()) {
 		data->SetSecretName(secret_name);

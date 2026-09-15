@@ -106,15 +106,22 @@ namespace duckdb
 			std::atomic<bool> exhausted{false};
 	};
 
+	inline constexpr const char *kDefaultReadTableDelimiter = "~";
+
+	std::string SanitizeForErrorMessage(const std::string &input, size_t max_len = 32);
 	void ValidateReadTableFunctionName(const std::string &name);
-	void ValidateReadTableFunctionName(const std::string &raw_input, const std::string &name);
 	std::string NormalizeAndValidateReadTableFunctionName(const std::string &input);
 	void ValidateReadTableDelimiter(const std::string &delimiter);
 
 	struct ReadTableFunctionOptions {
-		std::string function_name;
+		std::string function_name = "RFC_READ_TABLE";
 		std::string delimiter;
-		bool user_set = false;
+		std::string function_source = "default";
+		std::string delimiter_source = "default";
+
+		bool AllowsFallback() const {
+			return function_name == "RFC_READ_TABLE";
+		}
 	};
 
 	ReadTableFunctionOptions ResolveReadTableFunctionOptions(
@@ -124,22 +131,43 @@ namespace duckdb
 		const std::string &attach_override_function = "",
 		const std::string &attach_override_delimiter = "");
 
+	// Marked contract: ReadTableFunctionDescriptor is consumed cross-repository
+	// by erpl_bics (RfcReadTableHelper) and erpl_odp.
 	struct ReadTableFunctionDescriptor {
 		std::string function_name;
 		std::string result_path; // e.g. "/DATA", "/TBLOUT512", "/ET_DATA"
-		std::string query_table_param; // "QUERY_TABLE"
-		bool has_fields = false;
-		bool has_options = false;
-		bool has_rowskips = false;
-		bool has_rowcount = false;
-		bool has_delimiter = false;
-		bool has_get_sorted = false;
-		bool has_use_et_data_4_return = false;
+		bool has_fields = false; // Note: FIELDS may appear as RFC_EXPORT or RFC_TABLES depending on function module
 		bool supports_et_data = false;
 		bool supports_et_data_switch = false;
+		std::string contract_error;
+		// Includes all non-RFC_EXPORT parameters (RFC_IMPORT, RFC_CHANGING, RFC_TABLES)
+		// that can be supplied during a read call (e.g. QUERY_TABLE, FIELDS, OPTIONS, DELIMITER).
+		std::set<std::string> settable_params;
+
+		bool HasParam(const std::string &param_name) const {
+			return settable_params.find(param_name) != settable_params.end();
+		}
+
+		bool IsValidContract() const {
+			return contract_error.empty();
+		}
+
+		void ValidateContract(const std::string &source = "") const;
 
 		static ReadTableFunctionDescriptor Inspect(std::shared_ptr<RfcConnection> connection, const std::string &function_name);
 	};
+
+	struct ReadCallPlan {
+		std::string function_name;
+		std::string data_path;
+		std::string delimiter;
+		bool use_et_data = false;
+	};
+
+	ReadCallPlan PlanReadCall(
+		const ReadTableFunctionDescriptor &desc,
+		const RfcType &rfc_type,
+		const std::string &configured_delimiter);
 
 	class RfcReadTableBindData : public TableFunctionData
     {
@@ -154,9 +182,7 @@ namespace duckdb
 			RfcReadTableBindData(std::string table_name, 
 								 int max_read_threads,
 								 unsigned int limit, 
-								 std::string read_table_function,
-								 std::string read_table_delimiter,
-								 bool read_table_function_user_set,
+								 const ReadTableFunctionOptions &function_options,
 								 RfcConnectionFactory_t connection_factory, 
 								 ClientContext &context);
 			RfcReadTableBindData(std::string table_name,
@@ -165,6 +191,7 @@ namespace duckdb
 								 RfcConnectionFactory_t connection_factory,
 								 ClientContext &context);
 
+			void PrepareForExecution(ClientContext &context);
 			void InitOptionsFromWhereClause(std::string &where_clause);
 			void AddOptionsFromWhereClause(std::string &where_clause);
 			void InitAndVerifyFields(std::vector<std::string> req_fields);
@@ -181,17 +208,10 @@ namespace duckdb
 			std::shared_ptr<RfcConnection> OpenNewConnection();
 			std::string GetReadTableFunctionName();
 			std::string GetReadTableDelimiter();
-			bool IsReadTableFunctionUserSet();
-			bool ReadTableFunctionSupportsEtData(std::shared_ptr<RfcConnection> connection, const std::string &function_name);
-			bool ReadTableSupportsEtDataSwitch(std::shared_ptr<RfcConnection> connection, const std::string &function_name);
-			void ValidateReadTableFunctionName();
-			void ResolveReadTableFunctionForStringTypes(std::shared_ptr<RfcConnection> connection);
-			bool ReadTableSupportsEtData();
+			std::shared_ptr<const ReadTableFunctionDescriptor> GetReadTableDescriptor() const;
+			bool SupportsEtDataSwitch(std::shared_ptr<RfcConnection> connection);
 			bool TrySelectFallbackReadTableFunction(std::shared_ptr<RfcConnection> connection);
-			void ResolveReadTableResultPath(std::shared_ptr<RfcConnection> connection);
-			// Guarded read of the result path; the runtime fallback can reassign it.
-			std::string GetReadTableResultPath();
-			void ResolveReadTableImportParams(std::shared_ptr<RfcConnection> connection);
+			void EnsureReadTableDescriptor(std::shared_ptr<RfcConnection> connection);
 			bool ReadTableHasParam(const std::string &param_name);
 			
 			// The machine set is passed in rather than read from bind data. DuckDB
@@ -223,11 +243,10 @@ namespace duckdb
 			unsigned int max_threads = 0;
 			std::string read_table_function;
 			std::string read_table_delimiter;
-			bool read_table_function_user_set = false;
-			std::optional<bool> read_table_supports_et_data;
-			std::optional<bool> read_table_supports_et_data_switch;
-			std::string read_table_result_path;
-			std::set<std::string> read_table_import_params;
+			std::string read_table_function_source = "default";
+			std::string read_table_delimiter_source = "default";
+			bool allow_fallback = true;
+			std::shared_ptr<const ReadTableFunctionDescriptor> read_table_descriptor;
 
 			void SetSecretName(const std::string &name) { secret_name = name; }
 			const std::string &GetSecretName() const { return secret_name; }
@@ -247,7 +266,7 @@ namespace duckdb
 			// OpenNewConnection used to re-resolve the DuckDB secret on every open, so a
 			// scan that opens a connection per window could silently move to a different
 			// system mid-query if the secret was replaced underneath it.
-			void PinAuthParams();
+			void PinAuthParams(ClientContext &context);
 
 		private:
 			std::string secret_name;
@@ -281,7 +300,7 @@ namespace duckdb
 			idx_t partition_count = 0;
 			// Guards the one post-bind write to the bind data: the runtime
 			// RFC_READ_TABLE fallback, which reassigns read_table_function.
-			std::mutex fallback_selection_lock;
+			mutable std::mutex fallback_selection_lock;
 			bool fallback_selection_done = false;
 			bool fallback_selection_succeeded = false;
 			// Defaults to RfcReadColumnStateMachine::MAX_BATCH_SIZE (that class
@@ -554,7 +573,7 @@ namespace duckdb
 			
 		private:
 			unsigned int ExecuteNextTableReadForColumn();
-			std::vector<Value> CreateFunctionArguments(const std::string &delimiter, bool use_et_data);
+			std::vector<Value> CreateFunctionArguments(const ReadTableFunctionDescriptor &desc, const std::string &delimiter, bool use_et_data);
 
 			// Resolves the SDK result-table handle + its CSV-carrying field for
 			// the just-executed invocation, storing them on the state machine

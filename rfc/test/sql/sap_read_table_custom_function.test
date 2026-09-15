@@ -152,41 +152,84 @@ ATTACH '' AS sap_lower (
 );
 
 query I
-SELECT COUNT(*) FROM sap_lower."/DMO/FLIGHT";
+SELECT COUNT(*) FROM (
+    (SELECT * FROM sap_lower."/DMO/FLIGHT" EXCEPT ALL SELECT * FROM sap_read_table('/DMO/FLIGHT'))
+    UNION ALL
+    (SELECT * FROM sap_read_table('/DMO/FLIGHT') EXCEPT ALL SELECT * FROM sap_lower."/DMO/FLIGHT")
+);
 ----
-40
+0
 
 statement ok
 DETACH sap_lower;
 
 # ---------------------------------------------------------------------
 # Test 8: Validation error on invalid function name
-statement error Invalid READ_TABLE_FUNCTION name
+statement error
 SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', read_table_function='; DROP TABLE;--');
 ----
+Invalid READ_TABLE_FUNCTION name
 
-statement error Invalid READ_TABLE_FUNCTION name
+statement error
 SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', read_table_function='123_INVALID');
 ----
+Invalid READ_TABLE_FUNCTION name
 
-statement error Invalid READ_TABLE_FUNCTION name
+statement error
 ATTACH '' AS bad_sap (
     TYPE sap_rfc,
     SECRET 'abap_trial',
     read_table_function '123_INVALID'
 );
 ----
+Invalid READ_TABLE_FUNCTION name
 
-statement error Invalid READ_TABLE_FUNCTION name
+statement error
 CREATE SECRET bad_sec (
     TYPE sap_rfc,
     read_table_function '123_INVALID'
 );
 ----
+Invalid READ_TABLE_FUNCTION name
 
 # ---------------------------------------------------------------------
 # Test 9: Delimiter validation
-statement error READ_TABLE_DELIMITER must be a single printable ASCII character
+statement error
 SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', read_table_delimiter='~~');
+----
+READ_TABLE_DELIMITER must be a single printable non-whitespace ASCII character
+
+statement error
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', read_table_delimiter=' ');
+----
+READ_TABLE_DELIMITER must be a single printable non-whitespace ASCII character
+
+# ---------------------------------------------------------------------
+# Test 10: Contract violations against real SAP
+statement error
+SELECT * FROM sap_read_table('/DMO/FLIGHT', read_table_function='Z_DOES_NOT_EXIST_XYZ');
+----
+Failed to inspect RFC function
+
+statement error
+SELECT * FROM sap_read_table('/DMO/FLIGHT', read_table_function='STFC_CONNECTION');
+----
+does not satisfy the RFC_READ_TABLE interface contract
+
+# ---------------------------------------------------------------------
+# Test 11: Custom reader behavior on table with string columns (ACMDCLSRC)
+# Non-string columns read fine via custom reader without ET_DATA
+query I
+SELECT count(*) FROM (
+    (SELECT DCLNAME, AS4LOCAL, AS4USER FROM sap_read_table('ACMDCLSRC', read_table_function='/SAPDS/RFC_READ_TABLE2') WHERE DCLNAME LIKE 'DEMO_%')
+    EXCEPT ALL
+    (SELECT DCLNAME, AS4LOCAL, AS4USER FROM sap_read_table('ACMDCLSRC') WHERE DCLNAME LIKE 'DEMO_%')
+);
+----
+0
+
+# Attempting to read string column (SOURCE) with custom reader lacking ET_DATA throws hard error
+statement error reader does not support ET_DATA
+SELECT SOURCE FROM sap_read_table('ACMDCLSRC', read_table_function='/SAPDS/RFC_READ_TABLE2') WHERE DCLNAME LIKE 'DEMO_%';
 ----
 

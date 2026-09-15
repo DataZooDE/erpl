@@ -91,8 +91,8 @@ public:
 		try {
 			auto rtf_opts = ResolveReadTableFunctionOptions(context, nullptr, secret_name, read_table_function, read_table_delimiter);
 			auto bind_data = make_uniq<RfcReadTableBindData>(
-			    entry_name, /*max_read_threads=*/0, /*limit=*/0, rtf_opts.function_name, rtf_opts.delimiter,
-			    rtf_opts.user_set, &DefaultRfcConnectionFactory, context);
+			    entry_name, /*max_read_threads=*/0, /*limit=*/0, rtf_opts,
+			    &DefaultRfcConnectionFactory, context);
 			if (!secret_name.empty()) {
 				bind_data->SetSecretName(secret_name);
 			}
@@ -245,20 +245,23 @@ static unique_ptr<FunctionData> SapSecretBind(ClientContext &ctx, TableFunctionB
                                               vector<LogicalType> &return_types, vector<string> &names) {
 	D_ASSERT(input.info);
 	auto &injector = input.info->Cast<SapSecretInjectorInfo>();
-	if (!injector.secret_name.empty() && input.named_parameters.find("secret") == input.named_parameters.end()) {
+	if (!injector.secret_name.empty() && input.table_function.named_parameters.count("secret") &&
+	    input.named_parameters.find("secret") == input.named_parameters.end()) {
 		input.named_parameters["secret"] = Value(injector.secret_name);
 	}
-	if (!injector.read_table_function.empty() && input.named_parameters.find("read_table_function") == input.named_parameters.end()) {
+	if (!injector.read_table_function.empty() && input.table_function.named_parameters.count("read_table_function") &&
+	    input.named_parameters.find("read_table_function") == input.named_parameters.end()) {
 		input.named_parameters["read_table_function"] = Value(injector.read_table_function);
 	}
-	if (!injector.read_table_delimiter.empty() && input.named_parameters.find("read_table_delimiter") == input.named_parameters.end()) {
+	if (!injector.read_table_delimiter.empty() && input.table_function.named_parameters.count("read_table_delimiter") &&
+	    input.named_parameters.find("read_table_delimiter") == input.named_parameters.end()) {
 		input.named_parameters["read_table_delimiter"] = Value(injector.read_table_delimiter);
 	}
 	return injector.orig_bind(ctx, input, return_types, names);
 }
 
-// Wrap every overload in info.functions to inject the secret via the trampoline.
-static void WrapFunctionInfoWithSecret(CreateTableFunctionInfo &info, const string &secret_name, const string &read_table_function = "", const string &read_table_delimiter = "") {
+// Wrap every overload in info.functions to inject attach defaults (secret, read_table_function, read_table_delimiter) via the trampoline.
+static void WrapFunctionInfoWithAttachDefaults(CreateTableFunctionInfo &info, const string &secret_name, const string &read_table_function = "", const string &read_table_delimiter = "") {
 	for (auto &func : info.functions.functions) {
 		if (!func.bind) {
 			continue;
@@ -345,9 +348,11 @@ static bool IsTablePattern(const string &token) {
 }
 
 static vector<string> ResolveTablePatterns(ClientContext &context, const string &secret_name,
-                                           const vector<string> &patterns, const string &read_table_function = "") {
+                                           const vector<string> &patterns,
+                                           const string &read_table_function = "",
+                                           const string &read_table_delimiter = "") {
 	vector<string> out;
-	auto rtf_opts = ResolveReadTableFunctionOptions(context, nullptr, secret_name, read_table_function);
+	auto rtf_opts = ResolveReadTableFunctionOptions(context, nullptr, secret_name, read_table_function, read_table_delimiter);
 	for (auto pattern : patterns) {
 		// glob → SQL LIKE, then guard the literal against quote injection.
 		pattern = StringUtil::Replace(pattern, "*", "%");
@@ -360,7 +365,7 @@ static vector<string> ResolveTablePatterns(ClientContext &context, const string 
 		    pattern);
 
 		auto bind_data = make_uniq<RfcReadTableBindData>("DD02V", /*max_read_threads=*/0, /*limit=*/0,
-		                                                 rtf_opts.function_name, rtf_opts.delimiter, rtf_opts.user_set,
+		                                                 rtf_opts,
 		                                                 &DefaultRfcConnectionFactory, context);
 		if (!secret_name.empty()) {
 			bind_data->SetSecretName(secret_name);
@@ -417,6 +422,9 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
 		} else if (lower_name == "read_table_delimiter" || lower_name == "delimiter") {
 			read_table_delimiter = entry.second.ToString();
 			ValidateReadTableDelimiter(read_table_delimiter);
+			if (lower_name == "delimiter") {
+				ERPL_TRACE_WARN("sap_storage", "ATTACH option 'delimiter' is deprecated; use 'read_table_delimiter' instead");
+			}
 		} else if (lower_name == "tables") {
 			auto tables_str = entry.second.ToString();
 			auto split = StringUtil::Split(tables_str, ',');
@@ -435,27 +443,30 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
 	}
 
 	// Remove consumed options so SingleFileStorageManager doesn't reject them
-	attach_options.options.erase("secret");
-	attach_options.options.erase("read_table_function");
-	attach_options.options.erase("read_table_delimiter");
-	attach_options.options.erase("delimiter");
-	attach_options.options.erase("tables");
+	static const std::unordered_set<std::string> consumed = {
+		"secret", "read_table_function", "read_table_delimiter", "delimiter", "tables"
+	};
+	for (auto it = attach_options.options.begin(); it != attach_options.options.end(); ) {
+		if (consumed.count(StringUtil::Lower(it->first))) {
+			it = attach_options.options.erase(it);
+		} else {
+			++it;
+		}
+	}
 
 	// Validate secret exists if specified
 	if (!secret_name.empty()) {
 		auto &secret_manager = SecretManager::Get(context);
-		auto transaction = context.transaction.HasActiveTransaction()
-		                       ? CatalogTransaction::GetSystemCatalogTransaction(context)
-		                       : CatalogTransaction::GetSystemTransaction(*context.db);
+		auto transaction = SapSystemTransaction(context);
 		auto secret_entry = secret_manager.GetSecretByName(transaction, secret_name);
 		if (!secret_entry) {
-			throw InvalidInputException("Secret '%s' not found", secret_name);
+			throw InvalidInputException("Secret '%s' not found", SanitizeForErrorMessage(secret_name));
 		}
 	}
 
 	// Expand any glob patterns in TABLES into concrete table names (issue #70).
 	if (!table_patterns.empty()) {
-		auto resolved = ResolveTablePatterns(context, secret_name, table_patterns, read_table_function);
+		auto resolved = ResolveTablePatterns(context, secret_name, table_patterns, read_table_function, read_table_delimiter);
 		for (auto &name : resolved) {
 			allowed_tables.push_back(std::move(name));
 		}
@@ -519,7 +530,7 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
 			// that flag so DuckDB allows them to be created in the sap_rfc catalog.
 			info.internal = false;
 			if (!secret_name.empty() || !read_table_function.empty() || !read_table_delimiter.empty()) {
-				WrapFunctionInfoWithSecret(info, secret_name, read_table_function, read_table_delimiter);
+				WrapFunctionInfoWithAttachDefaults(info, secret_name, read_table_function, read_table_delimiter);
 			}
 			duck_schema.CreateTableFunction(system_transaction, info);
 		}

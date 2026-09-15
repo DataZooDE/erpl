@@ -28,12 +28,12 @@ WHERE duckdb_function = 'sap_read_table' AND rfc_function_module = 'RFC_READ_TAB
 ----
 1
 
-# The read-table fallback variants are documented
+# The read-table fallback variants are documented (/SAPDS/RFC_READ_TABLE2 and /BODS/RFC_READ_TABLE2)
 query I
 SELECT count(*) FROM sap_rfc_authorizations()
 WHERE duckdb_function = 'sap_read_table' AND rfc_function_module LIKE '%RFC_READ_TABLE%' AND invocation = 'fallback';
 ----
-4
+2
 
 # sap_rfc_invoke is flagged as user-specified
 query I

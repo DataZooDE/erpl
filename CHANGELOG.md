@@ -22,6 +22,29 @@ LOAD erpl;
 
 ---
 
+## Unreleased
+
+### Added
+
+- **[rfc]** **Custom `RFC_READ_TABLE` replacement function support (issue #145).**
+  Users can now configure an alternate SAP read table function module (e.g. `/SAPDS/RFC_READ_TABLE2`, `/BODS/RFC_READ_TABLE2`, or custom customer `Z_*`/`/MYNS/*` modules) to read tables and CDS views.
+  Resolution follows a 5-tier independent precedence hierarchy: query named parameter > ATTACH option > DuckDB secret option > session setting > built-in default (`RFC_READ_TABLE`).
+  Includes function signature introspection validating input/output table contracts at bind time. Automatic runtime fallback to ET_DATA-capable readers is enabled whenever the resolved reader is `RFC_READ_TABLE` (default or explicit); custom readers disable automatic fallback and fail fast if string/xstring columns require `ET_DATA`.
+- **[rfc]** **Configurable delimiter for read table functions.**
+  Configurable via `READ_TABLE_DELIMITER` independently across all configuration tiers, validated as a single printable non-whitespace ASCII character (defaulting to `~` on `ET_DATA` reads when empty). Per-query explicit empty string (`READ_TABLE_DELIMITER=''`) clears lower-tier delimiters.
+- **[bics]** **Shared custom read table function and delimiter support for BICS metadata.**
+  Consumes session and secret reader function settings with interface validation, requiring `DELIMITER` support for BICS catalog operations.
+- **[odp]** **Shared read table function and delimiter resolution.**
+
+### Changed
+
+- **[rfc]** **Automatic fallback list narrowed for STRING/XSTRING columns.**
+  Automatic runtime fallback when reading string/xstring columns with `RFC_READ_TABLE` has been narrowed to candidate modules with verified `ET_DATA` capabilities (`/SAPDS/RFC_READ_TABLE2`, `/BODS/RFC_READ_TABLE2`). Environments requiring non-'2' variants (`/SAPDS/RFC_READ_TABLE`, `/BODS/RFC_READ_TABLE`) should configure `READ_TABLE_FUNCTION` explicitly.
+- **[rfc]** **ATTACH delimiter option alias.**
+  `delimiter` remains supported as a backwards-compatible alias for `read_table_delimiter` under `ATTACH (TYPE sap_rfc)`, emitting a deprecation warning in the trace log.
+- **[bics]** **Graceful fallback for readers lacking DELIMITER.**
+  When a custom reader function configured at the session or secret level lacks the `DELIMITER` parameter required for BICS metadata parsing, BICS operations now emit a trace warning and automatically fall back to `RFC_READ_TABLE` instead of hard-failing.
+
 ## v2026.09.04 — scans that can be run twice, and a backend with no known gaps
 
 `sap_read_table` gains row-range partitioning, and the three extensions gain one tuning

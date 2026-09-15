@@ -45,9 +45,6 @@ namespace duckdb
                                 ? named_params["SECRET"].ToString()
                                 : "";
         auto rtf_opts = ResolveReadTableFunctionOptions(context, &named_params, secret_name);
-        auto read_table_function = rtf_opts.function_name;
-        auto read_table_delimiter = rtf_opts.delimiter;
-        auto read_table_function_user_set = rtf_opts.user_set;
         
         auto fields = named_params.find("COLUMNS") != named_params.end() 
                             ? ConvertListValueToVector<std::string>(named_params["COLUMNS"])
@@ -61,7 +58,7 @@ namespace duckdb
                                 : 0;
 
         auto bind_data = make_uniq<RfcReadTableBindData>(table_name, max_read_threads, limit,
-                                                         read_table_function, read_table_delimiter, read_table_function_user_set,
+                                                         rtf_opts,
                                                          &DefaultRfcConnectionFactory, context);
         if (!secret_name.empty()) {
             bind_data->SetSecretName(secret_name);
@@ -95,13 +92,9 @@ namespace duckdb
 
         bind_data.ActivateColumns(column_ids);
         bind_data.AddOptionsFromFilters(input.filters);
-        // Per-execution setup: pin the credentials for this run, and hand back every
-        // persistent-connection slot the previous execution left counted.
-        bind_data.PinAuthParams();
-        bind_data.ResetPersistentSlots();
-        // The serial path computes this inside Step(); a partitioned scan needs it
-        // before any worker starts, and it must not be written afterwards.
-        bind_data.ResolveEffectiveMaxBatchSize();
+        // Per-execution setup: pin the credentials for this run, hand back persistent-connection
+        // slots, and resolve batch size.
+        bind_data.PrepareForExecution(context);
 
         // Partitioning is opt-in.  With it off this returns a state whose MaxThreads()
         // is 1 and whose scheduler is null, so DuckDB creates one worker and the scan

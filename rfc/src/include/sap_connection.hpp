@@ -6,6 +6,7 @@
 
 namespace duckdb 
 {
+    duckdb::CatalogTransaction SapSystemTransaction(ClientContext &context);
 
     // Process-wide count of RFC connections erpl has opened and closed.
     //

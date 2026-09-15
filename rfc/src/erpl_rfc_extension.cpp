@@ -376,19 +376,19 @@ namespace duckdb {
         config.AddExtensionOption(
             "erpl_rfc_read_table_function",
             "Default RFC function module used by sap_read_table, sap_show_tables, ATTACH (TYPE SAP), "
-            "and BICS catalog query resolution (for queries executed via sap_bics_query / sap_bics_query_cube). "
-            "When unset or empty, defaults to RFC_READ_TABLE with "
-            "automatic fallback to ET_DATA-capable functions (/SAPDS/RFC_READ_TABLE2, /BODS/RFC_READ_TABLE2, etc.) "
-            "when string columns are encountered. When explicitly set, only the configured function is used and "
-            "no automatic fallback is performed.",
+            "BICS catalog queries (sap_bics_query / sap_bics_query_cube), and ODP subscription queries (sap_odp_show_subscriptions). "
+            "When unset or set to RFC_READ_TABLE, automatic fallback to ET_DATA-capable functions "
+            "(/SAPDS/RFC_READ_TABLE2, /BODS/RFC_READ_TABLE2, etc.) is enabled when string columns are encountered. "
+            "When set to a custom reader, only the configured function is used and automatic fallback is disabled.",
             LogicalType::VARCHAR,
             Value(""),
             OnRfcReadTableFunction);
 
         config.AddExtensionOption(
             "erpl_rfc_read_table_delimiter",
-            "Single ASCII character used as field delimiter for RFC table reads. "
-            "When set, passed to the DELIMITER parameter of the RFC read table function.",
+            "Single printable non-whitespace ASCII character used as field delimiter for RFC table reads. "
+            "When set, passed to the DELIMITER parameter of the RFC read table function. "
+            "When empty, defaults to '~' automatically on ET_DATA reads.",
             LogicalType::VARCHAR,
             Value(""),
             OnRfcReadTableDelimiter);
@@ -509,10 +509,11 @@ namespace duckdb {
         {
             CreateTableFunctionInfo info(CreateRfcShowTablesScanFunction());
             FunctionDescription desc;
-            desc.description = "List SAP tables and views from the data dictionary (DD02V). Supports TABLENAME and TEXT patterns, SECRET, and custom READ_TABLE_FUNCTION.";
+            desc.description = "List SAP tables and views from the data dictionary (DD02V). Supports TABLENAME and TEXT patterns, SECRET, READ_TABLE_FUNCTION, and READ_TABLE_DELIMITER.";
             desc.examples    = {"SELECT * FROM sap_show_tables()",
                                 "SELECT * FROM sap_show_tables(TABLENAME='*FLIGHT*')",
-                                "SELECT * FROM sap_show_tables(TABLENAME='*FLIGHT*', read_table_function='/SAPDS/RFC_READ_TABLE2')"};
+                                "SELECT * FROM sap_show_tables(TABLENAME='*FLIGHT*', SECRET='my_sap_secret')",
+                                "SELECT * FROM sap_show_tables(TABLENAME='*FLIGHT*', read_table_function='/SAPDS/RFC_READ_TABLE2', read_table_delimiter=';')"};
             desc.categories  = {"sap"};
             info.descriptions.push_back(std::move(desc));
             loader.RegisterFunction(std::move(info));

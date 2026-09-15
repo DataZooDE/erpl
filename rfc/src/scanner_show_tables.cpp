@@ -11,14 +11,14 @@
 namespace duckdb 
 {
     
-static std::string GetSearchString(const std::string param_name, 
-                                    const TableFunctionBindInput &input) 
+static std::string GetEscapedSearchPattern(const std::string &param_name, 
+                                           const TableFunctionBindInput &input) 
 {
     auto &named_params = input.named_parameters;
-    auto search_string =  named_params.find(param_name) != named_params.end() 
-        ? named_params[param_name].ToString() : "%";
+    auto search_string = named_params.find(param_name) != named_params.end() 
+        ? named_params.at(param_name).ToString() : "%";
     search_string = std::regex_replace(search_string, std::regex("\\*"), "%");
-    return search_string;
+    return StringUtil::Replace(search_string, "'", "''");
 }
 
 static unique_ptr<FunctionData> RfcShowTablesBind(ClientContext &context, 
@@ -29,8 +29,8 @@ static unique_ptr<FunctionData> RfcShowTablesBind(ClientContext &context,
     PostHogTelemetry::Instance().RecordFunctionCall("sap_show_tables");
 
     auto &named_params = input.named_parameters;
-    auto table_search_str = GetSearchString("TABLENAME", input);
-    auto text_search_str = GetSearchString("TEXT", input);
+    auto table_search_str = GetEscapedSearchPattern("TABLENAME", input);
+    auto text_search_str = GetEscapedSearchPattern("TEXT", input);
     auto max_read_threads = named_params.find("THREADS") != named_params.end() 
                                 ? named_params["THREADS"].GetValue<unsigned int>()
                                 : 0;
@@ -49,7 +49,7 @@ static unique_ptr<FunctionData> RfcShowTablesBind(ClientContext &context,
 
     auto fields =  std::vector<std::string>({ "TABNAME", "DDTEXT", "TABCLASS" });
     auto result = make_uniq<RfcReadTableBindData>("DD02V", max_read_threads, 0,
-                                                  rtf_opts.function_name, rtf_opts.delimiter, rtf_opts.user_set,
+                                                  rtf_opts,
                                                   &DefaultRfcConnectionFactory, context);
     if (!secret_name.empty()) {
         result->SetSecretName(secret_name);
@@ -70,9 +70,7 @@ static unique_ptr<GlobalTableFunctionState> RfcShowTablesInitGlobalState(ClientC
     auto column_ids = input.column_ids;
 
     bind_data.ActivateColumns(column_ids);
-    bind_data.PinAuthParams();
-    bind_data.ResetPersistentSlots();
-    bind_data.ResolveEffectiveMaxBatchSize();
+    bind_data.PrepareForExecution(context);
 
     // Own the state machines per EXECUTION, not per bind: DuckDB reuses bind data
     // across executions of a bound plan, so bind-owned machines make a re-scan resume
