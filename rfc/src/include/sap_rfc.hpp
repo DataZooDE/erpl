@@ -106,6 +106,36 @@ namespace duckdb
 			std::atomic<bool> exhausted{false};
 	};
 
+	void ValidateReadTableFunctionName(const std::string &name);
+
+	struct ReadTableFunctionOptions {
+		std::string function_name;
+		std::string delimiter;
+		bool user_set = false;
+	};
+
+	ReadTableFunctionOptions ResolveReadTableFunctionOptions(
+		ClientContext &context,
+		const named_parameter_map_t *named_params = nullptr,
+		const std::string &secret_name = "",
+		const std::string &attach_override = "");
+
+	struct ReadTableFunctionDescriptor {
+		std::string function_name;
+		std::string result_path; // e.g. "/DATA", "/TBLOUT512", "/ET_DATA"
+		std::string query_table_param; // "QUERY_TABLE"
+		bool has_fields = false;
+		bool has_options = false;
+		bool has_rowskips = false;
+		bool has_rowcount = false;
+		bool has_delimiter = false;
+		bool has_get_sorted = false;
+		bool has_use_et_data_4_return = false;
+		bool supports_et_data = false;
+
+		static ReadTableFunctionDescriptor Inspect(std::shared_ptr<RfcConnection> connection, const std::string &function_name);
+	};
+
 	class RfcReadTableBindData : public TableFunctionData
     {
 		public: 

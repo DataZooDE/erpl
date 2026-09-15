@@ -25,8 +25,10 @@
 
 #include "sap_rfc.hpp"
 #include "sap_function.hpp"
+#include "sap_secret.hpp"
 #include "duckdb_argument_helper.hpp"
 #include "erpl_tracing.hpp"
+#include <regex>
 
 namespace duckdb
 {
@@ -311,22 +313,176 @@ namespace duckdb
         persistent_slots_used.store(0, std::memory_order_relaxed);
     }
 
+    void ValidateReadTableFunctionName(const std::string &name)
+    {
+        if (name.empty()) {
+            throw InvalidInputException("READ_TABLE_FUNCTION cannot be empty.");
+        }
+        if (name.length() > 30) {
+            throw InvalidInputException(
+                "READ_TABLE_FUNCTION '%s' exceeds maximum SAP function module name length of 30 characters.", name);
+        }
+        static const std::regex valid_fm_regex(R"(^(/[A-Z0-9_]{1,8}/)?[A-Z][A-Z0-9_]*$)");
+        if (!std::regex_match(name, valid_fm_regex)) {
+            throw InvalidInputException(
+                "Invalid READ_TABLE_FUNCTION name '%s'. Must be a valid SAP function module name (up to 30 characters, optional /<namespace>/ prefix, letters, digits, and underscores).",
+                name);
+        }
+    }
+
+    ReadTableFunctionOptions ResolveReadTableFunctionOptions(
+        ClientContext &context,
+        const named_parameter_map_t *named_params,
+        const std::string &secret_name,
+        const std::string &attach_override)
+    {
+        ReadTableFunctionOptions opts;
+
+        // Level 1: Per-query named parameters
+        if (named_params) {
+            auto it = named_params->find("READ_TABLE_FUNCTION");
+            if (it != named_params->end() && !it->second.IsNull()) {
+                auto fn = it->second.ToString();
+                StringUtil::Trim(fn);
+                if (!fn.empty()) {
+                    fn = StringUtil::Upper(fn);
+                    ValidateReadTableFunctionName(fn);
+                    opts.function_name = fn;
+                    opts.user_set = true;
+                }
+            }
+            auto del_it = named_params->find("READ_TABLE_DELIMITER");
+            if (del_it != named_params->end() && !del_it->second.IsNull()) {
+                opts.delimiter = del_it->second.ToString();
+            }
+        }
+
+        // Level 2: ATTACH override
+        if (opts.function_name.empty() && !attach_override.empty()) {
+            auto fn = attach_override;
+            StringUtil::Trim(fn);
+            if (!fn.empty()) {
+                fn = StringUtil::Upper(fn);
+                ValidateReadTableFunctionName(fn);
+                opts.function_name = fn;
+                opts.user_set = true;
+            }
+        }
+
+        // Level 3: Secret option
+        if (opts.function_name.empty() && !secret_name.empty()) {
+            auto fn = LookupSecretOption(context, secret_name, "read_table_function");
+            StringUtil::Trim(fn);
+            if (!fn.empty()) {
+                fn = StringUtil::Upper(fn);
+                ValidateReadTableFunctionName(fn);
+                opts.function_name = fn;
+                opts.user_set = true;
+            }
+        }
+
+        // Level 4: Session setting erpl_rfc_read_table_function
+        if (opts.function_name.empty()) {
+            Value session_val;
+            if (context.TryGetCurrentSetting("erpl_rfc_read_table_function", session_val) && !session_val.IsNull()) {
+                auto fn = session_val.ToString();
+                StringUtil::Trim(fn);
+                if (!fn.empty()) {
+                    fn = StringUtil::Upper(fn);
+                    ValidateReadTableFunctionName(fn);
+                    opts.function_name = fn;
+                    opts.user_set = true;
+                }
+            }
+        }
+
+        // Level 5: Default
+        if (opts.function_name.empty()) {
+            opts.function_name = "RFC_READ_TABLE";
+            opts.user_set = false;
+        }
+
+        return opts;
+    }
+
+    ReadTableFunctionDescriptor ReadTableFunctionDescriptor::Inspect(
+        std::shared_ptr<RfcConnection> connection, const std::string &function_name)
+    {
+        ReadTableFunctionDescriptor desc;
+        desc.function_name = function_name;
+        auto func = std::make_shared<RfcFunction>(connection, function_name);
+
+        for (auto &param : func->GetParameterInfos()) {
+            auto name = param.GetName();
+            if (name == "QUERY_TABLE") {
+                desc.query_table_param = name;
+            } else if (name == "FIELDS") {
+                desc.has_fields = true;
+            } else if (name == "OPTIONS") {
+                desc.has_options = true;
+            } else if (name == "ROWSKIPS") {
+                desc.has_rowskips = true;
+            } else if (name == "ROWCOUNT") {
+                desc.has_rowcount = true;
+            } else if (name == "DELIMITER") {
+                desc.has_delimiter = true;
+            } else if (name == "GET_SORTED") {
+                desc.has_get_sorted = true;
+            } else if (name == "USE_ET_DATA_4_RETURN") {
+                desc.has_use_et_data_4_return = true;
+            }
+        }
+
+        auto result_infos = func->GetResultInfos();
+        for (auto &param : result_infos) {
+            auto name = param.GetName();
+            if (name == "FIELDS") {
+                desc.has_fields = true;
+            } else if (name == "ET_DATA") {
+                desc.supports_et_data = true;
+            }
+        }
+
+        if (desc.query_table_param.empty()) {
+            throw InvalidInputException(
+                "RFC function '%s' does not satisfy the RFC_READ_TABLE interface contract: missing required parameter 'QUERY_TABLE'.",
+                function_name);
+        }
+        if (!desc.has_fields) {
+            throw InvalidInputException(
+                "RFC function '%s' does not satisfy the RFC_READ_TABLE interface contract: missing required table parameter 'FIELDS'.",
+                function_name);
+        }
+
+        static const std::vector<std::string> candidates = {
+            "TBLOUT30000", "TBLOUT8192", "TBLOUT2048", "TBLOUT512", "TBLOUT128", "DATA"
+        };
+        for (auto &cand : candidates) {
+            auto it = std::find_if(result_infos.begin(), result_infos.end(), [&](auto &p) {
+                return p.GetName() == cand;
+            });
+            if (it != result_infos.end()) {
+                desc.result_path = "/" + cand;
+                break;
+            }
+        }
+
+        if (desc.result_path.empty()) {
+            if (desc.supports_et_data) {
+                desc.result_path = "/ET_DATA";
+            } else {
+                throw InvalidInputException(
+                    "RFC function '%s' does not satisfy the RFC_READ_TABLE interface contract: no supported tabular output parameter (DATA, ET_DATA, or TBLOUT*).",
+                    function_name);
+            }
+        }
+
+        return desc;
+    }
+
     void RfcReadTableBindData::ValidateReadTableFunctionName()
     {
-        static const std::set<std::string> allowed_functions = {
-            "RFC_READ_TABLE",
-            "/BODS/RFC_READ_TABLE",
-            "/SAPDS/RFC_READ_TABLE",
-            "/BODS/RFC_READ_TABLE2",
-            "/SAPDS/RFC_READ_TABLE2"
-        };
-
-        if (allowed_functions.find(read_table_function) == allowed_functions.end()) {
-            throw std::runtime_error(StringUtil::Format(
-                "Unsupported READ_TABLE_FUNCTION '%s'. Supported values: RFC_READ_TABLE, /BODS/RFC_READ_TABLE, "
-                "/SAPDS/RFC_READ_TABLE, /BODS/RFC_READ_TABLE2, /SAPDS/RFC_READ_TABLE2.",
-                read_table_function));
-        }
+        duckdb::ValidateReadTableFunctionName(read_table_function);
     }
 
     bool RfcReadTableBindData::ReadTableFunctionSupportsEtData(std::shared_ptr<RfcConnection> connection, const std::string &function_name)

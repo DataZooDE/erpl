@@ -8,10 +8,20 @@
 
 namespace duckdb {
 
+const vector<RfcSecretOptionDefinition> &RfcSecretOptionDefinitions() {
+	static const vector<RfcSecretOptionDefinition> defs = {
+		{"read_table_function"}
+	};
+	return defs;
+}
+
 const vector<string> &SapSecretParameterNames() {
 	static const vector<string> names = []() {
 		vector<string> result;
 		for (auto &definition : RfcAuthParamDefinitions()) {
+			result.emplace_back(definition.name);
+		}
+		for (auto &definition : RfcSecretOptionDefinitions()) {
 			result.emplace_back(definition.name);
 		}
 		return result;
@@ -129,6 +139,30 @@ RfcAuthParams GetAuthParamsFromContext(ClientContext &context, const std::string
 		auth_params = RfcAuthParams::FromContext(context);
 	}
 	return auth_params;
+}
+
+std::string LookupSecretOption(ClientContext &context, const std::string &secret_name, const std::string &key) 
+{
+	if (secret_name.empty()) {
+		return "";
+	}
+	auto &secret_manager = SecretManager::Get(context);
+	auto transaction = context.transaction.HasActiveTransaction()
+	                       ? CatalogTransaction::GetSystemCatalogTransaction(context)
+	                       : CatalogTransaction::GetSystemTransaction(*context.db);
+	auto secret_entry = secret_manager.GetSecretByName(transaction, secret_name);
+	if (!secret_entry || !secret_entry->secret) {
+		return "";
+	}
+	const auto *kv_secret = dynamic_cast<const KeyValueSecret *>(secret_entry->secret.get());
+	if (!kv_secret) {
+		return "";
+	}
+	auto it = kv_secret->secret_map.find(StringUtil::Lower(key));
+	if (it == kv_secret->secret_map.end() || it->second.IsNull()) {
+		return "";
+	}
+	return it->second.ToString();
 }
 
 } // namespace duckdb 

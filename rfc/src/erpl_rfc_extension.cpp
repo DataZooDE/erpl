@@ -169,6 +169,16 @@ namespace duckdb {
         SetRfcPartitions((idx_t)parameter.GetValue<uint64_t>());
     }
 
+    static void OnRfcReadTableFunction(ClientContext &, SetScope, Value &parameter) {
+        auto val = parameter.GetValue<string>();
+        StringUtil::Trim(val);
+        if (!val.empty()) {
+            val = StringUtil::Upper(val);
+            ValidateReadTableFunctionName(val);
+            parameter = Value(val);
+        }
+    }
+
     static void OnRfcPartitionWindowRows(ClientContext &, SetScope, Value &parameter) {
         SetRfcPartitionWindowRows((idx_t)parameter.GetValue<uint64_t>());
     }
@@ -362,6 +372,17 @@ namespace duckdb {
             LogicalType::BOOLEAN,
             Value::BOOLEAN(true),
             OnPushdownFilters);
+
+        config.AddExtensionOption(
+            "erpl_rfc_read_table_function",
+            "Default RFC function module used by sap_read_table, sap_show_tables, ATTACH (TYPE SAP), "
+            "and BICS catalog metadata lookups. When unset or empty, defaults to RFC_READ_TABLE with "
+            "automatic fallback to ET_DATA-capable functions (/SAPDS/RFC_READ_TABLE2, /BODS/RFC_READ_TABLE2, etc.) "
+            "when string columns are encountered. When explicitly set, only the configured function is used and "
+            "no automatic fallback is performed.",
+            LogicalType::VARCHAR,
+            Value(""),
+            OnRfcReadTableFunction);
 
         auto provider = make_uniq<RfcEnvironmentCredentialsProvider>(config);
         provider->SetAll();

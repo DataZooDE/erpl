@@ -74,12 +74,12 @@ TEST_CASE("All supported secret keys map onto RfcAuthParams", "[erpl_rfc][sap_se
 	auto auth_params = ConvertSecretToAuthParams(MakeSecret(values));
 
 	auto params = auth_params.BuildConnectionParams();
-	REQUIRE(params.size() == SapSecretParameterNames().size());
+	REQUIRE(params.size() == RfcAuthParamDefinitions().size());
 
-	for (const auto &key : SapSecretParameterNames()) {
-		auto idx = IndexOf(params, key);
+	for (const auto &definition : RfcAuthParamDefinitions()) {
+		auto idx = IndexOf(params, definition.name);
 		REQUIRE(idx.IsValid());
-		REQUIRE(params[idx.GetIndex()].second == "v_" + key);
+		REQUIRE(params[idx.GetIndex()].second == string("v_") + definition.name);
 	}
 }
 
