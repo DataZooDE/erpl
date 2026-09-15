@@ -98,15 +98,15 @@ Read data from an SAP table or CDS view. Supports projection pushdown, filter pu
 | `READ_TABLE_DELIMITER` | VARCHAR | — | Single-character delimiter (e.g. `'~'`, `'|'`) for custom or TABLE2 reader functions |
 | `SECRET` | VARCHAR | — | Named secret to use |
 
-**Custom `READ_TABLE_FUNCTION` & Precedence:**
-Any RFC-enabled function module that implements the standard `RFC_READ_TABLE` interface contract (import parameter `QUERY_TABLE`, table parameter `FIELDS`, and a supported tabular data output parameter such as `DATA`, `ET_DATA`, or `TBLOUT*`) can be used. Supported examples include standard `RFC_READ_TABLE`, `/BODS/RFC_READ_TABLE2`, `/SAPDS/RFC_READ_TABLE2`, or custom customer modules (`Z_RFC_READ_TABLE`, `/MYNS/READ_TABLE`).
+**Custom `READ_TABLE_FUNCTION`, Delimiter & Precedence:**
+Any RFC-enabled function module that implements the standard `RFC_READ_TABLE` interface contract (import parameter `QUERY_TABLE`, table parameter `FIELDS`, table parameter `OPTIONS`, import parameters `ROWSKIPS` and `ROWCOUNT`, and a supported tabular data output parameter such as `DATA`, `ET_DATA`, or `TBLOUT*`) can be used. Supported examples include standard `RFC_READ_TABLE`, `/BODS/RFC_READ_TABLE2`, `/SAPDS/RFC_READ_TABLE2`, or custom customer modules (`Z_RFC_READ_TABLE`, `/MYNS/READ_TABLE`). Custom or custom-authorized function modules should be configured with appropriate SAP authorizations in the target system.
 
-The function module is resolved via a 5-tier precedence hierarchy:
-1. Per-query named parameter: `sap_read_table(..., READ_TABLE_FUNCTION='...')`
-2. Catalog mount option: `ATTACH '' AS sap (TYPE sap_rfc, read_table_function '...')`
-3. Secret configuration: `CREATE SECRET (TYPE sap_rfc, read_table_function '...')`
-4. Session setting: `SET erpl_rfc_read_table_function = '...'`
-5. Default: `RFC_READ_TABLE` (with automatic runtime fallback to ET_DATA-capable functions such as `/SAPDS/RFC_READ_TABLE2` when string/xstring columns are encountered). When explicitly set at any tier, automatic fallback is disabled and only the configured function is invoked.
+Both the function module and delimiter are resolved via a 5-tier precedence hierarchy:
+1. Per-query named parameter: `sap_read_table(..., READ_TABLE_FUNCTION='...', READ_TABLE_DELIMITER='~')`
+2. Catalog mount option: `ATTACH '' AS sap (TYPE sap_rfc, read_table_function '...', read_table_delimiter '~')`
+3. Secret configuration: `CREATE SECRET (TYPE sap_rfc, read_table_function '...', read_table_delimiter '~')`
+4. Session setting: `SET erpl_rfc_read_table_function = '...'`; `SET erpl_rfc_read_table_delimiter = '~'`
+5. Default: `RFC_READ_TABLE` (with automatic runtime fallback to ET_DATA-capable functions such as `/SAPDS/RFC_READ_TABLE2` when string/xstring columns are encountered) and default delimiter. When explicitly set at any tier, automatic fallback is disabled and only the configured function is invoked.
 
 ```sql
 -- Basic read
@@ -394,6 +394,7 @@ DETACH sap;
 | `TYPE` | — | Must be `sap_rfc` |
 | `SECRET` | VARCHAR | Named secret for SAP connection |
 | `read_table_function` | VARCHAR | RFC function module to use for catalog schema discovery and table queries (defaults to `RFC_READ_TABLE`) |
+| `read_table_delimiter` | VARCHAR | Single character delimiter for table queries (e.g. `'~'`, `'|'`) |
 | `TABLES` | VARCHAR | Comma-separated list of exact table names and/or glob patterns (`*`, `?`) to expose. Empty = on-demand lookup. |
 
 **`SHOW TABLES` and table enumeration.** A SAP system exposes tens of thousands of
@@ -1165,11 +1166,12 @@ All parameters are VARCHAR. Choose either direct connection or load-balanced par
 | `codepage` | Logon codepage, e.g. `'4103'` | optional | optional |
 | `trace` | SAP RFC trace level `'0'`–`'3'` | optional | optional |
 | `dest` | Destination in `sapnwrfc.ini` | optional | optional |
+| `read_table_function` | Default RFC function module for table queries (e.g. `'RFC_READ_TABLE'`, `'/SAPDS/RFC_READ_TABLE2'`) | optional | optional |
+| `read_table_delimiter` | Single-character field delimiter for table queries (e.g. `'~'`, `'|'`) | optional | optional |
 
 ¹ Not required when logging on via SNC or an SSO2 ticket.
 
-The parameter names are passed through to `RfcOpenConnection` unchanged, so they
-follow the SAP NetWeaver RFC SDK documentation.
+Connection parameters are passed through to `RfcOpenConnection` (following the SAP NetWeaver RFC SDK documentation). Extension parameters (`read_table_function`, `read_table_delimiter`) configure erpl table query extraction defaults for the secret.
 
 ```sql
 -- Direct connection
@@ -1318,7 +1320,8 @@ Notes:
 | `erpl_rfc_partitions` | UBIGINT | 0 | Split a `sap_read_table` scan into this many row ranges read in parallel. `0` reads in one pass, parallelising across columns instead. See [Narrow tables](#narrow-tables-use-partitions-not-threads) |
 | `erpl_rfc_partition_window_rows` | UBIGINT | 0 | Rows a partition worker claims at a time; `0` uses one RFC batch per window |
 | `erpl_rfc_pushdown_filters` | BOOLEAN | `true` | Translate SQL `WHERE` predicates into `RFC_READ_TABLE`'s `OPTIONS` table so SAP filters the rows instead of sending them all. Turning it off never changes which rows come back, only how many cross the wire. See [Filter Pushdown](#filter-pushdown) |
-| `erpl_rfc_read_table_function` | VARCHAR | `''` | Default RFC function module used by `sap_read_table`, `sap_show_tables`, `ATTACH (TYPE sap_rfc)`, and BICS query resolution. Empty = `RFC_READ_TABLE` with auto-fallback to ET_DATA-capable functions on string columns. |
+| `erpl_rfc_read_table_function` | VARCHAR | `''` | Default RFC function module used by `sap_read_table`, `sap_show_tables`, `ATTACH (TYPE sap_rfc)`, and BICS catalog query resolution (for queries executed via `sap_bics_query` / `sap_bics_query_cube`). Empty = `RFC_READ_TABLE` with auto-fallback to ET_DATA-capable functions on string columns. |
+| `erpl_rfc_read_table_delimiter` | VARCHAR | `''` | Single-character field delimiter for RFC table reads. When set, passed to the `DELIMITER` parameter of the RFC read table function. |
 | `erpl_rfc_backend` | VARCHAR | `'nwrfc'` | Which implementation serves RFC calls: `'nwrfc'` (SAP's NetWeaver RFC SDK) or `'proto'` (the pure-Rust erpl-proto implementation). Must be set **before the first SAP call**; frozen for the life of the process once resolved. Environment override: `ERPL_RFC_BACKEND` |
 | `erpl_rfc_backend_path` | VARCHAR | `''` | Explicit path to the RFC backend shared library, overriding the search. Empty means: next to the extension, then the loader's library path. Environment override: `ERPL_RFC_BACKEND_PATH` |
 

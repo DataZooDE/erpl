@@ -11,7 +11,8 @@ namespace duckdb {
 
 const vector<RfcSecretOptionDefinition> &RfcSecretOptionDefinitions() {
 	static const vector<RfcSecretOptionDefinition> defs = {
-		{"read_table_function"}
+		{"read_table_function"},
+		{"read_table_delimiter"}
 	};
 	return defs;
 }
@@ -47,6 +48,10 @@ unique_ptr<BaseSecret> CreateSapSecretFunction(ClientContext &context, CreateSec
 		}
 		if (lower_name == "read_table_function") {
 			result->secret_map[lower_name] = NormalizeAndValidateReadTableFunctionName(named_param.second.ToString());
+		} else if (lower_name == "read_table_delimiter") {
+			auto delim = named_param.second.ToString();
+			ValidateReadTableDelimiter(delim);
+			result->secret_map[lower_name] = delim;
 		} else {
 			result->secret_map[lower_name] = named_param.second.ToString();
 		}
@@ -163,7 +168,10 @@ std::string LookupSecretOption(ClientContext &context, const std::string &secret
 
 	if (!secret_name.empty() && secret_name != SAP_SECRET_DEFAULT_PATH) {
 		auto secret_entry = secret_manager.GetSecretByName(transaction, secret_name);
-		if (secret_entry && secret_entry->secret) {
+		if (!secret_entry) {
+			throw InvalidInputException("Secret '%s' not found", secret_name);
+		}
+		if (secret_entry->secret) {
 			auto *kv = dynamic_cast<const KeyValueSecret *>(secret_entry->secret.get());
 			if (kv) {
 				return extract_val(*kv);

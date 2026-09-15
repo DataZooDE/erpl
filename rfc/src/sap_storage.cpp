@@ -49,9 +49,11 @@ namespace duckdb {
 class SapDefaultGenerator : public DefaultGenerator {
 public:
 	SapDefaultGenerator(Catalog &catalog, SchemaCatalogEntry &schema, string secret_name,
-	                    vector<string> allowed_tables, string read_table_function = "")
+	                    vector<string> allowed_tables, string read_table_function = "",
+	                    string read_table_delimiter = "")
 	    : DefaultGenerator(catalog), schema(schema), secret_name(std::move(secret_name)),
-	      allowed_tables(std::move(allowed_tables)), read_table_function(std::move(read_table_function)) {
+	      allowed_tables(std::move(allowed_tables)), read_table_function(std::move(read_table_function)),
+	      read_table_delimiter(std::move(read_table_delimiter)) {
 	}
 
 	unique_ptr<CatalogEntry> CreateDefaultEntry(ClientContext &context, const string &entry_name) override {
@@ -87,7 +89,7 @@ public:
 		vector<string> names;
 		vector<LogicalType> types;
 		try {
-			auto rtf_opts = ResolveReadTableFunctionOptions(context, nullptr, secret_name, read_table_function);
+			auto rtf_opts = ResolveReadTableFunctionOptions(context, nullptr, secret_name, read_table_function, read_table_delimiter);
 			auto bind_data = make_uniq<RfcReadTableBindData>(
 			    entry_name, /*max_read_threads=*/0, /*limit=*/0, rtf_opts.function_name, rtf_opts.delimiter,
 			    rtf_opts.user_set, &DefaultRfcConnectionFactory, context);
@@ -140,7 +142,7 @@ public:
 			info.columns.AddColumn(ColumnDefinition(names[i], types[i]));
 		}
 
-		return make_uniq_base<CatalogEntry, SapTableEntry>(catalog, schema, info, entry_name, secret_name, read_table_function);
+		return make_uniq_base<CatalogEntry, SapTableEntry>(catalog, schema, info, entry_name, secret_name, read_table_function, read_table_delimiter);
 	}
 
 	vector<string> GetDefaultEntries() override {
@@ -152,6 +154,7 @@ private:
 	string secret_name;
 	vector<string> allowed_tables;
 	string read_table_function;
+	string read_table_delimiter;
 };
 
 #else
@@ -160,9 +163,11 @@ private:
 class SapDefaultGenerator : public DefaultGenerator {
 public:
 	SapDefaultGenerator(Catalog &catalog, SchemaCatalogEntry &schema, string secret_name,
-	                    vector<string> allowed_tables)
+	                    vector<string> allowed_tables, string read_table_function = "",
+	                    string read_table_delimiter = "")
 	    : DefaultGenerator(catalog), schema(schema), secret_name(std::move(secret_name)),
-	      allowed_tables(std::move(allowed_tables)) {
+	      allowed_tables(std::move(allowed_tables)), read_table_function(std::move(read_table_function)),
+	      read_table_delimiter(std::move(read_table_delimiter)) {
 	}
 
 	unique_ptr<CatalogEntry> CreateDefaultEntry(ClientContext &context, const string &entry_name) override {
@@ -182,12 +187,18 @@ public:
 		auto result = make_uniq<CreateViewInfo>();
 		result->schema = DEFAULT_SCHEMA;
 		result->view_name = entry_name;
+		string sql = StringUtil::Format("SELECT * FROM sap_read_table(%s", SQLString(entry_name));
 		if (!secret_name.empty()) {
-			result->sql = StringUtil::Format("SELECT * FROM sap_read_table(%s, SECRET=%s)",
-			                                 SQLString(entry_name), SQLString(secret_name));
-		} else {
-			result->sql = StringUtil::Format("SELECT * FROM sap_read_table(%s)", SQLString(entry_name));
+			sql += StringUtil::Format(", SECRET=%s", SQLString(secret_name));
 		}
+		if (!read_table_function.empty()) {
+			sql += StringUtil::Format(", READ_TABLE_FUNCTION=%s", SQLString(read_table_function));
+		}
+		if (!read_table_delimiter.empty()) {
+			sql += StringUtil::Format(", READ_TABLE_DELIMITER=%s", SQLString(read_table_delimiter));
+		}
+		sql += ")";
+		result->sql = sql;
 
 		auto view_info = CreateViewInfo::FromSelect(context, std::move(result));
 		return make_uniq_base<CatalogEntry, ViewCatalogEntry>(catalog, schema, *view_info);
@@ -201,6 +212,8 @@ private:
 	SchemaCatalogEntry &schema;
 	string secret_name;
 	vector<string> allowed_tables;
+	string read_table_function;
+	string read_table_delimiter;
 };
 
 #endif
@@ -220,9 +233,11 @@ private:
 struct SapSecretInjectorInfo : public TableFunctionInfo {
 	string secret_name;
 	string read_table_function;
+	string read_table_delimiter;
 	table_function_bind_t orig_bind;
-	SapSecretInjectorInfo(string secret, string rtf, table_function_bind_t bind)
-	    : secret_name(std::move(secret)), read_table_function(std::move(rtf)), orig_bind(bind) {
+	SapSecretInjectorInfo(string secret, string rtf, string delim, table_function_bind_t bind)
+	    : secret_name(std::move(secret)), read_table_function(std::move(rtf)),
+	      read_table_delimiter(std::move(delim)), orig_bind(bind) {
 	}
 };
 
@@ -236,16 +251,19 @@ static unique_ptr<FunctionData> SapSecretBind(ClientContext &ctx, TableFunctionB
 	if (!injector.read_table_function.empty() && input.named_parameters.find("read_table_function") == input.named_parameters.end()) {
 		input.named_parameters["read_table_function"] = Value(injector.read_table_function);
 	}
+	if (!injector.read_table_delimiter.empty() && input.named_parameters.find("read_table_delimiter") == input.named_parameters.end()) {
+		input.named_parameters["read_table_delimiter"] = Value(injector.read_table_delimiter);
+	}
 	return injector.orig_bind(ctx, input, return_types, names);
 }
 
 // Wrap every overload in info.functions to inject the secret via the trampoline.
-static void WrapFunctionInfoWithSecret(CreateTableFunctionInfo &info, const string &secret_name, const string &read_table_function = "") {
+static void WrapFunctionInfoWithSecret(CreateTableFunctionInfo &info, const string &secret_name, const string &read_table_function = "", const string &read_table_delimiter = "") {
 	for (auto &func : info.functions.functions) {
 		if (!func.bind) {
 			continue;
 		}
-		func.function_info = make_shared_ptr<SapSecretInjectorInfo>(secret_name, read_table_function, func.bind);
+		func.function_info = make_shared_ptr<SapSecretInjectorInfo>(secret_name, read_table_function, read_table_delimiter, func.bind);
 		func.bind = SapSecretBind;
 	}
 }
@@ -386,6 +404,7 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
                                             AttachOptions &attach_options) {
 	string secret_name;
 	string read_table_function;
+	string read_table_delimiter;
 	vector<string> allowed_tables;
 	vector<string> table_patterns;
 
@@ -395,6 +414,9 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
 			secret_name = entry.second.ToString();
 		} else if (lower_name == "read_table_function") {
 			read_table_function = NormalizeAndValidateReadTableFunctionName(entry.second.ToString());
+		} else if (lower_name == "read_table_delimiter" || lower_name == "delimiter") {
+			read_table_delimiter = entry.second.ToString();
+			ValidateReadTableDelimiter(read_table_delimiter);
 		} else if (lower_name == "tables") {
 			auto tables_str = entry.second.ToString();
 			auto split = StringUtil::Split(tables_str, ',');
@@ -415,6 +437,8 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
 	// Remove consumed options so SingleFileStorageManager doesn't reject them
 	attach_options.options.erase("secret");
 	attach_options.options.erase("read_table_function");
+	attach_options.options.erase("read_table_delimiter");
+	attach_options.options.erase("delimiter");
 	attach_options.options.erase("tables");
 
 	// Validate secret exists if specified
@@ -470,7 +494,7 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
 
 	// ── Table generator (on-demand SapTableEntry per SAP table, issue #63) ─
 	auto &table_catalog_set = duck_schema.GetCatalogSet(CatalogType::TABLE_ENTRY);
-	auto table_gen = make_uniq<SapDefaultGenerator>(*sap_catalog, schema, secret_name, allowed_tables, read_table_function);
+	auto table_gen = make_uniq<SapDefaultGenerator>(*sap_catalog, schema, secret_name, allowed_tables, read_table_function, read_table_delimiter);
 	sap_catalog->SetViewGenerator(table_gen.get());
 	table_catalog_set.SetDefaultGenerator(std::move(table_gen));
 
@@ -494,8 +518,8 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
 			// Functions registered in the system catalog are marked internal; strip
 			// that flag so DuckDB allows them to be created in the sap_rfc catalog.
 			info.internal = false;
-			if (!secret_name.empty() || !read_table_function.empty()) {
-				WrapFunctionInfoWithSecret(info, secret_name, read_table_function);
+			if (!secret_name.empty() || !read_table_function.empty() || !read_table_delimiter.empty()) {
+				WrapFunctionInfoWithSecret(info, secret_name, read_table_function, read_table_delimiter);
 			}
 			duck_schema.CreateTableFunction(system_transaction, info);
 		}
@@ -511,7 +535,7 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
 	auto &duck_schema = schema.Cast<DuckSchemaEntry>();
 	auto &catalog_set = duck_schema.GetCatalogSet(CatalogType::VIEW_ENTRY);
 	auto default_generator =
-	    make_uniq<SapDefaultGenerator>(*catalog, schema, std::move(secret_name), std::move(allowed_tables), read_table_function);
+	    make_uniq<SapDefaultGenerator>(*catalog, schema, std::move(secret_name), std::move(allowed_tables), read_table_function, read_table_delimiter);
 	catalog_set.SetDefaultGenerator(std::move(default_generator));
 
 	return std::move(catalog);

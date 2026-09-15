@@ -194,6 +194,41 @@ TEST_CASE("ResolveReadTableFunctionOptions follows 5-tier precedence hierarchy",
 		run_query("SET erpl_rfc_read_table_function = ''");
 	}
 
+	// Delimiter precedence hierarchy across all tiers
+	{
+		// Tier 5: Default empty
+		auto opts5 = ResolveReadTableFunctionOptions(context);
+		REQUIRE(opts5.delimiter.empty());
+
+		// Tier 4: Session setting
+		run_query("SET erpl_rfc_read_table_delimiter = ';'");
+		auto opts4 = ResolveReadTableFunctionOptions(context);
+		REQUIRE(opts4.delimiter == ";");
+
+		// Tier 3: Secret option overrides session
+		run_query("CREATE SECRET sec_delim (TYPE sap_rfc, ashost 's4', user 'demo', read_table_delimiter '|')");
+		auto opts3 = ResolveReadTableFunctionOptions(context, nullptr, "sec_delim");
+		REQUIRE(opts3.delimiter == "|");
+
+		// Tier 2: ATTACH override delimiter overrides secret & session
+		auto opts2 = ResolveReadTableFunctionOptions(context, nullptr, "sec_delim", "", "^");
+		REQUIRE(opts2.delimiter == "^");
+
+		// Tier 1: Query parameter overrides ATTACH, secret & session
+		named_parameter_map_t named_params;
+		named_params["READ_TABLE_DELIMITER"] = Value("~");
+		auto opts1 = ResolveReadTableFunctionOptions(context, &named_params, "sec_delim", "", "^");
+		REQUIRE(opts1.delimiter == "~");
+
+		run_query("DROP SECRET sec_delim");
+		run_query("SET erpl_rfc_read_table_delimiter = ''");
+	}
+
+	// Secret resolution throws on missing named secret
+	{
+		REQUIRE_THROWS_AS(ResolveReadTableFunctionOptions(context, nullptr, "nonexistent_secret"), InvalidInputException);
+	}
+
 	// Explicit setting of RFC_READ_TABLE preserves user_set = true
 	{
 		run_query("SET erpl_rfc_read_table_function = 'RFC_READ_TABLE'");
@@ -202,4 +237,30 @@ TEST_CASE("ResolveReadTableFunctionOptions follows 5-tier precedence hierarchy",
 		REQUIRE(opts.user_set == true);
 		run_query("SET erpl_rfc_read_table_function = ''");
 	}
+}
+
+TEST_CASE("ValidateReadTableDelimiter validates printable ASCII characters", "[erpl_rfc][read_table_func]") {
+	REQUIRE_NOTHROW(ValidateReadTableDelimiter(""));
+	REQUIRE_NOTHROW(ValidateReadTableDelimiter("~"));
+	REQUIRE_NOTHROW(ValidateReadTableDelimiter("|"));
+	REQUIRE_NOTHROW(ValidateReadTableDelimiter(";"));
+	REQUIRE_NOTHROW(ValidateReadTableDelimiter(","));
+
+	REQUIRE_THROWS_AS(ValidateReadTableDelimiter("~~"), InvalidInputException);
+	REQUIRE_THROWS_AS(ValidateReadTableDelimiter("DELIM"), InvalidInputException);
+	// Non-printable control characters
+	REQUIRE_THROWS_AS(ValidateReadTableDelimiter("\n"), InvalidInputException);
+	REQUIRE_THROWS_AS(ValidateReadTableDelimiter("\x01"), InvalidInputException);
+}
+
+TEST_CASE("CREATE SECRET validates read_table_delimiter", "[erpl_rfc][read_table_func]") {
+	DuckDB db(nullptr);
+	db.LoadStaticExtension<ErplRfcExtension>();
+	Connection conn(db);
+	auto res_bad = conn.Query("CREATE SECRET sec_bad_del (TYPE sap_rfc, ashost 's4', user 'demo', read_table_delimiter '~~')");
+	REQUIRE(res_bad->HasError());
+	REQUIRE(res_bad->GetError().find("READ_TABLE_DELIMITER must be a single printable ASCII character") != string::npos);
+
+	auto res_ok = conn.Query("CREATE SECRET sec_ok_del (TYPE sap_rfc, ashost 's4', user 'demo', read_table_delimiter '~')");
+	REQUIRE(!res_ok->HasError());
 }

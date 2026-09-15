@@ -28,18 +28,34 @@ CREATE SECRET abap_trial (
 );
 
 # ---------------------------------------------------------------------
-# Test 1: Direct function argument with /SAPDS/RFC_READ_TABLE2
+# Test 1: Direct function argument with /SAPDS/RFC_READ_TABLE2 (EXCEPT ALL oracle)
 query I
-SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', read_table_function='/SAPDS/RFC_READ_TABLE2');
+SELECT COUNT(*) FROM (
+    (SELECT * FROM sap_read_table('/DMO/FLIGHT', read_table_function='/SAPDS/RFC_READ_TABLE2')
+     EXCEPT ALL
+     SELECT * FROM sap_read_table('/DMO/FLIGHT'))
+    UNION ALL
+    (SELECT * FROM sap_read_table('/DMO/FLIGHT')
+     EXCEPT ALL
+     SELECT * FROM sap_read_table('/DMO/FLIGHT', read_table_function='/SAPDS/RFC_READ_TABLE2'))
+);
 ----
-40
+0
 
 # ---------------------------------------------------------------------
-# Test 2: Direct function argument with /BODS/RFC_READ_TABLE2
+# Test 2: Direct function argument with /BODS/RFC_READ_TABLE2 (EXCEPT ALL oracle)
 query I
-SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', read_table_function='/BODS/RFC_READ_TABLE2');
+SELECT COUNT(*) FROM (
+    (SELECT * FROM sap_read_table('/DMO/FLIGHT', read_table_function='/BODS/RFC_READ_TABLE2')
+     EXCEPT ALL
+     SELECT * FROM sap_read_table('/DMO/FLIGHT'))
+    UNION ALL
+    (SELECT * FROM sap_read_table('/DMO/FLIGHT')
+     EXCEPT ALL
+     SELECT * FROM sap_read_table('/DMO/FLIGHT', read_table_function='/BODS/RFC_READ_TABLE2'))
+);
 ----
-40
+0
 
 # ---------------------------------------------------------------------
 # Test 3: Session variable erpl_rfc_read_table_function
@@ -47,16 +63,24 @@ statement ok
 SET erpl_rfc_read_table_function = '/SAPDS/RFC_READ_TABLE2';
 
 query I
-SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT');
+SELECT COUNT(*) FROM (
+    (SELECT * FROM sap_read_table('/DMO/FLIGHT')
+     EXCEPT ALL
+     SELECT * FROM sap_read_table('/DMO/FLIGHT', read_table_function='RFC_READ_TABLE'))
+    UNION ALL
+    (SELECT * FROM sap_read_table('/DMO/FLIGHT', read_table_function='RFC_READ_TABLE')
+     EXCEPT ALL
+     SELECT * FROM sap_read_table('/DMO/FLIGHT'))
+);
 ----
-40
+0
 
 # Reset session variable
 statement ok
 RESET erpl_rfc_read_table_function;
 
 # ---------------------------------------------------------------------
-# Test 4: Secret with read_table_function
+# Test 4: Secret with read_table_function and read_table_delimiter
 statement ok
 CREATE SECRET custom_reader_secret (
     TYPE sap_rfc,
@@ -66,28 +90,46 @@ CREATE SECRET custom_reader_secret (
     USER '${ERPL_SAP_USER}',
     PASSWD '${ERPL_SAP_PASSWORD}',
     LANG '${ERPL_SAP_LANG}',
-    read_table_function '/SAPDS/RFC_READ_TABLE2'
+    read_table_function '/SAPDS/RFC_READ_TABLE2',
+    read_table_delimiter '~'
 );
 
 query I
-SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', secret='custom_reader_secret');
+SELECT COUNT(*) FROM (
+    (SELECT * FROM sap_read_table('/DMO/FLIGHT', secret='custom_reader_secret')
+     EXCEPT ALL
+     SELECT * FROM sap_read_table('/DMO/FLIGHT'))
+    UNION ALL
+    (SELECT * FROM sap_read_table('/DMO/FLIGHT')
+     EXCEPT ALL
+     SELECT * FROM sap_read_table('/DMO/FLIGHT', secret='custom_reader_secret'))
+);
 ----
-40
+0
 
 # ---------------------------------------------------------------------
-# Test 5: ATTACH with read_table_function
+# Test 5: ATTACH with read_table_function and read_table_delimiter
 statement ok
 ATTACH '' AS sap_custom (
     TYPE sap_rfc,
     SECRET 'abap_trial',
     read_table_function '/SAPDS/RFC_READ_TABLE2',
+    read_table_delimiter '~',
     TABLES '/DMO/FLIGHT'
 );
 
 query I
-SELECT COUNT(*) FROM sap_custom."/DMO/FLIGHT";
+SELECT COUNT(*) FROM (
+    (SELECT * FROM sap_custom."/DMO/FLIGHT"
+     EXCEPT ALL
+     SELECT * FROM sap_read_table('/DMO/FLIGHT'))
+    UNION ALL
+    (SELECT * FROM sap_read_table('/DMO/FLIGHT')
+     EXCEPT ALL
+     SELECT * FROM sap_custom."/DMO/FLIGHT")
+);
 ----
-40
+0
 
 statement ok
 DETACH sap_custom;
@@ -144,7 +186,7 @@ CREATE SECRET bad_sec (
 
 # ---------------------------------------------------------------------
 # Test 9: Delimiter validation
-statement error READ_TABLE_DELIMITER must be a single character
+statement error READ_TABLE_DELIMITER must be a single printable ASCII character
 SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', read_table_delimiter='~~');
 ----
 

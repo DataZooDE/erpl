@@ -107,6 +107,7 @@ namespace duckdb
 	};
 
 	void ValidateReadTableFunctionName(const std::string &name);
+	void ValidateReadTableFunctionName(const std::string &raw_input, const std::string &name);
 	std::string NormalizeAndValidateReadTableFunctionName(const std::string &input);
 	void ValidateReadTableDelimiter(const std::string &delimiter);
 
@@ -120,7 +121,8 @@ namespace duckdb
 		ClientContext &context,
 		const named_parameter_map_t *named_params = nullptr,
 		const std::string &secret_name = "",
-		const std::string &attach_override = "");
+		const std::string &attach_override_function = "",
+		const std::string &attach_override_delimiter = "");
 
 	struct ReadTableFunctionDescriptor {
 		std::string function_name;
@@ -134,6 +136,7 @@ namespace duckdb
 		bool has_get_sorted = false;
 		bool has_use_et_data_4_return = false;
 		bool supports_et_data = false;
+		bool supports_et_data_switch = false;
 
 		static ReadTableFunctionDescriptor Inspect(std::shared_ptr<RfcConnection> connection, const std::string &function_name);
 	};

@@ -174,6 +174,11 @@ namespace duckdb {
         parameter = Value(val);
     }
 
+    static void OnRfcReadTableDelimiter(ClientContext &, SetScope, Value &parameter) {
+        auto val = parameter.GetValue<string>();
+        ValidateReadTableDelimiter(val);
+    }
+
     static void OnRfcPartitionWindowRows(ClientContext &, SetScope, Value &parameter) {
         SetRfcPartitionWindowRows((idx_t)parameter.GetValue<uint64_t>());
     }
@@ -371,13 +376,22 @@ namespace duckdb {
         config.AddExtensionOption(
             "erpl_rfc_read_table_function",
             "Default RFC function module used by sap_read_table, sap_show_tables, ATTACH (TYPE SAP), "
-            "and BICS query resolution. When unset or empty, defaults to RFC_READ_TABLE with "
+            "and BICS catalog query resolution (for queries executed via sap_bics_query / sap_bics_query_cube). "
+            "When unset or empty, defaults to RFC_READ_TABLE with "
             "automatic fallback to ET_DATA-capable functions (/SAPDS/RFC_READ_TABLE2, /BODS/RFC_READ_TABLE2, etc.) "
             "when string columns are encountered. When explicitly set, only the configured function is used and "
             "no automatic fallback is performed.",
             LogicalType::VARCHAR,
             Value(""),
             OnRfcReadTableFunction);
+
+        config.AddExtensionOption(
+            "erpl_rfc_read_table_delimiter",
+            "Single ASCII character used as field delimiter for RFC table reads. "
+            "When set, passed to the DELIMITER parameter of the RFC read table function.",
+            LogicalType::VARCHAR,
+            Value(""),
+            OnRfcReadTableDelimiter);
 
         auto provider = make_uniq<RfcEnvironmentCredentialsProvider>(config);
         provider->SetAll();
