@@ -22,7 +22,7 @@ LOAD erpl;
 
 ---
 
-## Unreleased
+## v2026.09.16 — Custom RFC_READ_TABLE support, configurable delimiters, and bind-time secret validation
 
 ### Added
 
