@@ -36,9 +36,15 @@ namespace duckdb
     // RfcEnvironmentCredentialsProvider ----------------------------------------
 
 
+    duckdb::CatalogTransaction SapSystemTransaction(ClientContext &context) {
+        return context.transaction.HasActiveTransaction()
+                   ? duckdb::CatalogTransaction::GetSystemCatalogTransaction(context)
+                   : duckdb::CatalogTransaction::GetSystemTransaction(*context.db);
+    }
+
     RfcAuthParams RfcAuthParams::FromContext(ClientContext &context, const string &secret_name) {
         auto &secret_manager = duckdb::SecretManager::Get(context);
-        auto transaction = duckdb::CatalogTransaction::GetSystemCatalogTransaction(context);
+        auto transaction = SapSystemTransaction(context);
 
         // A caller that named a secret gets that secret. LookupSecret() matches
         // the argument against the secret *scopes*, not against the name, so

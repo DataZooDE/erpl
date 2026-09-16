@@ -22,6 +22,29 @@ LOAD erpl;
 
 ---
 
+## Unreleased
+
+### Added
+
+- **[rfc]** **Custom `RFC_READ_TABLE` replacement function support (issue #145).**
+  Users can now configure an alternate SAP read table function module (e.g. `/SAPDS/RFC_READ_TABLE2`, `/BODS/RFC_READ_TABLE2`, or custom customer `Z_*`/`/MYNS/*` modules) to read tables and CDS views.
+  Resolution follows a 5-tier independent precedence hierarchy: query named parameter > ATTACH option > DuckDB secret option > session setting > built-in default (`RFC_READ_TABLE`).
+  Includes function signature introspection validating input/output table contracts at bind time. Reading string/xstring columns requires an `ET_DATA`-capable reader (such as standard `RFC_READ_TABLE` with SAP Note 2246160 or a custom module declaring `ET_DATA`).
+- **[rfc]** **Configurable delimiter for read table functions.**
+  Configurable via `READ_TABLE_DELIMITER` independently across all configuration tiers, validated as a single printable non-whitespace ASCII character (defaulting to `~` on `ET_DATA` reads when empty). Per-query explicit empty string (`READ_TABLE_DELIMITER=''`) clears lower-tier delimiters.
+- **[bics]** **Custom read table function and delimiter support for BICS query execution.**
+  `sap_bics_query` and `sap_bics_query_cube` consume session and secret reader function settings with interface validation, failing fast if the configured reader lacks `DELIMITER` parameter support. (Note: BICS catalog scanners `sap_bics_meta_*` currently retain standard `RFC_READ_TABLE`).
+- **[odp]** **Shared read table function and delimiter resolution.**
+
+### Changed
+
+- **[rfc]** **Named secret validation moved to bind time.**
+  When specifying `secret = 'secret_name'` in `sap_read_table`, `sap_show_tables`, or related functions, secret existence and type compatibility (`TYPE sap_rfc` or `TYPE sap`) are now validated at bind time instead of deferring to connection open.
+- **[rfc]** **String/Xstring reader requirements clarified.**
+  Standard SAP Data Services readers (`/SAPDS/RFC_READ_TABLE2`, `/BODS/RFC_READ_TABLE2`) provide wide table buffers (`TBLOUT30000`) rather than deep `ET_DATA` string support. Unreachable string fallback candidates have been removed. Systems reading ABAP deep strings require `RFC_READ_TABLE` with SAP Note 2246160 or a custom reader declaring `ET_DATA`.
+- **[bics]** **Default delimiter alignment.**
+  BICS DDIC metadata extraction now defaults to `~` (matching `sap_read_table`) when no delimiter is explicitly configured.
+
 ## v2026.09.04 — scans that can be run twice, and a backend with no known gaps
 
 `sap_read_table` gains row-range partitioning, and the three extensions gain one tuning

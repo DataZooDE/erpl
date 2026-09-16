@@ -169,6 +169,16 @@ namespace duckdb {
         SetRfcPartitions((idx_t)parameter.GetValue<uint64_t>());
     }
 
+    static void OnRfcReadTableFunction(ClientContext &, SetScope, Value &parameter) {
+        auto val = NormalizeAndValidateReadTableFunctionName(parameter.GetValue<string>());
+        parameter = Value(val);
+    }
+
+    static void OnRfcReadTableDelimiter(ClientContext &, SetScope, Value &parameter) {
+        auto val = parameter.GetValue<string>();
+        ValidateReadTableDelimiter(val);
+    }
+
     static void OnRfcPartitionWindowRows(ClientContext &, SetScope, Value &parameter) {
         SetRfcPartitionWindowRows((idx_t)parameter.GetValue<uint64_t>());
     }
@@ -363,6 +373,26 @@ namespace duckdb {
             Value::BOOLEAN(true),
             OnPushdownFilters);
 
+        config.AddExtensionOption(
+            "erpl_rfc_read_table_function",
+            "Default RFC function module used by sap_read_table, sap_show_tables, ATTACH (TYPE SAP), "
+            "BICS catalog queries (sap_bics_query / sap_bics_query_cube), and ODP subscription queries (sap_odp_show_subscriptions). "
+            "When unset or set to RFC_READ_TABLE, automatic fallback to ET_DATA-capable functions "
+            "(/SAPDS/RFC_READ_TABLE2, /BODS/RFC_READ_TABLE2, etc.) is enabled when string columns are encountered. "
+            "When set to a custom reader, only the configured function is used and automatic fallback is disabled.",
+            LogicalType::VARCHAR,
+            Value(""),
+            OnRfcReadTableFunction);
+
+        config.AddExtensionOption(
+            "erpl_rfc_read_table_delimiter",
+            "Single printable non-whitespace ASCII character used as field delimiter for RFC table reads. "
+            "When set, passed to the DELIMITER parameter of the RFC read table function. "
+            "When empty, defaults to '~' automatically on ET_DATA reads.",
+            LogicalType::VARCHAR,
+            Value(""),
+            OnRfcReadTableDelimiter);
+
         auto provider = make_uniq<RfcEnvironmentCredentialsProvider>(config);
         provider->SetAll();
 
@@ -418,8 +448,9 @@ namespace duckdb {
         {
             CreateTableFunctionInfo info(CreateRfcReadTableScanFunction());
             FunctionDescription desc;
-            desc.description = "Read data from an SAP table or CDS view using RFC_READ_TABLE. Supports projection pushdown, filter pushdown, and parallel reads via THREADS.";
+            desc.description = "Read data from an SAP table or CDS view using RFC_READ_TABLE (or a custom reader via READ_TABLE_FUNCTION / erpl_rfc_read_table_function). Supports projection pushdown, filter pushdown, and parallel reads via THREADS.";
             desc.examples    = {"SELECT * FROM sap_read_table('SFLIGHT')",
+                                "SELECT * FROM sap_read_table('SFLIGHT', read_table_function='/SAPDS/RFC_READ_TABLE2')",
                                 "SELECT * FROM sap_read_table('SFLIGHT', FILTER='CARRID = ''LH''', THREADS=4)"};
             desc.categories  = {"sap"};
             desc.parameter_names = {"table_name"};
@@ -478,9 +509,11 @@ namespace duckdb {
         {
             CreateTableFunctionInfo info(CreateRfcShowTablesScanFunction());
             FunctionDescription desc;
-            desc.description = "List SAP tables and views from the data dictionary (DD02V). Filter by TABLENAME or TEXT patterns using wildcards (*).";
+            desc.description = "List SAP tables and views from the data dictionary (DD02V). Supports TABLENAME and TEXT patterns, SECRET, READ_TABLE_FUNCTION, and READ_TABLE_DELIMITER.";
             desc.examples    = {"SELECT * FROM sap_show_tables()",
-                                "SELECT * FROM sap_show_tables(TABLENAME='*FLIGHT*')"};
+                                "SELECT * FROM sap_show_tables(TABLENAME='*FLIGHT*')",
+                                "SELECT * FROM sap_show_tables(TABLENAME='*FLIGHT*', SECRET='my_sap_secret')",
+                                "SELECT * FROM sap_show_tables(TABLENAME='*FLIGHT*', read_table_function='/SAPDS/RFC_READ_TABLE2', read_table_delimiter=';')"};
             desc.categories  = {"sap"};
             info.descriptions.push_back(std::move(desc));
             loader.RegisterFunction(std::move(info));

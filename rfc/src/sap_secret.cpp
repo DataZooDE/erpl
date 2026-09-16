@@ -3,15 +3,27 @@
 
 #include "sap_secret.hpp"
 #include "sap_connection.hpp"
+#include "sap_rfc.hpp"
 
 #include <algorithm>
 
 namespace duckdb {
 
-const vector<string> &SapSecretParameterNames() {
+const vector<RfcSecretOptionDefinition> &RfcSecretOptionDefinitions() {
+	static const vector<RfcSecretOptionDefinition> defs = {
+		{"read_table_function"},
+		{"read_table_delimiter"}
+	};
+	return defs;
+}
+
+const vector<string> &SapSecretAcceptedKeys() {
 	static const vector<string> names = []() {
 		vector<string> result;
 		for (auto &definition : RfcAuthParamDefinitions()) {
+			result.emplace_back(definition.name);
+		}
+		for (auto &definition : RfcSecretOptionDefinitions()) {
 			result.emplace_back(definition.name);
 		}
 		return result;
@@ -23,7 +35,7 @@ unique_ptr<BaseSecret> CreateSapSecretFunction(ClientContext &context, CreateSec
 	// apply any overridden settings
 	vector<string> prefix_paths;
 	auto result = make_uniq<KeyValueSecret>(prefix_paths, "sap_rfc", "config", input.name);
-	auto &names = SapSecretParameterNames();
+	auto &names = SapSecretAcceptedKeys();
 	for (const auto &named_param : input.options) {
 		auto lower_name = StringUtil::Lower(named_param.first);
 
@@ -34,7 +46,15 @@ unique_ptr<BaseSecret> CreateSapSecretFunction(ClientContext &context, CreateSec
 			// an INTERNAL error.
 			throw InvalidInputException("Unknown parameter '%s' for secret type 'sap_rfc'", lower_name);
 		}
-		result->secret_map[lower_name] = named_param.second.ToString();
+		if (lower_name == "read_table_function") {
+			result->secret_map[lower_name] = NormalizeAndValidateReadTableFunctionName(named_param.second.ToString());
+		} else if (lower_name == "read_table_delimiter") {
+			auto delim = named_param.second.ToString();
+			ValidateReadTableDelimiter(delim);
+			result->secret_map[lower_name] = delim;
+		} else {
+			result->secret_map[lower_name] = named_param.second.ToString();
+		}
 	}
 
 	//! Set redact keys. The key names are the secret map keys, so `passwd` —
@@ -129,6 +149,75 @@ RfcAuthParams GetAuthParamsFromContext(ClientContext &context, const std::string
 		auth_params = RfcAuthParams::FromContext(context);
 	}
 	return auth_params;
+}
+
+RfcSecretOptions LookupSecretOptions(ClientContext &context, const std::string &secret_name)
+{
+	RfcSecretOptions result;
+	auto &secret_manager = SecretManager::Get(context);
+	auto transaction = SapSystemTransaction(context);
+
+	auto extract_opts = [&](const KeyValueSecret &kv_secret) {
+		auto it_fn = kv_secret.secret_map.find("read_table_function");
+		if (it_fn != kv_secret.secret_map.end() && !it_fn->second.IsNull()) {
+			result.read_table_function = it_fn->second.ToString();
+		}
+		auto it_del = kv_secret.secret_map.find("read_table_delimiter");
+		if (it_del != kv_secret.secret_map.end() && !it_del->second.IsNull()) {
+			result.read_table_delimiter = it_del->second.ToString();
+		}
+	};
+
+	if (!secret_name.empty() && secret_name != SAP_SECRET_DEFAULT_PATH) {
+		auto secret_entry = secret_manager.GetSecretByName(transaction, secret_name);
+		if (!secret_entry) {
+			throw InvalidInputException("Secret '%s' not found", SanitizeForErrorMessage(secret_name));
+		}
+		if (secret_entry->secret) {
+			if (secret_entry->secret->GetType() != SAP_SECRET_TYPE_NAME) {
+				throw InvalidInputException("Secret '%s' is of type '%s', expected '%s'",
+				                            SanitizeForErrorMessage(secret_name),
+				                            SanitizeForErrorMessage(secret_entry->secret->GetType()),
+				                            SAP_SECRET_TYPE_NAME);
+			}
+			auto *kv = dynamic_cast<const KeyValueSecret *>(secret_entry->secret.get());
+			if (kv) {
+				extract_opts(*kv);
+				return result;
+			}
+			throw InvalidInputException("Secret '%s' is of type '%s', expected 'key_value'",
+			                            SanitizeForErrorMessage(secret_name),
+			                            SanitizeForErrorMessage(secret_entry->secret->GetType()));
+		}
+		return result;
+	}
+
+	auto match = secret_manager.LookupSecret(transaction, SAP_SECRET_DEFAULT_PATH, "sap_rfc");
+	if (match.HasMatch()) {
+		if (match.GetSecret().GetType() != SAP_SECRET_TYPE_NAME) {
+			return result;
+		}
+		auto *kv = dynamic_cast<const KeyValueSecret *>(&match.GetSecret());
+		if (kv) {
+			extract_opts(*kv);
+			return result;
+		}
+	}
+
+	return result;
+}
+
+std::string LookupSecretOption(ClientContext &context, const std::string &secret_name, const std::string &key) 
+{
+	auto opts = LookupSecretOptions(context, secret_name);
+	auto lower = StringUtil::Lower(key);
+	if (lower == "read_table_function") {
+		return opts.read_table_function;
+	}
+	if (lower == "read_table_delimiter") {
+		return opts.read_table_delimiter;
+	}
+	return "";
 }
 
 } // namespace duckdb 

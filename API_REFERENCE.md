@@ -94,11 +94,74 @@ Read data from an SAP table or CDS view. Supports projection pushdown, filter pu
 | `fetch_size` | UINTEGER | `erpl_rfc_fetch_size` | Concurrent result rows per round-trip; transport only, never changes the rows returned |
 | `partitions` | UINTEGER | `erpl_rfc_partitions` | Read this many row ranges in parallel. Same rows, unspecified order |
 | `MAX_ROWS` | UINTEGER | 0 (all) | Maximum rows to return |
-| `READ_TABLE_FUNCTION` | VARCHAR | `'RFC_READ_TABLE'` | RFC function to use (see note) |
-| `READ_TABLE_DELIMITER` | VARCHAR | — | Delimiter for TABLE2 variants |
+| `READ_TABLE_FUNCTION` | VARCHAR | `erpl_rfc_read_table_function` (default `'RFC_READ_TABLE'`) | RFC function module to use for table extraction (see note) |
+| `READ_TABLE_DELIMITER` | VARCHAR | — | Single printable non-whitespace ASCII character (e.g. `'~'`, `'|'`) for custom or TABLE2 reader functions |
 | `SECRET` | VARCHAR | — | Named secret to use |
 
-**Supported `READ_TABLE_FUNCTION` values:** `RFC_READ_TABLE`, `/BODS/RFC_READ_TABLE`, `/SAPDS/RFC_READ_TABLE`, `/BODS/RFC_READ_TABLE2`, `/SAPDS/RFC_READ_TABLE2`
+**Custom `READ_TABLE_FUNCTION`, Delimiter & Precedence:**
+
+*Quickstart:*
+```sql
+-- 1. Per query:
+SELECT * FROM sap_read_table('SFLIGHT', READ_TABLE_FUNCTION='/SAPDS/RFC_READ_TABLE2', READ_TABLE_DELIMITER='|');
+
+-- 2. In connection secret:
+CREATE SECRET my_sap (
+    TYPE sap_rfc,
+    ASHOST 'sap-host',
+    read_table_function '/SAPDS/RFC_READ_TABLE2',
+    read_table_delimiter '|'
+);
+
+-- 3. In session:
+SET erpl_rfc_read_table_function = '/SAPDS/RFC_READ_TABLE2';
+SET erpl_rfc_read_table_delimiter = '|';
+```
+
+Any RFC-enabled function module that implements the standard `RFC_READ_TABLE` interface contract (import parameter `QUERY_TABLE`, table parameter `FIELDS`, table parameter `OPTIONS`, import parameters `ROWSKIPS` and `ROWCOUNT`, and a supported tabular data output parameter such as `DATA`, `ET_DATA`, or `TBLOUT*`) can be used. Supported examples include standard `RFC_READ_TABLE`, `/BODS/RFC_READ_TABLE2`, `/SAPDS/RFC_READ_TABLE2`, or custom customer modules (`Z_RFC_READ_TABLE`, `/MYNS/READ_TABLE`). Function module names are automatically trimmed of leading/trailing whitespace and converted to uppercase upon resolution. Custom or custom-authorized function modules require appropriate SAP authorizations in the target system (authorization object `S_RFC` with `RFC_TYPE = 'FUGR'`, `ACTVT = '16'`, and `RFC_NAME` covering the function module's function group).
+
+Before configuring a custom reader, you can inspect its interface contract and parameters on the target system:
+```sql
+SELECT parameter, direction, type, length, optional
+FROM sap_rfc_describe_function('Z_CUSTOM_READ_TABLE');
+```
+
+> [!NOTE]
+> Custom reader function modules must be strictly read-only and side-effect-free. ATTACH options and secret parameters provide operational defaults and convenience, not security boundaries or isolation guarantees. Users with SQL query execution access can override `READ_TABLE_FUNCTION` or execute RFC functions via `sap_rfc_invoke`.
+>
+> Furthermore, `FILTER` conditions and DuckDB pushed-down predicates reach custom readers as raw ABAP `WHERE` clause fragments via the `OPTIONS` table. Custom reader implementations must handle these fragments safely and avoid unsafe dynamic SQL string concatenation.
+
+The function module and delimiter are resolved independently using the 5-tier precedence hierarchy:
+- **Tier 1 (Per-query named parameters)**: `sap_read_table(..., READ_TABLE_FUNCTION='...', READ_TABLE_DELIMITER='~')` (case-insensitive)
+- **Tier 2 (Catalog mount option)**: `ATTACH '' AS sap (TYPE sap_rfc, read_table_function '...', read_table_delimiter '~')`
+- **Tier 3 (Secret configuration)**: `CREATE SECRET (TYPE sap_rfc, read_table_function '...', read_table_delimiter '~')`
+- **Tier 4 (Session settings)**: `SET erpl_rfc_read_table_function = '...'`; `SET erpl_rfc_read_table_delimiter = '~'`
+- **Tier 5 (Default)**: `RFC_READ_TABLE` (delimiter empty by default, defaulting to `~` when reading via `ET_DATA`)
+
+*Empty-String Semantics by Tier:*
+| Tier | `read_table_function = ''` | `read_table_delimiter = ''` |
+|---|---|---|
+| **Tier 1 (Per-query)** | Explicitly resets reader to built-in default `RFC_READ_TABLE` (restores automatic fallback) | Explicitly clears any inherited delimiter (restores default delimiter behavior) |
+| **Tiers 2–4 (Attach, Secret, Session)** | Unset / inherit from next lower tier or built-in default | Unset / inherit from next lower tier or built-in default |
+
+*Precedence Rules:*
+1. **Function resolution**: The function module is determined by the highest tier that specifies one. An explicit override at Tier 1 (`READ_TABLE_FUNCTION = 'RFC_READ_TABLE'`) pins the reader to `RFC_READ_TABLE`, disabling automatic fallback. Specifying `READ_TABLE_FUNCTION = ''` at Tier 1 unpins and resets the reader to default `RFC_READ_TABLE` (re-enabling automatic fallback).
+2. **Independent delimiter resolution**: Function and delimiter are resolved independently. The highest tier that supplies a delimiter wins, regardless of which tier supplied the function module.
+3. **Delimiter constraints**: `READ_TABLE_DELIMITER` must be a single printable non-whitespace ASCII character (ASCII 0x21 to 0x7E, e.g. `~`, `|`, `;`). Whitespace characters (including space `' '`, tab, newline) and multi-byte characters are rejected with an `InvalidInputException`.
+
+*Resolution Example:*
+| Secret Configuration | Per-Query Override | Resolved Function | Resolved Delimiter |
+|---|---|---|---|
+| `function='Z_CUSTOM', delimiter='~'` | *(none)* | `Z_CUSTOM` | `~` |
+| `function='Z_CUSTOM', delimiter='~'` | `READ_TABLE_FUNCTION='RFC_READ_TABLE'` | `RFC_READ_TABLE` (pinned) | `~` (inherited from secret) |
+| `function='Z_CUSTOM', delimiter='~'` | `READ_TABLE_FUNCTION='RFC_READ_TABLE', READ_TABLE_DELIMITER=''` | `RFC_READ_TABLE` (pinned) | default (cleared by per-query `''`) |
+| `function='Z_CUSTOM', delimiter='~'` | `READ_TABLE_FUNCTION=''` | `RFC_READ_TABLE` (unpinned) | `~` (inherited from secret) |
+
+*String/Xstring Column Requirements:*
+When reading string or xstring columns, `ET_DATA` is required. Standard `RFC_READ_TABLE` supports `ET_DATA` when SAP Note 2246160 is installed (`USE_ET_DATA_4_RETURN`). Alternatively, a custom reader function declaring `ET_DATA` may be configured. If the active reader function lacks `ET_DATA` support, querying string or xstring columns fails immediately with an `InvalidInputException` naming the table, column, reader module, and configuration source.
+
+*BICS and ODP Requirements:*
+The configured read table function applies to `sap_read_table`, `sap_show_tables`, `ATTACH (TYPE sap_rfc)`, BICS query execution (`sap_bics_query`, `sap_bics_query_cube`), and ODP subscription queries (`sap_odp_show_subscriptions`). BICS query execution requires a `DELIMITER` parameter in the reader function module; if a custom reader lacking `DELIMITER` is configured, query execution fails fast with an `InvalidInputException`. (Note: BICS catalog metadata scanners `sap_bics_meta_*` currently use standard `RFC_READ_TABLE`).
 
 ```sql
 -- Basic read
@@ -147,21 +210,25 @@ SELECT * FROM sap_rfc_invoke('BAPI_FLIGHT_GETLIST',
 
 ### Discovery & Metadata
 
-#### `sap_show_tables([TABLENAME, TEXT, THREADS])`
+#### `sap_show_tables([TABLENAME, TEXT, THREADS, SECRET, READ_TABLE_FUNCTION, READ_TABLE_DELIMITER])`
 
-Search for SAP tables and views. No positional arguments.
+Search for SAP tables and views from the data dictionary (`DD02V`). No positional arguments.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `TABLENAME` | VARCHAR | `'%'` | Table name pattern (supports `*` and `%` wildcards) |
 | `TEXT` | VARCHAR | `'%'` | Description text pattern |
 | `THREADS` | UINTEGER | 0 | Parallel read threads |
+| `SECRET` | VARCHAR | — | Named secret to use |
+| `READ_TABLE_FUNCTION` | VARCHAR | — | Custom RFC function module to read `DD02V` |
+| `READ_TABLE_DELIMITER` | VARCHAR | — | Single printable non-whitespace ASCII character delimiter for custom reader function |
 
 **Returns:** `table_name`, `text`, `class` (VIEW, TRANSP, POOL, CLUSTER)
 
 ```sql
 SELECT * FROM sap_show_tables(TABLENAME='*FLIGHT*');
 SELECT * FROM sap_show_tables(TEXT='%booking%');
+SELECT * FROM sap_show_tables(TABLENAME='*FLIGHT*', read_table_function='/SAPDS/RFC_READ_TABLE2');
 ```
 
 ---
@@ -381,6 +448,8 @@ DETACH sap;
 |--------|------|-------------|
 | `TYPE` | — | Must be `sap_rfc` |
 | `SECRET` | VARCHAR | Named secret for SAP connection |
+| `read_table_function` | VARCHAR | RFC function module to use for catalog schema discovery and table queries (defaults to `RFC_READ_TABLE`) |
+| `read_table_delimiter` | VARCHAR | Single printable non-whitespace ASCII character delimiter for table queries (e.g. `'~'`, `'|'`) |
 | `TABLES` | VARCHAR | Comma-separated list of exact table names and/or glob patterns (`*`, `?`) to expose. Empty = on-demand lookup. |
 
 **`SHOW TABLES` and table enumeration.** A SAP system exposes tens of thousands of
@@ -957,12 +1026,20 @@ annotation; BW fact tables (`*$F`) are typically delta-capable.
 
 ### Subscription Management
 
-#### `sap_odp_show_subscriptions([secret])`
+#### `sap_odp_show_subscriptions([ERPL_ONLY, secret, READ_TABLE_FUNCTION, READ_TABLE_DELIMITER])`
 
 List active ODP subscriptions.
 
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `ERPL_ONLY` | BOOLEAN | `false` | If true, only show subscriptions created by erpl |
+| `secret` | VARCHAR | default secret | Named secret containing SAP credentials |
+| `READ_TABLE_FUNCTION` | VARCHAR | `erpl_rfc_read_table_function` | RFC read table function module to query subscriptions |
+| `READ_TABLE_DELIMITER` | VARCHAR | `erpl_rfc_read_table_delimiter` | Delimiter character for table queries |
+
 ```sql
 SELECT * FROM sap_odp_show_subscriptions();
+SELECT * FROM sap_odp_show_subscriptions(READ_TABLE_FUNCTION='/SAPDS/RFC_READ_TABLE2');
 ```
 
 ---
@@ -1152,11 +1229,12 @@ All parameters are VARCHAR. Choose either direct connection or load-balanced par
 | `codepage` | Logon codepage, e.g. `'4103'` | optional | optional |
 | `trace` | SAP RFC trace level `'0'`–`'3'` | optional | optional |
 | `dest` | Destination in `sapnwrfc.ini` | optional | optional |
+| `read_table_function` | Default RFC function module for table queries (e.g. `'RFC_READ_TABLE'`, `'/SAPDS/RFC_READ_TABLE2'`) | optional | optional |
+| `read_table_delimiter` | Single printable non-whitespace ASCII character delimiter for table queries (e.g. `'~'`, `'|'`) | optional | optional |
 
 ¹ Not required when logging on via SNC or an SSO2 ticket.
 
-The parameter names are passed through to `RfcOpenConnection` unchanged, so they
-follow the SAP NetWeaver RFC SDK documentation.
+Connection parameters are passed through to `RfcOpenConnection` (following the SAP NetWeaver RFC SDK documentation). Extension parameters (`read_table_function`, `read_table_delimiter`) configure erpl table query extraction defaults for the secret.
 
 ```sql
 -- Direct connection
@@ -1305,6 +1383,8 @@ Notes:
 | `erpl_rfc_partitions` | UBIGINT | 0 | Split a `sap_read_table` scan into this many row ranges read in parallel. `0` reads in one pass, parallelising across columns instead. See [Narrow tables](#narrow-tables-use-partitions-not-threads) |
 | `erpl_rfc_partition_window_rows` | UBIGINT | 0 | Rows a partition worker claims at a time; `0` uses one RFC batch per window |
 | `erpl_rfc_pushdown_filters` | BOOLEAN | `true` | Translate SQL `WHERE` predicates into `RFC_READ_TABLE`'s `OPTIONS` table so SAP filters the rows instead of sending them all. Turning it off never changes which rows come back, only how many cross the wire. See [Filter Pushdown](#filter-pushdown) |
+| `erpl_rfc_read_table_function` | VARCHAR | `''` | Default RFC function module used by `sap_read_table`, `sap_show_tables`, `ATTACH (TYPE sap_rfc)`, BICS catalog query resolution (`sap_bics_query` / `sap_bics_query_cube`), and ODP subscription queries (`sap_odp_show_subscriptions`). Empty = `RFC_READ_TABLE` with auto-fallback to ET_DATA-capable functions on string columns. |
+| `erpl_rfc_read_table_delimiter` | VARCHAR | `''` | Single printable non-whitespace ASCII character delimiter for RFC table reads. When set, passed to the `DELIMITER` parameter of the RFC read table function. |
 | `erpl_rfc_backend` | VARCHAR | `'nwrfc'` | Which implementation serves RFC calls: `'nwrfc'` (SAP's NetWeaver RFC SDK) or `'proto'` (the pure-Rust erpl-proto implementation). Must be set **before the first SAP call**; frozen for the life of the process once resolved. Environment override: `ERPL_RFC_BACKEND` |
 | `erpl_rfc_backend_path` | VARCHAR | `''` | Explicit path to the RFC backend shared library, overriding the search. Empty means: next to the extension, then the loader's library path. Environment override: `ERPL_RFC_BACKEND_PATH` |
 

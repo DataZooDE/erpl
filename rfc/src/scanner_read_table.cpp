@@ -10,6 +10,7 @@
 #include "scanner_read_table.hpp"
 #include "duckdb_argument_helper.hpp"
 #include "sap_rfc.hpp"
+#include "sap_storage.hpp"
 #include "telemetry.hpp"
 #include "erpl_telemetry.hpp"
 
@@ -41,21 +42,22 @@ namespace duckdb
         auto where_clause = named_params.find("FILTER") != named_params.end() 
                                 ? named_params["FILTER"].ToString()
                                 : "";
-        auto read_table_function = named_params.find("READ_TABLE_FUNCTION") != named_params.end()
-                                ? named_params["READ_TABLE_FUNCTION"].ToString()
-                                : "RFC_READ_TABLE";
-        auto read_table_delimiter = named_params.find("READ_TABLE_DELIMITER") != named_params.end()
-                                ? named_params["READ_TABLE_DELIMITER"].ToString()
+        auto secret_name = named_params.find("SECRET") != named_params.end()
+                                ? named_params["SECRET"].ToString()
                                 : "";
-        auto read_table_function_user_set = named_params.find("READ_TABLE_FUNCTION") != named_params.end();
+        string attach_fn, attach_del;
+        if (input.info) {
+            auto *injector = dynamic_cast<SapSecretInjectorInfo*>(input.info.get());
+            if (injector) {
+                attach_fn = injector->read_table_function;
+                attach_del = injector->read_table_delimiter;
+            }
+        }
+        auto rtf_opts = ResolveReadTableFunctionOptions(context, &named_params, secret_name, attach_fn, attach_del);
         
         auto fields = named_params.find("COLUMNS") != named_params.end() 
                             ? ConvertListValueToVector<std::string>(named_params["COLUMNS"])
                             : std::vector<std::string>();
-
-        auto secret_name = named_params.find("SECRET") != named_params.end()
-                                ? named_params["SECRET"].ToString()
-                                : "";
 
         // `fetch_size` is the shared name across sap_read_table, sap_odp_read_* and the
         // BICS scanners.  Each protocol keeps its own natural unit -- here it is
@@ -65,7 +67,7 @@ namespace duckdb
                                 : 0;
 
         auto bind_data = make_uniq<RfcReadTableBindData>(table_name, max_read_threads, limit,
-                                                         read_table_function, read_table_delimiter, read_table_function_user_set,
+                                                         rtf_opts,
                                                          &DefaultRfcConnectionFactory, context);
         if (!secret_name.empty()) {
             bind_data->SetSecretName(secret_name);
@@ -99,13 +101,9 @@ namespace duckdb
 
         bind_data.ActivateColumns(column_ids);
         bind_data.AddOptionsFromFilters(input.filters);
-        // Per-execution setup: pin the credentials for this run, and hand back every
-        // persistent-connection slot the previous execution left counted.
-        bind_data.PinAuthParams();
-        bind_data.ResetPersistentSlots();
-        // The serial path computes this inside Step(); a partitioned scan needs it
-        // before any worker starts, and it must not be written afterwards.
-        bind_data.ResolveEffectiveMaxBatchSize();
+        // Per-execution setup: pin the credentials for this run, hand back persistent-connection
+        // slots, and resolve batch size.
+        bind_data.PrepareForExecution(context);
 
         // Partitioning is opt-in.  With it off this returns a state whose MaxThreads()
         // is 1 and whose scheduler is null, so DuckDB creates one worker and the scan

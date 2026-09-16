@@ -60,3 +60,10 @@ SELECT COUNT(*) FROM sap_show_tables(TABLENAME="__NON_EXISTING_TABLE__");
 ----
 0
 
+# ---------------------------------------------------------------------
+# Confirm single quote escaping in search string does not cause ABAP syntax error
+query I
+SELECT COUNT(*) FROM sap_show_tables(TABLENAME='O''REILLY');
+----
+0
+

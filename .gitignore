@@ -89,3 +89,4 @@ python-env/*
 # Local agent scratch (not part of the extension)
 .codex-delegate/
 .antigravitycli/
+.crew/

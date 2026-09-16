@@ -1,0 +1,283 @@
+# name: test/sql/sap_read_table_custom_function.test
+# description: test custom read table function configuration across all hierarchy levels
+# group: [rfc]
+
+require erpl_rfc
+
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
+
+statement ok
+CREATE SECRET abap_trial (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}'
+);
+
+# ---------------------------------------------------------------------
+# Test 1: Direct function argument with /SAPDS/RFC_READ_TABLE2 (EXCEPT ALL oracle)
+query I
+SELECT COUNT(*) FROM (
+    (SELECT * FROM sap_read_table('/DMO/FLIGHT', read_table_function='/SAPDS/RFC_READ_TABLE2')
+     EXCEPT ALL
+     SELECT * FROM sap_read_table('/DMO/FLIGHT'))
+    UNION ALL
+    (SELECT * FROM sap_read_table('/DMO/FLIGHT')
+     EXCEPT ALL
+     SELECT * FROM sap_read_table('/DMO/FLIGHT', read_table_function='/SAPDS/RFC_READ_TABLE2'))
+);
+----
+0
+
+# ---------------------------------------------------------------------
+# Test 2: Direct function argument with /BODS/RFC_READ_TABLE2 (EXCEPT ALL oracle)
+query I
+SELECT COUNT(*) FROM (
+    (SELECT * FROM sap_read_table('/DMO/FLIGHT', read_table_function='/BODS/RFC_READ_TABLE2')
+     EXCEPT ALL
+     SELECT * FROM sap_read_table('/DMO/FLIGHT'))
+    UNION ALL
+    (SELECT * FROM sap_read_table('/DMO/FLIGHT')
+     EXCEPT ALL
+     SELECT * FROM sap_read_table('/DMO/FLIGHT', read_table_function='/BODS/RFC_READ_TABLE2'))
+);
+----
+0
+
+# ---------------------------------------------------------------------
+# Test 3: Session variable erpl_rfc_read_table_function
+statement ok
+SET erpl_rfc_read_table_function = '/SAPDS/RFC_READ_TABLE2';
+
+query I
+SELECT COUNT(*) FROM (
+    (SELECT * FROM sap_read_table('/DMO/FLIGHT')
+     EXCEPT ALL
+     SELECT * FROM sap_read_table('/DMO/FLIGHT', read_table_function='RFC_READ_TABLE'))
+    UNION ALL
+    (SELECT * FROM sap_read_table('/DMO/FLIGHT', read_table_function='RFC_READ_TABLE')
+     EXCEPT ALL
+     SELECT * FROM sap_read_table('/DMO/FLIGHT'))
+);
+----
+0
+
+# Reset session variable
+statement ok
+RESET erpl_rfc_read_table_function;
+
+# ---------------------------------------------------------------------
+# Test 4: Secret with read_table_function and read_table_delimiter
+statement ok
+CREATE SECRET custom_reader_secret (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}',
+    read_table_function '/SAPDS/RFC_READ_TABLE2',
+    read_table_delimiter '~'
+);
+
+query I
+SELECT COUNT(*) FROM (
+    (SELECT * FROM sap_read_table('/DMO/FLIGHT', secret='custom_reader_secret')
+     EXCEPT ALL
+     SELECT * FROM sap_read_table('/DMO/FLIGHT'))
+    UNION ALL
+    (SELECT * FROM sap_read_table('/DMO/FLIGHT')
+     EXCEPT ALL
+     SELECT * FROM sap_read_table('/DMO/FLIGHT', secret='custom_reader_secret'))
+);
+----
+0
+
+# ---------------------------------------------------------------------
+# Test 5: ATTACH with read_table_function and read_table_delimiter
+statement ok
+ATTACH '' AS sap_custom (
+    TYPE sap_rfc,
+    SECRET 'abap_trial',
+    read_table_function '/SAPDS/RFC_READ_TABLE2',
+    read_table_delimiter '~',
+    TABLES '/DMO/FLIGHT'
+);
+
+query I
+SELECT COUNT(*) FROM (
+    (SELECT * FROM sap_custom."/DMO/FLIGHT"
+     EXCEPT ALL
+     SELECT * FROM sap_read_table('/DMO/FLIGHT'))
+    UNION ALL
+    (SELECT * FROM sap_read_table('/DMO/FLIGHT')
+     EXCEPT ALL
+     SELECT * FROM sap_custom."/DMO/FLIGHT")
+);
+----
+0
+
+statement ok
+DETACH sap_custom;
+
+# ---------------------------------------------------------------------
+# Test 6: sap_show_tables with read_table_function
+query I
+SELECT COUNT(*) FROM sap_show_tables(tablename='/DMO/FLIGHT', read_table_function='/SAPDS/RFC_READ_TABLE2');
+----
+1
+
+# ---------------------------------------------------------------------
+# Test 7: ATTACH with lowercase read_table_function (normalization)
+statement ok
+ATTACH '' AS sap_lower (
+    TYPE sap_rfc,
+    SECRET 'abap_trial',
+    read_table_function '/sapds/rfc_read_table2',
+    TABLES '/DMO/FLIGHT'
+);
+
+query I
+SELECT COUNT(*) FROM (
+    (SELECT * FROM sap_lower."/DMO/FLIGHT" EXCEPT ALL SELECT * FROM sap_read_table('/DMO/FLIGHT'))
+    UNION ALL
+    (SELECT * FROM sap_read_table('/DMO/FLIGHT') EXCEPT ALL SELECT * FROM sap_lower."/DMO/FLIGHT")
+);
+----
+0
+
+statement ok
+DETACH sap_lower;
+
+# ---------------------------------------------------------------------
+# Test 8: Validation error on invalid function name
+statement error
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', read_table_function='; DROP TABLE;--');
+----
+Invalid READ_TABLE_FUNCTION name
+
+statement error
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', read_table_function='123_INVALID');
+----
+Invalid READ_TABLE_FUNCTION name
+
+statement error
+ATTACH '' AS bad_sap (
+    TYPE sap_rfc,
+    SECRET 'abap_trial',
+    read_table_function '123_INVALID'
+);
+----
+Invalid READ_TABLE_FUNCTION name
+
+statement error
+CREATE SECRET bad_sec (
+    TYPE sap_rfc,
+    read_table_function '123_INVALID'
+);
+----
+Invalid READ_TABLE_FUNCTION name
+
+# ---------------------------------------------------------------------
+# Test 9: Delimiter validation
+statement error
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', read_table_delimiter='~~');
+----
+READ_TABLE_DELIMITER must be a single printable non-whitespace ASCII character
+
+statement error
+SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', read_table_delimiter=' ');
+----
+READ_TABLE_DELIMITER must be a single printable non-whitespace ASCII character
+
+# ---------------------------------------------------------------------
+# Test 10: Contract violations against real SAP
+statement error
+SELECT * FROM sap_read_table('/DMO/FLIGHT', read_table_function='Z_DOES_NOT_EXIST_XYZ');
+----
+Failed to inspect RFC function
+
+statement error
+SELECT * FROM sap_read_table('/DMO/FLIGHT', read_table_function='STFC_CONNECTION');
+----
+does not satisfy the RFC_READ_TABLE interface contract
+
+# ---------------------------------------------------------------------
+# Test 11: Custom reader behavior on table with string columns (ACMDCLSRC)
+# Non-string columns read fine via custom reader without ET_DATA
+query I
+SELECT count(*) FROM (
+    (SELECT DCLNAME, AS4LOCAL, AS4USER FROM sap_read_table('ACMDCLSRC', read_table_function='/SAPDS/RFC_READ_TABLE2') WHERE DCLNAME LIKE 'DEMO_%')
+    EXCEPT ALL
+    (SELECT DCLNAME, AS4LOCAL, AS4USER FROM sap_read_table('ACMDCLSRC') WHERE DCLNAME LIKE 'DEMO_%')
+);
+----
+0
+
+# Attempting to read string column (SOURCE) with custom reader lacking ET_DATA throws hard error
+statement error
+SELECT SOURCE FROM sap_read_table('ACMDCLSRC', read_table_function='/SAPDS/RFC_READ_TABLE2') WHERE DCLNAME LIKE 'DEMO_%';
+----
+reader does not support ET_DATA
+
+# ---------------------------------------------------------------------
+# Test 12: Custom delimiter reaching the wire and working across columns
+query I
+SELECT count(*) > 0 FROM sap_read_table('/DMO/FLIGHT', read_table_delimiter='|');
+----
+true
+
+query I
+SELECT count(*) FROM (
+    (SELECT carrier_id, connection_id, flight_date FROM sap_read_table('/DMO/FLIGHT', read_table_delimiter='|'))
+    EXCEPT ALL
+    (SELECT carrier_id, connection_id, flight_date FROM sap_read_table('/DMO/FLIGHT', read_table_delimiter='~'))
+);
+----
+0
+
+# ---------------------------------------------------------------------
+# Test 13: ATTACH with options applies to catalog scans and catalog-qualified sap_show_tables
+statement ok
+ATTACH 'ASHOST=${ERPL_SAP_ASHOST} SYSNR=${ERPL_SAP_SYSNR} CLIENT=${ERPL_SAP_CLIENT} USER=${ERPL_SAP_USER} PASSWD=${ERPL_SAP_PASSWORD} LANG=${ERPL_SAP_LANG} READ_TABLE_FUNCTION=RFC_READ_TABLE READ_TABLE_DELIMITER=|' AS sap_custom (TYPE sap_rfc);
+
+query I
+SELECT count(*) > 0 FROM sap_custom.T000;
+----
+true
+
+query I
+SELECT count(*) > 0 FROM sap_custom.sap_show_tables(TABLENAME='T000');
+----
+true
+
+statement ok
+DETACH sap_custom;
+
+# ---------------------------------------------------------------------
+# Test 14: Non-existent secret name fails at bind time
+statement error
+SELECT * FROM sap_read_table('/DMO/FLIGHT', secret='non_existent_secret');
+----
+Secret 'non_existent_secret' not found
+
+statement error
+SELECT * FROM sap_show_tables(secret='non_existent_secret');
+----
+Secret 'non_existent_secret' not found
+
+

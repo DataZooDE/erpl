@@ -68,23 +68,23 @@ TEST_CASE("All supported secret keys map onto RfcAuthParams", "[erpl_rfc][sap_se
 	// (copy-paste of the wrong member) shows up as a mismatch rather than as
 	// two equal empty strings.
 	case_insensitive_map_t<string> values;
-	for (const auto &key : SapSecretParameterNames()) {
+	for (const auto &key : SapSecretAcceptedKeys()) {
 		values[key] = "v_" + key;
 	}
 	auto auth_params = ConvertSecretToAuthParams(MakeSecret(values));
 
 	auto params = auth_params.BuildConnectionParams();
-	REQUIRE(params.size() == SapSecretParameterNames().size());
+	REQUIRE(params.size() == RfcAuthParamDefinitions().size());
 
-	for (const auto &key : SapSecretParameterNames()) {
-		auto idx = IndexOf(params, key);
+	for (const auto &definition : RfcAuthParamDefinitions()) {
+		auto idx = IndexOf(params, definition.name);
 		REQUIRE(idx.IsValid());
-		REQUIRE(params[idx.GetIndex()].second == "v_" + key);
+		REQUIRE(params[idx.GetIndex()].second == string("v_") + definition.name);
 	}
 }
 
 TEST_CASE("The secret exposes the connection parameters issue #98 asks for", "[erpl_rfc][sap_secret]") {
-	const auto &names = SapSecretParameterNames();
+	const auto &names = SapSecretAcceptedKeys();
 	for (const char *expected : {"snc_mode", "snc_sso", "snc_qop", "snc_myname", "snc_partnername", "snc_lib",
 	                             "x509cert", "saprouter", "gwhost", "gwserv", "codepage", "trace", "dest"}) {
 		INFO("missing parameter: " << expected);

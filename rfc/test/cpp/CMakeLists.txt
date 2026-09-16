@@ -28,6 +28,7 @@ set(TEST_SOURCES
     test_tracing_locking.cpp
     test_connection_close.cpp
     test_sap_secret.cpp
+    test_read_table_function.cpp
     test_select_supported_args.cpp
     test_rfc_api_dispatch.cpp
     test_main.cpp
