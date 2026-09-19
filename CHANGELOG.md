@@ -54,6 +54,12 @@ LOAD erpl;
     for either; both run short-lived graphs built from the engine's own subscription-reader and
     subscription-eraser operators. `sap_ape_read_full` erases its own subscription when the scan
     ends, so a snapshot leaves nothing behind.
+  - `recover => true` on `sap_ape_read_delta`, backed by a local spill in
+    `erpl_ape.delta_spill`. The engine commits each portion as it hands it over and has no client
+    acknowledgement — measured, abandoning a scan after 5 of 180 changes lost the other 175 — so
+    there is nothing on the SAP side to re-stream and durability has to be local. The spill is
+    written on its own transaction, so the rollback that loses your rows cannot discard it too.
+    `erpl_ape_spill_enabled = false` opts out, at the cost of making delta at-most-once.
   - `erpl_ape_prepare_timeout` bounds the wait for SAP's asynchronous preparation.
   - The set of pipeline operators the module will drive is compiled in; no setting widens it, and
     the reader is restricted to CDS containers.
@@ -68,9 +74,6 @@ LOAD erpl;
   **not registered** on the releases tested, so the module drives `com.sap.abap.cds.reader.v2`.
 
 ### Known limitations
-
-- **[ape]** `recover` (re-streaming an unconfirmed package) is **not implemented**. The engine
-  advances its pointer as packages are handed over and nothing re-delivers them.
 - **[ape]** A client killed mid-scan leaves its graph running server-side, which blocks erasing the
   subscription and therefore later delta calls on that subscriber. Recovery uses the engine's own
   retention mechanism; the delta harness runs it first. Doing this automatically is not yet wired in.

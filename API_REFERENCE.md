@@ -1343,6 +1343,38 @@ BEGIN;
 COMMIT;
 ```
 
+#### Recovering an interrupted delta read
+
+`recover => true` re-emits the packages of the most recent delta batch **from a local spill**, not
+from SAP.
+
+That indirection is forced by the engine: it commits each portion the moment it hands it over
+(`commit_delta_data` runs immediately after the data is written to the port) and the protocol has no
+client acknowledgement. Measured on a live system — abandoning a scan after consuming 5 of 180
+changes left **0** for the next read; the other 175 were gone for good. So there is nothing on the
+SAP side to re-stream, and the only copy that can survive is a local one.
+
+`erpl_ape` therefore writes every delta package to **`erpl_ape.delta_spill`** before handing its rows
+over, on its own transaction so that the rollback which loses your rows cannot take the spill with
+it. It is an ordinary table — inspect it, and `DELETE` from it when you no longer need it.
+
+```sql
+-- something went wrong mid-load; replay what SAP already handed over
+SELECT * FROM sap_ape_read_delta('ZERPL_APE_D', 'NIGHTLY', recover => true);
+```
+
+| Property | Behaviour |
+|---|---|
+| Granularity | Whole packages. A recover returns every row of each package that was handed over, including rows the failed read had already consumed — so apply idempotently |
+| Repeatability | Safe to repeat; it touches no SAP state and does not advance the subscription |
+| Scope | Only the **most recent** batch. An ordinary read starts a new batch and discards the previous spill |
+| Durability | Survives process death **only if the DuckDB database is persistent**. In an in-memory session the spill still survives a rolled-back transaction, but not the process exiting |
+| Combining | Cannot be used with `columns` or `filters` — the spilled packages were produced under the original ones, and replaying under different ones would quietly return something else |
+
+`erpl_ape_spill_enabled = false` turns the spill off, which makes delta **at-most-once**: an
+interrupted read then loses whatever SAP had already committed. It exists for read-only databases,
+not as a tuning knob.
+
 **A query never waits for future changes.** A replication graph is long-lived and never announces an
 end, so the scan returns what is available and stops; polling cadence is the caller's business.
 
@@ -1451,6 +1483,7 @@ SELECT supported, ape_version, reason FROM sap_ape_system_info();
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
+| `erpl_ape_spill_enabled` | BOOLEAN | `true` | Persist every delta package to `erpl_ape.delta_spill` before its rows are handed over, so an interrupted read can be replayed with `recover => true`. On by default because the engine cannot re-send a committed portion; turning it off makes delta at-most-once |
 | `erpl_ape_prepare_timeout` | UBIGINT | 900 | Seconds a read waits for SAP to prepare the extraction before failing. SAP runs a background job first, and a first delta additionally generates triggers and logging tables, which is much slower than an initial load. `0` waits indefinitely |
 | `erpl_ape_allow_unreleased` | BOOLEAN | `false` | Allow extraction from CDS entities with no release contract. Off by default because an unreleased entity may change without notice. Gates extraction, not discovery: `sap_ape_show` lists released and unreleased entities alike and flags each with `is_released`, so you can see what a system actually offers. Because extraction is not implemented yet, this option currently has nothing to gate |
 
