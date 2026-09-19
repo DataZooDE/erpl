@@ -231,11 +231,11 @@ run on **one pinned RFC connection**.
 
 ## 10. Fixture
 
-`ape/test/fixtures/zerpl_ape_flight.ddl` — `ZERPL_APE_FLIGHT` over `SFLIGHT` in `$TMP`, with
+`docs/ape-spike/fixtures/zerpl_ape_flight.ddl` — `ZERPL_APE_FLIGHT` over `SFLIGHT` in `$TMP`, with
 `@Analytics.dataExtraction.enabled: true`. Activated on a4h; DHAMB lists it at
 `/CDS/TMP/ZERPL_APE_FLIGHT` with `BASETABLE = ZERPLAPEFLGT` and `CDS_PUBLISHED = ''` (unreleased,
 so it also exercises the L2 gate). Column types cover CHAR/NUMC/DATS/CURR/CUKY/INT4.
 
-`ape/test/fixtures/graph_initial_load_v7.json` — the graph that reaches §6's blocker.
+`docs/ape-spike/fixtures/graph_initial_load_v7.json` — the graph that reaches §6's blocker.
 
 Probe classes on a4h (`$TMP`, delete when done): `ZCL_ERPL_APE_PROBE`, `ZCL_ERPL_APE_PROBE2`.
