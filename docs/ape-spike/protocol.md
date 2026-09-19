@@ -239,3 +239,78 @@ so it also exercises the L2 gate). Column types cover CHAR/NUMC/DATS/CURR/CUKY/I
 `docs/ape-spike/fixtures/graph_initial_load_v7.json` — the graph that reaches §6's blocker.
 
 Probe classes on a4h (`$TMP`, delete when done): `ZCL_ERPL_APE_PROBE`, `ZCL_ERPL_APE_PROBE2`.
+
+## 11. The v6 / `cds.reader.v2` path — graph runs, data does not flow ✅❓
+
+Because the gen2 (v7) reader needs the agent-operator state protocol (§6), the **v6 readers are
+the pragmatic path**, and they are registered on a4h. `com.sap.abap.cds.reader.v2` operator.json /
+schema:
+
+- subengine **v6**, outport **`outMessageData`** type `message`, `internal: false`
+- required config: `subscriptionType`, `cdsname`, `action`, `chunkSize`
+- `subscriptionType` ∈ `New` | `Existing`; with `New` supply `subscriptionName`, with `Existing`
+  supply `subscriptionID`
+- `action` ∈ `Initial Load` | `Replication` | `Delta Load`
+- `wireformat` ∈ `Enhanced Format Conversions` | `Required Conversions` |
+  `Required Conversions Plus Currency` | `Required Conversions Plus Time Format and Currency`
+- `cdsname` is a **plain string** (the CDS entity name) — no `objectName` object, no
+  `schema/attributes`, no vType declaration, no agent operator. Far simpler than gen2.
+
+`com.sap.abap.cds.reader.v1` is the same minus `wireformat`, outport `outData` type `abap.*`.
+
+Verified live (`docs/ape-spike/fixtures/graph_v6_initial_load.json`):
+
+| Step | Result |
+|---|---|
+| `C` create | ✅ `DHAPE_GRAPH.STATUS = A` — **v6 auto-starts during create; do NOT send `R`** |
+| `ROUNDTRIP` | ✅ `STATUS = R` (running), `et_port` returns 1 row, `direction = O` |
+| client marks port ready | ✅ send `it_port = [{graph_uuid, port_number=0, direction='O', port_status='R'}]`; the engine echoes `pst=R` |
+| `S` stop | ✅ |
+| data | ❓ `port_data` is always empty; `ev_rucksack_md` and `ev_reconnect_json` also empty |
+
+`IF_DHAPE_PORT=>gc_port_status`: `' '` initial, `'C'` closed, `'B'` blocked, `'R'` ready.
+`gc_port_dir`: `'I'` incoming, `'O'` outgoing.
+
+### Subscriptions are real ✅
+
+`DHAPE_SUBSCR` (view `DHAPE_SUBSCR_V`) is the inventory behind `sap_ape_show_subscriptions`:
+
+```
+SUBSCRIPTION_ID  READER                      FIELD1            FIELD2         GRAPH_UUID CREATED_BY CREATED_AT
+<uuid>           com.sap.abap.cds.reader     ZERPL_APE_FLIGHT  Initial Load   <uuid>     DEVELOPER  2026...
+```
+
+`FIELD1` = CDS name, `FIELD2` = transfer mode, `READER` = the reader **family**
+(`com.sap.abap.cds.reader`), which is exactly the key the eraser's `cdsSubscrID` value help uses.
+So `PRAGMA sap_ape_drop` runs `com.sap.abap.subscr.eraser.v1` with
+`{"readerObj":"CDS Views","cdsSubscrID":"<SUBSCRIPTION_ID>"}`.
+
+Re-using a `subscriptionName` fails with `Subscription name ERPL_APE_S1 already exists`, so tests
+must generate unique names (or pass `subscriptionType: Existing` + `subscriptionID`).
+
+The CDC engine also **generated runtime objects**: function groups `/1DH/A4H_001000000000N`
+(description = our graph UUID) and `/1DH/A4H_OLI_001000000000N` (OLI = initial load). So generation
+succeeds; only the data hand-off does not happen.
+
+### ❓ Remaining blocker, restated
+
+Two candidate readers, two different walls:
+
+1. **gen2 `com.sap.abap.reader` (v7)** — `DHAPE_GRAPH-STATE_UUID` is never populated, so
+   `read_state_uuid( )` returns blank and the CDC adapter answers `Invalid subscriber ID`.
+   `CL_DHAPE_STATE_MANAGER->read_state_uuid` only *reads* the DB; nothing in the factory writes it.
+   The agent operator owns an inport and `ROUNDTRIP` accepts `it_msg`, so the client is evidently
+   expected to drive SAP's agent message protocol to establish state. That is a substantial
+   additional protocol, not a graph-JSON field.
+2. **`cds.reader.v2` (v6)** — everything negotiates correctly, the subscription and its `/1DH/`
+   runtime objects are generated, the port handshake is accepted, and the reader still emits
+   nothing.
+
+For (2) the most likely cause is that a CDC initial load must be **queued and executed by a
+background job** before the reader can stream it, and the a4h trial has no such job scheduled —
+i.e. the BRD's own risk *"A4H trial lacks a working CDC engine"* materialising. Next checks:
+`DHCDC_SUBSREG` / the `DHCDC_RT_*` function groups for the load-request state, `SM37`-equivalent
+job inspection, and whether `action: Replication` behaves differently from `Initial Load`.
+
+**Until one of these is resolved, `sap_ape_read_full` / `_read_delta` cannot be implemented.**
+Everything in §7 (discovery, describe, preview, system info) is unaffected and fully specified.
