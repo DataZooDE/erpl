@@ -73,6 +73,8 @@ SELECT * FROM sap_bics_show_cubes();
 | `sap_odp_read_delta` | Extract ODP data (incremental delta) | `SELECT * FROM sap_odp_read_delta('BW', 'MY_ODP', 'MY_PIPELINE')` |
 | `sap_odp_get_last_modified` | Last-modified timestamp of an ODP object (cheap delta probe) | `SELECT * FROM sap_odp_get_last_modified('ABAP_CDS', 'MY_CDS$E')` |
 | `sap_odp_get_subscriptions` | List subscriptions for one ODP object | `SELECT * FROM sap_odp_get_subscriptions('ABAP_CDS', 'MY_CDS$E')` |
+| `sap_ape_show` | List CDS entities via the ABAP Pipeline Engine | `SELECT * FROM sap_ape_show(search => 'I_GL%')` |
+| `sap_ape_preview` | Sample a CDS entity (no graph, no subscription) | `SELECT * FROM sap_ape_preview('ZERPL_APE_FLIGHT')` |
 | `ATTACH` | Mount SAP as database | `ATTACH '' AS sap (TYPE sap_rfc)` |
 
 ---
@@ -1170,6 +1172,132 @@ PRAGMA sap_odp_drop(
     'SEPM_IBUPA$P'
 );
 ```
+
+---
+
+## erpl_ape — SAP ABAP Pipeline Engine
+
+**Private module.** Delivered per engagement; not published on get.erpl.io.
+
+`erpl_ape` reads CDS entities through SAP's own **ABAP Pipeline Engine** (`DHAPE_*`) and its
+metadata browser (`DHAMB_*`). Nothing is installed in SAP.
+
+It loads alongside `erpl_rfc`, which owns the `sap_rfc` secret type — create the secret exactly as
+for any other erpl module and pass `secret => '...'` to select a named one.
+
+> **Extraction is not yet available.** `sap_ape_read_full` / `sap_ape_read_delta` are not
+> implemented: the pipeline reader negotiates correctly but does not yet hand data over. The
+> blocker is documented in the module's `docs/protocol.md`. Discovery, diagnostics and
+> `sap_ape_preview` are fully functional.
+
+### Discovery
+
+#### `sap_ape_show([search, released_only, max_depth, secret])`
+
+Lists CDS entities from `DHAMB_SERVICE_DSET_BROWSE`.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `search` | VARCHAR | — | Name pattern, matched case-insensitively (upper-cased before sending) |
+| `released_only` | BOOLEAN | `false` | Only entities with a release contract (`CDS_PUBLISHED`) |
+| `max_depth` | UINTEGER | 8 | Folder recursion depth — the browser is a package tree |
+| `secret` | VARCHAR | — | Named secret |
+
+**Returns:** `cds_name`, `description`, `object_path`, `base_table`, `package`, `component`,
+`is_released`, `cds_type`, `last_change`
+
+Only the `/CDS` subtree is browsed. The metadata browser's root also exposes `/ODP_BW` and
+`/ODP_SAPI`; erpl_ape never reads those, by design.
+
+```sql
+SELECT * FROM sap_ape_show(search => 'ZERPL%');
+SELECT * FROM sap_ape_show(released_only => true);
+```
+
+---
+
+#### `sap_ape_describe(cds_name [, secret])`
+
+One row per field. `cds_name` may be the entity name or its full browser path.
+
+**Returns:** `position`, `field_name`, `is_key`, `abap_type`, `length`, `decimals`, `duckdb_type`,
+`description`, `data_element`, `reference_table`, `reference_field`, `cds_name`, `is_released`
+
+Types go through the same DDIC mapper as `sap_read_table`, so both agree cell for cell.
+`reference_table`/`reference_field` carry the currency or unit reference for amount and quantity
+fields.
+
+```sql
+SELECT field_name, abap_type, duckdb_type FROM sap_ape_describe('ZERPL_APE_FLIGHT');
+```
+
+---
+
+#### `sap_ape_preview(cds_name [, max_rows, secret])`
+
+Samples rows via `DHAMB_SERVICE_DSET_PREVIEW`. **Starts no graph and creates no subscription**, so
+it is the cheap way to look at an entity before committing to extraction.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `max_rows` | UINTEGER | 100 | Rows to sample; `0` leaves the limit to SAP |
+| `secret` | VARCHAR | — | Named secret |
+
+Columns come back in their DuckDB types, derived from `sap_ape_describe`. A value SAP reports in a
+form that will not convert is returned as NULL and logged at WARN rather than failing the scan.
+
+```sql
+SELECT * FROM sap_ape_preview('ZERPL_APE_FLIGHT', max_rows => 10);
+```
+
+---
+
+### Diagnostics
+
+#### `PRAGMA sap_ape_ping([secret])`
+
+Logs on **and** asks the pipeline engine for its version, so it fails when `DHAPE_*` is
+unreachable for the RFC user rather than only when logon fails.
+
+**Returns:** `msg` (`'PONG'`), `ape_version`
+
+```sql
+PRAGMA sap_ape_ping;
+```
+
+---
+
+#### `sap_ape_system_info([secret])`
+
+One row.
+
+| Column | Type | Meaning |
+|--------|------|---------|
+| `system_kind` | VARCHAR | `ABAP_PLATFORM` or `UNKNOWN` |
+| `release` | VARCHAR | The system's identification key |
+| `ape_version` | VARCHAR | From `DHAPE_GRAPH_VERSION`, e.g. `2.7.0` |
+| `ape_capabilities` | VARCHAR | Raw capabilities JSON from the engine |
+| `api_version` | VARCHAR | Metadata-browser API version |
+| `db_system` | VARCHAR | e.g. `HDB` |
+| `transport` | VARCHAR | `RFC` |
+| `supported` | BOOLEAN | True when the engine reported a version |
+| `reason` | VARCHAR | Why not, when `supported = false` |
+
+```sql
+SELECT supported, ape_version, reason FROM sap_ape_system_info();
+```
+
+---
+
+### Configuration options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `erpl_ape_allow_unreleased` | BOOLEAN | `false` | Allow extraction from CDS entities with no release contract. Off by default because an unreleased entity may change without notice. Gates extraction, not discovery: `sap_ape_show` lists released and unreleased entities alike and flags each with `is_released`, so you can see what a system actually offers. Because extraction is not implemented yet, this option currently has nothing to gate |
+
+The set of pipeline operators erpl_ape will drive is **compiled in** and no option widens it. ODP
+and SLT reader operators are excluded by design, not by omission, and the reader is restricted to
+CDS containers.
 
 ---
 

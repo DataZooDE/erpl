@@ -8,6 +8,7 @@ Each bullet is tagged with the affected sub-extension(s):
 - **[rfc]** — `erpl_rfc`, the SAP RFC scan path
 - **[bics]** — `erpl_bics`, BW BICS queries (lives in a git submodule)
 - **[odp]** — `erpl_odp`, ODP data replication (lives in a git submodule)
+- **[ape]** — `erpl_ape`, ABAP Pipeline Engine extraction (private, lives in a git submodule)
 - **[trampoline]** — `erpl`, the umbrella extension that bundles the SAP SDK
 - **[all]** — cross-cutting work that touches every sub-extension
 
@@ -19,6 +20,37 @@ matrix `{linux_amd64, linux_amd64_musl, osx_amd64, osx_arm64, windows_amd64} ×
 INSTALL erpl FROM 'http://get.erpl.io';
 LOAD erpl;
 ```
+
+---
+
+## Unreleased
+
+### Added
+
+- **[ape]** **New private sub-extension `erpl_ape`** — CDS entity discovery through SAP's own
+  ABAP Pipeline Engine (`DHAPE_*`) and its metadata browser (`DHAMB_*`), with no ABAP footprint.
+  Lives in the private `DataZooDE/erpl-ape` submodule at `ape/` and is **not** shipped via
+  get.erpl.io; it is delivered per engagement.
+  - `PRAGMA sap_ape_ping` — logs on *and* asks the engine for its version, so it fails when the
+    `DHAPE_*` function group is unreachable rather than only when logon fails.
+  - `sap_ape_system_info()` — engine version, raw capabilities JSON, and a `supported` flag with a
+    `reason` when false.
+  - `sap_ape_show()` — CDS entities with release flag, base table and package. Browses only the
+    `/CDS` subtree; the metadata browser's root also exposes `/ODP_BW` and `/ODP_SAPI`, and
+    erpl_ape never reads those.
+  - `sap_ape_describe()` — field list whose DuckDB types come from the same DDIC mapper
+    `sap_read_table` uses, so the two agree cell for cell. Carries the currency/unit reference.
+  - `sap_ape_preview()` — typed sample rows that start no graph and create no subscription.
+  - `erpl_ape_allow_unreleased` setting (default off) for entities with no release contract.
+  - The set of pipeline operators the module will drive is compiled in; no setting widens it, and
+    the reader is restricted to CDS containers.
+
+### Known limitations
+
+- **[ape]** Extraction (`sap_ape_read_full` / `sap_ape_read_delta`) is **not implemented yet**. The
+  pipeline graph is created, started and stopped correctly and the port handshake is accepted, but
+  no reader hands data over on the systems tested. The protocol work, including the two distinct
+  walls hit by the v6 and v7 readers, is written up in the submodule's `docs/protocol.md`.
 
 ---
 
