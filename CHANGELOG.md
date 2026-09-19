@@ -60,12 +60,37 @@ LOAD erpl;
     there is nothing on the SAP side to re-stream and durability has to be local. The spill is
     written on its own transaction, so the rollback that loses your rows cannot discard it too.
     `erpl_ape_spill_enabled = false` opts out, at the cost of making delta at-most-once.
-  - `erpl_ape_prepare_timeout` bounds the wait for SAP's asynchronous preparation.
+  - `erpl_ape_prepare_timeout` bounds the wait for SAP's asynchronous preparation, and
+    `erpl_ape_delta_quiet_seconds` bounds how long an already-established delta subscription waits
+    for a first package before reporting that there is nothing to replicate. They are separate on
+    purpose: a resumed subscription is already prepared, so minutes of waiting for "no changes"
+    would be absurd, while a couple of seconds reports "no changes" when the answer is "not yet".
   - The set of pipeline operators the module will drive is compiled in; no setting widens it, and
     the reader is restricted to CDS containers.
 
+### Changed
+
+- **[rfc]** **`SAP_*` environment variables no longer seed extension settings.**
+  `RfcEnvironmentCredentialsProvider` set six `sap_*` options that were never registered and never
+  read — credentials come from secrets — so merely having `SAP_PASSWORD` exported crashed extension
+  load with `INTERNAL Error: Unrecognized option sap_password`. The provider is removed rather than
+  registered. If you relied on `SAP_ASHOST`/`SAP_USER`/`SAP_PASSWORD` being picked up implicitly,
+  create a secret instead. The suites never caught this because they use `ERPL_SAP_*` names.
+
 ### Notes
 
+- **[ape]** **Server-side filters are refused, not ignored, and projection is applied on the
+  client.** The pipeline reader available on current releases declares seven configuration
+  properties and reads seven configuration paths — none of them a filter or a schema — so pushing
+  either down would return every row while the query looked like it asked for a subset. `filters`
+  therefore raises with the remedy (an ordinary SQL `WHERE`, which the streaming scan applies as
+  rows arrive), and `columns` is honoured by mapping the package's self-describing fields. Pushdown
+  returns with the next-generation reader.
+- **[ape]** **The engine's CSV writer quotes RFC 4180 style**, verified live by seeding hostile
+  values: a value carrying the separator or a double quote is wrapped in quotes and an inner quote
+  is doubled, while a backslash is data. The decoder parses quoted fields and additionally checks
+  each row's cell count against the declared field count, because the scan assigns cells to columns
+  by index and a shifted row would otherwise be plausible nonsense rather than an error.
 - **[ape]** **Reads are slow to start, and that is the SAP side, not the client.** SAP prepares an
   initial load with a background job (DHCDC "ACD"); while it is pending the engine returns neither
   data nor an error. The scan polls and, if the job never finishes, fails with a message naming the

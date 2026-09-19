@@ -1269,8 +1269,8 @@ of the scan and stops its graph when the scan ends.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `cds_name` | VARCHAR | *required* | CDS entity name, or its browser path |
-| `columns` | LIST(VARCHAR) | all | Projection, pushed into the reader. Validated against the catalogue, so a typo fails at bind |
-| `filters` | LIST(STRUCT) | — | Server-side selection, same shape as `erpl_odp` (below) |
+| `columns` | LIST(VARCHAR) | all | Projection. Validated against the catalogue, so a typo fails at bind. Applied on the client — see below |
+| `filters` | LIST(STRUCT) | — | **Refused on this release** — see below |
 | `chunk_size` | UINTEGER | 1000 | Records per roundtrip |
 | `wireformat` | VARCHAR | `'Required Conversions Plus Time Format and Currency'` | Engine conversion profile. The default is the one that renders dates ISO and decimals as plain text |
 | `secret` | VARCHAR | — | Named secret |
@@ -1282,16 +1282,31 @@ system columns — so the schema can seed a target table:
 CREATE TABLE flights AS SELECT * FROM sap_ape_read_full('ZERPL_APE_FLIGHT') WHERE 1=0;
 ```
 
-**`filters` shape** — `LIST<STRUCT(FIELDNAME, SIGN, OP, LOW, HIGH)>`, deliberately identical to
-`sap_odp_read_full`. `OP` accepts `EQ`, `NE`, `GT`, `GE`, `LT`, `LE`, `BT`, `CP`. An operator the
-engine cannot express raises rather than being dropped — a dropped predicate would silently return
-extra rows.
+**Projection is applied on the client, not in SAP.** The pipeline reader available on current
+releases takes no schema in its configuration, so the engine streams every column of the entity and
+`erpl_ape` maps the ones asked for out of the package's self-describing field metadata. The contract
+a caller sees is unchanged — these columns and no others — but the saving is in DuckDB, not on the
+wire.
+
+**`filters` is refused rather than ignored.** The same reader reads no filter from its
+configuration either. Accepting the parameter would return every row while the query looks like it
+asked for a subset, so passing it raises:
 
 ```sql
+-- Error: server-side filters are not available on this system's pipeline reader ...
 SELECT * FROM sap_ape_read_full('ZERPL_APE_FLIGHT',
-    columns => ['Carrid', 'Fldate', 'Price'],
-    filters => [{'FIELDNAME': 'Carrid', 'SIGN': 'I', 'OP': 'EQ', 'LOW': 'LH', 'HIGH': ''}]);
+    filters => [{'FIELDNAME': 'Carrid', 'SIGN': 'I', 'OP': 'EQ', 'LOW': 'LH', 'HIGH': NULL}]);
+
+-- Do this instead. The scan streams, so DuckDB applies the predicate as rows arrive.
+SELECT * FROM sap_ape_read_full('ZERPL_APE_FLIGHT',
+    columns => ['Carrid', 'Fldate', 'Price'])
+WHERE Carrid = 'LH';
 ```
+
+The parameter stays declared, with `erpl_odp`'s
+`LIST<STRUCT(FIELDNAME, SIGN, OP, LOW, HIGH)>` shape, because the next-generation reader does
+support pushdown; it is not yet usable from here. `OP` accepts `EQ`, `NE`, `GT`, `GE`, `LT`, `LE`,
+`BT`, `CP`, and an operator the engine cannot express raises rather than being dropped.
 
 Entities with no release contract are refused unless `erpl_ape_allow_unreleased` is on.
 
@@ -1316,7 +1331,8 @@ Changes since the previous call. `subscriber_process` names the server-side subs
 stable across runs — re-using it is what lets SAP resume. At most 30 characters, no control
 characters.
 
-Named parameters are the same as `sap_ape_read_full`.
+Named parameters are the same as `sap_ape_read_full` — including that `columns` is applied on the
+client and `filters` is refused on this release — plus `recover`.
 
 Output is the entity's columns **plus the engine's own change indicator as the last column**,
 `/1DH/OPERATION` (VARCHAR) — the engine's name is used rather than an invented one.
@@ -1485,7 +1501,8 @@ SELECT supported, ape_version, reason FROM sap_ape_system_info();
 |--------|------|---------|-------------|
 | `erpl_ape_spill_enabled` | BOOLEAN | `true` | Persist every delta package to `erpl_ape.delta_spill` before its rows are handed over, so an interrupted read can be replayed with `recover => true`. On by default because the engine cannot re-send a committed portion; turning it off makes delta at-most-once |
 | `erpl_ape_prepare_timeout` | UBIGINT | 900 | Seconds a read waits for SAP to prepare the extraction before failing. SAP runs a background job first, and a first delta additionally generates triggers and logging tables, which is much slower than an initial load. `0` waits indefinitely |
-| `erpl_ape_allow_unreleased` | BOOLEAN | `false` | Allow extraction from CDS entities with no release contract. Off by default because an unreleased entity may change without notice. Gates extraction, not discovery: `sap_ape_show` lists released and unreleased entities alike and flags each with `is_released`, so you can see what a system actually offers. Because extraction is not implemented yet, this option currently has nothing to gate |
+| `erpl_ape_delta_quiet_seconds` | UBIGINT | 60 | Seconds a delta read on an already-established subscription waits for its first package before reporting that there is nothing to replicate. Deliberately not the preparation timeout: the subscription is already prepared, so a long wait for "no changes" would be absurd — but too short a wait reports "no changes" when the honest answer is "not yet" |
+| `erpl_ape_allow_unreleased` | BOOLEAN | `false` | Allow extraction from CDS entities with no release contract. Off by default because an unreleased entity may change without notice. Gates extraction, not discovery: `sap_ape_show` lists released and unreleased entities alike and flags each with `is_released`, so you can see what a system actually offers |
 
 The set of pipeline operators erpl_ape will drive is **compiled in** and no option widens it. ODP
 and SLT reader operators are excluded by design, not by omission, and the reader is restricted to
