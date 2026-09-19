@@ -46,6 +46,12 @@ LOAD erpl;
     projection and server-side filters pushed into the reader. `filters` uses the same
     `{FIELDNAME, SIGN, OP, LOW, HIGH}` struct as `erpl_odp`. Delta surfaces the engine's own
     per-row change indicator, `/1DH/OPERATION`, under that name rather than an invented one.
+  - `sap_ape_show_subscriptions()` and `PRAGMA sap_ape_drop(cds_name, subscriber_process)` — the
+    engine keeps subscriptions after a graph ends, so they need listing and erasing. There is no RFC
+    for either; both run short-lived graphs built from the engine's own subscription-reader and
+    subscription-eraser operators. `sap_ape_read_full` erases its own subscription when the scan
+    ends, so a snapshot leaves nothing behind.
+  - `erpl_ape_prepare_timeout` bounds the wait for SAP's asynchronous preparation.
   - The set of pipeline operators the module will drive is compiled in; no setting widens it, and
     the reader is restricted to CDS containers.
 

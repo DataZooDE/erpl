@@ -1332,6 +1332,54 @@ server-side subscription.
 
 ---
 
+### Subscription lifecycle
+
+The engine keeps a subscription after a graph ends, which is what makes delta resumable — and what
+makes leaked subscriptions a real hygiene concern on a customer system.
+
+`sap_ape_read_full` creates a subscription for the duration of its scan and **erases it when the
+scan ends**, so a snapshot leaves nothing behind. A delta subscription is the caller's and persists
+until dropped explicitly.
+
+#### `sap_ape_show_subscriptions([erpl_only, cds_name, secret])`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `erpl_only` | BOOLEAN | `true` | Only subscriptions this module created. Default on, because a shared system accumulates other people's and listing them all invites accidental drops |
+| `cds_name` | VARCHAR | — | Filter to one entity |
+| `secret` | VARCHAR | — | Named secret |
+
+**Returns:** `subscription_id`, `cds_name`, `transfer_mode`, `subscriber_process`, `created_at`,
+`status`
+
+There is no RFC that answers this, so it runs a short-lived graph built from the engine's own
+subscription-reader operator.
+
+```sql
+SELECT * FROM sap_ape_show_subscriptions();
+SELECT * FROM sap_ape_show_subscriptions(erpl_only => false);
+```
+
+---
+
+#### `PRAGMA sap_ape_drop(cds_name, subscriber_process [, secret=...])`
+
+Erases a subscription, running the engine's subscription-eraser operator. **Reports rather than
+raising** — it is a cleanup primitive and SQL has no try/catch:
+
+| `msg` | Meaning |
+|---|---|
+| `DROPPED` | Erased, and verified gone from the inventory |
+| `NOT_FOUND` | No such subscription; idempotent, so repeating a drop is safe |
+| `STILL_PRESENT` | The eraser ran but the subscription is still listed |
+| `REFUSED: …` | The call itself failed; the message carries why |
+
+```sql
+PRAGMA sap_ape_drop('ZERPL_APE_FLIGHT', 'NIGHTLY_ETL');
+```
+
+---
+
 ### Diagnostics
 
 #### `PRAGMA sap_ape_ping([secret])`
@@ -1373,6 +1421,7 @@ SELECT supported, ape_version, reason FROM sap_ape_system_info();
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
+| `erpl_ape_prepare_timeout` | UBIGINT | 900 | Seconds a read waits for SAP to prepare the extraction before failing. SAP runs a background job first, and a first delta additionally generates triggers and logging tables, which is much slower than an initial load. `0` waits indefinitely |
 | `erpl_ape_allow_unreleased` | BOOLEAN | `false` | Allow extraction from CDS entities with no release contract. Off by default because an unreleased entity may change without notice. Gates extraction, not discovery: `sap_ape_show` lists released and unreleased entities alike and flags each with `is_released`, so you can see what a system actually offers. Because extraction is not implemented yet, this option currently has nothing to gate |
 
 The set of pipeline operators erpl_ape will drive is **compiled in** and no option widens it. ODP
