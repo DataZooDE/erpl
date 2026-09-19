@@ -42,15 +42,29 @@ LOAD erpl;
     `sap_read_table` uses, so the two agree cell for cell. Carries the currency/unit reference.
   - `sap_ape_preview()` — typed sample rows that start no graph and create no subscription.
   - `erpl_ape_allow_unreleased` setting (default off) for entities with no release contract.
+  - `sap_ape_read_full()` / `sap_ape_read_delta()` — extraction through the pipeline engine, with
+    projection and server-side filters pushed into the reader. `filters` uses the same
+    `{FIELDNAME, SIGN, OP, LOW, HIGH}` struct as `erpl_odp`. Delta surfaces the engine's own
+    per-row change indicator, `/1DH/OPERATION`, under that name rather than an invented one.
   - The set of pipeline operators the module will drive is compiled in; no setting widens it, and
     the reader is restricted to CDS containers.
 
+### Notes
+
+- **[ape]** **Reads are slow to start, and that is the SAP side, not the client.** SAP prepares an
+  initial load with a background job (DHCDC "ACD"); while it is pending the engine returns neither
+  data nor an error. The scan polls and, if the job never finishes, fails with a message naming the
+  application log to check (object `DHCDC`, subobject `ACP_JOB`) rather than hanging.
+- **[ape]** `com.sap.abap.cds.reader.v3` — the operator the design was originally built around — is
+  **not registered** on the releases tested, so the module drives `com.sap.abap.cds.reader.v2`.
+
 ### Known limitations
 
-- **[ape]** Extraction (`sap_ape_read_full` / `sap_ape_read_delta`) is **not implemented yet**. The
-  pipeline graph is created, started and stopped correctly and the port handshake is accepted, but
-  no reader hands data over on the systems tested. The protocol work, including the two distinct
-  walls hit by the v6 and v7 readers, is written up in the submodule's `docs/protocol.md`.
+- **[ape]** `sap_ape_read_delta` is implemented but **not yet verified**: insert/update/delete round
+  trips have not been exercised against a live system, so the change-indicator values are unproven.
+- **[ape]** The gen2 reader (`com.sap.abap.reader`, protocol v7) is unusable without driving SAP's
+  agent message protocol to establish `DHAPE_GRAPH-STATE_UUID`. Parked; it is likely required for
+  S/4HANA Public Cloud. See the submodule's `docs/protocol.md`.
 
 ---
 

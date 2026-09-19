@@ -75,6 +75,7 @@ SELECT * FROM sap_bics_show_cubes();
 | `sap_odp_get_subscriptions` | List subscriptions for one ODP object | `SELECT * FROM sap_odp_get_subscriptions('ABAP_CDS', 'MY_CDS$E')` |
 | `sap_ape_show` | List CDS entities via the ABAP Pipeline Engine | `SELECT * FROM sap_ape_show(search => 'I_GL%')` |
 | `sap_ape_preview` | Sample a CDS entity (no graph, no subscription) | `SELECT * FROM sap_ape_preview('ZERPL_APE_FLIGHT')` |
+| `sap_ape_read_full` | Extract a CDS entity via the ABAP Pipeline Engine | `SELECT * FROM sap_ape_read_full('ZERPL_APE_FLIGHT')` |
 | `ATTACH` | Mount SAP as database | `ATTACH '' AS sap (TYPE sap_rfc)` |
 
 ---
@@ -1185,10 +1186,15 @@ metadata browser (`DHAMB_*`). Nothing is installed in SAP.
 It loads alongside `erpl_rfc`, which owns the `sap_rfc` secret type — create the secret exactly as
 for any other erpl module and pass `secret => '...'` to select a named one.
 
-> **Extraction is not yet available.** `sap_ape_read_full` / `sap_ape_read_delta` are not
-> implemented: the pipeline reader negotiates correctly but does not yet hand data over. The
-> blocker is documented in the module's `docs/protocol.md`. Discovery, diagnostics and
-> `sap_ape_preview` are fully functional.
+> **Reads are slow to start, by design of the SAP side.** SAP prepares an initial load with a
+> background job (DHCDC "ACD"), and while that job is pending the engine returns neither data nor an
+> error. `sap_ape_read_full` therefore polls; expect tens of seconds before the first rows on a
+> small entity. A stalled job fails with a message naming the application log to check, rather than
+> hanging forever.
+>
+> **Delta is not yet verified.** `sap_ape_read_delta` is implemented and surfaces the engine's own
+> change indicator, but insert/update/delete round trips have not been exercised against a live
+> system yet. Treat it as unproven.
 
 ### Discovery
 
@@ -1249,6 +1255,80 @@ form that will not convert is returned as NULL and logged at WARN rather than fa
 ```sql
 SELECT * FROM sap_ape_preview('ZERPL_APE_FLIGHT', max_rows => 10);
 ```
+
+---
+
+### Extraction
+
+#### `sap_ape_read_full(cds_name [, columns, filters, chunk_size, wireformat, secret])`
+
+Full snapshot of a CDS entity through the pipeline engine. Creates a subscription for the duration
+of the scan and stops its graph when the scan ends.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `cds_name` | VARCHAR | *required* | CDS entity name, or its browser path |
+| `columns` | LIST(VARCHAR) | all | Projection, pushed into the reader. Validated against the catalogue, so a typo fails at bind |
+| `filters` | LIST(STRUCT) | — | Server-side selection, same shape as `erpl_odp` (below) |
+| `chunk_size` | UINTEGER | 1000 | Records per roundtrip |
+| `wireformat` | VARCHAR | `'Required Conversions Plus Time Format and Currency'` | Engine conversion profile. The default is the one that renders dates ISO and decimals as plain text |
+| `secret` | VARCHAR | — | Named secret |
+
+Output is the entity's own columns, typed from the package's self-describing field metadata — no
+system columns — so the schema can seed a target table:
+
+```sql
+CREATE TABLE flights AS SELECT * FROM sap_ape_read_full('ZERPL_APE_FLIGHT') WHERE 1=0;
+```
+
+**`filters` shape** — `LIST<STRUCT(FIELDNAME, SIGN, OP, LOW, HIGH)>`, deliberately identical to
+`sap_odp_read_full`. `OP` accepts `EQ`, `NE`, `GT`, `GE`, `LT`, `LE`, `BT`, `CP`. An operator the
+engine cannot express raises rather than being dropped — a dropped predicate would silently return
+extra rows.
+
+```sql
+SELECT * FROM sap_ape_read_full('ZERPL_APE_FLIGHT',
+    columns => ['Carrid', 'Fldate', 'Price'],
+    filters => [{'FIELDNAME': 'Carrid', 'SIGN': 'I', 'OP': 'EQ', 'LOW': 'LH', 'HIGH': ''}]);
+```
+
+Entities with no release contract are refused unless `erpl_ape_allow_unreleased` is on.
+
+**Amounts are currency-shifted, unlike `sap_read_table`.** The default wire format applies SAP's
+currency-specific decimal shift, so a `CURR` field comes back as the business amount. For a
+0-decimal currency such as JPY that differs from the raw stored value by a factor of 100:
+
+| | `sap_ape_read_full` | `sap_read_table` |
+|---|---|---|
+| `PRICE` where `CURRENCY = 'JPY'` | `106136.00` (the actual amount) | `1061.36` (raw internal value) |
+| `PRICE` where `CURRENCY = 'USD'` | `422.94` | `422.94` |
+
+This is the engine's conversion, not erpl's, and it is what the `wireformat` name
+("…Plus Currency") refers to. Pass a different `wireformat` if you need the unshifted value; expect
+to have to apply `TCURX` yourself if you do.
+
+---
+
+#### `sap_ape_read_delta(cds_name, subscriber_process [, …])`
+
+Changes since the previous call. `subscriber_process` names the server-side subscription and must be
+stable across runs — re-using it is what lets SAP resume. At most 30 characters, no control
+characters.
+
+Named parameters are the same as `sap_ape_read_full`.
+
+Output is the entity's columns **plus the engine's own change indicator as the last column**,
+`/1DH/OPERATION` (VARCHAR) — the engine's name is used rather than an invented one. It is blank on
+initial-load rows.
+
+```sql
+SELECT * FROM sap_ape_read_delta('ZERPL_APE_FLIGHT', 'NIGHTLY_ETL');
+SELECT * FROM sap_ape_read_delta('ZERPL_APE_FLIGHT', 'NIGHTLY_ETL')
+WHERE "/1DH/OPERATION" <> '';
+```
+
+Do not run two delta reads with the same `subscriber_process` concurrently — they race the same
+server-side subscription.
 
 ---
 
