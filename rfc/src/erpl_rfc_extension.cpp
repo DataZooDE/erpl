@@ -393,8 +393,6 @@ namespace duckdb {
             Value(""),
             OnRfcReadTableDelimiter);
 
-        auto provider = make_uniq<RfcEnvironmentCredentialsProvider>(config);
-        provider->SetAll();
 
         RegisterSapSecretType(loader);
     }

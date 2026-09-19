@@ -8,6 +8,7 @@ Each bullet is tagged with the affected sub-extension(s):
 - **[rfc]** — `erpl_rfc`, the SAP RFC scan path
 - **[bics]** — `erpl_bics`, BW BICS queries (lives in a git submodule)
 - **[odp]** — `erpl_odp`, ODP data replication (lives in a git submodule)
+- **[ape]** — `erpl_ape`, ABAP Pipeline Engine extraction (private, lives in a git submodule)
 - **[trampoline]** — `erpl`, the umbrella extension that bundles the SAP SDK
 - **[all]** — cross-cutting work that touches every sub-extension
 
@@ -19,6 +20,91 @@ matrix `{linux_amd64, linux_amd64_musl, osx_amd64, osx_arm64, windows_amd64} ×
 INSTALL erpl FROM 'http://get.erpl.io';
 LOAD erpl;
 ```
+
+---
+
+## Unreleased
+
+### Added
+
+- **[ape]** **New private sub-extension `erpl_ape`** — CDS entity discovery through SAP's own
+  ABAP Pipeline Engine (`DHAPE_*`) and its metadata browser (`DHAMB_*`), with no ABAP footprint.
+  Lives in the private `DataZooDE/erpl-ape` submodule at `ape/` and is **not** shipped via
+  get.erpl.io; it is delivered per engagement.
+  - `PRAGMA sap_ape_ping` — logs on *and* asks the engine for its version, so it fails when the
+    `DHAPE_*` function group is unreachable rather than only when logon fails.
+  - `sap_ape_system_info()` — engine version, raw capabilities JSON, and a `supported` flag with a
+    `reason` when false.
+  - `sap_ape_show()` — CDS entities with release flag, base table and package. Browses only the
+    `/CDS` subtree; the metadata browser's root also exposes `/ODP_BW` and `/ODP_SAPI`, and
+    erpl_ape never reads those.
+  - `sap_ape_describe()` — field list whose DuckDB types come from the same DDIC mapper
+    `sap_read_table` uses, so the two agree cell for cell. Carries the currency/unit reference.
+  - `sap_ape_preview()` — typed sample rows that start no graph and create no subscription.
+  - `erpl_ape_allow_unreleased` setting (default off) for entities with no release contract.
+  - `sap_ape_read_delta()` delta **including deletes** — verified end to end: insert and update
+    arrive as after-images (`/1DH/OPERATION = 'U'`), a delete as `'D'` carrying only its keys. That
+    is the capability ODP's `byElement` annotation cannot provide.
+  - `sap_ape_read_full()` / `sap_ape_read_delta()` — extraction through the pipeline engine, with
+    projection and server-side filters pushed into the reader. `filters` uses the same
+    `{FIELDNAME, SIGN, OP, LOW, HIGH}` struct as `erpl_odp`. Delta surfaces the engine's own
+    per-row change indicator, `/1DH/OPERATION`, under that name rather than an invented one.
+  - `sap_ape_show_subscriptions()` and `PRAGMA sap_ape_drop(cds_name, subscriber_process)` — the
+    engine keeps subscriptions after a graph ends, so they need listing and erasing. There is no RFC
+    for either; both run short-lived graphs built from the engine's own subscription-reader and
+    subscription-eraser operators. `sap_ape_read_full` erases its own subscription when the scan
+    ends, so a snapshot leaves nothing behind.
+  - `recover => true` on `sap_ape_read_delta`, backed by a local spill in
+    `erpl_ape.delta_spill`. The engine commits each portion as it hands it over and has no client
+    acknowledgement — measured, abandoning a scan after 5 of 180 changes lost the other 175 — so
+    there is nothing on the SAP side to re-stream and durability has to be local. The spill is
+    written on its own transaction, so the rollback that loses your rows cannot discard it too.
+    `erpl_ape_spill_enabled = false` opts out, at the cost of making delta at-most-once.
+  - `erpl_ape_prepare_timeout` bounds the wait for SAP's asynchronous preparation, and
+    `erpl_ape_delta_quiet_seconds` bounds how long an already-established delta subscription waits
+    for a first package before reporting that there is nothing to replicate. They are separate on
+    purpose: a resumed subscription is already prepared, so minutes of waiting for "no changes"
+    would be absurd, while a couple of seconds reports "no changes" when the answer is "not yet".
+  - The set of pipeline operators the module will drive is compiled in; no setting widens it, and
+    the reader is restricted to CDS containers.
+
+### Changed
+
+- **[rfc]** **`SAP_*` environment variables no longer seed extension settings.**
+  `RfcEnvironmentCredentialsProvider` set six `sap_*` options that were never registered and never
+  read — credentials come from secrets — so merely having `SAP_PASSWORD` exported crashed extension
+  load with `INTERNAL Error: Unrecognized option sap_password`. The provider is removed rather than
+  registered. If you relied on `SAP_ASHOST`/`SAP_USER`/`SAP_PASSWORD` being picked up implicitly,
+  create a secret instead. The suites never caught this because they use `ERPL_SAP_*` names.
+
+### Notes
+
+- **[ape]** **Server-side filters are refused, not ignored, and projection is applied on the
+  client.** The pipeline reader available on current releases declares seven configuration
+  properties and reads seven configuration paths — none of them a filter or a schema — so pushing
+  either down would return every row while the query looked like it asked for a subset. `filters`
+  therefore raises with the remedy (an ordinary SQL `WHERE`, which the streaming scan applies as
+  rows arrive), and `columns` is honoured by mapping the package's self-describing fields. Pushdown
+  returns with the next-generation reader.
+- **[ape]** **The engine's CSV writer quotes RFC 4180 style**, verified live by seeding hostile
+  values: a value carrying the separator or a double quote is wrapped in quotes and an inner quote
+  is doubled, while a backslash is data. The decoder parses quoted fields and additionally checks
+  each row's cell count against the declared field count, because the scan assigns cells to columns
+  by index and a shifted row would otherwise be plausible nonsense rather than an error.
+- **[ape]** **Reads are slow to start, and that is the SAP side, not the client.** SAP prepares an
+  initial load with a background job (DHCDC "ACD"); while it is pending the engine returns neither
+  data nor an error. The scan polls and, if the job never finishes, fails with a message naming the
+  application log to check (object `DHCDC`, subobject `ACP_JOB`) rather than hanging.
+- **[ape]** `com.sap.abap.cds.reader.v3` — the operator the design was originally built around — is
+  **not registered** on the releases tested, so the module drives `com.sap.abap.cds.reader.v2`.
+
+### Known limitations
+- **[ape]** A client killed mid-scan leaves its graph running server-side, which blocks erasing the
+  subscription and therefore later delta calls on that subscriber. Recovery uses the engine's own
+  retention mechanism; the delta harness runs it first. Doing this automatically is not yet wired in.
+- **[ape]** The gen2 reader (`com.sap.abap.reader`, protocol v7) is unusable without driving SAP's
+  agent message protocol to establish `DHAPE_GRAPH-STATE_UUID`. Parked; it is likely required for
+  S/4HANA Public Cloud. See the submodule's `docs/protocol.md`.
 
 ---
 

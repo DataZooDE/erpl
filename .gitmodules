@@ -22,3 +22,6 @@
 [submodule "proto"]
 	path = proto
 	url = https://github.com/DataZooDE/erpl-proto.git
+[submodule "ape"]
+	path = ape
+	url = https://github.com/DataZooDE/erpl-ape.git
