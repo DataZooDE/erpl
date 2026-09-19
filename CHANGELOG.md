@@ -42,6 +42,9 @@ LOAD erpl;
     `sap_read_table` uses, so the two agree cell for cell. Carries the currency/unit reference.
   - `sap_ape_preview()` — typed sample rows that start no graph and create no subscription.
   - `erpl_ape_allow_unreleased` setting (default off) for entities with no release contract.
+  - `sap_ape_read_delta()` delta **including deletes** — verified end to end: insert and update
+    arrive as after-images (`/1DH/OPERATION = 'U'`), a delete as `'D'` carrying only its keys. That
+    is the capability ODP's `byElement` annotation cannot provide.
   - `sap_ape_read_full()` / `sap_ape_read_delta()` — extraction through the pipeline engine, with
     projection and server-side filters pushed into the reader. `filters` uses the same
     `{FIELDNAME, SIGN, OP, LOW, HIGH}` struct as `erpl_odp`. Delta surfaces the engine's own
@@ -66,8 +69,11 @@ LOAD erpl;
 
 ### Known limitations
 
-- **[ape]** `sap_ape_read_delta` is implemented but **not yet verified**: insert/update/delete round
-  trips have not been exercised against a live system, so the change-indicator values are unproven.
+- **[ape]** `recover` (re-streaming an unconfirmed package) is **not implemented**. The engine
+  advances its pointer as packages are handed over and nothing re-delivers them.
+- **[ape]** A client killed mid-scan leaves its graph running server-side, which blocks erasing the
+  subscription and therefore later delta calls on that subscriber. Recovery uses the engine's own
+  retention mechanism; the delta harness runs it first. Doing this automatically is not yet wired in.
 - **[ape]** The gen2 reader (`com.sap.abap.reader`, protocol v7) is unusable without driving SAP's
   agent message protocol to establish `DHAPE_GRAPH-STATE_UUID`. Parked; it is likely required for
   S/4HANA Public Cloud. See the submodule's `docs/protocol.md`.

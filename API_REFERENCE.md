@@ -1192,9 +1192,10 @@ for any other erpl module and pass `secret => '...'` to select a named one.
 > small entity. A stalled job fails with a message naming the application log to check, rather than
 > hanging forever.
 >
-> **Delta is not yet verified.** `sap_ape_read_delta` is implemented and surfaces the engine's own
-> change indicator, but insert/update/delete round trips have not been exercised against a live
-> system yet. Treat it as unproven.
+> **Delta requires two annotations on the view.** `@Analytics.dataExtraction.enabled` alone permits
+> initial load only; replication also needs
+> `@Analytics.dataExtraction.delta.changeDataCapture.automatic`. The engine says so clearly if it is
+> missing.
 
 ### Discovery
 
@@ -1318,8 +1319,37 @@ characters.
 Named parameters are the same as `sap_ape_read_full`.
 
 Output is the entity's columns **plus the engine's own change indicator as the last column**,
-`/1DH/OPERATION` (VARCHAR) — the engine's name is used rather than an invented one. It is blank on
-initial-load rows.
+`/1DH/OPERATION` (VARCHAR) — the engine's name is used rather than an invented one.
+
+The first call on a fresh `subscriber_process` returns the current contents with a blank indicator
+(the initial-load phase) and registers the subscription. Later calls return only changes:
+
+| SAP change | `/1DH/OPERATION` | Row content |
+|---|---|---|
+| INSERT | `U` | full after-image |
+| UPDATE | `U` | full after-image |
+| DELETE | `D` | **keys only**; non-key columns blank or zero |
+
+Note that an insert is reported as `U`, not `I`: inserts and updates are both after-images. `D` is
+the one that matters — deletes *are* reported, which is what ODP's `byElement` annotation cannot do.
+
+Apply idempotently by deleting the keys present in the batch and re-inserting the non-`D` rows:
+
+```sql
+CREATE TEMP TABLE d AS SELECT * FROM sap_ape_read_delta('ZERPL_APE_D', 'NIGHTLY');
+BEGIN;
+  DELETE FROM tgt USING (SELECT DISTINCT Rid FROM d) x WHERE tgt.Rid = x.Rid;
+  INSERT INTO tgt SELECT * EXCLUDE ("/1DH/OPERATION") FROM d WHERE "/1DH/OPERATION" <> 'D';
+COMMIT;
+```
+
+**A query never waits for future changes.** A replication graph is long-lived and never announces an
+end, so the scan returns what is available and stops; polling cadence is the caller's business.
+
+**If a client is killed mid-scan** its graph is left running server-side, and the engine will then
+refuse to erase the subscription it holds ("still in use by a running graph"), blocking later delta
+calls on that subscriber. Recovery is the engine's own retention mechanism — see
+`ape/test/fixtures/zcl_erpl_ape_gc.abap` and `ape/docs/protocol.md` §13.
 
 ```sql
 SELECT * FROM sap_ape_read_delta('ZERPL_APE_FLIGHT', 'NIGHTLY_ETL');
