@@ -77,6 +77,31 @@ LOAD erpl;
   registered. If you relied on `SAP_ASHOST`/`SAP_USER`/`SAP_PASSWORD` being picked up implicitly,
   create a secret instead. The suites never caught this because they use `ERPL_SAP_*` names.
 
+- **[ape]** **Subscriptions erpl_ape registers are named `ERPL_` + your `subscriber_process`.** The
+  engine records no usable creator, so the name is the only way the module can recognise its own —
+  which is what lets `sap_ape_show_subscriptions()` default to "ours" without hiding the durable
+  delta subscriptions a caller named itself (previously the default listing showed only the
+  ephemeral snapshot ones). You never spell the prefix out: `sap_ape_read_delta` and
+  `PRAGMA sap_ape_drop` take the plain value, and the listing reports it unprefixed alongside the
+  new `subscription_name` column carrying the stored form.
+- **[ape]** **`recover => true` no longer contacts SAP at all.** It used to resolve the entity
+  against the catalogue at bind time, so it failed exactly when SAP was unreachable — the situation
+  it exists for. The schema now comes from the spilled package plus the column names recorded with
+  the batch, so a replay reports the same columns as the read it replaces.
+- **[ape]** **The spill's `payload` column is now BLOB.** A package whose bytes are not valid UTF-8
+  — ordinary for SAP text in a non-UTF-8 codepage — used to abort the scan *after* the engine had
+  committed the portion, and the error carried the whole package. An existing spill table with a
+  VARCHAR payload is reported with the `DROP TABLE` to run rather than silently misused.
+- **[ape]** **A value that will not convert raises instead of becoming NULL.** The documented wire
+  sentinels (`9999-99-99`, `NaN`, …) map to NULL deliberately; anything else names the package, row,
+  column and text. A silent NULL is a wrong answer the caller cannot see. Likewise a column the
+  catalogue reports but the package does not carry is an error, not a column of NULLs.
+- **[ape]** An entity named by its metadata-browser path (`/CDS/TMP/ZERPL_APE_D`) now resolves to
+  the bare name the engine stores, so a delta read spelled that way resumes instead of failing on
+  its second call with "subscription already exists".
+- **[ape]** `wireformat` is validated against the four profiles the reader declares, and
+  `recover => false` on a full read no longer raises (only a true value is refused).
+
 ### Notes
 
 - **[ape]** **Server-side filters are refused, not ignored, and projection is applied on the

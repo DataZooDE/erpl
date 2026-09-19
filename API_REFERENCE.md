@@ -1272,7 +1272,7 @@ of the scan and stops its graph when the scan ends.
 | `columns` | LIST(VARCHAR) | all | Projection. Validated against the catalogue, so a typo fails at bind. Applied on the client — see below |
 | `filters` | LIST(STRUCT) | — | **Refused on this release** — see below |
 | `chunk_size` | UINTEGER | 1000 | Records per roundtrip |
-| `wireformat` | VARCHAR | `'Required Conversions Plus Time Format and Currency'` | Engine conversion profile. The default is the one that renders dates ISO and decimals as plain text |
+| `wireformat` | VARCHAR | `'Required Conversions Plus Time Format and Currency'` | Engine conversion profile, checked at bind against the four the reader declares — a typo does not fail on the SAP side, it quietly changes the semantics the decoder is written against. The default renders dates ISO and decimals as plain text |
 | `secret` | VARCHAR | — | Named secret |
 
 Output is the entity's own columns, typed from the package's self-describing field metadata — no
@@ -1309,6 +1309,13 @@ support pushdown; it is not yet usable from here. `OP` accepts `EQ`, `NE`, `GT`,
 `BT`, `CP`, and an operator the engine cannot express raises rather than being dropped.
 
 Entities with no release contract are refused unless `erpl_ape_allow_unreleased` is on.
+
+**A value that will not convert raises rather than becoming NULL.** The engine's classic wire format
+emits sentinels for absent values (`9999-99-99`, `99:99:99.999`, `NaN`, `?`) and those become NULL
+deliberately; a blank cell is NULL too. Anything else that fails to cast is an error naming the
+package, row, column and text, because a silent NULL is a wrong answer the caller cannot see. For the
+same reason, a column the catalogue reports but the package does not carry is an error rather than a
+column of NULLs.
 
 **Amounts are currency-shifted, unlike `sap_read_table`.** The default wire format applies SAP's
 currency-specific decimal shift, so a `CURR` field comes back as the business amount. For a
@@ -1372,7 +1379,27 @@ SAP side to re-stream, and the only copy that can survive is a local one.
 
 `erpl_ape` therefore writes every delta package to **`erpl_ape.delta_spill`** before handing its rows
 over, on its own transaction so that the rollback which loses your rows cannot take the spill with
-it. It is an ordinary table — inspect it, and `DELETE` from it when you no longer need it.
+it.
+
+**The spill table holds your business data in the clear, and you should know its shape:**
+
+| Column | Type | Meaning |
+|---|---|---|
+| `cds_name` | VARCHAR | The entity, as the engine names it (bare and upper-case, whatever spelling you passed) |
+| `subscriber_process` | VARCHAR | The value you passed, unprefixed |
+| `batch_id` | BIGINT | Increases per subscriber; the newest one is what `recover` replays |
+| `sequence` | INTEGER | Package order within the batch. `-1` is not a package — it records the column names the interrupted read reported, so a recover reports the same ones |
+| `captured_at` | TIMESTAMP | When the package was persisted |
+| `payload` | BLOB | The engine's package, byte for byte — envelope and all rows. BLOB rather than VARCHAR because SAP text arrives in the system codepage, and a VARCHAR column would refuse a stray byte *after* the engine had already committed the portion |
+
+It is an ordinary table, so:
+
+- **Anyone who can open the database can read it.** On a persistent database the newest batch stays
+  until another delta read on the same subscriber replaces it, which may be indefinitely. Treat the
+  database file with the same care as the data it replicates, and `DELETE FROM erpl_ape.delta_spill`
+  when a batch is no longer needed.
+- Error messages from the decoder may quote a bounded fragment of a row — a couple of hundred
+  characters — because a truncated package and a malformed one are otherwise indistinguishable.
 
 ```sql
 -- something went wrong mid-load; replay what SAP already handed over
@@ -1386,6 +1413,7 @@ SELECT * FROM sap_ape_read_delta('ZERPL_APE_D', 'NIGHTLY', recover => true);
 | Scope | Only the **most recent** batch. An ordinary read starts a new batch and discards the previous spill |
 | Durability | Survives process death **only if the DuckDB database is persistent**. In an in-memory session the spill still survives a rolled-back transaction, but not the process exiting |
 | Combining | Cannot be used with `columns` or `filters` — the spilled packages were produced under the original ones, and replaying under different ones would quietly return something else |
+| Connectivity | **Needs no SAP connection.** A recover opens no graph and resolves nothing against the catalogue: the schema comes from the spilled package plus the column names recorded with the batch. That is deliberate — SAP being unreachable is the situation `recover` exists for |
 
 `erpl_ape_spill_enabled = false` turns the spill off, which makes delta **at-most-once**: an
 interrupted read then loses whatever SAP had already committed. It exists for read-only databases,
@@ -1416,19 +1444,29 @@ The engine keeps a subscription after a graph ends, which is what makes delta re
 makes leaked subscriptions a real hygiene concern on a customer system.
 
 `sap_ape_read_full` creates a subscription for the duration of its scan and **erases it when the
-scan ends**, so a snapshot leaves nothing behind. A delta subscription is the caller's and persists
-until dropped explicitly.
+scan ends**, so a snapshot leaves nothing behind — including when the scan is abandoned early by a
+`LIMIT` or an error. A delta subscription is the caller's and persists until dropped explicitly.
+
+**Every subscription erpl_ape registers is named `ERPL_` + your `subscriber_process`.** The engine
+records no creator, so the name is the only way this module can recognise its own — which is what
+lets the listing default to "ours" without hiding the delta subscriptions you named yourself. You
+never have to spell the prefix out: `sap_ape_read_delta` and `PRAGMA sap_ape_drop` both take the
+plain `subscriber_process`, and the listing reports it unprefixed in `subscriber_process` alongside
+the stored name in `subscription_name`. A Basis admin looking at `DHCDC_MON` sees the prefixed form.
 
 #### `sap_ape_show_subscriptions([erpl_only, cds_name, secret])`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `erpl_only` | BOOLEAN | `true` | Only subscriptions this module created. Default on, because a shared system accumulates other people's and listing them all invites accidental drops |
+| `erpl_only` | BOOLEAN | `true` | Only subscriptions whose stored name carries the `ERPL_` prefix, i.e. the ones this module registered. Default on, because a shared system accumulates other people's and listing them all invites accidental drops |
 | `cds_name` | VARCHAR | — | Filter to one entity |
 | `secret` | VARCHAR | — | Named secret |
 
-**Returns:** `subscription_id`, `cds_name`, `transfer_mode`, `subscriber_process`, `created_at`,
-`status`
+**Returns:** `subscription_id`, `cds_name`, `transfer_mode`, `subscriber_process`,
+`subscription_name`, `created_at`, `status`
+
+`subscriber_process` is the value that round-trips into `PRAGMA sap_ape_drop`; `subscription_name` is
+what the engine stores, prefix and all.
 
 There is no RFC that answers this, so it runs a short-lived graph built from the engine's own
 subscription-reader operator.
