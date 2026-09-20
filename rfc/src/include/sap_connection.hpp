@@ -114,6 +114,23 @@ namespace duckdb
 		// Other credential material
 		string mysapsso2;
 		string x509cert;
+		// WebSocket RFC (wsRFC). SAP's Public Cloud has no gateway to dial, so the
+		// only transport there is wsRFC over TLS: a host and port rather than
+		// ashost/sysnr, and a client certificate rather than a password. The trial
+		// systems reach it too, on the ICM's wss port.
+		string wshost;
+		string wsport;
+		string use_tls;
+		// The SDK authenticates wsRFC from a SAP PSE; alias_user names the
+		// communication user a cloud tenant maps the certificate to.
+		string tls_client_pse;
+		string tls_trust_all;
+		string alias_user;
+		// The erpl-proto backend has no CommonCryptoLib and therefore no PSE: it
+		// takes the certificate and key as files (DER or PEM). Both spellings exist
+		// because which one applies depends on erpl_rfc_backend.
+		string ws_client_cert;
+		string ws_client_key;
 		// Routing and miscellaneous
 		string saprouter;
 		string gwhost;
