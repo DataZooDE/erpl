@@ -13,16 +13,22 @@
 # the way: without the client certificate mapped, the call fails at logon instead and
 # this step's effect is invisible.
 #
-# WHAT IT ACTUALLY DOES is two things, because they are ordered:
+# WHAT IT ACTUALLY DOES is three things, because they are ordered:
 #
 #   1. Generates UCON's default objects if they are missing (cl_ucon_setup=>setup_dark,
-#      the non-interactive form of what UCONCOCKPIT does on first use).  Local objects,
-#      current client only, no change documents, so no transport is needed.
+#      the non-interactive form of what UCONCOCKPIT does on first use).  Current client
+#      only, no change documents, and the generated-objects namespace so the save is
+#      local -- which is the parameter that keeps it out of a transport dialog.
 #      register_rfm_list cannot work before this: it resolves the default communication
 #      assembly through get_default_object_names, which raises CX_UCON_NOT_ACTIVE until
 #      the defaults exist.
 #   2. Registers the module list under application id ERPL, which the API places in an
 #      assembly of its own (/1BCMIDRF/APP_ERPL) included in the default one.
+#   3. Pushes that into the runtime tables the kernel reads.  Step 2 writes customizing
+#      only: measured, after registering alone UCONRFCSTATEHEAD held 22,925 rows,
+#      UCONRFCSTATERT held none, and every call was still rejected.  Done on every run,
+#      not only after a fresh registration, because "registered but not in the runtime"
+#      is exactly the state this repairs.
 #
 # THIS WRITES THE SYSTEM'S SECURITY CONFIGURATION on infrastructure shared by three
 # repositories.  It is reversible -- cl_ucon_setup=>revert( ) is supported, and the
@@ -82,10 +88,14 @@ cls ZCL_ERPL_UCON_RELEASE "$_UCON_ABAP" "release erpl's modules for wsRFC" >/dev
 
 _ucon_out="$(adt object run ZCL_ERPL_UCON_RELEASE 2>&1)"
 _ucon_rc=0
+# Matched on the final line, not on "registered": registering writes customizing and
+# the kernel reads the runtime tables, so a run that registered and failed to push the
+# runtime changes nothing observable and must not read as success.
 case "$_ucon_out" in
-    *"already exists"*)   ok "UCON: erpl's modules were already registered" ;;
-    *"registered"*)       ok "UCON: $(printf '%s\n' "$_ucon_out" | grep -a 'registered' | head -1)" ;;
-    *)                    fail "UCON: erpl's modules were not registered"; _ucon_rc=1 ;;
+    *"ucon release done"*)
+        ok "UCON: $(printf '%s\n' "$_ucon_out" | grep -aE 'registered|already exists' | head -1)"
+        say "$(printf '%s\n' "$_ucon_out" | grep -a 'runtime:' | head -1)" ;;
+    *)  fail "UCON: erpl's modules are not callable over wsRFC"; _ucon_rc=1 ;;
 esac
 # Print the diagnosis on failure rather than only the verdict: setup_dark and
 # register_rfm_list both report through this output and both can fail for reasons worth

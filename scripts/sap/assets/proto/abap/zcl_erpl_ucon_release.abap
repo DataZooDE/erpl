@@ -7,10 +7,17 @@
 * That is the system's policy, not a transport limit -- on an S/4HANA Cloud tenant the
 * communication arrangement is what grants the same access.
 *
-* WHY IT IS TWO STEPS.  cl_ucon_api_factory=>register_rfm_list resolves the default
+* WHY IT IS THREE STEPS.  cl_ucon_api_factory=>register_rfm_list resolves the default
 * communication assembly through cl_ucon_setup=>get_default_object_names, which raises
 * CX_UCON_NOT_ACTIVE until UCON's default objects exist.  So the assembly has to be
 * generated before anything can be added to it.
+*
+* And registering is not enough on its own: it writes *customizing*, while the RFC
+* runtime reads the RT tables (UCONRFCCART, UCONRFCSRVFMRT, UCONRFCSTATERT).  Measured:
+* after register_rfm_list alone, UCONRFCSTATEHEAD held 22,925 rows and UCONRFCSTATERT
+* held none -- and every call was still answered "UCON RFC Rejected", because the
+* runtime had nothing to permit it with.  cl_uconrfc_runtime pushes customizing into
+* those tables; setup itself calls the same class for the objects it generates.
 *
 * setup_dark is the non-interactive form of what UCONCOCKPIT does on first use.  Current
 * client only and no change documents, so it needs no transport.  There is a supported
@@ -81,6 +88,11 @@ CLASS zcl_erpl_ucon_release IMPLEMENTATION.
         ENDTRY.
     ENDTRY.
 
+    DATA lt_range TYPE ucon_funcname_range.
+    LOOP AT lt_rfm INTO DATA(lv_fm).
+      APPEND VALUE #( sign = 'I' option = 'EQ' low = lv_fm ) TO lt_range.
+    ENDLOOP.
+
     " ---- 2. Register the modules, unless that was already done ----
     " Checked rather than caught: register_rfm_list raises the same
     " CX_UCON_API_HELPER for "already exists" as for a real failure, and a re-run
@@ -102,6 +114,33 @@ CLASS zcl_erpl_ucon_release IMPLEMENTATION.
       ENDTRY.
     ENDIF.
 
+    " ---- 3. Push it into the runtime tables the kernel reads ----
+    " Unconditional, not only after a fresh registration: this is exactly the state a
+    " system ends up in when the registration succeeded and the runtime push did not,
+    " and re-running has to repair that rather than report "already done".
+    TRY.
+        cl_uconrfc_runtime=>set_ucon_ca_by_rfm_list_4_rt(
+          it_funcname         = lt_range
+          ip_service_assembly = CONV uconservid( lv_ca_id )
+          ip_action           = 'I' ).
+        cl_uconrfc_runtime=>set_ucon_rfc_state_by_rfm_list(
+          it_funcname         = lt_range
+          ip_service_assembly = CONV uconservid( lv_ca_id )
+          ip_action           = 'I' ).
+        cl_uconrfc_runtime=>sync_db_buffer_all( ).
+        COMMIT WORK AND WAIT.
+      CATCH cx_root INTO DATA(lx_rt).
+        out->write( |runtime push failed: { lx_rt->get_text( ) }| ).
+        RETURN.
+    ENDTRY.
+
+    " Report the runtime rows rather than claiming success: an empty UCONRFCSTATERT is
+    " precisely the silent failure this step exists to fix.
+    SELECT COUNT(*) FROM uconrfccart   INTO @DATA(lv_cart).
+    SELECT COUNT(*) FROM uconrfcstatert INTO @DATA(lv_statert).
+    SELECT COUNT(*) FROM uconrfcsrvfmrt INTO @DATA(lv_srvfmrt).
+    out->write( |runtime: CART={ lv_cart } STATERT={ lv_statert } SRVFMRT={ lv_srvfmrt }| ).
     out->write( |is_ws_rfc_active = { cl_ucon_setup=>is_ws_rfc_active( ) }| ).
+    out->write( |ucon release done| ).
   ENDMETHOD.
 ENDCLASS.
