@@ -1311,11 +1311,20 @@ support pushdown; it is not yet usable from here. `OP` accepts `EQ`, `NE`, `GT`,
 Entities with no release contract are refused unless `erpl_ape_allow_unreleased` is on.
 
 **A value that will not convert raises rather than becoming NULL.** The engine's classic wire format
-emits sentinels for absent values (`9999-99-99`, `99:99:99.999`, `NaN`, `?`) and those become NULL
-deliberately; a blank cell is NULL too. Anything else that fails to cast is an error naming the
-package, row, column and text, because a silent NULL is a wrong answer the caller cannot see. For the
-same reason, a column the catalogue reports but the package does not carry is an error rather than a
-column of NULLs.
+emits sentinels for absent values, and those become NULL deliberately — but **only where the column
+cannot hold them**: `9999-99-99` in a `DATE`, `NaN` in a numeric, and so on. In a text column `?` and
+`NaN` are ordinary data and come through unchanged. A blank cell is NULL for any non-text column.
+
+Anything else that fails to cast is an error naming the package, row, column and a bounded fragment
+of the text, because a silent NULL is a wrong answer the caller cannot see. For the same reason, a
+column the catalogue reports but the package does not carry is an error rather than a column of
+NULLs. For a delta read the offending package is still in `erpl_ape.delta_spill`, so the row can be
+inspected there, and `recover => true` replays the batch once the cause is addressed — by excluding
+the column with `columns`, or by a different `wireformat`.
+
+The default `wireformat` is the profile this build's decoder is written against. The others are
+accepted but not verified; with raise-on-cast, a profile that renders values differently will fail
+loudly rather than quietly.
 
 **Amounts are currency-shifted, unlike `sap_read_table`.** The default wire format applies SAP's
 currency-specific decimal shift, so a `CURR` field comes back as the business amount. For a
@@ -1413,6 +1422,7 @@ SELECT * FROM sap_ape_read_delta('ZERPL_APE_D', 'NIGHTLY', recover => true);
 | Scope | Only the **most recent** batch. An ordinary read starts a new batch and discards the previous spill |
 | Durability | Survives process death **only if the DuckDB database is persistent**. In an in-memory session the spill still survives a rolled-back transaction, but not the process exiting |
 | Combining | Cannot be used with `columns` or `filters` — the spilled packages were produced under the original ones, and replaying under different ones would quietly return something else |
+| Parameters | `chunk_size` and `wireformat` are refused alongside `recover`, as `columns` and `filters` are: a replay re-emits packages exactly as the engine produced them, so none of them has anything left to influence |
 | Connectivity | **Needs no SAP connection.** A recover opens no graph and resolves nothing against the catalogue: the schema comes from the spilled package plus the column names recorded with the batch. That is deliberate — SAP being unreachable is the situation `recover` exists for |
 
 `erpl_ape_spill_enabled = false` turns the spill off, which makes delta **at-most-once**: an
@@ -1453,6 +1463,14 @@ lets the listing default to "ours" without hiding the delta subscriptions you na
 never have to spell the prefix out: `sap_ape_read_delta` and `PRAGMA sap_ape_drop` both take the
 plain `subscriber_process`, and the listing reports it unprefixed in `subscriber_process` alongside
 the stored name in `subscription_name`. A Basis admin looking at `DHCDC_MON` sees the prefixed form.
+
+The prefix is a naming convention, not a claim of ownership, and it is matched case-sensitively — a
+third party's `erpl_something` is neither listed as ours nor droppable through it.
+
+**Subscriptions registered before this convention existed** carry the bare `subscriber_process`.
+`PRAGMA sap_ape_drop` falls back to the exact name, so they can always be removed. A delta read that
+finds one refuses rather than quietly registering a second subscription beside it and re-running the
+initial load — the message names the drop to run if you would rather discard it than drain it.
 
 #### `sap_ape_show_subscriptions([erpl_only, cds_name, secret])`
 
