@@ -12,9 +12,23 @@
 * CX_UCON_NOT_ACTIVE until UCON's default objects exist.  So the assembly has to be
 * generated before anything can be added to it.
 *
-* setup_dark is the non-interactive form of what UCONCOCKPIT does on first use.  Local
-* objects, current client only, no change documents -- so it needs no transport.  There
-* is a supported cl_ucon_setup=>revert( ) if it has to be undone.
+* setup_dark is the non-interactive form of what UCONCOCKPIT does on first use.  Current
+* client only and no change documents, so it needs no transport.  There is a supported
+* cl_ucon_setup=>revert( ) if it has to be undone.
+*
+* IV_NAME_SPACE IS THE LOCAL-SAVE SWITCH, not decoration.  create_default_com_assemblies
+* branches on it:
+*
+*     IF iv_name_space = c_gen_prefix.        "'/1BCMIDRF/'
+*       li_ca->save( dev_class = '$TMP' ).    "local
+*     ELSE.
+*       li_ca->save( ).                       "asks for a transport
+*
+* and the transport branch tries to raise the transport-request dynpro, which in a
+* headless class run fails as "Sending of dynpro SAPLSTRD 0353 not possible: No window
+* system type specified".  IV_LOCAL does not cover it.  So the namespace has to be
+* c_gen_prefix, which also means the generated objects are named /1BCMIDRF/DEFAULT_CA
+* and friends -- the same names UCONCOCKPIT generates.
 CLASS zcl_erpl_ucon_release DEFINITION
   PUBLIC FINAL CREATE PUBLIC.
   PUBLIC SECTION.
@@ -55,7 +69,7 @@ CLASS zcl_erpl_ucon_release IMPLEMENTATION.
         TRY.
             cl_ucon_setup=>setup_dark(
               iv_local                = abap_true
-              iv_name_space           = space
+              iv_name_space           = cl_ucon_setup=>c_gen_prefix
               iv_transport_rfc_states = abap_false
               iv_current_client_only  = abap_true
               iv_avoid_cd             = abap_true ).
