@@ -134,12 +134,24 @@ CLASS zcl_erpl_ucon_release IMPLEMENTATION.
         RETURN.
     ENDTRY.
 
-    " Report the runtime rows rather than claiming success: an empty UCONRFCSTATERT is
-    " precisely the silent failure this step exists to fix.
-    SELECT COUNT(*) FROM uconrfccart   INTO @DATA(lv_cart).
-    SELECT COUNT(*) FROM uconrfcstatert INTO @DATA(lv_statert).
-    SELECT COUNT(*) FROM uconrfcsrvfmrt INTO @DATA(lv_srvfmrt).
-    out->write( |runtime: CART={ lv_cart } STATERT={ lv_statert } SRVFMRT={ lv_srvfmrt }| ).
+    " Report the runtime rows rather than claiming success. Measure the tables this API
+    " actually writes: UCONRFCSTATERT and UCONRFCSRVFMRT are legacy -- their handling is
+    " commented out inside set_ucon_rfc_state_by_rfm_list -- so asserting on them reads
+    " as a failure on a run that worked.
+    SELECT COUNT(*) FROM uconrfccart      INTO @DATA(lv_cart).
+    SELECT COUNT(*) FROM uconrfcsrvmainrt INTO @DATA(lv_mainrt).
+    SELECT COUNT(*) FROM uconcavhostrt    INTO @DATA(lv_vhostrt).
+    out->write( |runtime: CART={ lv_cart } SRVMAINRT={ lv_mainrt } CAVHOSTRT={ lv_vhostrt }| ).
+
+    " And the per-module verdict, which is what actually decides a call. A module in
+    " logging phase should be permitted and recorded; if calls are still refused, this
+    " line is the evidence for where to look next.
+    SELECT funcname, actual_phase FROM uconrfcsrvmainrt
+      WHERE funcname IN @lt_range
+      INTO TABLE @DATA(lt_verdict).
+    LOOP AT lt_verdict INTO DATA(ls_verdict).
+      out->write( |  { ls_verdict-funcname } phase={ ls_verdict-actual_phase }| ).
+    ENDLOOP.
     out->write( |is_ws_rfc_active = { cl_ucon_setup=>is_ws_rfc_active( ) }| ).
     out->write( |ucon release done| ).
   ENDMETHOD.
