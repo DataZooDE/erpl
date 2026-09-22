@@ -51,11 +51,13 @@ CLASS zcl_erpl_ucon_release IMPLEMENTATION.
   METHOD if_oo_adt_classrun~main.
 
     " ---- 1. UCON's default objects, if they are not there yet ----
-    DATA lv_default_ca TYPE uconcaid.
+    DATA lv_default_ca  TYPE uconcaid.
+    DATA lv_default_cfg TYPE uconhttpid.
     TRY.
         cl_ucon_setup=>get_default_object_names(
           EXPORTING client_independent_only = abap_true
-          IMPORTING default_ca_name         = lv_default_ca ).
+          IMPORTING default_ca_name         = lv_default_ca
+                    default_cfg_name        = lv_default_cfg ).
       CATCH cx_ucon_not_active.
         out->write( |UCON has no default objects yet; generating them| ).
         TRY.
@@ -68,7 +70,8 @@ CLASS zcl_erpl_ucon_release IMPLEMENTATION.
             COMMIT WORK AND WAIT.
             cl_ucon_setup=>get_default_object_names(
               EXPORTING client_independent_only = abap_true
-              IMPORTING default_ca_name         = lv_default_ca ).
+              IMPORTING default_ca_name         = lv_default_ca
+                        default_cfg_name        = lv_default_cfg ).
           CATCH cx_root INTO DATA(lx_setup).
             out->write( |setup_dark failed: { lx_setup->get_text( ) }| ).
             RETURN.
@@ -125,6 +128,30 @@ CLASS zcl_erpl_ucon_release IMPLEMENTATION.
         out->write( |runtime push failed: { lx_rt->get_text( ) }| ).
         RETURN.
     ENDTRY.
+
+    " ---- 3b. The config runtime table, which setup skips on a fresh system ----
+    " setup_dark only calls set_ucon_config_name_4_rt from its "objects already exist"
+    " branch, so on a first-time setup UCONRFCCFGRT and UCONRFCSRVRT are left empty --
+    " measured: 0 rows each, while every other runtime table was correctly filled and
+    " every call was still refused. The kernel reads those two for the configuration's
+    " identity and timestamp, so an empty pair means it finds no configuration at all.
+    TRY.
+        cl_uconrfc_runtime=>set_ucon_config_name_4_rt(
+          ip_config_name = CONV uconrfcservid( lv_default_cfg )
+          ip_action      = 'I'
+          ip_client      = sy-mandt ).
+        cl_uconrfc_runtime=>set_ucon_service_name_4_rt(
+          ip_service_name = CONV uconhttpservid( lv_default_cfg )
+          ip_action       = 'I' ).
+        cl_uconrfc_runtime=>sync_db_buffer_all( ).
+        COMMIT WORK AND WAIT.
+      CATCH cx_root INTO DATA(lx_cfg).
+        out->write( |config runtime push failed: { lx_cfg->get_text( ) }| ).
+    ENDTRY.
+
+    SELECT COUNT(*) FROM uconrfccfgrt INTO @DATA(lv_cfgrt).
+    SELECT COUNT(*) FROM uconrfcsrvrt INTO @DATA(lv_srvrt).
+    out->write( |config runtime: CFGRT={ lv_cfgrt } SRVRT={ lv_srvrt }| ).
 
     " ---- 4. Report the row that actually decides a call ----
     " Not a count: the question is whether a '*' row exists for external scope in the
