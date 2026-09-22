@@ -60,6 +60,12 @@ LOAD erpl;
     there is nothing on the SAP side to re-stream and durability has to be local. The spill is
     written on its own transaction, so the rollback that loses your rows cannot discard it too.
     `erpl_ape_spill_enabled = false` opts out, at the cost of making delta at-most-once.
+  - `sap_ape_check_authorizations()` — what SAP must grant and whether the connected user
+    has it, probed live with `AUTHORITY_CHECK`. The requirement list is read off the system
+    (objects and fields from `TOBJ`, activities from `TACTZ`) and doubles as the module's
+    CDS-only posture in a form a Basis team can verify: `S_DHAPEOPR` is keyed by operator
+    name, and the browser's SLT / ODP_SAPI / ODP_BW / table / view objects are absent by
+    design. `ape/docs/security.md` carries the `ZERPL_APE` role definition and handout.
   - `erpl_ape_prepare_timeout` bounds the wait for SAP's asynchronous preparation, and
     `erpl_ape_delta_quiet_seconds` bounds how long an already-established delta subscription waits
     for a first package before reporting that there is nothing to replicate. They are separate on

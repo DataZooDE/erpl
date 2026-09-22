@@ -1472,6 +1472,39 @@ third party's `erpl_something` is neither listed as ours nor droppable through i
 finds one refuses rather than quietly registering a second subscription beside it and re-running the
 initial load — the message names the drop to run if you would rather discard it than drain it.
 
+#### `sap_ape_check_authorizations([cds_name, secret])`
+
+What erpl_ape needs from SAP, and whether the connected user has it — the question worth
+asking before a delivery rather than after a failure. Without a check, the first missing
+authorisation surfaces as an ABAP message from whichever call happened to be first, which
+says nothing about the others.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `cds_name` | VARCHAR | `'*'` | Entity to check the per-entity authorisations against. `S_DHAMBCDS` is keyed by CDS name, so a concrete answer needs one; `*` asks the question a role review asks |
+| `secret` | VARCHAR | — | Named secret |
+
+**Returns:** `auth_object`, `field`, `required_value`, `present` (BOOLEAN), `purpose`, `note`
+
+`required_value` is compiled in; `present` is probed live with `AUTHORITY_CHECK`. Where a
+correct check cannot be formed — `S_DHAMBACT`'s activity field has no fixed values in the
+dictionary — `present` is **NULL** and `note` says so, rather than a guess.
+
+```sql
+-- only the gaps
+SELECT auth_object, field, required_value, note
+FROM sap_ape_check_authorizations('ZERPL_APE_FLIGHT')
+WHERE present IS NOT TRUE;
+```
+
+The requirement list is also the module's CDS-only posture in a form a customer's Basis
+team can verify: `S_DHAPEOPR` is keyed by *operator name*, so a role built from this list
+cannot drive an ODP or SLT operator, and the metadata browser's `S_DHAMBSLT` / `S_DHAMBSAP`
+/ `S_DHAMBBW` / `S_DHAMBTAB` / `S_DHAMBVW` objects are absent by design. See
+`ape/docs/security.md` for the role definition and handout.
+
+---
+
 #### `sap_ape_show_subscriptions([erpl_only, cds_name, secret])`
 
 | Parameter | Type | Default | Description |
