@@ -118,12 +118,12 @@ run_step() {
 }
 
 # ── 7. Step 1: Install extension ─────────────────────────────────────────────
-run_step "Step 1/4: Installing extension..." \
+run_step "Step 1/6: Installing extension..." \
     "INSTALL '${EXTENSION_PATH}';"
 rm -f "$STEP_OUTPUT"
 
 # ── 8. Step 2: Load and check duckdb_extensions() ────────────────────────────
-run_step "Step 2/5: Loading extension and checking duckdb_extensions()..." \
+run_step "Step 2/6: Loading extension and checking duckdb_extensions()..." \
     "LOAD erpl;
 SELECT extension_name, loaded
   FROM duckdb_extensions()
@@ -139,7 +139,7 @@ fi
 rm -f "$EXT_OUTPUT"
 
 # ── 9. Step 3: Count sap_* functions via duckdb_functions() ──────────────────
-run_step "Step 3/5: Counting sap_* functions in duckdb_functions()..." \
+run_step "Step 3/6: Counting sap_* functions in duckdb_functions()..." \
     "LOAD erpl;
 SELECT count(*) AS sap_function_count
   FROM duckdb_functions()
@@ -147,7 +147,7 @@ SELECT count(*) AS sap_function_count
 rm -f "$STEP_OUTPUT"
 
 # ── 10. Step 4: Verify specific function names ────────────────────────────────
-run_step "Step 4/5: Verifying specific SAP function names..." \
+run_step "Step 4/6: Verifying specific SAP function names..." \
     "LOAD erpl;
 SELECT function_name
   FROM duckdb_functions()
@@ -164,15 +164,41 @@ for FUNC in sap_read_table sap_rfc_invoke sap_show_tables; do
 done
 rm -f "$FUNC_OUTPUT"
 
-# ── 11. Step 5: Double-connection regression test (issue #52) ─────────────────
-echo "[smoke-test] Step 5/5: Double-connection load regression test (issue #52)..."
+# ── 11. Step 5: SAP_* environment variables must not break LOAD ───────────────
+# Having SAP_PASSWORD exported once crashed extension load outright with
+# "INTERNAL Error: Unrecognized option sap_password": a credentials provider set six
+# extension options that were never registered and never read. Nothing else can catch
+# a regression here -- the SQL suites use ERPL_SAP_* names and the ape harness
+# explicitly runs `env -u SAP_PASSWORD` -- and it needs no SAP system, so it belongs
+# in the smoke test.
+echo "[smoke-test] Step 5/6: LOAD with SAP_* in the environment..."
+SAP_ENV_OUT="$(mktemp /tmp/erpl-smoke-sapenv-XXXXXX.txt)"
+if HOME="$SMOKE_HOME" SAP_ASHOST=nosuchhost SAP_SYSNR=00 SAP_CLIENT=001        SAP_USER=nobody SAP_PASSWORD=not-a-real-password SAP_LANG=EN        "${RUN_CLI[@]}" -c "LOAD erpl; SELECT 42 AS answer;" >"$SAP_ENV_OUT" 2>&1; then
+    if grep -q "42" "$SAP_ENV_OUT"; then
+        echo "[smoke-test] OK: extension loads with SAP_* set"
+    else
+        echo "ERROR: LOAD with SAP_* set produced no result:" >&2
+        cat "$SAP_ENV_OUT" >&2
+        rm -f "$SAP_ENV_OUT"
+        exit 1
+    fi
+else
+    echo "ERROR: LOAD failed with SAP_* environment variables set:" >&2
+    cat "$SAP_ENV_OUT" >&2
+    rm -f "$SAP_ENV_OUT"
+    exit 1
+fi
+rm -f "$SAP_ENV_OUT"
+
+# ── 12. Step 6: Double-connection regression test (issue #52) ─────────────────
+echo "[smoke-test] Step 6/6: Double-connection load regression test (issue #52)..."
 DUCKDB_PY_VERSION="${DUCKDB_VERSION_TAG#v}"   # strip leading 'v' for pip
 PY_PKG_DIR="$(mktemp -d /tmp/erpl-duckdb-py-XXXXXX)"
 trap 'rm -rf "$SMOKE_HOME" "$PY_PKG_DIR"' EXIT INT TERM
 if [[ "$OS" == "Darwin" && "${OSX_BUILD_ARCH:-}" == "x86_64" ]]; then
     # The extension was built for osx_amd64 but the runner is arm64. The native
     # Python duckdb wheel is arm64 and cannot install an osx_amd64 extension.
-    echo "[smoke-test] WARNING: skipping Step 5 on osx_amd64 cross-build (runner arch is arm64, Python duckdb is arm64)"
+    echo "[smoke-test] WARNING: skipping Step 6 on osx_amd64 cross-build (runner arch is arm64, Python duckdb is arm64)"
 elif command -v python3 &>/dev/null && python3 -m pip install --quiet --only-binary=:all: \
         --target "$PY_PKG_DIR" "duckdb==${DUCKDB_PY_VERSION}" 2>/dev/null; then
     # PYTHONPATH points at the --target dir so the same Python that ran pip finds duckdb,
@@ -180,7 +206,7 @@ elif command -v python3 &>/dev/null && python3 -m pip install --quiet --only-bin
     PYTHONPATH="$PY_PKG_DIR" HOME="$SMOKE_HOME" \
         python3 "$PROJ_DIR/trampoline/test/python/test_double_load.py" "$EXTENSION_PATH"
 else
-    echo "[smoke-test] WARNING: duckdb Python wheel not available for ${DUCKDB_PY_VERSION} — skipping Step 5"
+    echo "[smoke-test] WARNING: duckdb Python wheel not available for ${DUCKDB_PY_VERSION} — skipping Step 6"
 fi
 
 echo ""

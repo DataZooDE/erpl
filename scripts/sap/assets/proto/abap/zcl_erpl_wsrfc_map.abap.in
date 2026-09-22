@@ -1,0 +1,53 @@
+* Template. 30-cert-trust.sh substitutes @CERT_CHUNKS@ with the client certificate
+* as base64, split across lines, and deploys the result.
+*
+* Why the certificate is embedded rather than passed: IF_OO_ADT_CLASSRUN takes no
+* parameters, and SUSR_CERT_ASSIGN is *self-service* -- it maps the certificate to
+* whichever user is calling -- so the mapping has to happen inside a class run as
+* that user, with the certificate travelling in the source.
+*
+* Why the certificate and not a hand-written subject string: SUSR_CERT_ASSIGN
+* derives the canonical subject itself when given IF_CERTIFICATE. A DN written by
+* hand disagrees with the kernel's canonical form often enough that "trusted but
+* not mapped" is a documented trap.
+CLASS zcl_erpl_wsrfc_map DEFINITION
+  PUBLIC FINAL CREATE PUBLIC.
+  PUBLIC SECTION.
+    INTERFACES if_oo_adt_classrun.
+ENDCLASS.
+
+CLASS zcl_erpl_wsrfc_map IMPLEMENTATION.
+  METHOD if_oo_adt_classrun~main.
+    " ABAP source lines cap at 255 characters and a DER certificate base64-encodes
+    " to roughly 1200, so the literal arrives in chunks.
+    DATA lv_b64 TYPE string.
+@CERT_CHUNKS@
+    DATA(lv_cert) = cl_http_utility=>decode_x_base64( lv_b64 ).
+
+    " if_replace so a re-run updates the mapping instead of failing on the one it
+    " made last time -- this script is re-run after every instance restart.
+    CALL FUNCTION 'SUSR_CERT_ASSIGN'
+      EXPORTING
+        if_certificate = lv_cert
+        if_replace     = abap_true
+      EXCEPTIONS
+        assign_failed  = 1
+        OTHERS         = 2.
+    IF sy-subrc = 0.
+      out->write( |SUSR_CERT_ASSIGN mapped the certificate to { sy-uname }| ).
+    ELSE.
+      out->write( |SUSR_CERT_ASSIGN failed, subrc={ sy-subrc }| ).
+    ENDIF.
+
+    " Report what the user is actually mapped to, so a silent no-op is visible.
+    SELECT extid FROM usrextid
+      WHERE bname = @sy-uname AND type = 'DN'
+      INTO TABLE @DATA(lt_extid).
+    LOOP AT lt_extid INTO DATA(ls_extid).
+      out->write( |USREXTID: { ls_extid-extid }| ).
+    ENDLOOP.
+    IF lt_extid IS INITIAL.
+      out->write( |USREXTID: none -- the certificate is not mapped| ).
+    ENDIF.
+  ENDMETHOD.
+ENDCLASS.

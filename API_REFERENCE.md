@@ -73,6 +73,9 @@ SELECT * FROM sap_bics_show_cubes();
 | `sap_odp_read_delta` | Extract ODP data (incremental delta) | `SELECT * FROM sap_odp_read_delta('BW', 'MY_ODP', 'MY_PIPELINE')` |
 | `sap_odp_get_last_modified` | Last-modified timestamp of an ODP object (cheap delta probe) | `SELECT * FROM sap_odp_get_last_modified('ABAP_CDS', 'MY_CDS$E')` |
 | `sap_odp_get_subscriptions` | List subscriptions for one ODP object | `SELECT * FROM sap_odp_get_subscriptions('ABAP_CDS', 'MY_CDS$E')` |
+| `sap_ape_show` | List CDS entities via the ABAP Pipeline Engine | `SELECT * FROM sap_ape_show(search => 'I_GL%')` |
+| `sap_ape_preview` | Sample a CDS entity (no graph, no subscription) | `SELECT * FROM sap_ape_preview('ZERPL_APE_FLIGHT')` |
+| `sap_ape_read_full` | Extract a CDS entity via the ABAP Pipeline Engine | `SELECT * FROM sap_ape_read_full('ZERPL_APE_FLIGHT')` |
 | `ATTACH` | Mount SAP as database | `ATTACH '' AS sap (TYPE sap_rfc)` |
 
 ---
@@ -1170,6 +1173,396 @@ PRAGMA sap_odp_drop(
     'SEPM_IBUPA$P'
 );
 ```
+
+---
+
+## erpl_ape — SAP ABAP Pipeline Engine
+
+**Private module.** Delivered per engagement; not published on get.erpl.io.
+
+`erpl_ape` reads CDS entities through SAP's own **ABAP Pipeline Engine** (`DHAPE_*`) and its
+metadata browser (`DHAMB_*`). Nothing is installed in SAP.
+
+It loads alongside `erpl_rfc`, which owns the `sap_rfc` secret type — create the secret exactly as
+for any other erpl module and pass `secret => '...'` to select a named one.
+
+> **Reads are slow to start, by design of the SAP side.** SAP prepares an initial load with a
+> background job (DHCDC "ACD"), and while that job is pending the engine returns neither data nor an
+> error. `sap_ape_read_full` therefore polls; expect tens of seconds before the first rows on a
+> small entity. A stalled job fails with a message naming the application log to check, rather than
+> hanging forever.
+>
+> **Delta requires two annotations on the view.** `@Analytics.dataExtraction.enabled` alone permits
+> initial load only; replication also needs
+> `@Analytics.dataExtraction.delta.changeDataCapture.automatic`. The engine says so clearly if it is
+> missing.
+
+### Discovery
+
+#### `sap_ape_show([search, released_only, max_depth, secret])`
+
+Lists CDS entities from `DHAMB_SERVICE_DSET_BROWSE`.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `search` | VARCHAR | — | Name pattern, matched case-insensitively (upper-cased before sending) |
+| `released_only` | BOOLEAN | `false` | Only entities with a release contract (`CDS_PUBLISHED`) |
+| `max_depth` | UINTEGER | 8 | Folder recursion depth — the browser is a package tree |
+| `secret` | VARCHAR | — | Named secret |
+
+**Returns:** `cds_name`, `description`, `object_path`, `base_table`, `package`, `component`,
+`is_released`, `cds_type`, `last_change`
+
+Only the `/CDS` subtree is browsed. The metadata browser's root also exposes `/ODP_BW` and
+`/ODP_SAPI`; erpl_ape never reads those, by design.
+
+```sql
+SELECT * FROM sap_ape_show(search => 'ZERPL%');
+SELECT * FROM sap_ape_show(released_only => true);
+```
+
+---
+
+#### `sap_ape_describe(cds_name [, secret])`
+
+One row per field. `cds_name` may be the entity name or its full browser path.
+
+**Returns:** `position`, `field_name`, `is_key`, `abap_type`, `length`, `decimals`, `duckdb_type`,
+`description`, `data_element`, `reference_table`, `reference_field`, `cds_name`, `is_released`
+
+Types go through the same DDIC mapper as `sap_read_table`, so both agree cell for cell.
+`reference_table`/`reference_field` carry the currency or unit reference for amount and quantity
+fields.
+
+```sql
+SELECT field_name, abap_type, duckdb_type FROM sap_ape_describe('ZERPL_APE_FLIGHT');
+```
+
+---
+
+#### `sap_ape_preview(cds_name [, max_rows, secret])`
+
+Samples rows via `DHAMB_SERVICE_DSET_PREVIEW`. **Starts no graph and creates no subscription**, so
+it is the cheap way to look at an entity before committing to extraction.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `max_rows` | UINTEGER | 100 | Rows to sample; `0` leaves the limit to SAP |
+| `secret` | VARCHAR | — | Named secret |
+
+Columns come back in their DuckDB types, derived from `sap_ape_describe`. A value SAP reports in a
+form that will not convert is returned as NULL and logged at WARN rather than failing the scan.
+
+```sql
+SELECT * FROM sap_ape_preview('ZERPL_APE_FLIGHT', max_rows => 10);
+```
+
+---
+
+### Extraction
+
+#### `sap_ape_read_full(cds_name [, columns, filters, chunk_size, wireformat, secret])`
+
+Full snapshot of a CDS entity through the pipeline engine. Creates a subscription for the duration
+of the scan and stops its graph when the scan ends.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `cds_name` | VARCHAR | *required* | CDS entity name, or its browser path |
+| `columns` | LIST(VARCHAR) | all | Projection. Validated against the catalogue, so a typo fails at bind. Applied on the client — see below |
+| `filters` | LIST(STRUCT) | — | **Refused on this release** — see below |
+| `chunk_size` | UINTEGER | 1000 | Records per roundtrip |
+| `wireformat` | VARCHAR | `'Required Conversions Plus Time Format and Currency'` | Engine conversion profile, checked at bind against the four the reader declares — a typo does not fail on the SAP side, it quietly changes the semantics the decoder is written against. The default renders dates ISO and decimals as plain text |
+| `secret` | VARCHAR | — | Named secret |
+
+Output is the entity's own columns, typed from the package's self-describing field metadata — no
+system columns — so the schema can seed a target table:
+
+```sql
+CREATE TABLE flights AS SELECT * FROM sap_ape_read_full('ZERPL_APE_FLIGHT') WHERE 1=0;
+```
+
+**Projection is applied on the client, not in SAP.** The pipeline reader available on current
+releases takes no schema in its configuration, so the engine streams every column of the entity and
+`erpl_ape` maps the ones asked for out of the package's self-describing field metadata. The contract
+a caller sees is unchanged — these columns and no others — but the saving is in DuckDB, not on the
+wire.
+
+**`filters` is refused rather than ignored.** The same reader reads no filter from its
+configuration either. Accepting the parameter would return every row while the query looks like it
+asked for a subset, so passing it raises:
+
+```sql
+-- Error: server-side filters are not available on this system's pipeline reader ...
+SELECT * FROM sap_ape_read_full('ZERPL_APE_FLIGHT',
+    filters => [{'FIELDNAME': 'Carrid', 'SIGN': 'I', 'OP': 'EQ', 'LOW': 'LH', 'HIGH': NULL}]);
+
+-- Do this instead. The scan streams, so DuckDB applies the predicate as rows arrive.
+SELECT * FROM sap_ape_read_full('ZERPL_APE_FLIGHT',
+    columns => ['Carrid', 'Fldate', 'Price'])
+WHERE Carrid = 'LH';
+```
+
+The parameter stays declared, with `erpl_odp`'s
+`LIST<STRUCT(FIELDNAME, SIGN, OP, LOW, HIGH)>` shape, because the next-generation reader does
+support pushdown; it is not yet usable from here. `OP` accepts `EQ`, `NE`, `GT`, `GE`, `LT`, `LE`,
+`BT`, `CP`, and an operator the engine cannot express raises rather than being dropped.
+
+Entities with no release contract are refused unless `erpl_ape_allow_unreleased` is on.
+
+**A value that will not convert raises rather than becoming NULL.** The engine's classic wire format
+emits sentinels for absent values, and those become NULL deliberately — but **only where the column
+cannot hold them**: `9999-99-99` in a `DATE`, `NaN` in a numeric, and so on. In a text column `?` and
+`NaN` are ordinary data and come through unchanged. A blank cell is NULL for any non-text column.
+
+Anything else that fails to cast is an error naming the package, row, column and a bounded fragment
+of the text, because a silent NULL is a wrong answer the caller cannot see. For the same reason, a
+column the catalogue reports but the package does not carry is an error rather than a column of
+NULLs. For a delta read the offending package is still in `erpl_ape.delta_spill`, so the row can be
+inspected there, and `recover => true` replays the batch once the cause is addressed — by excluding
+the column with `columns`, or by a different `wireformat`.
+
+The default `wireformat` is the profile this build's decoder is written against. The others are
+accepted but not verified; with raise-on-cast, a profile that renders values differently will fail
+loudly rather than quietly.
+
+**Amounts are currency-shifted, unlike `sap_read_table`.** The default wire format applies SAP's
+currency-specific decimal shift, so a `CURR` field comes back as the business amount. For a
+0-decimal currency such as JPY that differs from the raw stored value by a factor of 100:
+
+| | `sap_ape_read_full` | `sap_read_table` |
+|---|---|---|
+| `PRICE` where `CURRENCY = 'JPY'` | `106136.00` (the actual amount) | `1061.36` (raw internal value) |
+| `PRICE` where `CURRENCY = 'USD'` | `422.94` | `422.94` |
+
+This is the engine's conversion, not erpl's, and it is what the `wireformat` name
+("…Plus Currency") refers to. Pass a different `wireformat` if you need the unshifted value; expect
+to have to apply `TCURX` yourself if you do.
+
+---
+
+#### `sap_ape_read_delta(cds_name, subscriber_process [, …])`
+
+Changes since the previous call. `subscriber_process` names the server-side subscription and must be
+stable across runs — re-using it is what lets SAP resume. At most 30 characters, no control
+characters.
+
+Named parameters are the same as `sap_ape_read_full` — including that `columns` is applied on the
+client and `filters` is refused on this release — plus `recover`.
+
+Output is the entity's columns **plus the engine's own change indicator as the last column**,
+`/1DH/OPERATION` (VARCHAR) — the engine's name is used rather than an invented one.
+
+The first call on a fresh `subscriber_process` returns the current contents with a blank indicator
+(the initial-load phase) and registers the subscription. Later calls return only changes:
+
+| SAP change | `/1DH/OPERATION` | Row content |
+|---|---|---|
+| INSERT | `U` | full after-image |
+| UPDATE | `U` | full after-image |
+| DELETE | `D` | **keys only**; non-key columns blank or zero |
+
+Note that an insert is reported as `U`, not `I`: inserts and updates are both after-images. `D` is
+the one that matters — deletes *are* reported, which is what ODP's `byElement` annotation cannot do.
+
+Apply idempotently by deleting the keys present in the batch and re-inserting the non-`D` rows:
+
+```sql
+CREATE TEMP TABLE d AS SELECT * FROM sap_ape_read_delta('ZERPL_APE_D', 'NIGHTLY');
+BEGIN;
+  DELETE FROM tgt USING (SELECT DISTINCT Rid FROM d) x WHERE tgt.Rid = x.Rid;
+  INSERT INTO tgt SELECT * EXCLUDE ("/1DH/OPERATION") FROM d WHERE "/1DH/OPERATION" <> 'D';
+COMMIT;
+```
+
+#### Recovering an interrupted delta read
+
+`recover => true` re-emits the packages of the most recent delta batch **from a local spill**, not
+from SAP.
+
+That indirection is forced by the engine: it commits each portion the moment it hands it over
+(`commit_delta_data` runs immediately after the data is written to the port) and the protocol has no
+client acknowledgement. Measured on a live system — abandoning a scan after consuming 5 of 180
+changes left **0** for the next read; the other 175 were gone for good. So there is nothing on the
+SAP side to re-stream, and the only copy that can survive is a local one.
+
+`erpl_ape` therefore writes every delta package to **`erpl_ape.delta_spill`** before handing its rows
+over, on its own transaction so that the rollback which loses your rows cannot take the spill with
+it.
+
+**The spill table holds your business data in the clear, and you should know its shape:**
+
+| Column | Type | Meaning |
+|---|---|---|
+| `cds_name` | VARCHAR | The entity, as the engine names it (bare and upper-case, whatever spelling you passed) |
+| `subscriber_process` | VARCHAR | The value you passed, unprefixed |
+| `batch_id` | BIGINT | Increases per subscriber; the newest one is what `recover` replays |
+| `sequence` | INTEGER | Package order within the batch. `-1` is not a package — it records the column names the interrupted read reported, so a recover reports the same ones |
+| `captured_at` | TIMESTAMP | When the package was persisted |
+| `payload` | BLOB | The engine's package, byte for byte — envelope and all rows. BLOB rather than VARCHAR because SAP text arrives in the system codepage, and a VARCHAR column would refuse a stray byte *after* the engine had already committed the portion |
+
+It is an ordinary table, so:
+
+- **Anyone who can open the database can read it.** On a persistent database the newest batch stays
+  until another delta read on the same subscriber replaces it, which may be indefinitely. Treat the
+  database file with the same care as the data it replicates, and `DELETE FROM erpl_ape.delta_spill`
+  when a batch is no longer needed.
+- Error messages from the decoder may quote a bounded fragment of a row — a couple of hundred
+  characters — because a truncated package and a malformed one are otherwise indistinguishable.
+
+```sql
+-- something went wrong mid-load; replay what SAP already handed over
+SELECT * FROM sap_ape_read_delta('ZERPL_APE_D', 'NIGHTLY', recover => true);
+```
+
+| Property | Behaviour |
+|---|---|
+| Granularity | Whole packages. A recover returns every row of each package that was handed over, including rows the failed read had already consumed — so apply idempotently |
+| Repeatability | Safe to repeat; it touches no SAP state and does not advance the subscription |
+| Scope | Only the **most recent** batch. An ordinary read starts a new batch and discards the previous spill |
+| Durability | Survives process death **only if the DuckDB database is persistent**. In an in-memory session the spill still survives a rolled-back transaction, but not the process exiting |
+| Combining | Cannot be used with `columns` or `filters` — the spilled packages were produced under the original ones, and replaying under different ones would quietly return something else |
+| Parameters | `chunk_size` and `wireformat` are refused alongside `recover`, as `columns` and `filters` are: a replay re-emits packages exactly as the engine produced them, so none of them has anything left to influence |
+| Connectivity | **Needs no SAP connection.** A recover opens no graph and resolves nothing against the catalogue: the schema comes from the spilled package plus the column names recorded with the batch. That is deliberate — SAP being unreachable is the situation `recover` exists for |
+
+`erpl_ape_spill_enabled = false` turns the spill off, which makes delta **at-most-once**: an
+interrupted read then loses whatever SAP had already committed. It exists for read-only databases,
+not as a tuning knob.
+
+**A query never waits for future changes.** A replication graph is long-lived and never announces an
+end, so the scan returns what is available and stops; polling cadence is the caller's business.
+
+**If a client is killed mid-scan** its graph is left running server-side, and the engine will then
+refuse to erase the subscription it holds ("still in use by a running graph"), blocking later delta
+calls on that subscriber. Recovery is the engine's own retention mechanism — see
+`ape/test/fixtures/zcl_erpl_ape_gc.abap` and `ape/docs/protocol.md` §13.
+
+```sql
+SELECT * FROM sap_ape_read_delta('ZERPL_APE_FLIGHT', 'NIGHTLY_ETL');
+SELECT * FROM sap_ape_read_delta('ZERPL_APE_FLIGHT', 'NIGHTLY_ETL')
+WHERE "/1DH/OPERATION" <> '';
+```
+
+Do not run two delta reads with the same `subscriber_process` concurrently — they race the same
+server-side subscription.
+
+---
+
+### Subscription lifecycle
+
+The engine keeps a subscription after a graph ends, which is what makes delta resumable — and what
+makes leaked subscriptions a real hygiene concern on a customer system.
+
+`sap_ape_read_full` creates a subscription for the duration of its scan and **erases it when the
+scan ends**, so a snapshot leaves nothing behind — including when the scan is abandoned early by a
+`LIMIT` or an error. A delta subscription is the caller's and persists until dropped explicitly.
+
+**Every subscription erpl_ape registers is named `ERPL_` + your `subscriber_process`.** The engine
+records no creator, so the name is the only way this module can recognise its own — which is what
+lets the listing default to "ours" without hiding the delta subscriptions you named yourself. You
+never have to spell the prefix out: `sap_ape_read_delta` and `PRAGMA sap_ape_drop` both take the
+plain `subscriber_process`, and the listing reports it unprefixed in `subscriber_process` alongside
+the stored name in `subscription_name`. A Basis admin looking at `DHCDC_MON` sees the prefixed form.
+
+The prefix is a naming convention, not a claim of ownership, and it is matched case-sensitively — a
+third party's `erpl_something` is neither listed as ours nor droppable through it.
+
+**Subscriptions registered before this convention existed** carry the bare `subscriber_process`.
+`PRAGMA sap_ape_drop` falls back to the exact name, so they can always be removed. A delta read that
+finds one refuses rather than quietly registering a second subscription beside it and re-running the
+initial load — the message names the drop to run if you would rather discard it than drain it.
+
+#### `sap_ape_show_subscriptions([erpl_only, cds_name, secret])`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `erpl_only` | BOOLEAN | `true` | Only subscriptions whose stored name carries the `ERPL_` prefix, i.e. the ones this module registered. Default on, because a shared system accumulates other people's and listing them all invites accidental drops |
+| `cds_name` | VARCHAR | — | Filter to one entity |
+| `secret` | VARCHAR | — | Named secret |
+
+**Returns:** `subscription_id`, `cds_name`, `transfer_mode`, `subscriber_process`,
+`subscription_name`, `created_at`, `status`
+
+`subscriber_process` is the value that round-trips into `PRAGMA sap_ape_drop`; `subscription_name` is
+what the engine stores, prefix and all.
+
+There is no RFC that answers this, so it runs a short-lived graph built from the engine's own
+subscription-reader operator.
+
+```sql
+SELECT * FROM sap_ape_show_subscriptions();
+SELECT * FROM sap_ape_show_subscriptions(erpl_only => false);
+```
+
+---
+
+#### `PRAGMA sap_ape_drop(cds_name, subscriber_process [, secret=...])`
+
+Erases a subscription, running the engine's subscription-eraser operator. **Reports rather than
+raising** — it is a cleanup primitive and SQL has no try/catch:
+
+| `msg` | Meaning |
+|---|---|
+| `DROPPED` | Erased, and verified gone from the inventory |
+| `NOT_FOUND` | No such subscription; idempotent, so repeating a drop is safe |
+| `STILL_PRESENT` | The eraser ran but the subscription is still listed |
+| `REFUSED: …` | The call itself failed; the message carries why |
+
+```sql
+PRAGMA sap_ape_drop('ZERPL_APE_FLIGHT', 'NIGHTLY_ETL');
+```
+
+---
+
+### Diagnostics
+
+#### `PRAGMA sap_ape_ping([secret])`
+
+Logs on **and** asks the pipeline engine for its version, so it fails when `DHAPE_*` is
+unreachable for the RFC user rather than only when logon fails.
+
+**Returns:** `msg` (`'PONG'`), `ape_version`
+
+```sql
+PRAGMA sap_ape_ping;
+```
+
+---
+
+#### `sap_ape_system_info([secret])`
+
+One row.
+
+| Column | Type | Meaning |
+|--------|------|---------|
+| `system_kind` | VARCHAR | `ABAP_PLATFORM` or `UNKNOWN` |
+| `release` | VARCHAR | The system's identification key |
+| `ape_version` | VARCHAR | From `DHAPE_GRAPH_VERSION`, e.g. `2.7.0` |
+| `ape_capabilities` | VARCHAR | Raw capabilities JSON from the engine |
+| `api_version` | VARCHAR | Metadata-browser API version |
+| `db_system` | VARCHAR | e.g. `HDB` |
+| `transport` | VARCHAR | `RFC` |
+| `supported` | BOOLEAN | True when the engine reported a version |
+| `reason` | VARCHAR | Why not, when `supported = false` |
+
+```sql
+SELECT supported, ape_version, reason FROM sap_ape_system_info();
+```
+
+---
+
+### Configuration options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `erpl_ape_spill_enabled` | BOOLEAN | `true` | Persist every delta package to `erpl_ape.delta_spill` before its rows are handed over, so an interrupted read can be replayed with `recover => true`. On by default because the engine cannot re-send a committed portion; turning it off makes delta at-most-once |
+| `erpl_ape_prepare_timeout` | UBIGINT | 900 | Seconds a read waits for SAP to prepare the extraction before failing. SAP runs a background job first, and a first delta additionally generates triggers and logging tables, which is much slower than an initial load. `0` waits indefinitely |
+| `erpl_ape_delta_quiet_seconds` | UBIGINT | 60 | Seconds a delta read on an already-established subscription waits for its first package before reporting that there is nothing to replicate. Deliberately not the preparation timeout: the subscription is already prepared, so a long wait for "no changes" would be absurd — but too short a wait reports "no changes" when the honest answer is "not yet" |
+| `erpl_ape_allow_unreleased` | BOOLEAN | `false` | Allow extraction from CDS entities with no release contract. Off by default because an unreleased entity may change without notice. Gates extraction, not discovery: `sap_ape_show` lists released and unreleased entities alike and flags each with `is_released`, so you can see what a system actually offers |
+
+The set of pipeline operators erpl_ape will drive is **compiled in** and no option widens it. ODP
+and SLT reader operators are excluded by design, not by omission, and the reader is restricted to
+CDS containers.
 
 ---
 

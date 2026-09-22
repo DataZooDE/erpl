@@ -2,7 +2,7 @@ PROJ_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 EXT_CONFIG=${PROJ_DIR}extension_config.cmake
 
-.PHONY: all clean format debug debug_tests release pull update wasm_mvp wasm_eh wasm_threads sql_tests_rfc sql_tests_bics sql_tests_odp sql_tests_rfc_proto sql_tests_bics_proto sql_tests_odp_proto sql_tests_all_backends delta_fixtures_odp delta_tests_odp smoke_test smoke_test_musl
+.PHONY: all clean format debug debug_tests release pull update wasm_mvp wasm_eh wasm_threads sql_tests_rfc sql_tests_bics sql_tests_odp sql_tests_ape sql_tests_rfc_proto sql_tests_bics_proto sql_tests_odp_proto sql_tests_ape_proto sql_tests_all_backends delta_fixtures_odp delta_tests_odp ape_fixtures ape_delta_tests smoke_test smoke_test_musl
 
 # Test file argument - if provided, run only that specific test
 TEST_FILE ?=
@@ -150,6 +150,9 @@ sql_tests_bics: debug_tests
 sql_tests_odp: debug_tests
 	$(call RUN_SQL_TESTS,odp,$(SAP_COMMON_VARS),,nwrfc,)
 
+sql_tests_ape: debug_tests
+	$(call RUN_SQL_TESTS,ape,$(SAP_COMMON_VARS),,nwrfc,)
+
 sql_tests_rfc_proto: debug_tests
 	$(call RUN_SQL_TESTS,rfc,$(SAP_COMMON_VARS),$(PROTO_BACKEND_VARS),proto,rfc/test/proto_known_failures.txt)
 
@@ -170,6 +173,12 @@ sql_tests_odp_proto: debug_tests
 # It is separate because it MUTATES the SAP system: it writes rows to a Z table through
 # a CDS view, so it cannot run unattended alongside other suites on a shared trial.
 # Run delta_fixtures_odp once per fresh system, then delta_tests_odp as often as needed.
+ape_fixtures:
+	SAP_PASSWORD=$(SAP_PASSWORD) ./ape/test/harness/setup.sh
+
+ape_delta_tests: debug_tests
+	SAP_PASSWORD=$(SAP_PASSWORD) ./ape/test/harness/run_delta_tests.sh
+
 delta_fixtures_odp:
 	./odp/test/harness/setup.sh
 
@@ -178,13 +187,18 @@ delta_tests_odp: debug_tests
 
 # Every suite on every backend.  Serial on purpose: the suites share one SAP system and
 # one unittest binary, and running them concurrently corrupts both.
+sql_tests_ape_proto: debug_tests
+	$(call RUN_SQL_TESTS,ape,$(SAP_COMMON_VARS),$(PROTO_BACKEND_VARS),proto,ape/test/proto_known_failures.txt)
+
 sql_tests_all_backends:
 	$(MAKE) sql_tests_rfc
 	$(MAKE) sql_tests_bics
 	$(MAKE) sql_tests_odp
+	$(MAKE) sql_tests_ape
 	$(MAKE) sql_tests_rfc_proto
 	$(MAKE) sql_tests_bics_proto
 	$(MAKE) sql_tests_odp_proto
+	$(MAKE) sql_tests_ape_proto
 
 
 # Usage examples:

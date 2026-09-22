@@ -10,32 +10,6 @@
 
 namespace duckdb 
 {
-    void RfcEnvironmentCredentialsProvider::SetExtensionOptionValue(string key, const char *env_var_name) {
-        static char *evar;
-
-        if ((evar = std::getenv(env_var_name)) != NULL) {
-            if (StringUtil::Lower(evar) == "false") {
-                this->config.SetOption(key, Value(false));
-            } else if (StringUtil::Lower(evar) == "true") {
-                this->config.SetOption(key, Value(true));
-            } else {
-                this->config.SetOption(key, Value(evar));
-            }
-        }
-    }
-
-    void RfcEnvironmentCredentialsProvider::SetAll() {
-        SetExtensionOptionValue("sap_ashost", ASHOST_ENV_VAR);
-        SetExtensionOptionValue("sap_sysnr", SYSNR_ENV_VAR);
-        SetExtensionOptionValue("sap_user", USER_ENV_VAR);
-        SetExtensionOptionValue("sap_password", PASSWORD_ENV_VAR);
-        SetExtensionOptionValue("sap_client", CLIENT_ENV_VAR);
-        SetExtensionOptionValue("sap_lang", LANG_ENV_VAR);
-    }
-
-    // RfcEnvironmentCredentialsProvider ----------------------------------------
-
-
     duckdb::CatalogTransaction SapSystemTransaction(ClientContext &context) {
         return context.transaction.HasActiveTransaction()
                    ? duckdb::CatalogTransaction::GetSystemCatalogTransaction(context)

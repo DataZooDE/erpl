@@ -71,26 +71,6 @@ namespace duckdb
 		RfcConnectionAttributes ConnectionAttributes();
     } RfcConnection;
 
-    /** 
-     * @brief A class for setting extension variables from environment variables.
-    */
-    struct RfcEnvironmentCredentialsProvider 
-	{
-		static constexpr const char *ASHOST_ENV_VAR = "SAP_ASHOST";
-		static constexpr const char *SYSNR_ENV_VAR = "SAP_SYSNR";
-		static constexpr const char *USER_ENV_VAR = "SAP_USER";
-		static constexpr const char *PASSWORD_ENV_VAR = "SAP_PASSWORD";
-		static constexpr const char *CLIENT_ENV_VAR = "SAP_CLIENT";
-		static constexpr const char *LANG_ENV_VAR = "SAP_LANG";
-
-		explicit RfcEnvironmentCredentialsProvider(DBConfig &config) : config(config) {};
-
-		DBConfig &config;
-
-		void SetExtensionOptionValue(string key, const char *env_var);
-		void SetAll();
-	};
-
 	struct RfcAuthParams {
 		// Connection / logon
 		string ashost;
