@@ -356,6 +356,13 @@ function(add_erpl_proto_backend)
         set(staged_name "liberpl_proto_nwrfc.so")
     endif()
 
+    # --features wsrfc: the shim leaves WebSocket RFC opt-in, because rustls pulls `ring`
+    # whose build script wants a C toolchain per target, which would break the shim's own
+    # cross-target check. erpl asks for it explicitly -- S/4HANA Public Cloud has no
+    # gateway to dial, so wsRFC is the only transport that reaches it. Without the feature
+    # a secret carrying WSHOST would be reported as unsupported rather than silently
+    # dialling the gateway instead.
+    #
     # Always a release build. This is a dependency, not code under debug here, and a debug
     # cdylib of the shim is ~30x the size for no diagnostic benefit on the erpl side.
     set(cargo_artifact_path "${cargo_target_dir}/release/${cargo_artifact}")
@@ -379,7 +386,7 @@ function(add_erpl_proto_backend)
     add_custom_target(erpl_proto_backend ALL
         COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${cargo_target_dir}"
                 ${CARGO_EXECUTABLE} build --release --manifest-path "${proto_dir}/Cargo.toml"
-                -p erpl-proto-nwrfc
+                -p erpl-proto-nwrfc --features wsrfc
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${cargo_artifact_path}" "${staged_path}"
         BYPRODUCTS "${staged_path}"
         COMMENT "Building erpl-proto nwrfc ABI shim (${staged_name})"

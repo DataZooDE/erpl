@@ -1231,8 +1231,33 @@ All parameters are VARCHAR. Choose either direct connection or load-balanced par
 | `dest` | Destination in `sapnwrfc.ini` | optional | optional |
 | `read_table_function` | Default RFC function module for table queries (e.g. `'RFC_READ_TABLE'`, `'/SAPDS/RFC_READ_TABLE2'`) | optional | optional |
 | `read_table_delimiter` | Single printable non-whitespace ASCII character delimiter for table queries (e.g. `'~'`, `'|'`) | optional | optional |
+| `wshost` | WebSocket RFC host. Selects wsRFC instead of a gateway connection | optional | optional |
+| `wsport` | WebSocket RFC TLS port (443 on a tenant, the ICM's wss port on-premise) | optional | optional |
+| `use_tls` | `'true'` selects wsRFC against `ashost` when no separate `wshost` is given | optional | optional |
+| `tls_client_pse` | Client PSE holding the certificate and key — **nwrfc backend only** | optional | optional |
+| `tls_trust_all` | `'true'` skips server certificate verification — **nwrfc backend only**, and never in production | optional | optional |
+| `alias_user` | Communication-user alias the certificate maps to — **nwrfc backend only** | optional | optional |
+| `ws_client_cert` | Client certificate file, PEM or DER — **proto backend only** | optional | optional |
+| `ws_client_key` | PKCS#8 private key file matching it, PEM or DER — **proto backend only** | optional | optional |
 
 ¹ Not required when logging on via SNC or an SSO2 ticket.
+
+**WebSocket RFC (wsRFC).** S/4HANA Public Cloud exposes no gateway, so the only transport
+there is RFC tunnelled over a TLS WebSocket, addressed by host and port rather than by
+`ashost`/`sysnr`. On-premise systems reach it too, on the ICM's wss port. Setting `wshost`
+(or `use_tls`) selects it; everything above it in this table — clients, users, tickets —
+works unchanged.
+
+The two backends carry the client certificate differently, which is why both spellings
+exist: `erpl_rfc_backend = 'nwrfc'` takes a SAP PSE (`tls_client_pse`), while
+`erpl_rfc_backend = 'proto'` has no CommonCryptoLib and takes the certificate and key as
+files. A setting the active backend cannot honour is **refused rather than ignored**, so a
+connection never quietly reaches somewhere other than where it was pointed.
+
+Credential precedence over wsRFC is ticket, then password, then certificate. A certificate
+supplied alongside a password is used for the TLS layer only — which is what an ICM
+configured for SSL client authentication requires while the password remains the
+credential.
 
 Connection parameters are passed through to `RfcOpenConnection` (following the SAP NetWeaver RFC SDK documentation). Extension parameters (`read_table_function`, `read_table_delimiter`) configure erpl table query extraction defaults for the secret.
 
@@ -1249,6 +1274,23 @@ CREATE SECRET my_sap_lb (
     TYPE sap_rfc,
     MSHOST 'sapms.example.com', SYSID 'PRD', GROUP 'PUBLIC',
     CLIENT '100', USER 'sapuser', PASSWD 'password'
+);
+
+-- S/4HANA Public Cloud over WebSocket RFC, certificate under a communication user
+CREATE SECRET my_sap_cloud (
+    TYPE sap_rfc,
+    WSHOST 'my-tenant.s4hana.cloud', WSPORT '443', USE_TLS 'true',
+    TLS_CLIENT_PSE '/etc/erpl/client.pse', ALIAS_USER 'ERPL_COMM',
+    CLIENT '100', LANG 'EN'
+);
+
+-- The same, on the erpl-proto backend, which takes the certificate as files
+CREATE SECRET my_sap_ws_proto (
+    TYPE sap_rfc,
+    WSHOST 'sap.example.com', WSPORT '44300', USE_TLS 'true',
+    WS_CLIENT_CERT '/etc/erpl/client_cert.pem',
+    WS_CLIENT_KEY '/etc/erpl/client_key.pem',
+    CLIENT '100', LANG 'EN'
 );
 
 -- SNC / Kerberos logon, without a password
