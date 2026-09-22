@@ -1,4 +1,4 @@
-# Make the modules erpl needs callable over wsRFC (UCON).
+# Make every remote-enabled function module callable over wsRFC (UCON).
 #
 # THIS STEP IS ABOUT wsRFC ONLY.  UCON applies to WebSocket RFC and not to classic RFC,
 # so nothing here changes how the existing suites reach the system.  What it changes is
@@ -19,16 +19,21 @@
 #      the non-interactive form of what UCONCOCKPIT does on first use).  Current client
 #      only, no change documents, and the generated-objects namespace so the save is
 #      local -- which is the parameter that keeps it out of a transport dialog.
-#      register_rfm_list cannot work before this: it resolves the default communication
-#      assembly through get_default_object_names, which raises CX_UCON_NOT_ACTIVE until
-#      the defaults exist.
-#   2. Registers the module list under application id ERPL, which the API places in an
-#      assembly of its own (/1BCMIDRF/APP_ERPL) included in the default one.
-#   3. Pushes that into the runtime tables the kernel reads.  Step 2 writes customizing
-#      only: measured, after registering alone UCONRFCSTATEHEAD held 22,925 rows,
-#      UCONRFCSTATERT held none, and every call was still rejected.  Done on every run,
-#      not only after a fresh registration, because "registered but not in the runtime"
-#      is exactly the state this repairs.
+#   2. Adds a single wildcard entry to the *default* communication assembly.  The RFC
+#      runtime forces a '*' entry to the active phase for external scope, so this makes
+#      wsRFC behave like classic RFC on a development system.  A deliberately broad
+#      grant: right for a disposable trial, wrong for anything anyone relies on.
+#   3. Pushes it into the runtime tables the kernel reads.  Step 2 writes customizing
+#      only, and the two are measurably different: registering eleven modules left
+#      UCONRFCSTATEHEAD with 22,925 rows while every call was still rejected.  Done on
+#      every run, because "in customizing but not in the runtime" is exactly the state a
+#      half-finished run leaves behind.
+#
+# WHY THE WILDCARD GOES ON THE DEFAULT ASSEMBLY and not a private per-application one:
+# register_rfm_list builds its own (/1BCMIDRF/APP_<id>), but the runtime setter only
+# emits rows for an assembly that has a UCONRFCSERVCUST entry with a config and a vhost,
+# and only the default assembly has one -- so a private assembly pushes nothing, without
+# raising.  That cost an afternoon; the class header records it.
 #
 # THIS WRITES THE SYSTEM'S SECURITY CONFIGURATION on infrastructure shared by three
 # repositories.  It is reversible -- cl_ucon_setup=>revert( ) is supported, and the
