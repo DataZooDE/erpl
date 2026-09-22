@@ -1472,7 +1472,7 @@ third party's `erpl_something` is neither listed as ours nor droppable through i
 finds one refuses rather than quietly registering a second subscription beside it and re-running the
 initial load — the message names the drop to run if you would rather discard it than drain it.
 
-#### `sap_ape_check_authorizations([cds_name, secret])`
+#### `sap_ape_check_authorizations([cds_name])`
 
 What erpl_ape needs from SAP, and whether the connected user has it — the question worth
 asking before a delivery rather than after a failure. Without a check, the first missing
@@ -1481,27 +1481,45 @@ says nothing about the others.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `cds_name` | VARCHAR | `'*'` | Entity to check the per-entity authorisations against. `S_DHAMBCDS` is keyed by CDS name, so a concrete answer needs one; `*` asks the question a role review asks |
-| `secret` | VARCHAR | — | Named secret |
+| `cds_name` | VARCHAR | — | Optional. Entity to check the per-entity objects against. `S_DHAMBCDS` is checked per CDS name, so without one those rows report `unknown` and say so rather than guessing a value |
+| `secret` | VARCHAR | — | Named secret (named parameter only) |
 
-**Returns:** `auth_object`, `field`, `required_value`, `present` (BOOLEAN), `purpose`, `note`
+**Returns:** `auth_object`, `fields` (VARCHAR[]), `checked_values` (VARCHAR[]),
+`must_be_granted` (BOOLEAN), `present` (BOOLEAN), `verdict`, `purpose`, `note`
 
-`required_value` is compiled in; `present` is probed live with `AUTHORITY_CHECK`. Where a
-correct check cannot be formed — `S_DHAMBACT`'s activity field has no fixed values in the
-dictionary — `present` is **NULL** and `note` says so, rather than a guess.
+The requirement list is compiled in, and its *values* come from the ABAP classes that
+perform the checks rather than from `TOBJ` — `TOBJ` says which fields exist and nothing
+about what is passed to them. `present` is probed live with `AUTHORITY_CHECK`.
+
+**Read `verdict`, not `present`.** One row (`S_DHAPEOP`) is a grant the role must *not*
+hold — it is the fallback that overrides `S_DHAPEOPR` — so there `present = true` is the
+failure. `must_be_granted` distinguishes the two kinds.
+
+| `verdict` | Meaning |
+|---|---|
+| `ok` | A required grant is present, or the forbidden one is absent |
+| `missing` | A required grant is not there |
+| `granted, and must not be` | `S_DHAPEOP` is held and defeats the operator restriction |
+| `unknown` | No verdict reached — never a pass. `note` says why |
 
 ```sql
--- only the gaps
-SELECT auth_object, field, required_value, note
+-- the gaps
+SELECT auth_object, checked_values, verdict, note
 FROM sap_ape_check_authorizations('ZERPL_APE_FLIGHT')
-WHERE present IS NOT TRUE;
+WHERE verdict <> 'ok';
 ```
 
+Probing happens when the scan starts, not at bind, so `DESCRIBE` and `EXPLAIN` neither
+open a logon nor leave failed authority checks in the customer's security audit log. If the
+connection cannot be opened at all, every row is returned with `verdict = 'unknown'` and
+the reason in `note` rather than the statement failing — that being exactly the situation
+the diagnostic exists for.
+
 The requirement list is also the module's CDS-only posture in a form a customer's Basis
-team can verify: `S_DHAPEOPR` is keyed by *operator name*, so a role built from this list
-cannot drive an ODP or SLT operator, and the metadata browser's `S_DHAMBSLT` / `S_DHAMBSAP`
-/ `S_DHAMBBW` / `S_DHAMBTAB` / `S_DHAMBVW` objects are absent by design. See
-`ape/docs/security.md` for the role definition and handout.
+team can verify: `S_DHAPEOPR` is checked by `CL_DHAPE_OPERATOR_REGISTRY` per *operator
+name*, so a role built from this list cannot drive an ODP or SLT operator, and the metadata
+browser's `S_DHAMBSLT` / `S_DHAMBSAP` / `S_DHAMBBW` / `S_DHAMBTAB` / `S_DHAMBVW` objects are
+absent by design. See `ape/docs/security.md` for the role definition and handout.
 
 ---
 
