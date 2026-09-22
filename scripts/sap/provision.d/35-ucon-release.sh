@@ -29,6 +29,19 @@
 #      every run, because "in customizing but not in the runtime" is exactly the state a
 #      half-finished run leaves behind.
 #
+# NOT SUFFICIENT ON ITS OWN, AS OF 2026-09-22.  Everything UCON documents is configured
+# and permissive after this step -- a '*' entry at scope E and phase A on the default
+# assembly, a virtual host matching any inbound address (IPADDR/PORT/SNC all '*'), and
+# CA -> vhost -> config wired in UCONCAVHOSTRT -- and an application module over wsRFC is
+# still answered "UCON RFC Rejected".  Two runtime tables stay empty, UCONRFCCFGRT and
+# UCONRFCSRVRT, and set_ucon_config_name_4_rt / set_ucon_service_name_4_rt do not fill
+# them when called directly either.  They carry the configuration's identity and
+# timestamp, so the likeliest remaining explanation is the kernel's own cache, whose
+# lever is an instance restart -- which re-materialises every PSE from the database and
+# so destroys the certificate trust step 30 just installed.  Parked there deliberately:
+# on an S/4HANA Cloud tenant the communication arrangement grants this access, so the
+# whole problem is a trial workaround rather than a product gap.
+#
 # WHY THE WILDCARD GOES ON THE DEFAULT ASSEMBLY and not a private per-application one:
 # register_rfm_list builds its own (/1BCMIDRF/APP_<id>), but the runtime setter only
 # emits rows for an assembly that has a UCONRFCSERVCUST entry with a config and a vhost,
@@ -98,8 +111,17 @@ _ucon_rc=0
 # runtime changes nothing observable and must not read as success.
 case "$_ucon_out" in
     *"ucon release done"*)
-        ok "UCON: $(printf '%s\n' "$_ucon_out" | grep -aE 'registered|already exists' | head -1)"
-        say "$(printf '%s\n' "$_ucon_out" | grep -a 'runtime:' | head -1)" ;;
+        # Print the wildcard's own runtime row -- the one that decides a call -- and the
+        # config runtime counts. An earlier version grepped for words the class no longer
+        # prints and for the first line matching "runtime:", which is the config line, so
+        # it showed an empty verdict and hid the row that mattered.
+        ok "UCON: $(printf '%s\n' "$_ucon_out" | grep -aE "added '|is already in" | head -1)"
+        printf '%s\n' "$_ucon_out" | grep -aE '^runtime: |^config runtime: ' \
+            | sed 's/^/       /'
+        case "$_ucon_out" in
+            *"CFGRT=0"*|*"SRVRT=0"*)
+                warn "UCONRFCCFGRT/UCONRFCSRVRT are empty; calls are still refused" ;;
+        esac ;;
     *)  fail "UCON: erpl's modules are not callable over wsRFC"; _ucon_rc=1 ;;
 esac
 # Print the diagnosis on failure rather than only the verdict: setup_dark and
