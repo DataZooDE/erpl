@@ -21,7 +21,7 @@ WHERE invocation NOT IN ('always','fallback','optional','metadata','user-specifi
 ----
 0
 
-# Spot-check representative rows across all three extensions
+# Spot-check representative rows across all four extensions
 query I
 SELECT count(*) FROM sap_rfc_authorizations()
 WHERE duckdb_function = 'sap_read_table' AND rfc_function_module = 'RFC_READ_TABLE' AND invocation = 'always';
@@ -61,13 +61,63 @@ SELECT count(*) > 0 FROM sap_rfc_authorizations() WHERE rfc_function_module LIKE
 ----
 true
 
+# APE pipeline-engine and metadata-browser FMs present
+query I
+SELECT count(*) > 0 FROM sap_rfc_authorizations() WHERE rfc_function_module LIKE 'DHAPE_%';
+----
+true
+
+query I
+SELECT count(*) > 0 FROM sap_rfc_authorizations() WHERE rfc_function_module LIKE 'DHAMB_%';
+----
+true
+
+# The extraction functions reach SAP through exactly two modules, because the
+# pipeline is driven by the graph JSON rather than by distinct function modules.
+# Worth pinning: it is why S_RFC says nothing about which operators a user may
+# run, and why sap_ape_check_authorizations() exists alongside this table.
+query I
+SELECT list(DISTINCT rfc_function_module ORDER BY rfc_function_module)
+FROM sap_rfc_authorizations()
+WHERE duckdb_function = 'sap_ape_read_delta' AND invocation = 'always';
+----
+[DHAPE_GRAPH_MANAGER, DHAPE_GRAPH_ROUNDTRIP]
+
+# Completeness: every registered erpl_ape sap_* function is documented here. This
+# is the assertion that would have caught erpl_ape being absent from this table
+# entirely, which it was until the module was bundled.
+query I
+SELECT count(*) FROM (VALUES
+    ('sap_ape_show'), ('sap_ape_describe'), ('sap_ape_preview'),
+    ('sap_ape_read_full'), ('sap_ape_read_delta'), ('sap_ape_show_subscriptions'),
+    ('sap_ape_drop'), ('sap_ape_ping'), ('sap_ape_system_info'),
+    ('sap_ape_check_authorizations')) v(fn)
+WHERE fn NOT IN (SELECT duckdb_function FROM sap_rfc_authorizations() WHERE extension = 'erpl_ape');
+----
+0
+
 # Completeness: every registered erpl_rfc sap_* function is documented here,
 # so a newly added RFC function can't silently miss the authorization reference.
 query I
 SELECT count(*) FROM (VALUES
-    ('sap_read_table'), ('sap_rfc_invoke'), ('sap_rfc_show_functions'),
+    ('sap_read_table'), ('sap_rfc_invoke'), ('sap_rfc_show_function'),
     ('sap_rfc_show_groups'), ('sap_rfc_describe_function'), ('sap_show_tables'),
     ('sap_describe_fields'), ('sap_rfc_ping')) v(fn)
 WHERE fn NOT IN (SELECT duckdb_function FROM sap_rfc_authorizations() WHERE extension = 'erpl_rfc');
+----
+0
+
+# And the converse, which catches a typo rather than an omission: every erpl_rfc name
+# this table claims must actually be a registered function. This caught
+# 'sap_rfc_show_functions' -- the function is singular.
+#
+# Scoped to erpl_rfc on purpose. This file requires only erpl_rfc, so the bics, odp and
+# ape functions are not in duckdb_functions() here and would all read as missing. Each
+# module's own load test pins its own names.
+query I
+SELECT count(*) FROM sap_rfc_authorizations()
+WHERE extension = 'erpl_rfc'
+  AND duckdb_function NOT LIKE '%*%'
+  AND duckdb_function NOT IN (SELECT function_name FROM duckdb_functions());
 ----
 0

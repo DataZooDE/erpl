@@ -8,7 +8,7 @@ Each bullet is tagged with the affected sub-extension(s):
 - **[rfc]** — `erpl_rfc`, the SAP RFC scan path
 - **[bics]** — `erpl_bics`, BW BICS queries (lives in a git submodule)
 - **[odp]** — `erpl_odp`, ODP data replication (lives in a git submodule)
-- **[ape]** — `erpl_ape`, ABAP Pipeline Engine extraction (private, lives in a git submodule)
+- **[ape]** — `erpl_ape`, ABAP Pipeline Engine extraction (lives in a git submodule)
 - **[trampoline]** — `erpl`, the umbrella extension that bundles the SAP SDK
 - **[all]** — cross-cutting work that touches every sub-extension
 
@@ -27,10 +27,26 @@ LOAD erpl;
 
 ### Added
 
-- **[ape]** **New private sub-extension `erpl_ape`** — CDS entity discovery through SAP's own
-  ABAP Pipeline Engine (`DHAPE_*`) and its metadata browser (`DHAMB_*`), with no ABAP footprint.
-  Lives in the private `DataZooDE/erpl-ape` submodule at `ape/` and is **not** shipped via
-  get.erpl.io; it is delivered per engagement.
+- **[trampoline]** **`erpl_ape` is now part of the bundle**, so `LOAD erpl` extracts, installs
+  and loads it alongside `erpl_rfc`, `erpl_bics` and `erpl_odp`. It built correctly before this
+  and was simply never embedded: the trampoline hard-codes each sub-extension name in eleven
+  places, and a module missing from those lists compiles, passes its own suite, and does not
+  exist for anyone who types `LOAD erpl`. `scripts/smoke-test.sh` now asserts one function per
+  bundled extension — it previously checked three, all from `erpl_rfc`, so it could not have
+  caught this.
+- **[rfc]** `sap_rfc_authorizations()` gains the `erpl_ape` rows. Worth reading for one fact
+  they make plain: the extraction functions reach SAP through only `DHAPE_GRAPH_MANAGER` and
+  `DHAPE_GRAPH_ROUNDTRIP` no matter what the pipeline does, because the graph is driven by JSON
+  rather than by distinct function modules. So `S_RFC` says nothing about which operators a user
+  may run — that is per-operator via `S_DHAPEOPR`, which `sap_ape_check_authorizations()` probes.
+
+- **[ape]** **New sub-extension `erpl_ape`** — CDS entity extraction through SAP's own ABAP
+  Pipeline Engine (`DHAPE_*`) and its metadata browser (`DHAMB_*`), with no ABAP footprint.
+  Its source lives in the `DataZooDE/erpl-ape` submodule at `ape/`; the binary is bundled in
+  the `erpl` trampoline, so `LOAD erpl` loads it like the other sub-extensions. Extraction
+  against a customer system needs a role granted on the SAP side, which is normally agreed per
+  engagement — `ape/docs/security.md` is the handout, and `sap_ape_check_authorizations()`
+  verifies the result.
   - `PRAGMA sap_ape_ping` — logs on *and* asks the engine for its version, so it fails when the
     `DHAPE_*` function group is unreachable rather than only when logon fails.
   - `sap_ape_system_info()` — engine version, raw capabilities JSON, and a `supported` flag with a

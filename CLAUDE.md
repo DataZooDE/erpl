@@ -10,6 +10,8 @@ The project is a **mono-repo** containing multiple DuckDB extensions that are bu
 - **erpl_rfc** (`rfc/`) - Core SAP RFC connectivity: table reading, function invocation, metadata discovery
 - **erpl_bics** (`bics/`) - SAP BW (Business Warehouse) queries via BICS protocol, metadata views, lineage
 - **erpl_odp** (`odp/`) - SAP ODP (Operational Data Provisioning) for data replication
+- **erpl_ape** (`ape/`) - SAP CDS entity extraction via the ABAP Pipeline Engine (`DHAPE_*`) and
+  ABAP Metadata Browser (`DHAMB_*`); full and delta reads including deletes
 SSH tunnelling used to live in `tunnel/`; it moved to the dedicated
 [erpl_tunnel](https://github.com/DataZooDE/erpl-tunnel) extension. `rfc/src/pragma_tunnel_deprecated.cpp` keeps stubs
 that point there. See TUNNEL_REMOVAL_PLAN.md.
@@ -59,7 +61,7 @@ C++ unit tests (no SAP system needed):
 ./build/debug/test/unittest "[erpl_rfc]"    # Run RFC C++ tests
 ```
 
-SQL test files: `{rfc,bics,odp}/test/sql/*.test`. C++ tests: `rfc/test/cpp/`.
+SQL test files: `{rfc,bics,odp,ape}/test/sql/*.test`. C++ tests: `rfc/test/cpp/`.
 
 ### Development Cycle
 
@@ -87,7 +89,11 @@ ERPL_TRACE_INFO_DATA("ComponentName", "message", data_string);
 
 ### Multi-Extension Build System
 
-`extension_config.cmake` loads all sub-extensions via `duckdb_extension_load()`. In **debug** mode they are statically linked; in **release** mode they use `DONT_LINK` (dynamically loadable). Sub-extensions with private repos (`bics/`, `odp/`) are conditionally loaded only if their `CMakeLists.txt` exists.
+`extension_config.cmake` loads all sub-extensions via `duckdb_extension_load()`. In **debug** mode they are statically linked; in **release** mode they use `DONT_LINK` (dynamically loadable). Sub-extensions with private repos (`bics/`, `odp/`, `ape/`) are conditionally loaded only if their `CMakeLists.txt` exists.
+The `erpl` trampoline is loaded **last**, so `DUCKDB_EXTENSION_NAMES` is fully populated when it decides what to embed;
+it is not loaded at all in debug. Adding a sub-extension therefore means editing `trampoline/CMakeLists.txt` and
+`trampoline/src/erpl_extension.cpp` too — the names are hard-coded there, and a missing one builds fine and simply
+never ships. `scripts/smoke-test.sh` asserts one function per bundled extension to catch exactly that.
 
 Each sub-extension has its own `CMakeLists.txt`, `src/`, and `test/` directories. Shared CMake helpers in `scripts/functions.cmake`:
 - `find_sap_libraries()` - Discovers SAP SDK libs per platform
@@ -101,6 +107,7 @@ Each sub-extension has its own `CMakeLists.txt`, `src/`, and `test/` directories
 - `duckdb/` - DuckDB core (CMake build root, `-S ./duckdb/`)
 - `bics/` - erpl-bics (private: `DataZooDE/erpl-bics`)
 - `odp/` - erpl-odp (private: `DataZooDE/erpl-odp`)
+- `ape/` - erpl-ape (private: `DataZooDE/erpl-ape`)
 - `extension-ci-tools/` - DuckDB shared CI tooling
 - `third_party/posthog-telemetry/` - Telemetry library
 

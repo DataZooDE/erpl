@@ -44,6 +44,7 @@ The extension suite currently supports:
 - SAP BW cube and query execution via BICS protocol
 - BW hierarchy extraction, metadata views, and lineage analysis
 - Data extraction and replication via SAP ODP (full and delta)
+- CDS entity extraction via the ABAP Pipeline Engine, with delta including deletes
 - SSH tunnelling via the companion [erpl_tunnel](https://github.com/DataZooDE/erpl-tunnel) extension
 - Virtual catalog mounting of SAP systems via ATTACH
 
@@ -290,20 +291,20 @@ Upon successful installation and loading, the extension will output messages sim
 (The purpose of the extension is to extract dependencies and load the ERPL implementation)
 Saving ERPL SAP dependencies to '/home/user/.duckdb/extensions/v1.2.0/linux_amd64' and loading them ... done
 ERPL RFC extension extracted and saved to /home/user/.duckdb/extensions/v1.2.0/linux_amd64.
-ERPL Tunnel extension extracted and saved to /home/user/.duckdb/extensions/v1.2.0/linux_amd64.
 ERPL BICS extension extracted and saved to /home/user/.duckdb/extensions/v1.2.0/linux_amd64.
 ERPL ODP extension extracted and saved to /home/user/.duckdb/extensions/v1.2.0/linux_amd64.
+ERPL APE extension extracted and saved to /home/user/.duckdb/extensions/v1.2.0/linux_amd64.
 ERPL RFC extension installed and loaded.
-ERPL TUNNEL extension installed and loaded.
 ERPL BICS extension installed and loaded.
 ERPL ODP extension installed and loaded.
+ERPL APE extension installed and loaded.
 ERPL extensions loaded. For instructions on how to use them, visit https://erpl.io
 ```
 
 ### Understanding the Extension Loading Process
 The ERPL extension is composed of a **trampoline** and multiple **sub-extensions**:
 1. **Trampoline Extension** (`erpl`): Extracts SAP NetWeaver RFC SDK libraries and the sub-extension binaries from its embedded payload.
-2. **Sub-extensions**: The actual functional parts — `erpl_rfc` (RFC connectivity) and optionally `erpl_bics` (SAP BW) and `erpl_odp` (data replication).
+2. **Sub-extensions**: The actual functional parts — `erpl_rfc` (RFC connectivity) and optionally `erpl_bics` (SAP BW), `erpl_odp` (data replication) and `erpl_ape` (CDS entity extraction).
 
 The trampoline extracts dependencies into the DuckDB extension folder, then installs and loads each sub-extension. Post-installation, the directory `~/.duckdb/extensions/<version>/<platform>` will contain:
 ```
@@ -311,6 +312,7 @@ erpl.duckdb_extension         # Trampoline
 erpl_rfc.duckdb_extension     # RFC connectivity
 erpl_bics.duckdb_extension    # SAP BW (Enterprise Edition)
 erpl_odp.duckdb_extension     # ODP replication (Enterprise Edition)
+erpl_ape.duckdb_extension     # CDS extraction via the ABAP Pipeline Engine
 libicudata.so.50              # SAP SDK dependencies
 libicui18n.so.50
 libicuuc.so.50
@@ -331,6 +333,7 @@ The complete API reference is in [API_REFERENCE.md](./API_REFERENCE.md). Below i
 | **erpl_rfc** | `sap_read_table`, `sap_rfc_invoke`, `sap_show_tables`, `sap_describe_fields`, `sap_rfc_describe_function`, `ATTACH ... TYPE sap_rfc`, and more | SAP RFC connectivity, table reads, function calls, metadata, ATTACH catalog |
 | **erpl_bics** | `sap_bics_show*`, `sap_bics_begin/rows/columns/filter/result`, `sap_bics_hierarchy`, `sap_bics_meta_*`, `sap_bics_lineage_*` | SAP BW queries, hierarchies, metadata views, lineage analysis |
 | **erpl_odp** | `sap_odp_show*`, `sap_odp_describe`, `sap_odp_read_full`, `sap_odp_preview` | SAP ODP data extraction and replication |
+| **erpl_ape** | `sap_ape_show`, `sap_ape_describe`, `sap_ape_preview`, `sap_ape_read_full`, `sap_ape_read_delta`, `sap_ape_show_subscriptions`, `sap_ape_check_authorizations` | SAP CDS entity extraction via the ABAP Pipeline Engine — full and delta reads including deletes |
 | *(SSH tunnelling)* | — | Moved to the dedicated [erpl_tunnel](https://github.com/DataZooDE/erpl-tunnel) extension: `INSTALL erpl_tunnel FROM 'http://get.erpl.io'` |
 
 ### Common Functions Quick Reference
@@ -343,6 +346,7 @@ The complete API reference is in [API_REFERENCE.md](./API_REFERENCE.md). Below i
 | `sap_describe_fields` | `SELECT * FROM sap_describe_fields('SFLIGHT')` | Get field metadata for an SAP table |
 | `sap_bics_show_cubes` | `SELECT * FROM sap_bics_show_cubes()` | List available SAP BW cubes |
 | `sap_odp_read_full` | `SELECT * FROM sap_odp_read_full('BW', 'MY_ODP')` | Full extraction from ODP source |
+| `sap_ape_read_delta` | `SELECT * FROM sap_ape_read_delta('I_MYENTITY', 'NIGHTLY')` | Delta extraction from a CDS entity, deletes included |
 | `ATTACH` | `ATTACH '' AS sap (TYPE sap_rfc)` | Mount SAP system as virtual DuckDB database |
 
 For full parameter details, return types, and advanced usage see [API_REFERENCE.md](./API_REFERENCE.md).

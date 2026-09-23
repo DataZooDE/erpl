@@ -162,23 +162,28 @@ sql_tests_bics_proto: debug_tests
 sql_tests_odp_proto: debug_tests
 	$(call RUN_SQL_TESTS,odp,$(SAP_COMMON_VARS),$(PROTO_BACKEND_VARS),proto,odp/test/proto_known_failures.txt)
 
-# Real-change delta tests for sap_odp_read_delta.
-#
-# Deliberately NOT part of sql_tests_odp.  Every delta test in odp/test/sql runs against
-# 0D_FC_C01$F, a static fact cube that never changes -- so they can only ever assert
-# "a second call returns nothing".  This harness is the only thing in the repo that
-# proves the protocol streams actual inserts, updates and deletes, and it asserts real
-# values (VAL, REV, ODQ_CHANGEMODE), not row counts.
-#
-# It is separate because it MUTATES the SAP system: it writes rows to a Z table through
-# a CDS view, so it cannot run unattended alongside other suites on a shared trial.
-# Run delta_fixtures_odp once per fresh system, then delta_tests_odp as often as needed.
+sql_tests_ape_proto: debug_tests
+	$(call RUN_SQL_TESTS,ape,$(SAP_COMMON_VARS),$(PROTO_BACKEND_VARS),proto,ape/test/proto_known_failures.txt)
+
+# Real-change delta tests.  Both harnesses below are deliberately NOT part of their
+# sql_tests_* suite, for the same two reasons: the suite fixtures are static, so the
+# SQL tests can only ever assert "a second call returns nothing"; and these harnesses
+# MUTATE the SAP system, writing rows through a CDS view, so they cannot run unattended
+# alongside other suites on a shared trial.  Run the fixtures target once per fresh
+# system, then the tests target as often as needed.
+
+# erpl_ape: proves the pipeline streams inserts, updates and deletes, that a resumed
+# subscription is found rather than re-registered, and that an interrupted read replays
+# from erpl_ape.delta_spill with SAP unreachable.
 ape_fixtures:
 	SAP_PASSWORD=$(SAP_PASSWORD) ./ape/test/harness/setup.sh
 
 ape_delta_tests: debug_tests
 	SAP_PASSWORD=$(SAP_PASSWORD) ./ape/test/harness/run_delta_tests.sh
 
+# erpl_odp: the only thing in the repo that proves the ODP protocol streams actual
+# inserts, updates and deletes.  Asserts real values (VAL, REV, ODQ_CHANGEMODE) rather
+# than row counts, because odp/test/sql runs against 0D_FC_C01$F, a static fact cube.
 delta_fixtures_odp:
 	./odp/test/harness/setup.sh
 
@@ -187,9 +192,6 @@ delta_tests_odp: debug_tests
 
 # Every suite on every backend.  Serial on purpose: the suites share one SAP system and
 # one unittest binary, and running them concurrently corrupts both.
-sql_tests_ape_proto: debug_tests
-	$(call RUN_SQL_TESTS,ape,$(SAP_COMMON_VARS),$(PROTO_BACKEND_VARS),proto,ape/test/proto_known_failures.txt)
-
 sql_tests_all_backends:
 	$(MAKE) sql_tests_rfc
 	$(MAKE) sql_tests_bics
@@ -206,8 +208,11 @@ sql_tests_all_backends:
 #   make sql_tests_bics TEST_FILE=sap_bics_hierarchy.test  # Run only hierarchy test
 #   make sql_tests_rfc TEST_FILE=sap_rfc_invoke.test       # Run only RFC invoke test
 #   make sql_tests_odp TEST_FILE=sap_odp_describe.test     # Run only ODP describe test
+#   make sql_tests_ape                     # Run all APE tests
+#   make sql_tests_ape TEST_FILE=sap_ape_read_delta.test   # Run only APE delta test
 #   make sql_tests_rfc_proto               # Same RFC files, on the erpl-proto backend
 #   make sql_tests_all_backends            # Every suite on both backends
+#   make ape_fixtures && make ape_delta_tests   # APE real-change delta harness (mutates SAP)
 
 #### Smoke test — verifies the release extension installs and loads correctly
 # Downloads the official DuckDB CLI for the built version; no SAP connection required.
