@@ -23,7 +23,20 @@ LOAD erpl;
 
 ---
 
-## Unreleased
+## v2026.09.23 — CDS delta with deletes, through SAP's own pipeline engine
+
+SAP Note 3255746 prohibits third-party use of the ODP-RFC modules, a security patch has enforced
+that since 9 June 2026, and the temporary opt-out expires at the end of the year. The note names
+CDS view extraction among the paths that remain permitted. This release is that path: `erpl_ape`
+reads CDS entities through the ABAP Pipeline Engine — the runtime SAP Datasphere itself uses for
+ABAP sources — and its delta reports **deletes**, which a change-timestamp delta structurally
+cannot, because a deleted row has no timestamp left to move.
+
+`erpl_ape` is now part of the `erpl` bundle, so `LOAD erpl` loads it beside `erpl_rfc`,
+`erpl_bics` and `erpl_odp`. Nothing is installed in SAP: no transport, no Z objects, no ABAP.
+Extraction on a customer system needs a role granted on the SAP side; `ape/docs/security.md` is
+the handout and `sap_ape_check_authorizations()` verifies the result rather than asking anyone to
+trust it.
 
 ### Added
 
