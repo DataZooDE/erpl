@@ -147,15 +147,21 @@ SELECT count(*) AS sap_function_count
 rm -f "$STEP_OUTPUT"
 
 # ── 10. Step 4: Verify specific function names ────────────────────────────────
+# One function per bundled sub-extension, not three from the same one. The failure
+# this catches is a sub-extension dropping out of the trampoline bundle: it builds,
+# it is never embedded, and `LOAD erpl` succeeds with its functions simply absent.
+# That is exactly how erpl_ape went unshipped, and only a per-extension assertion
+# notices it.
 run_step "Step 4/6: Verifying specific SAP function names..." \
     "LOAD erpl;
 SELECT function_name
   FROM duckdb_functions()
-  WHERE function_name IN ('sap_read_table', 'sap_rfc_invoke', 'sap_show_tables')
+  WHERE function_name IN ('sap_read_table', 'sap_rfc_invoke', 'sap_show_tables',
+                          'sap_bics_begin', 'sap_odp_show', 'sap_ape_show')
   ORDER BY function_name;"
 FUNC_OUTPUT="$STEP_OUTPUT"
 
-for FUNC in sap_read_table sap_rfc_invoke sap_show_tables; do
+for FUNC in sap_read_table sap_rfc_invoke sap_show_tables sap_bics_begin sap_odp_show sap_ape_show; do
     if ! grep -q "$FUNC" "$FUNC_OUTPUT"; then
         echo "ERROR: Expected function '$FUNC' not found in duckdb_functions()" >&2
         rm -f "$FUNC_OUTPUT"

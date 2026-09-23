@@ -18,7 +18,7 @@ struct AuthRow {
 };
 
 // Which SAP RFC function modules each ERPL DuckDB function invokes — derived by
-// call-stack analysis of the rfc / bics / odp scanners (issue #71). `invocation`:
+// call-stack analysis of the rfc / bics / odp / ape scanners (issue #71). `invocation`:
 //   always         — called on every execution
 //   fallback       — one of a runtime-selected chain (capability-dependent)
 //   optional       — attempted, gracefully skipped on failure
@@ -94,6 +94,36 @@ const AuthRow AUTH_ROWS[] = {
     {"erpl_odp", "sap_odp_drop", "RODPS_REPL_ODP_RESET", "always", "Reset a subscription so a full extraction can re-initialize."},
     {"erpl_odp", "sap_odp_close_delta_cursor", "RODPS_REPL_CURSOR_GET_LIST", "always", "Look up the cursor to close."},
     {"erpl_odp", "sap_odp_close_delta_cursor", "RODPS_REPL_ODP_CLOSE", "always", "Gracefully close the delta cursor (idempotent)."},
+
+    // ---- erpl_ape ----------------------------------------------------------
+    // Derived from ape/src: the DHAMB_SERVICE_* calls go through
+    // ApeCallDhambService (ape/src/ape_metadata.cpp), the DHAPE_GRAPH_* ones
+    // through ApeSession (ape/src/ape_session.cpp). Note that the extraction
+    // functions reach SAP through only two modules regardless of what the graph
+    // does: the pipeline is driven entirely by the graph JSON handed to
+    // DHAPE_GRAPH_MANAGER, so S_RFC alone says nothing about which operators a
+    // user may run. That is gated per operator by S_DHAPEOPR, which this table
+    // cannot express -- use sap_ape_check_authorizations() for the object-level
+    // requirements and ape/docs/security.md for the role.
+    {"erpl_ape", "sap_ape_show", "DHAMB_SERVICE_DSET_BROWSE", "always", "Walk the metadata browser's CDS folder tree; called once per folder level."},
+    {"erpl_ape", "sap_ape_describe", "DHAMB_SERVICE_DSET_BROWSE", "metadata", "Resolve a bare entity name to its browser path before describing it."},
+    {"erpl_ape", "sap_ape_describe", "DHAMB_SERVICE_DSET_DEFINITION", "always", "Field structure of a CDS entity (ABAP types, lengths, decimals)."},
+    {"erpl_ape", "sap_ape_preview", "DHAMB_SERVICE_DSET_BROWSE", "metadata", "Resolve a bare entity name to its browser path."},
+    {"erpl_ape", "sap_ape_preview", "DHAMB_SERVICE_DSET_PREVIEW", "always", "Read a bounded sample directly from the browser, bypassing the pipeline."},
+    {"erpl_ape", "sap_ape_read_full", "DHAMB_SERVICE_DSET_DEFINITION", "metadata", "Result schema at bind time, before any graph exists."},
+    {"erpl_ape", "sap_ape_read_full", "DHAPE_GRAPH_MANAGER", "always", "Create, start and stop the extraction graph (protocol v6 starts it on create)."},
+    {"erpl_ape", "sap_ape_read_full", "DHAPE_GRAPH_ROUNDTRIP", "always", "The only data path: fetch one package per call until the last batch."},
+    {"erpl_ape", "sap_ape_read_delta", "DHAMB_SERVICE_DSET_DEFINITION", "metadata", "Result schema at bind time; skipped entirely when recover => true."},
+    {"erpl_ape", "sap_ape_read_delta", "DHAPE_GRAPH_MANAGER", "always", "Create, start and stop the delta graph."},
+    {"erpl_ape", "sap_ape_read_delta", "DHAPE_GRAPH_ROUNDTRIP", "always", "Fetch delta packages; each handover is committed SAP-side on receipt."},
+    {"erpl_ape", "sap_ape_show_subscriptions", "DHAPE_GRAPH_MANAGER", "always", "Run an admin graph built around the subscription reader operator."},
+    {"erpl_ape", "sap_ape_show_subscriptions", "DHAPE_GRAPH_ROUNDTRIP", "always", "Collect the subscription list from that graph's outport."},
+    {"erpl_ape", "sap_ape_drop", "DHAPE_GRAPH_MANAGER", "always", "Run an admin graph built around the subscription eraser operator."},
+    {"erpl_ape", "sap_ape_drop", "DHAPE_GRAPH_ROUNDTRIP", "always", "Drive the eraser and read back its result."},
+    {"erpl_ape", "sap_ape_ping", "<none>", "always", "Logon check uses the SDK RfcPing() call -- no function module is invoked."},
+    {"erpl_ape", "sap_ape_ping", "DHAPE_GRAPH_VERSION", "always", "A logon proves nothing about the engine; this is the cheapest call that fails when the DHAPE group is unreachable."},
+    {"erpl_ape", "sap_ape_system_info", "DHAMB_SERVICE_SYSTEM", "always", "System, release and metadata-browser API version."},
+    {"erpl_ape", "sap_ape_check_authorizations", "AUTHORITY_CHECK", "always", "Probe each authorization object erpl_ape needs; reports through its exceptions, once per requirement."},
 };
 
 struct RfcAuthorizationsBindData : public TableFunctionData {

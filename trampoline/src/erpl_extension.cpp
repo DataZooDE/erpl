@@ -49,6 +49,11 @@ extern const char _binary_erpl_odp_duckdb_extension_start[];
 extern const char _binary_erpl_odp_duckdb_extension_end[];
 #endif
 
+#ifdef WITH_ERPL_APE
+extern const char _binary_erpl_ape_duckdb_extension_start[];
+extern const char _binary_erpl_ape_duckdb_extension_end[];
+#endif
+
 #elif _WIN32
 
 #define UNICODE 1
@@ -92,6 +97,11 @@ extern const unsigned int erpl_bics_duckdb_extension_len;
 #ifdef WITH_ERPL_ODP
 extern const char erpl_odp_duckdb_extension[];
 extern const unsigned int erpl_odp_duckdb_extension_len;
+#endif
+
+#ifdef WITH_ERPL_APE
+extern const char erpl_ape_duckdb_extension[];
+extern const unsigned int erpl_ape_duckdb_extension_len;
 #endif
 
 #endif
@@ -239,6 +249,11 @@ namespace duckdb
             SaveToFile(_binary_erpl_odp_duckdb_extension_start, _binary_erpl_odp_duckdb_extension_end, StringUtil::Format("%s/erpl_odp.duckdb_extension", ext_path));
             std::cout << StringUtil::Format("ERPL ODP extension extracted and saved to %s.", ext_path) << std::endl;
             #endif
+
+            #ifdef WITH_ERPL_APE
+            SaveToFile(_binary_erpl_ape_duckdb_extension_start, _binary_erpl_ape_duckdb_extension_end, StringUtil::Format("%s/erpl_ape.duckdb_extension", ext_path));
+            std::cout << StringUtil::Format("ERPL APE extension extracted and saved to %s.", ext_path) << std::endl;
+            #endif
         }
         catch (const std::exception& e) {
             std::cerr << std::endl << "Error: " << e.what() << std::endl;
@@ -383,6 +398,11 @@ namespace duckdb
             std::cout << StringUtil::Format("ERPL ODP extension extracted and saved to %s.", ext_path) << std::endl;
             #endif
 
+            #ifdef WITH_ERPL_APE
+            SaveResourceToFile(TEXT("ERPL_APE"), StringUtil::Format("%s\\erpl_ape.duckdb_extension", ext_path));
+            std::cout << StringUtil::Format("ERPL APE extension extracted and saved to %s.", ext_path) << std::endl;
+            #endif
+
             ModifyPathEnvironmentVariable(ext_path);
             std::cout << "Added DuckDB extension directory to the PATH environment variable." << std::endl;
         } 
@@ -518,6 +538,11 @@ static void ExtractExtensionsAndSapLibs()
         std::cout << "ERPL ODP extension extracted and saved to " << ext_path << "." << std::endl;
         #endif
 
+        #ifdef WITH_ERPL_APE
+        SaveToFile(erpl_ape_duckdb_extension, erpl_ape_duckdb_extension_len, ext_path + "/erpl_ape.duckdb_extension");
+        std::cout << "ERPL APE extension extracted and saved to " << ext_path << "." << std::endl;
+        #endif
+
         ModifyDyldEnvironmentVariable(ext_path);
         std::cout << "Added DuckDB extension directory to the DYLD search path." << std::endl;
     } 
@@ -575,22 +600,26 @@ static std::string Separator() {
         InstallAndLoadExtension(db_wrapper, "erpl_odp");
         #endif
 
+        #ifdef WITH_ERPL_APE
+        InstallAndLoadExtension(db_wrapper, "erpl_ape");
+        #endif
+
         std::cout << "ERPL extensions loaded. For instructions on how to use them, visit https://erpl.io" << std::endl;
     }
 
     static void LoadInternal(ExtensionLoader &loader)
     {
-       loader.SetDescription("ERPL bootstrap extension — bundles the SAP NetWeaver RFC SDK and installs the erpl_rfc, erpl_bics and erpl_odp extensions.");
+       loader.SetDescription("ERPL bootstrap extension — bundles the SAP NetWeaver RFC SDK and installs the erpl_rfc, erpl_bics, erpl_odp and erpl_ape extensions.");
 
        std::cout << "-- Loading ERPL Trampoline Extension. --" << std::endl
                  << "(The purpose of the extension is to extract dependencies and load the ERPL implementation)" << std::endl;
        ExtractExtensionsAndSapLibs();
        LoadExtensions(loader.GetDatabaseInstance());
 
-       // The banner lives here rather than in erpl_rfc / erpl_bics / erpl_odp:
-       // `LOAD erpl` is what a user types, and those three are implementation
+       // The banner lives here rather than in erpl_rfc / erpl_bics / erpl_odp /
+       // erpl_ape: `LOAD erpl` is what a user types, and those are implementation
        // details this trampoline extracts and loads on their behalf. Putting it
-       // in each of them would stack four banners on a single LOAD.
+       // in each of them would stack a banner per extension on a single LOAD.
        datazoo::RegisterBannerOption(loader);
        datazoo::ShowBanner(ERPL_BANNER);
     }

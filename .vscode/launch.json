@@ -72,7 +72,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/debug/extension/erpl_rfc/test/cpp/erpl_rfc_tests",
-            "args": [ ],
+            "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/rfc/",
             "environment": [
@@ -176,7 +176,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/debug/extension/erpl_bics/test/cpp/erpl_bics_tests",
-            "args": [ ],
+            "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/bics/",
             "environment": [
@@ -262,7 +262,6 @@
                     "name": "ERPL_SAP_PASSWORD",
                     "value": "ABAPtr2022#00"
                 }
-
             ],
             "externalConsole": false,
             "MIMode": "gdb",
@@ -281,9 +280,113 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/debug/extension/erpl_odp/test/cpp/erpl_odp_tests",
-            "args": [ ],
+            "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/odp/",
+            "environment": [
+                {
+                    "name": "RFC_TRACE",
+                    "value": "1"
+                },
+                {
+                    "name": "LSAN_OPTIONS",
+                    "value": "suppressions=${workspaceFolder}/scripts/lsan_suppress.txt"
+                },
+                {
+                    "name": "ASAN_OPTIONS",
+                    "value": "detect_odr_violation=0"
+                },
+                {
+                    "name": "LD_LIBRARY_PATH",
+                    "value": "${env:LD_LIBRARY_PATH}:${workspaceFolder}/nwrfcsdk/linux/lib"
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "CMake: build",
+            "miDebuggerPath": ""
+        },
+        {
+            "name": "Debug APE SQL Unit Tests",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/debug/test/unittest",
+            "args": [
+                "--test-dir",
+                "${workspaceFolder}/ape",
+                "'test/sql/*'"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/ape/",
+            "environment": [
+                {
+                    "name": "RFC_TRACE",
+                    "value": "0"
+                },
+                {
+                    "name": "LD_LIBRARY_PATH",
+                    "value": "${env:LD_LIBRARY_PATH}:${workspaceFolder}/nwrfcsdk/linux/lib"
+                },
+                {
+                    "name": "LSAN_OPTIONS",
+                    "value": "suppressions=${workspaceFolder}/scripts/lsan_suppress.txt"
+                },
+                {
+                    "name": "ASAN_OPTIONS",
+                    "value": "detect_odr_violation=0"
+                },
+                {
+                    "name": "ERPL_SAP_ASHOST",
+                    "value": "localhost"
+                },
+                {
+                    "name": "ERPL_SAP_SYSNR",
+                    "value": "00"
+                },
+                {
+                    "name": "ERPL_SAP_CLIENT",
+                    "value": "001"
+                },
+                {
+                    "name": "ERPL_SAP_LANG",
+                    "value": "EN"
+                },
+                {
+                    "name": "ERPL_SAP_USER",
+                    "value": "DEVELOPER"
+                },
+                {
+                    "name": "ERPL_SAP_PASSWORD",
+                    "value": "ABAPtr2023#00"
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "CMake: build",
+            "miDebuggerPath": ""
+        },
+        {
+            "name": "Debug APE CPP Unit Tests",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/debug/extension/erpl_ape/test/cpp/erpl_ape_tests",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/ape/",
             "environment": [
                 {
                     "name": "RFC_TRACE",
@@ -319,7 +422,9 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/debug/duckdb",
-            "args": ["-unsigned"],
+            "args": [
+                "-unsigned"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/odp/",
             "environment": [

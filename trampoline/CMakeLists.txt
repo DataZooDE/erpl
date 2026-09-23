@@ -29,6 +29,12 @@ if(WIN32)
         attach_extension_and_dependencies_as_resource("erpl_odp.duckdb_extension" "${ADDED_EXTENSION_OBJECTS}")
     endif()
 
+    list(FIND DUCKDB_EXTENSION_NAMES "erpl_ape" _index)
+    if(NOT ${_index} EQUAL -1)
+        message(STATUS "Attaching erpl_ape.duckdb_extension")
+        attach_extension_and_dependencies_as_resource("erpl_ape.duckdb_extension" "${ADDED_EXTENSION_OBJECTS}")
+    endif()
+
     # Add vcpkg libraries as resources to the trampoline file, such that it can be extracted
     message(STATUS "Attaching vcpkg libraries")
     attach_vcpkg_dlls_as_resources("${ADDED_EXTENSION_OBJECTS}")
@@ -65,6 +71,12 @@ if(UNIX AND NOT APPLE)
         attach_extension_as_object("erpl_odp.duckdb_extension")
     endif()
 
+    list(FIND DUCKDB_EXTENSION_NAMES "erpl_ape" _index)
+    if(NOT ${_index} EQUAL -1)
+        message(STATUS "Attaching erpl_ape.duckdb_extension")
+        attach_extension_as_object("erpl_ape.duckdb_extension")
+    endif()
+
     message(STATUS "ERPL_EXTENSION_OBJECTS: ${ERPL_EXTENSION_OBJECTS}")
 
     # Attach the SAP libraries as objects to the trampoline file, such that it can be extracted
@@ -97,6 +109,12 @@ if(UNIX AND APPLE)
     if(NOT ${_index} EQUAL -1)
         message(STATUS "Attaching erpl_odp.duckdb_extension")
         attach_extension_as_object("erpl_odp.duckdb_extension")
+    endif()
+
+    list(FIND DUCKDB_EXTENSION_NAMES "erpl_ape" _index)
+    if(NOT ${_index} EQUAL -1)
+        message(STATUS "Attaching erpl_ape.duckdb_extension")
+        attach_extension_as_object("erpl_ape.duckdb_extension")
     endif()
 
     message(STATUS "ERPL_EXTENSION_OBJECTS: ${ERPL_EXTENSION_OBJECTS}")
@@ -213,6 +231,13 @@ if(NOT ${_index} EQUAL -1)
     add_compile_definitions(WITH_ERPL_ODP)
     add_dependencies(${EXTENSION_NAME} erpl_odp_loadable_extension)
     add_dependencies(${LOADABLE_EXTENSION_NAME} erpl_odp_loadable_extension)
+endif()
+
+list(FIND DUCKDB_EXTENSION_NAMES "erpl_ape" _index)
+if(NOT ${_index} EQUAL -1)
+    add_compile_definitions(WITH_ERPL_APE)
+    add_dependencies(${EXTENSION_NAME} erpl_ape_loadable_extension)
+    add_dependencies(${LOADABLE_EXTENSION_NAME} erpl_ape_loadable_extension)
 endif()
 
 if(WIN32)
