@@ -3,7 +3,7 @@
 > Complete function reference for SAP data integration in DuckDB
 
 **DuckDB Version:** >= v1.2.0
-**Extensions:** erpl_rfc, erpl_bics, erpl_odp
+**Extensions:** erpl_rfc, erpl_bics, erpl_odp, erpl_ape
 
 ---
 
@@ -13,7 +13,7 @@ The ERPL extension suite brings SAP data integration directly into DuckDB. It en
 
 **Key Benefits:**
 - **SQL-native**: All operations expressed as SQL functions, pragmas, and secrets
-- **Zero middleware**: Connect directly to SAP via RFC and BICS protocols
+- **Zero middleware**: Connect directly to SAP via RFC, BICS and the ABAP Pipeline Engine
 - **Parallel extraction**: Multi-threaded reads for large tables
 - **Virtual catalog**: ATTACH SAP systems as DuckDB databases
 
@@ -22,6 +22,7 @@ The ERPL extension suite brings SAP data integration directly into DuckDB. It en
 | **erpl_rfc** | Core SAP RFC connectivity — table reads, function calls, metadata |
 | **erpl_bics** | SAP BW queries via BICS — cubes, hierarchies, lineage |
 | **erpl_odp** | SAP ODP data extraction and replication |
+| **erpl_ape** | SAP CDS entity extraction via the ABAP Pipeline Engine — full and delta reads including deletes |
 | *(SSH tunnelling)* | moved to the [erpl_tunnel](https://github.com/DataZooDE/erpl-tunnel) extension |
 
 ---
@@ -328,6 +329,24 @@ FROM sap_rfc_authorizations() WHERE duckdb_function = 'sap_read_table';
 ---
 
 ### Connection & Diagnostics
+
+#### `sap_rfc_live_connections()` / `sap_rfc_connections_opened()` / `sap_rfc_connections_closed()`
+
+Scalar functions returning how many SAP RFC connections erpl has opened and closed in
+this process, and how many it currently holds open (`opened - closed`).
+
+Every open connection is a session and a work-process reservation on the SAP system, so
+`sap_rfc_live_connections()` is the number that matters to a Basis team. **Between
+queries it should be 0.** A non-zero value means erpl is still holding SAP sessions.
+
+```sql
+SELECT sap_rfc_live_connections();   -- 0 between queries
+```
+
+These are process-wide counters, not per-connection state, and they are `VOLATILE` so
+DuckDB never constant-folds them at bind time. Their intended use is asserting in tests
+and in the field that a scan released what it acquired — client-side timing shows nothing
+when a connection is never released, because the entire cost falls on the SAP system.
 
 #### `PRAGMA sap_rfc_ping([secret])`
 
@@ -1096,26 +1115,6 @@ Output columns: `subscriber_type`, `subscriber_name`, `subscriber_process`,
 SELECT * FROM sap_odp_get_subscriptions('ABAP_CDS', 'MY_CDS_VIEW$E');
 ```
 
----
-
-#### `sap_rfc_live_connections()` / `sap_rfc_connections_opened()` / `sap_rfc_connections_closed()`
-
-Scalar functions returning how many SAP RFC connections erpl has opened and closed in
-this process, and how many it currently holds open (`opened - closed`).
-
-Every open connection is a session and a work-process reservation on the SAP system, so
-`sap_rfc_live_connections()` is the number that matters to a Basis team. **Between
-queries it should be 0.** A non-zero value means erpl is still holding SAP sessions.
-
-```sql
-SELECT sap_rfc_live_connections();   -- 0 between queries
-```
-
-These are process-wide counters, not per-connection state, and they are `VOLATILE` so
-DuckDB never constant-folds them at bind time. Their intended use is asserting in tests
-and in the field that a scan released what it acquired — client-side timing shows nothing
-when a connection is never released, because the entire cost falls on the SAP system.
-
 #### `PRAGMA sap_odp_close_delta_cursor(odp_context, subscriber_process, odp_name [, secret=...])`
 
 Graceful counterpart to `sap_odp_drop`. Looks up the cursor for the given
@@ -1178,7 +1177,10 @@ PRAGMA sap_odp_drop(
 
 ## erpl_ape — SAP ABAP Pipeline Engine
 
-**Private module.** Delivered per engagement; not published on get.erpl.io.
+Bundled with the `erpl` extension, so `LOAD erpl` makes it available alongside `erpl_rfc`,
+`erpl_bics` and `erpl_odp`. Extraction against a customer system is normally set up as part
+of an engagement, because it needs a role granted on the SAP side — see
+`ape/docs/security.md`.
 
 `erpl_ape` reads CDS entities through SAP's own **ABAP Pipeline Engine** (`DHAPE_*`) and its
 metadata browser (`DHAMB_*`). Nothing is installed in SAP.
@@ -1950,11 +1952,47 @@ Note the budget counts **data cells** — the key-figure cells — not output co
 with 60,000 rows and 31 output columns of which 6 are key figures is 360,000 data cells,
 not 1,860,000.
 
+#### erpl_odp
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `erpl_odp_fetch_size` | UBIGINT | `2097152` (2 MiB) | How much data SAP packs into one ODP package, in **bytes** (`I_MAXPACKAGESIZE`) — not rows. Larger packages mean fewer roundtrips but more memory held per worker; `0` restores the default. Override per query with `fetch_size` |
+| `erpl_odp_max_threads` | UBIGINT | `0` (erpl chooses) | ODP packages fetched concurrently, each on its own RFC connection. How much parallelism helps depends on the SAP system's own capacity — work processes, application servers, database sessions — so raise it while watching throughput. Override per query with `threads` |
+
+#### erpl_ape
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `erpl_ape_spill_enabled` | BOOLEAN | `true` | Write every handed-over delta package to `erpl_ape.delta_spill` before it is consumed. Turning it off makes delta extraction at-most-once |
+| `erpl_ape_prepare_timeout` | UBIGINT | `900` | Seconds a read waits for SAP to prepare the extraction. SAP runs a background job first, and while it is pending the engine returns neither data nor an error. A first delta also generates triggers and logging tables and is much slower than an initial load. `0` waits indefinitely |
+| `erpl_ape_delta_quiet_seconds` | UBIGINT | `60` | Seconds a delta read on an **already-established** subscription waits for its first package before reporting nothing to replicate. Deliberately not the preparation timeout: too short reports "no changes" when the answer is "not yet" |
+| `erpl_ape_allow_unreleased` | BOOLEAN | `false` | Permit extraction from a CDS entity not released for consumption (no C1 contract). Such an entity may change without notice, so reading one is a deliberate choice; turning this on is logged at WARN |
+
+`erpl_ape_spill_enabled` is the setting worth understanding before changing. SAP commits
+each delta package as it hands it over and cannot re-send it, so there is nothing on the
+SAP side to recover from after a crash — the local spill is the only copy. It is written
+on its own transaction, so a rollback in the caller's transaction cannot discard it. See
+the `recover` parameter of `sap_ape_read_delta` and `erpl_ape.delta_spill` below.
+
 ---
 
 ## Notes
 
 ### Filter Pushdown
+
+This section is about `sap_read_table` and the RFC scanners. The other modules differ, and
+the differences matter enough to state here rather than leaving a reader to assume:
+
+| Module | Server-side filtering |
+|---|---|
+| `erpl_rfc` | Yes, as described below — SQL predicates are translated into `RFC_READ_TABLE`'s `OPTIONS` table |
+| `erpl_odp` | Yes, but only as explicit `filters` — a `LIST<STRUCT(FIELDNAME, SIGN, OP, LOW, HIGH)>` mapped to ABAP range selections. SQL `WHERE` predicates are not translated |
+| `erpl_bics` | Through the query model instead: `sap_bics_filter()` restricts members on the BW side |
+| `erpl_ape` | **No.** `filters` is accepted by the signature and then *refused*, because the pipeline's CDS reader on this release reads no filter config key. Filter with an ordinary SQL `WHERE`; the scan streams, so DuckDB applies it as rows arrive |
+
+`erpl_ape` refusing rather than ignoring is deliberate: emitting a filter the engine does
+not read would return every row while the caller believed the engine had filtered, which
+is worse than an error. See `sap_ape_read_full` above.
 
 `sap_read_table` supports both SAP-side and DuckDB-side filter pushdown:
 

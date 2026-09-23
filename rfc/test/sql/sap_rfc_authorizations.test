@@ -100,9 +100,24 @@ WHERE fn NOT IN (SELECT duckdb_function FROM sap_rfc_authorizations() WHERE exte
 # so a newly added RFC function can't silently miss the authorization reference.
 query I
 SELECT count(*) FROM (VALUES
-    ('sap_read_table'), ('sap_rfc_invoke'), ('sap_rfc_show_functions'),
+    ('sap_read_table'), ('sap_rfc_invoke'), ('sap_rfc_show_function'),
     ('sap_rfc_show_groups'), ('sap_rfc_describe_function'), ('sap_show_tables'),
     ('sap_describe_fields'), ('sap_rfc_ping')) v(fn)
 WHERE fn NOT IN (SELECT duckdb_function FROM sap_rfc_authorizations() WHERE extension = 'erpl_rfc');
+----
+0
+
+# And the converse, which catches a typo rather than an omission: every erpl_rfc name
+# this table claims must actually be a registered function. This caught
+# 'sap_rfc_show_functions' -- the function is singular.
+#
+# Scoped to erpl_rfc on purpose. This file requires only erpl_rfc, so the bics, odp and
+# ape functions are not in duckdb_functions() here and would all read as missing. Each
+# module's own load test pins its own names.
+query I
+SELECT count(*) FROM sap_rfc_authorizations()
+WHERE extension = 'erpl_rfc'
+  AND duckdb_function NOT LIKE '%*%'
+  AND duckdb_function NOT IN (SELECT function_name FROM duckdb_functions());
 ----
 0

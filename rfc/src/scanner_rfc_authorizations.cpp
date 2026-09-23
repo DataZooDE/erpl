@@ -32,7 +32,7 @@ const AuthRow AUTH_ROWS[] = {
     {"erpl_rfc", "sap_read_table", "<custom read table function>", "optional", "User-configured RFC read table function module via READ_TABLE_FUNCTION, secret, or erpl_rfc_read_table_function."},
     {"erpl_rfc", "sap_read_table", "DDIF_FIELDINFO_GET", "metadata", "Field names / types / lengths for the requested table at bind time."},
     {"erpl_rfc", "sap_rfc_invoke", "<user-specified>", "user-specified", "Invokes the function module passed as the first argument; grant S_RFC for whatever you call."},
-    {"erpl_rfc", "sap_rfc_show_functions", "RFC_FUNCTION_SEARCH", "always", "Search RFC-enabled function modules by name/group pattern."},
+    {"erpl_rfc", "sap_rfc_show_function", "RFC_FUNCTION_SEARCH", "always", "Search RFC-enabled function modules by name/group pattern."},
     {"erpl_rfc", "sap_rfc_show_groups", "RFC_GROUP_SEARCH", "always", "List SAP function groups."},
     {"erpl_rfc", "sap_rfc_describe_function", "RPY_FUNCTIONMODULE_READ", "optional", "ABAP source / short text; skipped on FL180, falls back to SDK introspection."},
     {"erpl_rfc", "sap_show_tables", "RFC_READ_TABLE", "always", "Resolves the table catalog from DDIC via RFC_READ_TABLE (default reader)."},
