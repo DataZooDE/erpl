@@ -1,6 +1,7 @@
 #define DUCKDB_EXTENSION_MAIN
 
 #include "duckdb.hpp"
+#include "duckdb/parser/parsed_data/create_pragma_function_info.hpp"
 
 #include "duckdb/catalog/catalog.hpp"
 #include "duckdb/main/extension/extension_loader.hpp"
@@ -397,9 +398,45 @@ namespace duckdb {
         RegisterSapSecretType(loader);
     }
 
+    // Registers a pragma WITH documentation.
+    //
+    // ExtensionLoader has no RegisterFunction overload taking a CreatePragmaFunctionInfo,
+    // which is why every pragma in this repo was undocumented -- and why comments in
+    // erpl_ape and erpl_odp said pragmas could not carry a FunctionDescription at all.
+    // They can: CreatePragmaFunctionInfo derives from CreateFunctionInfo, and
+    // duckdb_functions() extracts PRAGMA_FUNCTION_ENTRY through the same generic
+    // ExtractFunctionData path as every other function type. Going through the system
+    // catalog directly is all that is needed. Proven first on erpl_tunnel.
+    static void RegisterDocumentedPragma(ExtensionLoader &loader, PragmaFunction pragma,
+                                         string description, vector<string> examples,
+                                         vector<string> parameter_names = {})
+    {
+        auto name = pragma.name;
+        PragmaFunctionSet set(name);
+        set.AddFunction(std::move(pragma));
+
+        CreatePragmaFunctionInfo info(std::move(name), std::move(set));
+        FunctionDescription d;
+        d.description = std::move(description);
+        d.examples = std::move(examples);
+        d.parameter_names = std::move(parameter_names);
+        d.categories = {"sap"};
+        info.descriptions.push_back(std::move(d));
+
+        auto &db = loader.GetDatabaseInstance();
+        auto &system_catalog = Catalog::GetSystemCatalog(db);
+        auto transaction = CatalogTransaction::GetSystemTransaction(db);
+        system_catalog.CreatePragmaFunction(transaction, info);
+    }
+
     static void RegisterRfcFunctions(ExtensionLoader &loader)
     {
-        loader.RegisterFunction(CreateRfcPingPragma());
+        RegisterDocumentedPragma(loader, CreateRfcPingPragma(),
+            "Checks that the configured SAP connection actually works, reporting the round-trip "
+            "result. The first thing to run when a query fails and it is not clear whether the "
+            "problem is the credentials, the network or the statement. Named parameters: secret "
+            "(optional secret name).",
+            {"PRAGMA sap_rfc_ping;"});
 
         {
             ScalarFunction backend_function("sap_rfc_backend", {}, LogicalType::VARCHAR, RfcBackendFunction);
@@ -540,12 +577,27 @@ namespace duckdb {
             loader.RegisterFunction(std::move(info));
         }
 
-        loader.RegisterFunction(CreateRfcSetTraceLevelPragma());
-        loader.RegisterFunction(CreateRfcSetTraceDirPragma());
-        loader.RegisterFunction(CreateRfcSetMaximumTraceFileSizePragma());
-        loader.RegisterFunction(CreateRfcSetMaximumStoredTraceFilesPragma());
-        loader.RegisterFunction(CreateRfcSetIniPathPragma());
-        loader.RegisterFunction(CreateRfcReloadIniFilePragma());
+        RegisterDocumentedPragma(loader, CreateRfcSetTraceLevelPragma(),
+            "Sets how much detail the SAP NetWeaver RFC library writes to its trace files.",
+            {"PRAGMA sap_rfc_set_trace_level(2);"}, {"level"});
+        RegisterDocumentedPragma(loader, CreateRfcSetTraceDirPragma(),
+            "Sets the directory the RFC library writes trace files to.",
+            {"PRAGMA sap_rfc_set_trace_dir('/tmp/sap_traces');"}, {"directory"});
+        RegisterDocumentedPragma(loader, CreateRfcSetMaximumTraceFileSizePragma(),
+            "Caps the size of a single RFC trace file, so tracing on a busy connection cannot "
+            "fill the disk.",
+            {"PRAGMA sap_rfc_set_maximum_trace_file_size(10);"}, {"size_mb"});
+        RegisterDocumentedPragma(loader, CreateRfcSetMaximumStoredTraceFilesPragma(),
+            "Caps how many RFC trace files are kept before the oldest are discarded.",
+            {"PRAGMA sap_rfc_set_maximum_stored_trace_files(5);"}, {"count"});
+        RegisterDocumentedPragma(loader, CreateRfcSetIniPathPragma(),
+            "Sets the directory holding the sapnwrfc.ini file, which is where connection "
+            "destinations are defined.",
+            {"PRAGMA sap_rfc_set_ini_path('/etc/sap');"}, {"path"});
+        RegisterDocumentedPragma(loader, CreateRfcReloadIniFilePragma(),
+            "Re-reads sapnwrfc.ini so destination changes take effect without restarting the "
+            "process.",
+            {"PRAGMA sap_rfc_reload_ini_file;"});
     }
     
     static void LoadInternal(ExtensionLoader &loader)
