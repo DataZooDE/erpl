@@ -59,11 +59,18 @@ state failed on such a query, though the same call worked on its cube. Reported 
 
 ### Added
 
-- **[bics]** Data cells that cannot be placed in the result are counted, and a summary is logged
-  with `SET erpl_trace_enabled = true; SET erpl_trace_level = 'WARN'`. Previously they vanished,
-  which made a mapping problem look like a query with no data. A result whose cells all land
-  outside the column table is the shape of the all-NULL result reported in #154, which is not
-  reproduced yet; a trace of the failing run would settle it.
+- **[bics]** **A failed OLAP read is reported, not returned as NULLs.** `BICS_PROV_GET_RESULT_SET`
+  has no message table: when the read fails, BW only sets a severity and parks the messages on
+  the server, and the result came back with every measure NULL. The messages are now fetched
+  (`RSBOLAP_BICS_GET_MESSAGES`); an error with no data cells raises with BW's text, an error
+  alongside cells is a warning in the trace.
+- **[bics]** Data cells that cannot be placed, cells placed with a NULL value, and rows that
+  arrive without any cells are counted and logged with `SET erpl_trace_enabled = true;
+  SET erpl_trace_level = 'WARN'`. Previously they vanished, which made a mapping problem look
+  like a query with no data. The all-NULL result reported in #154 is **not** reproduced: on the
+  trial system a key figure structure on rows and a characteristic structure with hidden
+  members on columns returns correct cells (`ZERPL_Q154_KF`, a new committed BW query fixture,
+  `bics/test/fixtures/setup_q154_query.sh`). A trace of the failing run would settle it.
 - **[rfc]** **[bics]** Every erpl function is discoverable from `duckdb_functions()` with a
   description, example and category, including the tunnel deprecation stubs and the 31 `bw_*`
   metadata views.
