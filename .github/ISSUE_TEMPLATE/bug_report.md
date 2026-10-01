@@ -1,38 +1,44 @@
 ---
 name: Bug report
-about: Create a report to help us improve
+about: Something does not work as documented
 title: ''
 labels: ''
 assignees: ''
 
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+**What happens**
+A clear description of the problem, and the exact error text if there is one.
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+**To reproduce**
+The SQL that shows it, with names you can share:
+
+```sql
+CREATE SECRET ...;
+SELECT ...;
+```
 
 **Expected behavior**
-A clear and concise description of what you expected to happen.
+What you expected instead, and why (e.g. the same query in RSRT shows values).
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+**Diagnostics**
+See [TROUBLESHOOTING.md](../blob/master/TROUBLESHOOTING.md). For a BICS query, paste the
+output of `sap_bics_result_stats('<state_id>')` here; it holds counts only, no data:
 
-**Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
- - Version [e.g. 22]
+```
+```
 
-**Smartphone (please complete the following information):**
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
- - Browser [e.g. stock browser, safari]
- - Version [e.g. 22]
+Any `[WARN]` lines from `SET erpl_trace_enabled = true; SET erpl_trace_level = 'WARN';`:
+
+```
+```
+
+**Environment**
+- ERPL: output of `SELECT extension_name, extension_version FROM duckdb_extensions() WHERE extension_name LIKE 'erpl%'`
+- DuckDB version and client (CLI, Python, ...), OS and architecture
+- SAP release (`bw_release` from the stats row, or NetWeaver / S/4 / BW/4 version)
+- RFC backend, if you changed it (`erpl_rfc_backend`)
 
 **Additional context**
-Add any other context about the problem here.
+Anything else that may matter. Raw `erpl_bics_trace` files contain your data; offer them
+rather than attaching them.

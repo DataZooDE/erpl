@@ -59,6 +59,11 @@ state failed on such a query, though the same call worked on its cube. Reported 
 
 ### Added
 
+- **[bics]** **`sap_bics_result_stats(state_id)`**: executes the result and returns one row of
+  counts and labels, never a cell value or member text: BW's state and messages, the shape it
+  returned, where every data cell went, and the environment (SAP release, BICS version, RFC
+  user, backend, DuckDB version). It is what a bug report should carry; the new
+  `TROUBLESHOOTING.md` and the issue template ask for it.
 - **[bics]** **A failed OLAP read is reported, not returned as NULLs.** `BICS_PROV_GET_RESULT_SET`
   has no message table: when the read fails, BW only sets a severity and parks the messages on
   the server, and the result came back with every measure NULL. The messages are now fetched

@@ -683,6 +683,34 @@ common case does not have to spell out the hierarchy fields;
 A variable name the query does not expose as input-ready is rejected — BW would
 otherwise ignore it silently and return an unrestricted result.
 
+#### `sap_bics_result_stats(state_id [, secret])`
+
+Execute the result of a session exactly like `sap_bics_result`, but return a single row of
+counts and labels instead of the data: BW's state and messages, the shape BW returned, where
+every data cell went, and the environment (SAP release, BICS version, RFC user and host,
+backend, DuckDB version). It contains no cell value and no member text, so it can be pasted
+into a bug report as is. See `TROUBLESHOOTING.md`.
+
+```sql
+SELECT * FROM sap_bics_result_stats('my_state');
+```
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `query`, `info_provider` | VARCHAR | What the session opened |
+| `rfc_user`, `rfc_host` | VARCHAR | Who executed it, where |
+| `bw_release`, `bw_support_package`, `bics_version` | INTEGER | `BICS_PROV_GET_VERSION` |
+| `no_authority` | BOOLEAN | BW opened the provider without authority |
+| `backend`, `duckdb_version`, `stream_result_tables` | VARCHAR, VARCHAR, BOOLEAN | Client environment |
+| `error` | VARCHAR | The error `sap_bics_result` would raise, or NULL |
+| `e_state`, `e_max_message_type`, `bw_messages` | INTEGER, VARCHAR, VARCHAR | BW's verdict on the read |
+| `n_rows`, `n_columns`, `n_row_elements`, `column_entries`, `data_columns`, `data_cells` | BIGINT | The shape BW returned |
+| `cell_value_rfc_type` | VARCHAR | RFC type of the cell value field (streamed path only) |
+| `cells_read`, `cells_placed`, `cells_null_valued`, `cells_dropped_past_row`, `cells_dropped_header`, `cells_dropped_column_out_of_range`, `cells_dropped_output_out_of_range`, `first_dropped_row`, `first_dropped_column` | BIGINT | Where the cells went |
+| `row_min`, `row_max`, `column_min`, `column_max` | BIGINT | Coordinate range of the cells BW sent |
+
+---
+
 #### `sap_bics_variables(info_provider [, query, id, secret])`
 
 List the BEx variables of a query, to find out what `variables` has to fill.
