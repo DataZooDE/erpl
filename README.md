@@ -324,7 +324,7 @@ libsapucum.so
 
 ## Function Reference
 
-The complete API reference is in [API_REFERENCE.md](./API_REFERENCE.md). Below is a summary.
+The complete API reference is in [API_REFERENCE.md](./API_REFERENCE.md); what to run and what to paste into a bug report is in [TROUBLESHOOTING.md](./TROUBLESHOOTING.md). Below is a summary.
 
 ### Overview by Extension
 

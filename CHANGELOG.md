@@ -23,6 +23,65 @@ LOAD erpl;
 
 ---
 
+## v2026.10.01 — query sessions that behave like cube sessions
+
+A BEx query that has variables used to open into a session BW had already given up on:
+`BICS_PROV_GET_INITIAL_STATE` answers with an abort and every table empty until the variable
+container is submitted, and ERPL never submitted it. Everything that works from the session
+state failed on such a query, though the same call worked on its cube. Reported in #154.
+
+### Fixed
+
+- **[bics]** **`sap_bics_rows`, `sap_bics_columns` and `sap_bics_filter` work on a query that has
+  variables.** They failed with `Characteristic with name 'X' not found` although
+  `sap_bics_describe` listed the characteristic. The variable container is now submitted when the
+  session opens, so the state carries the query's characteristics, key figures and axes. This
+  applies to any query with a variable container, including ones whose variables are all exit
+  variables. Opening a query without its mandatory values still succeeds, and `sap_bics_result`
+  still names the missing variable.
+- **[bics]** **Structures can be moved between axes** on those queries, for the same reason.
+- **[bics]** **Row labels of a key figure structure are its member texts, not `dyn_kf_N`.** Member
+  ids repeat across structures, so a query with a key figure structure on rows and a
+  characteristic structure on columns could label a row with a member of the other structure
+  (`Selection 2` instead of `Billed Quantity`). A member is now looked up inside its own structure.
+- **[bics]** **`sap_bics_describe(cube, query).variables` returns the query's variables.** It was a
+  VARCHAR that was always NULL. It is now a `LIST<STRUCT>` with the fields of `sap_bics_variables`,
+  and an empty list for a query without variables.
+- **[bics]** Sessions persisted by an earlier build for such a query are rebuilt on restore instead
+  of carrying their empty state forward.
+
+### Changed
+
+- **[bics]** **Row labels of queries with variables follow the display setting of the query**, as
+  they already did for cubes. `0D_FC_AE_CONDITION_Q0015` returned the keys `FC001, FC010` and now
+  returns the texts `Anchor Inn, Pen`. Anything that filters or joins on those keys needs
+  `sap_bics_set_char_prop(id, '<char>', 'DISPLAY', 'KEY')`, which now works on a query state.
+
+### Added
+
+- **[bics]** **`sap_bics_result_stats(state_id)`**: executes the result and returns one row of
+  counts and labels, never a cell value or member text: BW's state and messages, the shape it
+  returned, where every data cell went, and the environment (SAP release, BICS version, RFC
+  user, backend, DuckDB version). It is what a bug report should carry; the new
+  `TROUBLESHOOTING.md` and the issue template ask for it.
+- **[bics]** **A failed OLAP read is reported, not returned as NULLs.** `BICS_PROV_GET_RESULT_SET`
+  has no message table: when the read fails, BW only sets a severity and parks the messages on
+  the server, and the result came back with every measure NULL. The messages are now fetched
+  (`RSBOLAP_BICS_GET_MESSAGES`); an error with no data cells raises with BW's text, an error
+  alongside cells is a warning in the trace.
+- **[bics]** Data cells that cannot be placed, cells placed with a NULL value, and rows that
+  arrive without any cells are counted and logged with `SET erpl_trace_enabled = true;
+  SET erpl_trace_level = 'WARN'`. Previously they vanished, which made a mapping problem look
+  like a query with no data. The all-NULL result reported in #154 is **not** reproduced: on the
+  trial system a key figure structure on rows and a characteristic structure with hidden
+  members on columns returns correct cells (`ZERPL_Q154_KF`, a new committed BW query fixture,
+  `bics/test/fixtures/setup_q154_query.sh`). A trace of the failing run would settle it.
+- **[rfc]** **[bics]** Every erpl function is discoverable from `duckdb_functions()` with a
+  description, example and category, including the tunnel deprecation stubs and the 31 `bw_*`
+  metadata views.
+
+---
+
 ## v2026.09.23 — CDS delta with deletes, through SAP's own pipeline engine
 
 SAP Note 3255746 prohibits third-party use of the ODP-RFC modules, a security patch has enforced
