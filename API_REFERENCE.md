@@ -578,6 +578,17 @@ SELECT * FROM sap_bics_describe('MY_CUBE');
 SELECT * FROM sap_bics_describe('MY_CUBE', 'MY_QUERY');
 ```
 
+The query form returns `technical_name`, `text`, `characteristics`, `keyfigures` and
+`variables`. `variables` is a `LIST<STRUCT(name, text, mandatory, input_enabled, is_exit_variable,
+var_type, selection_type, entry_type, reference_char)>`, the same fields `sap_bics_variables`
+returns, and an empty list for a query without variables. Before v2026.10.01 the column was a
+VARCHAR that was always NULL.
+
+```sql
+SELECT v.name, v.mandatory
+FROM (SELECT unnest(variables) AS v FROM sap_bics_describe('MY_CUBE', 'MY_QUERY'));
+```
+
 ---
 
 #### `sap_bics_describe_infoobject(info_object_name [, secret])`
