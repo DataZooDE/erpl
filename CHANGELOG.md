@@ -23,6 +23,20 @@ LOAD erpl;
 
 ---
 
+## v2026.10.02 — DuckDB v1.5.6
+
+The "latest" binary leg moves from DuckDB v1.5.5 to **v1.5.6**, the bugfix release of 2026-09-28. The
+LTS leg stays on **v1.4.5**; upstream has no newer 1.4 release. No ERPL source changes were needed.
+
+### Changed
+
+- **[all]** Binaries for DuckDB **v1.5.6** replace the v1.5.5 set on get.erpl.io. The download path is
+  keyed by DuckDB version, so a DuckDB v1.5.5 install can no longer fetch this release or any later
+  one. Upgrade DuckDB to v1.5.6, or stay on v2026.10.01, which was the last release built for v1.5.5.
+- **[all]** Verified on v1.5.6 before release: the four C++ suites, and the SAP-backed SQL suites of
+  `erpl_rfc`, `erpl_odp`, `erpl_ape` and `erpl_bics` on both RFC backends, the SAP NetWeaver SDK and
+  erpl-proto. The five platforms of both DuckDB versions build in CI.
+
 ## v2026.10.01 — query sessions that behave like cube sessions
 
 A BEx query that has variables used to open into a session BW had already given up on:
