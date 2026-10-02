@@ -14,7 +14,7 @@ Each bullet is tagged with the affected sub-extension(s):
 
 Binaries are self-distributed via [get.erpl.io](http://get.erpl.io) for the
 matrix `{linux_amd64, linux_amd64_musl, osx_amd64, osx_arm64, windows_amd64} ×
-{DuckDB v1.4.5, v1.5.5}`. Install with:
+{DuckDB v1.4.5, v1.5.6}`. Install with:
 
 ```sql
 INSTALL erpl FROM 'http://get.erpl.io';
