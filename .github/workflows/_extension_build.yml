@@ -64,6 +64,7 @@ on:
 jobs:
   generate_matrix:
     name: Generate matrix
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     outputs:
       linux_matrix: ${{ steps.set-matrix-linux.outputs.linux_matrix }}
@@ -127,6 +128,7 @@ jobs:
   # the contributor cannot fix.
   erpl_proto_backend:
     name: erpl-proto backend
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
       - name: Generate GitHub token
@@ -188,6 +190,7 @@ jobs:
   # -----------------------------------------------------------------------------------------------------------------------------------------------
   linux:
     name: Linux
+    timeout-minutes: 85
     runs-on: ubuntu-latest
     needs: generate_matrix
     if: ${{ needs.generate_matrix.outputs.linux_matrix != '{}' && needs.generate_matrix.outputs.linux_matrix != '' }}
@@ -372,6 +375,7 @@ jobs:
   #------------------------------------------------------------------------------------------------------------------------------------------------
   windows:
     name: Windows
+    timeout-minutes: 90
     runs-on: windows-2022
     needs: generate_matrix
     if: ${{ needs.generate_matrix.outputs.windows_matrix != '{}' && needs.generate_matrix.outputs.windows_matrix != '' }}
@@ -499,6 +503,7 @@ jobs:
   #------------------------------------------------------------------------------------------------------------------------------------------------
   macos:
     name: MacOS
+    timeout-minutes: 100
     runs-on: macos-latest
     needs: generate_matrix
     if: ${{ needs.generate_matrix.outputs.osx_matrix != '{}' && needs.generate_matrix.outputs.osx_matrix != '' }}
