@@ -23,6 +23,15 @@ LOAD erpl;
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **[bics]** `sap_bics_describe` and `sap_bics_variables` reported hierarchy-node variables as `HIERARCHY` and
+  hierarchy variables as `HIERARCHY_NODE`: the two labels were swapped (BW domain `RSZVARTYP`: 2 = hierarchy
+  nodes, 5 = hierarchy). They also returned an empty `reference_char` for node variables, which BICS does not
+  fill; it is now completed from `RSZGLOBV-IOBJNM` (#160).
+
 ## v2026.10.02 — DuckDB v1.5.6
 
 The "latest" binary leg moves from DuckDB v1.5.5 to **v1.5.6**, the bugfix release of 2026-09-28. The
