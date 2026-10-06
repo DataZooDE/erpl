@@ -722,10 +722,10 @@ List the BEx variables of a query, to find out what `variables` has to fill.
 | `mandatory` | BOOLEAN | BW refuses to produce a result until this one has a value |
 | `input_enabled` | BOOLEAN | Can be filled by the caller (exit variables cannot) |
 | `is_exit_variable` | BOOLEAN | Filled by a BW customer-exit, not by the caller |
-| `var_type` | VARCHAR | `CHARACTERISTIC_VALUE`, `HIERARCHY`, `TEXT`, `FORMULA`, `HIERARCHY_NODE` |
+| `var_type` | VARCHAR | `CHARACTERISTIC_VALUE`, `HIERARCHY_NODE` (selects nodes of a hierarchy), `TEXT`, `FORMULA`, `HIERARCHY` (selects a hierarchy) |
 | `selection_type` | VARCHAR | `SINGLE_VALUE`, `INTERVAL`, `SELECTION_OPTION`, `MULTIPLE_VALUES`, `PRECALCULATED_VALUE_SET` |
 | `entry_type` | VARCHAR | `OPTIONAL`, `MANDATORY`, `MANDATORY_NOT_INITIAL` |
-| `reference_char` | VARCHAR | Characteristic a hierarchy-node variable refers to |
+| `reference_char` | VARCHAR | InfoObject the variable refers to. BICS leaves this empty for several variable kinds (hierarchy-node variables among them), so it is completed from the BW variable definition (`RSZGLOBV-IOBJNM`); empty only if neither source knows it |
 
 ```sql
 SELECT * FROM sap_bics_variables('MY_QUERY');
