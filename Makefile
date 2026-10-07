@@ -2,7 +2,7 @@ PROJ_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 EXT_CONFIG=${PROJ_DIR}extension_config.cmake
 
-.PHONY: all clean format debug debug_tests release pull update wasm_mvp wasm_eh wasm_threads sql_tests_rfc sql_tests_bics sql_tests_odp sql_tests_ape sql_tests_rfc_proto sql_tests_bics_proto sql_tests_odp_proto sql_tests_ape_proto sql_tests_all_backends delta_fixtures_odp delta_tests_odp ape_fixtures ape_delta_tests smoke_test smoke_test_musl
+.PHONY: all clean format debug debug_tests cpp_tests_rfc cpp_tests_bics cpp_tests_odp release pull update wasm_mvp wasm_eh wasm_threads sql_tests_rfc sql_tests_bics sql_tests_odp sql_tests_ape sql_tests_rfc_proto sql_tests_bics_proto sql_tests_odp_proto sql_tests_ape_proto sql_tests_all_backends delta_fixtures_odp delta_tests_odp ape_fixtures ape_delta_tests smoke_test smoke_test_musl
 
 # Test file argument - if provided, run only that specific test
 TEST_FILE ?=
@@ -95,6 +95,14 @@ debug_tests:
 	mkdir -p ./build/debug/
 	cmake $(GENERATOR) $(BUILD_FLAGS) -DBUILD_UNITTESTS=ON -DCMAKE_BUILD_TYPE=Debug -S ./duckdb/ -B ./build/debug/
 	cmake --build ./build/debug/ --config Debug --target unittest
+
+#### C++ unit tests of the sub-extensions (no SAP system needed)
+# Each sub-extension has its own Catch2 binary; `test/unittest` does not contain them.
+# They run from the repository root: the fixture loader resolves paths under `bics/`.
+cpp_tests_%: debug_tests
+	cmake --build ./build/debug/ --config Debug --target erpl_$*_tests
+	LD_LIBRARY_PATH=$${LD_LIBRARY_PATH}:./nwrfcsdk/linux/lib ASAN_OPTIONS=detect_odr_violation=0 \
+		./build/debug/extension/erpl_$*/test/cpp/erpl_$*_tests $(TEST_FILTER)
 
 #### SQL Test Configuration
 # Common environment variables for all test targets

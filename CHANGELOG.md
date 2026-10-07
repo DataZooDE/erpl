@@ -25,6 +25,14 @@ LOAD erpl;
 
 ## Unreleased
 
+### Fixed
+
+- **[bics]** Follow-ups from the review of #159: an empty structure argument to `sap_bics_hidden_members` no
+  longer picks the first structure; a structure's or member's alternative name resolves; a mutation BW rejects
+  (`return => 'RESULT'`) is no longer persisted, and the error names the state id and a way out; `HIDE` never
+  writes an empty selection; a filter `ADD` next to a range or exclusion on the same value is no longer
+  swallowed; a state without the meta data-cell table describes its members as visible instead of failing.
+
 ### Added
 
 - **[bics]** `sap_bics_hidden_members(state_id, structure, 'SHOW' | 'HIDE')` shows, or hides again, the
