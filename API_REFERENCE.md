@@ -599,7 +599,7 @@ element_uid, visibility)>`:
 | `text` | The member's description |
 | `technical_name` | The technical name given in the query designer; usually empty |
 | `element_uid` | The 25-character element id BW addresses the member by. This is the value `sap_bics_filter` takes to select the member |
-| `visibility` | `VISIBLE`, or `HIDDEN` for a member the query hides with **Hide (can be shown)**. Members defined as **Hide** are not reported by BW at all and never appear |
+| `visibility` | `VISIBLE`, or `HIDDEN` for a member the query hides with **Hide (can be shown)**. This is the design-time setting: `sap_bics_hidden_members` does not change it, the result set shows the effect. Members defined as **Hide** are not reported by BW at all and never appear |
 
 ```sql
 SELECT s.text, s.element_uid, s.visibility
@@ -812,7 +812,7 @@ on the visible members survives both actions.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `state_id` | VARCHAR | *required* | State ID |
-| `structure` | VARCHAR | *required* | The structure's technical name (see `sap_bics_describe`); an error for anything else |
+| `structure` | VARCHAR | *required* | The structure's `technical_name` as `sap_bics_describe` lists it, not a member's `element_uid`; an error for anything else |
 | `action` | VARCHAR | *required* | `'SHOW'` or `'HIDE'` |
 | `return` | BICS_RETURN | `'DESCRIBE'` | Return format |
 
@@ -823,7 +823,9 @@ SELECT * FROM sap_bics_hidden_members('q1', '77XQU2PNZ6PN6OYPMQAKRILDV', 'HIDE')
 ```
 
 `HIDE` on a selection that holds only hidden members falls back to the design-time visible
-members instead of emptying it, because an empty selection would show everything.
+members instead of emptying it, because an empty selection would show everything; for the same
+reason `SHOW` leaves an emptied selection alone. To hide a structure's totals instead, use
+`sap_bics_set_char_prop(state, structure, 'TOTALS', 'HIDE')`.
 
 #### Step 4 (optional): `sap_bics_set_char_prop(state_id, char_name, prop, value [, return])`
 
