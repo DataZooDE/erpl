@@ -56,9 +56,12 @@ make sql_tests_rfc TEST_FILE=sap_read_table.test      # Single test file
 make sql_tests_bics TEST_FILE=sap_bics_hierarchy.test # Single BICS test
 ```
 
-C++ unit tests (no SAP system needed):
+C++ unit tests (no SAP system needed). Each sub-extension has its own Catch2 binary; `test/unittest` does
+not contain them, and they run from the repository root (the fixture loader resolves paths under `bics/`):
 ```bash
-./build/debug/test/unittest "[erpl_rfc]"    # Run RFC C++ tests
+make cpp_tests_rfc                                          # all RFC C++ tests
+make cpp_tests_bics TEST_FILTER='"[bics_hidden_members]"'   # one tag
+./build/debug/extension/erpl_bics/test/cpp/erpl_bics_tests "[bics_variables]"   # the binary directly
 ```
 
 SQL test files: `{rfc,bics,odp,ape}/test/sql/*.test`. C++ tests: `rfc/test/cpp/`.
