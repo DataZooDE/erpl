@@ -827,6 +827,13 @@ members instead of emptying it, because an empty selection would show everything
 reason `SHOW` leaves an emptied selection alone. To hide a structure's totals instead, use
 `sap_bics_set_char_prop(state, structure, 'TOTALS', 'HIDE')`.
 
+**Rejected states.** When BW refuses a query state (`BICS_PROV_SET_STATE` answers with message
+type E or A, for example while a mandatory variable is unfilled), the call that submits it,
+`sap_bics_result` or any mutation with `return => 'RESULT'`, raises `BW rejected the query state
+'<id>' ...` with BW's messages. The state id keeps its previous version: a mutation is persisted
+only after BW accepted it, so undo the change, fill the variables, or open the query again with
+`sap_bics_begin`.
+
 #### Step 4 (optional): `sap_bics_set_char_prop(state_id, char_name, prop, value [, return])`
 
 Set an AO-style per-characteristic property (Display, Sort, or Totals
