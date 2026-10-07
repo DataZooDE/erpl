@@ -25,6 +25,16 @@ LOAD erpl;
 
 ## Unreleased
 
+### Added
+
+- **[bics]** `sap_bics_hidden_members(state_id, structure, 'SHOW' | 'HIDE')` shows, or hides again, the
+  structure members a BEx query hides with "Hide (can be shown)", as Analysis for Office's "Show hidden
+  members" does; `sap_bics_filter` addresses one such member by its element uid. `sap_bics_describe` reports
+  each structure member's `element_uid` and design-time `visibility`. Members defined as "Hide" are never
+  reported by BW and stay hidden (#159).
+- **[bics]** A query state BW rejects (`BICS_PROV_SET_STATE` message type E or A) is reported with BW's
+  messages instead of silently producing the previous result (#159).
+
 ### Fixed
 
 - **[bics]** `sap_bics_describe` and `sap_bics_variables` reported hierarchy-node variables as `HIERARCHY` and

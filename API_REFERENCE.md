@@ -70,6 +70,7 @@ SELECT * FROM sap_bics_show_cubes();
 | `sap_bics_show_cubes` | List BW cubes | `SELECT * FROM sap_bics_show_cubes()` |
 | `sap_bics_hierarchy` | Extract BW hierarchy | `SELECT * FROM sap_bics_hierarchy('MY_HIER')` |
 | `sap_bics_set_char_prop` | AO-style char property (Display/Sort/Totals) | `SELECT * FROM sap_bics_set_char_prop('q1', '0CNTRY', 'DISPLAY', 'TEXT')` |
+| `sap_bics_hidden_members` | Show / hide the structure members a query hides with "Hide (can be shown)" | `SELECT * FROM sap_bics_hidden_members('q1', '<structure>', 'SHOW')` |
 | `sap_odp_read_full` | Extract ODP data (full snapshot) | `SELECT * FROM sap_odp_read_full('BW', 'MY_ODP')` |
 | `sap_odp_read_delta` | Extract ODP data (incremental delta) | `SELECT * FROM sap_odp_read_delta('BW', 'MY_ODP', 'MY_PIPELINE')` |
 | `sap_odp_get_last_modified` | Last-modified timestamp of an ODP object (cheap delta probe) | `SELECT * FROM sap_odp_get_last_modified('ABAP_CDS', 'MY_CDS$E')` |
@@ -589,6 +590,24 @@ SELECT v.name, v.mandatory
 FROM (SELECT unnest(variables) AS v FROM sap_bics_describe('MY_CUBE', 'MY_QUERY'));
 ```
 
+A structure (a key-figure structure under `keyfigures`, a characteristic structure under
+`characteristics`) lists its members in `structures`, a `LIST<STRUCT(text, technical_name,
+element_uid, visibility)>`:
+
+| Field | Description |
+|-------|-------------|
+| `text` | The member's description |
+| `technical_name` | The technical name given in the query designer; usually empty |
+| `element_uid` | The 25-character element id BW addresses the member by. This is the value `sap_bics_filter` takes to select the member |
+| `visibility` | `VISIBLE`, or `HIDDEN` for a member the query hides with **Hide (can be shown)**. This is the design-time setting: `sap_bics_hidden_members` does not change it, the result set shows the effect. Members defined as **Hide** are not reported by BW at all and never appear |
+
+```sql
+SELECT s.text, s.element_uid, s.visibility
+FROM (SELECT unnest(c.structures) AS s
+      FROM (SELECT unnest(characteristics) AS c FROM sap_bics_describe('MY_CUBE', 'MY_QUERY'))
+      WHERE c.technical_name = '<structure>');
+```
+
 ---
 
 #### `sap_bics_describe_infoobject(info_object_name [, secret])`
@@ -763,8 +782,8 @@ name; pass zero members with `op='SET'` to clear the filter.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `state_id` | VARCHAR | *required* | State ID |
-| `char_name` | VARCHAR | *required* | Characteristic technical name |
-| `member1, …` | VARCHAR (varargs) | — | Member values to include (or remove with `op='REMOVE'`) |
+| `char_name` | VARCHAR | *required* | Characteristic technical name, or a structure's |
+| `member1, …` | VARCHAR (varargs) | — | Member values to include (or remove with `op='REMOVE'`). For a structure: the members' `element_uid` from `sap_bics_describe` |
 | `op` | BICS_OPERATION | `'ADD'` if members supplied, else `'SET'` | `'SET'`, `'ADD'`, `'REMOVE'` |
 | `return` | BICS_RETURN | `'DESCRIBE'` | Return format |
 
@@ -775,7 +794,38 @@ SELECT * FROM sap_bics_filter('q1', '0D_NW_CNTRY', 'DE', 'FR', op='SET');
 SELECT * FROM sap_bics_filter('q1', '0D_NW_CNTRY', 'US', op='ADD');
 -- Clear the filter
 SELECT * FROM sap_bics_filter('q1', '0D_NW_CNTRY', op='SET');
+-- Show one structure member the query hides ("Hide (can be shown)"), by its element_uid
+SELECT * FROM sap_bics_filter('q1', '<structure>', '5J5XKC1FYZOI8O641M9D8XEYA');
 ```
+
+A structure's selection is the list of its members that appear in the result. BW seeds it
+with the members not hidden at design time, so an **empty** structure selection (`op='SET'`
+without members) shows every member, the hidden ones included.
+
+#### Step 3b (optional): `sap_bics_hidden_members(state_id, structure, action [, return])`
+
+Show, or hide again, every member of a structure that the query hides with **Hide (can be
+shown)**, as a BI client's "show hidden members" does. Members defined as **Hide** are never
+reported by BW and stay hidden. Only the hidden members are touched: a filter the caller set
+on the visible members survives both actions.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `state_id` | VARCHAR | *required* | State ID |
+| `structure` | VARCHAR | *required* | The structure's `technical_name` as `sap_bics_describe` lists it, not a member's `element_uid`; an error for anything else |
+| `action` | VARCHAR | *required* | `'SHOW'` or `'HIDE'` |
+| `return` | BICS_RETURN | `'DESCRIBE'` | Return format |
+
+```sql
+SELECT * FROM sap_bics_hidden_members('q1', '77XQU2PNZ6PN6OYPMQAKRILDV', 'SHOW');
+SELECT * FROM sap_bics_result('q1');   -- now carries the hidden key figures too
+SELECT * FROM sap_bics_hidden_members('q1', '77XQU2PNZ6PN6OYPMQAKRILDV', 'HIDE');
+```
+
+`HIDE` on a selection that holds only hidden members falls back to the design-time visible
+members instead of emptying it, because an empty selection would show everything; for the same
+reason `SHOW` leaves an emptied selection alone. To hide a structure's totals instead, use
+`sap_bics_set_char_prop(state, structure, 'TOTALS', 'HIDE')`.
 
 #### Step 4 (optional): `sap_bics_set_char_prop(state_id, char_name, prop, value [, return])`
 
