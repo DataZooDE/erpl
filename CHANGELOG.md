@@ -23,17 +23,22 @@ LOAD erpl;
 
 ---
 
-## Unreleased
+## v2026.10.09 — structure members, flat and addressable
+
+The follow-ups to the hidden-members work of v2026.10.08, verified against a live BW system on the SAP
+NetWeaver SDK and the erpl-proto backend.
 
 ### Added
 
-- **[bics]** `sap_bics_structure_members(query | cube, query | id => state)`: one row per structure member
-  (structure, kind, `element_uid`, text, position, `visibility`, `in_selection`), the flat form of the
-  `structures` lists in `sap_bics_describe` (#164).
+- **[bics]** `sap_bics_structure_members(query | cube, query | id => state)`: one row per structure member of a
+  BEx query (`structure`, `structure_technical_name`, `structure_text`, `structure_kind`, `element_uid`, `text`,
+  `technical_name`, `position`, `visibility`, `in_selection`), the flat form of the `structures` lists in
+  `sap_bics_describe` (#164).
 - **[bics]** Structure members in `sap_bics_describe` and in the DESCRIBE return of the session functions carry
-  `in_selection`: whether the member is in the structure's current selection, so the effect of
-  `sap_bics_hidden_members` and `sap_bics_filter` is visible without a result fetch. `NULL` in the design-time
-  `(cube, query)` form (#163).
+  `in_selection`: whether an include/equal entry of the structure's current selection selects the member, so the
+  effect of `sap_bics_hidden_members` and `sap_bics_filter` is visible without a result fetch. `true` for every
+  member of a selection without entries (BW shows all then); a selection holding only exclusions or ranges
+  selects nothing; `NULL` in the design-time `(cube, query)` form (#163).
 
 ### Fixed
 
