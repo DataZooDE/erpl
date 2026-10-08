@@ -71,6 +71,7 @@ SELECT * FROM sap_bics_show_cubes();
 | `sap_bics_hierarchy` | Extract BW hierarchy | `SELECT * FROM sap_bics_hierarchy('MY_HIER')` |
 | `sap_bics_set_char_prop` | AO-style char property (Display/Sort/Totals) | `SELECT * FROM sap_bics_set_char_prop('q1', '0CNTRY', 'DISPLAY', 'TEXT')` |
 | `sap_bics_hidden_members` | Show / hide the structure members a query hides with "Hide (can be shown)" | `SELECT * FROM sap_bics_hidden_members('q1', '<structure>', 'SHOW')` |
+| `sap_bics_structure_members` | One row per structure member: uid, text, position, visibility, in_selection | `SELECT * FROM sap_bics_structure_members('MY_QUERY') WHERE visibility = 'HIDDEN'` |
 | `sap_odp_read_full` | Extract ODP data (full snapshot) | `SELECT * FROM sap_odp_read_full('BW', 'MY_ODP')` |
 | `sap_odp_read_delta` | Extract ODP data (incremental delta) | `SELECT * FROM sap_odp_read_delta('BW', 'MY_ODP', 'MY_PIPELINE')` |
 | `sap_odp_get_last_modified` | Last-modified timestamp of an ODP object (cheap delta probe) | `SELECT * FROM sap_odp_get_last_modified('ABAP_CDS', 'MY_CDS$E')` |
@@ -592,20 +593,45 @@ FROM (SELECT unnest(variables) AS v FROM sap_bics_describe('MY_CUBE', 'MY_QUERY'
 
 A structure (a key-figure structure under `keyfigures`, a characteristic structure under
 `characteristics`) lists its members in `structures`, a `LIST<STRUCT(text, technical_name,
-element_uid, visibility)>`:
+element_uid, visibility, in_selection)>`; `sap_bics_structure_members` (below) returns the same
+rows flat:
 
 | Field | Description |
 |-------|-------------|
 | `text` | The member's description |
 | `technical_name` | The technical name given in the query designer; usually empty |
 | `element_uid` | The 25-character element id BW addresses the member by. This is the value `sap_bics_filter` takes to select the member |
-| `visibility` | `VISIBLE`, or `HIDDEN` for a member the query hides with **Hide (can be shown)**. This is the design-time setting: `sap_bics_hidden_members` does not change it, the result set shows the effect. Members defined as **Hide** are not reported by BW at all and never appear |
+| `visibility` | `VISIBLE`, or `HIDDEN` for a member the query hides with **Hide (can be shown)**. This is the design-time setting: `sap_bics_hidden_members` does not change it. Members defined as **Hide** are not reported by BW at all and never appear |
+| `in_selection` | Whether an include/equal entry of the structure's current selection selects the member, i.e. whether it will appear in the result: `true` for every member when the selection is empty (BW shows all then). `NULL` in the `(cube, query)` form, which has no session state; filled in `sap_bics_describe(id => ...)` and in the DESCRIBE return of the session functions, so the effect of `sap_bics_hidden_members` and `sap_bics_filter` is visible without a result fetch |
 
 ```sql
 SELECT s.text, s.element_uid, s.visibility
 FROM (SELECT unnest(c.structures) AS s
       FROM (SELECT unnest(characteristics) AS c FROM sap_bics_describe('MY_CUBE', 'MY_QUERY'))
       WHERE c.technical_name = '<structure>');
+```
+
+#### `sap_bics_structure_members(query | cube_name, query_name | id => state_id [, secret])`
+
+One row per structure member of a query, the flat form of the `structures` lists above. A bare
+cube name resolves like `sap_bics_begin`'s does; a cube has no structures and returns no rows. The
+query forms and `id =>` are exclusive.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `structure` | VARCHAR | The structure characteristic's technical name (the argument of `sap_bics_hidden_members`) |
+| `structure_text` | VARCHAR | Its description |
+| `structure_kind` | VARCHAR | `KEY_FIGURES` or `CHARACTERISTIC` |
+| `element_uid` | VARCHAR | The member's element id (the value `sap_bics_filter` takes) |
+| `text` | VARCHAR | The member's description |
+| `technical_name` | VARCHAR | The technical name given in the query designer; usually empty |
+| `position` | INTEGER | The member's position in the structure, from 1 |
+| `visibility` | VARCHAR | `VISIBLE` or `HIDDEN` (design time, see above) |
+| `in_selection` | BOOLEAN | In the structure's current selection; `NULL` without `id =>` |
+
+```sql
+SELECT structure, text, element_uid FROM sap_bics_structure_members('MY_QUERY') WHERE visibility = 'HIDDEN';
+SELECT text, in_selection FROM sap_bics_structure_members(id => 'q1');
 ```
 
 ---
@@ -812,7 +838,7 @@ on the visible members survives both actions.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `state_id` | VARCHAR | *required* | State ID |
-| `structure` | VARCHAR | *required* | The structure's `technical_name` as `sap_bics_describe` lists it, not a member's `element_uid`; an error for anything else |
+| `structure` | VARCHAR | *required* | The structure's `technical_name` as `sap_bics_describe` lists it, or the technical name given to the structure in the query designer; not a member's `element_uid`. An error for anything else, naming the query's structures |
 | `action` | VARCHAR | *required* | `'SHOW'` or `'HIDE'` |
 | `return` | BICS_RETURN | `'DESCRIBE'` | Return format |
 

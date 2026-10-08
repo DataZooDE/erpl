@@ -23,6 +23,24 @@ LOAD erpl;
 
 ---
 
+## Unreleased
+
+### Added
+
+- **[bics]** `sap_bics_structure_members(query | cube, query | id => state)`: one row per structure member
+  (structure, kind, `element_uid`, text, position, `visibility`, `in_selection`), the flat form of the
+  `structures` lists in `sap_bics_describe` (#164).
+- **[bics]** Structure members in `sap_bics_describe` and in the DESCRIBE return of the session functions carry
+  `in_selection`: whether the member is in the structure's current selection, so the effect of
+  `sap_bics_hidden_members` and `sap_bics_filter` is visible without a result fetch. `NULL` in the design-time
+  `(cube, query)` form (#163).
+
+### Fixed
+
+- **[bics]** A structure given by the technical name the query designer assigned to it is accepted by
+  `sap_bics_hidden_members` and `sap_bics_filter` alike; BW reports that name as the structure's alternative name
+  while its selection state keeps the element uid. Covered by the `ZERPL_Q154_KF` fixture (#165).
+
 ## v2026.10.08 — hidden structure members, and hierarchy variables labelled right
 
 Two BICS fixes reported by users of BEx queries, both verified against a live BW system on the SAP NetWeaver
