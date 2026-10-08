@@ -602,7 +602,7 @@ rows flat:
 | `technical_name` | The technical name given in the query designer; usually empty |
 | `element_uid` | The 25-character element id BW addresses the member by. This is the value `sap_bics_filter` takes to select the member |
 | `visibility` | `VISIBLE`, or `HIDDEN` for a member the query hides with **Hide (can be shown)**. This is the design-time setting: `sap_bics_hidden_members` does not change it. Members defined as **Hide** are not reported by BW at all and never appear |
-| `in_selection` | Whether an include/equal entry of the structure's current selection selects the member, i.e. whether it will appear in the result: `true` for every member when the selection is empty (BW shows all then). `NULL` in the `(cube, query)` form, which has no session state; filled in `sap_bics_describe(id => ...)` and in the DESCRIBE return of the session functions, so the effect of `sap_bics_hidden_members` and `sap_bics_filter` is visible without a result fetch |
+| `in_selection` | Whether an include/equal entry of the structure's current selection selects the member, i.e. whether it will appear in the result: `true` for every member when the selection has no entries (BW shows all then); a selection holding only exclusions or ranges selects nothing. `NULL` in the `(cube, query)` form, which has no session state; filled in `sap_bics_describe(id => ...)` and in the DESCRIBE return of the session functions, so the effect of `sap_bics_hidden_members` and `sap_bics_filter` is visible without a result fetch |
 
 ```sql
 SELECT s.text, s.element_uid, s.visibility
@@ -619,7 +619,8 @@ query forms and `id =>` are exclusive.
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `structure` | VARCHAR | The structure characteristic's technical name (the argument of `sap_bics_hidden_members`) |
+| `structure` | VARCHAR | The structure's uid, the value `sap_bics_describe` lists as its `technical_name` and the selection state lists it under; the argument of `sap_bics_hidden_members` |
+| `structure_technical_name` | VARCHAR | The technical name given to the structure in the query designer, if any; `sap_bics_hidden_members` and `sap_bics_filter` accept it as well |
 | `structure_text` | VARCHAR | Its description |
 | `structure_kind` | VARCHAR | `KEY_FIGURES` or `CHARACTERISTIC` |
 | `element_uid` | VARCHAR | The member's element id (the value `sap_bics_filter` takes) |
