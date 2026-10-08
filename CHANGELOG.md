@@ -23,32 +23,36 @@ LOAD erpl;
 
 ---
 
-## Unreleased
+## v2026.10.08 — hidden structure members, and hierarchy variables labelled right
 
-### Fixed
-
-- **[bics]** Follow-ups from the review of #159: an empty structure argument to `sap_bics_hidden_members` no
-  longer picks the first structure; a structure's or member's alternative name resolves; a mutation BW rejects
-  (`return => 'RESULT'`) is no longer persisted, and the error names the state id and a way out; `HIDE` never
-  writes an empty selection; a filter `ADD` next to a range or exclusion on the same value is no longer
-  swallowed; a state without the meta data-cell table describes its members as visible instead of failing.
+Two BICS fixes reported by users of BEx queries, both verified against a live BW system on the SAP NetWeaver
+SDK and the erpl-proto backend.
 
 ### Added
 
 - **[bics]** `sap_bics_hidden_members(state_id, structure, 'SHOW' | 'HIDE')` shows, or hides again, the
   structure members a BEx query hides with "Hide (can be shown)", as Analysis for Office's "Show hidden
-  members" does; `sap_bics_filter` addresses one such member by its element uid. `sap_bics_describe` reports
-  each structure member's `element_uid` and design-time `visibility`. Members defined as "Hide" are never
-  reported by BW and stay hidden (#159).
-- **[bics]** A query state BW rejects (`BICS_PROV_SET_STATE` message type E or A) is reported with BW's
-  messages instead of silently producing the previous result (#159).
+  members" does. BW hides such a member by leaving it out of the structure's initial selection; the function
+  touches only those members, so a filter on the visible ones survives, and `HIDE` never leaves the selection
+  empty (BW would show everything). `sap_bics_filter(state, structure, '<element_uid>')` shows one member at a
+  time. Members defined as "Hide" are never reported by BW and stay hidden (#159).
+- **[bics]** `sap_bics_describe` reports each structure member's `element_uid` (the handle for the above) and
+  its design-time `visibility` (`VISIBLE` / `HIDDEN`), from the query's meta data cells (#159).
+- **[bics]** A query state BW rejects (`BICS_PROV_SET_STATE` message type E or A, for example while a mandatory
+  variable is unfilled) is reported with the state id, BW's messages and a way out, instead of silently
+  producing the previous result. A mutation BW rejects is not persisted; a mutation BW accepted is, even when
+  the fetch that follows fails (#159).
+- **[build]** `make cpp_tests_<extension>` builds and runs a sub-extension's Catch2 binary; they are not part of
+  `test/unittest` and had no documented command.
 
 ### Fixed
 
 - **[bics]** `sap_bics_describe` and `sap_bics_variables` reported hierarchy-node variables as `HIERARCHY` and
   hierarchy variables as `HIERARCHY_NODE`: the two labels were swapped (BW domain `RSZVARTYP`: 2 = hierarchy
   nodes, 5 = hierarchy). They also returned an empty `reference_char` for node variables, which BICS does not
-  fill; it is now completed from `RSZGLOBV-IOBJNM` (#160).
+  fill; it is now completed from `RSZGLOBV-IOBJNM`, read in batches that fit the `RFC_READ_TABLE` option row
+  (#160).
+- **[bics]** A filter `ADD` next to a range or exclusion entry on the same value is no longer swallowed (#166).
 
 ## v2026.10.02 — DuckDB v1.5.6
 
