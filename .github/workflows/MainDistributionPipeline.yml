@@ -41,7 +41,8 @@ jobs:
   duckdb-stable-deploy-v145:
     name: Deploy extension binaries
     needs: duckdb-stable-build-v145
-    if: ${{ !cancelled() }}
+    # PR runs publish nothing (no versioned or latest path), so skip the job outright.
+    if: ${{ !cancelled() && github.event_name != 'pull_request' }}
     uses: ./.github/workflows/_extension_deploy.yml
     secrets: inherit
     with:
@@ -49,7 +50,12 @@ jobs:
       extension_name: erpl
       exclude_archs: linux_arm64;windows_amd64_rtools;wasm_mvp;wasm_eh;wasm_threads;
       deploy_latest: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
-      deploy_versioned: ${{ !(startsWith(github.ref, 'refs/tags/v')) && !(github.ref == 'refs/heads/master') }}
+      # Versioned paths (erpl/vYYYY.MM.DD/...) come ONLY from the tag run, so users can pin
+      # a release. They used to come from every PR/branch run (by short SHA) and never
+      # from tags. A master push of the release commit must not write them either: it
+      # builds before the tag exists and its deploy resolves the tag at upload time, so
+      # it could overwrite the release with a pre-tag build (hit duckdb-gdrive v2026.10.17).
+      deploy_versioned: ${{ startsWith(github.ref, 'refs/tags/v') }}
 
   duckdb-stable-build-v154:
     name: Build v.1.5.6 extension binaries
@@ -64,7 +70,8 @@ jobs:
     name: Deploy extension binaries
     needs: duckdb-stable-build-v154
     # See the note above duckdb-stable-deploy-v145.
-    if: ${{ !cancelled() }}
+    # PR runs publish nothing (no versioned or latest path), so skip the job outright.
+    if: ${{ !cancelled() && github.event_name != 'pull_request' }}
     uses: ./.github/workflows/_extension_deploy.yml
     secrets: inherit
     with:
@@ -72,5 +79,10 @@ jobs:
       extension_name: erpl
       exclude_archs: linux_arm64;windows_amd64_rtools;wasm_mvp;wasm_eh;wasm_threads;
       deploy_latest: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
-      deploy_versioned: ${{ !(startsWith(github.ref, 'refs/tags/v')) && !(github.ref == 'refs/heads/master') }}
+      # Versioned paths (erpl/vYYYY.MM.DD/...) come ONLY from the tag run, so users can pin
+      # a release. They used to come from every PR/branch run (by short SHA) and never
+      # from tags. A master push of the release commit must not write them either: it
+      # builds before the tag exists and its deploy resolves the tag at upload time, so
+      # it could overwrite the release with a pre-tag build (hit duckdb-gdrive v2026.10.17).
+      deploy_versioned: ${{ startsWith(github.ref, 'refs/tags/v') }}
 
