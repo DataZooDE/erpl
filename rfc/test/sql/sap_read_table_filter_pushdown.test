@@ -78,13 +78,25 @@ true
 # Range predicates.  These were previously dropped entirely, so the whole
 # column crossed the wire -- the single biggest cost on a large extract.
 # ---------------------------------------------------------------------
+# The window comes from the table itself: /DMO/FLIGHT's demo data is generated
+# relative to the day it was created, so a fixed calendar year matches one system
+# and selects nothing on another.  From the first flight to the midpoint always
+# splits the table.  getvariable() is folded to a constant at bind time, so the
+# range is still a pushable constant predicate.
+statement ok
+SET VARIABLE rng_lo = (SELECT min(FLIGHT_DATE) FROM sap_read_table('/DMO/FLIGHT'));
+
+statement ok
+SET VARIABLE rng_hi = (SELECT min(FLIGHT_DATE) + ((max(FLIGHT_DATE) - min(FLIGHT_DATE)) // 2)::INTEGER
+                       FROM sap_read_table('/DMO/FLIGHT'));
+
 statement ok
 SET erpl_rfc_pushdown_filters = false;
 
 statement ok
 CREATE TABLE rng_ref AS
 SELECT * FROM sap_read_table('/DMO/FLIGHT')
-WHERE FLIGHT_DATE >= DATE '2026-01-01' AND FLIGHT_DATE <= DATE '2026-12-31';
+WHERE FLIGHT_DATE >= getvariable('rng_lo') AND FLIGHT_DATE <= getvariable('rng_hi');
 
 statement ok
 SET erpl_rfc_pushdown_filters = true;
@@ -92,7 +104,7 @@ SET erpl_rfc_pushdown_filters = true;
 statement ok
 CREATE TABLE rng_push AS
 SELECT * FROM sap_read_table('/DMO/FLIGHT')
-WHERE FLIGHT_DATE >= DATE '2026-01-01' AND FLIGHT_DATE <= DATE '2026-12-31';
+WHERE FLIGHT_DATE >= getvariable('rng_lo') AND FLIGHT_DATE <= getvariable('rng_hi');
 
 query I
 SELECT count(*) FROM (
