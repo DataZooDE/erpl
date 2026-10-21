@@ -121,7 +121,12 @@ target_link_libraries(${EXTENSION_NAME} ${OPENSSL_LIBRARIES} posthog_telemetry $
 target_link_libraries(${LOADABLE_EXTENSION_NAME} ${OPENSSL_LIBRARIES} posthog_telemetry ${CMAKE_DL_LIBS})
 
 if(APPLE)
-      foreach(erpl_target posthog_telemetry ${EXTENSION_NAME} ${LOADABLE_EXTENSION_NAME})
+      # DuckDB 2.0's httplib reads the macOS keychain (CoreFoundation + Security).
+      # posthog_telemetry is linked with the keyword signature in its own CMakeLists,
+      # and CMake forbids mixing signatures on one target, so it gets PUBLIC here;
+      # the extension targets use the plain signature like the lines above.
+      target_link_libraries(posthog_telemetry PUBLIC "-framework CoreFoundation" "-framework Security")
+      foreach(erpl_target ${EXTENSION_NAME} ${LOADABLE_EXTENSION_NAME})
             target_link_libraries(${erpl_target} "-framework CoreFoundation" "-framework Security")
       endforeach()
 endif()
