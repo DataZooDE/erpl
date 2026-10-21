@@ -1,4 +1,5 @@
 #pragma once
+#include "duckdb/planner/table_filter.hpp"
 
 #include <set>
 #include <atomic>
@@ -12,6 +13,7 @@
 #include "sap_rfc_api.hpp"
 
 #include "sap_function.hpp"
+#include "duckdb_compat.hpp"
 
 namespace duckdb 
 {
@@ -127,7 +129,7 @@ namespace duckdb
 
 	ReadTableFunctionOptions ResolveReadTableFunctionOptions(
 		ClientContext &context,
-		const named_parameter_map_t *named_params = nullptr,
+		const duckdb_compat::BindNamedParameters *named_params = nullptr,
 		const std::string &secret_name = "",
 		const std::string &attach_override_function = "",
 		const std::string &attach_override_delimiter = "");
@@ -265,6 +267,7 @@ namespace duckdb
 			void PinAuthParams(ClientContext &context);
 
 		private:
+			friend struct RfcReadTableFilterTestAccess;
 			std::string read_table_function;
 			std::string read_table_delimiter;
 			std::string read_table_function_source = "default";
@@ -317,12 +320,12 @@ namespace duckdb
 			static std::vector<Value> GetTableFieldMetas(std::shared_ptr<RfcConnection> connection, std::string table_name);
 			static RfcType GetRfcTypeForFieldMeta(Value &DFIES_entry);
 	
-			static std::string TransformFilter(std::string &column_name, TableFilter &filter);
+			static std::string TransformFilter(std::string &column_name, const TableFilter &filter);
 			static std::string TransformLiteral(const Value &val);
 			static std::string TransformBlob(const std::string &val);
-			static std::string CreateExpression(string &column_name, vector<unique_ptr<TableFilter>> &filters, string op);
+			static std::string CreateExpression(string &column_name, const vector<unique_ptr<TableFilter>> &filters, string op);
 			static std::string TransformConjunction(std::string &column_name,
-			                                        vector<unique_ptr<TableFilter>> &children,
+			                                        const vector<unique_ptr<TableFilter>> &children,
 			                                        const std::string &op);
 			static std::string TransformComparision(ExpressionType type);
 
@@ -335,7 +338,7 @@ namespace duckdb
 			// Apply the predicates RFC_READ_TABLE could not express.  Required, not
 			// optional: filter_pushdown = true makes DuckDB drop the filter from the
 			// plan, so anything the scan does not apply is simply not applied.
-			void ApplyResidualFilters(DataChunk &output);
+			void ApplyResidualFilters(ClientContext &context, DataChunk &output);
 
 			// A fresh set of state machines carrying the current projection, for one
 			// worker of a partitioned scan.  Built from the projection recorded by

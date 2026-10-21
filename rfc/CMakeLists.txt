@@ -45,6 +45,7 @@ target_include_directories(posthog_telemetry PRIVATE
 )
 
 include_directories(src/include
+                    ../duckdb-compat/include
                     ../duckdb/third_party/
                     ../duckdb/third_party/httplib
                     ../duckdb/third_party/miniz
@@ -118,6 +119,17 @@ endif()
 # headers are used at compile time. See src/sap_rfc_api.hpp.
 target_link_libraries(${EXTENSION_NAME} ${OPENSSL_LIBRARIES} posthog_telemetry ${CMAKE_DL_LIBS})
 target_link_libraries(${LOADABLE_EXTENSION_NAME} ${OPENSSL_LIBRARIES} posthog_telemetry ${CMAKE_DL_LIBS})
+
+if(APPLE)
+      # DuckDB 2.0's httplib reads the macOS keychain (CoreFoundation + Security).
+      # posthog_telemetry is linked with the keyword signature in its own CMakeLists,
+      # and CMake forbids mixing signatures on one target, so it gets PUBLIC here;
+      # the extension targets use the plain signature like the lines above.
+      target_link_libraries(posthog_telemetry PUBLIC "-framework CoreFoundation" "-framework Security")
+      foreach(erpl_target ${EXTENSION_NAME} ${LOADABLE_EXTENSION_NAME})
+            target_link_libraries(${erpl_target} "-framework CoreFoundation" "-framework Security")
+      endforeach()
+endif()
 
 if(MINGW)
    target_link_libraries(${EXTENSION_NAME} -lcrypt32)

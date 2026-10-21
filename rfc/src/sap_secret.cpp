@@ -6,6 +6,7 @@
 #include "sap_rfc.hpp"
 
 #include <algorithm>
+#include "duckdb_compat.hpp"
 
 namespace duckdb {
 
@@ -37,7 +38,7 @@ unique_ptr<BaseSecret> CreateSapSecretFunction(ClientContext &context, CreateSec
 	auto result = make_uniq<KeyValueSecret>(prefix_paths, "sap_rfc", "config", input.name);
 	auto &names = SapSecretAcceptedKeys();
 	for (const auto &named_param : input.options) {
-		auto lower_name = StringUtil::Lower(named_param.first);
+		auto lower_name = StringUtil::Lower(duckdb_compat::Str(named_param.first));
 
 		if (std::find(names.begin(), names.end(), lower_name) == names.end()) {
 			// Normally unreachable — DuckDB rejects unregistered named parameters
@@ -47,13 +48,13 @@ unique_ptr<BaseSecret> CreateSapSecretFunction(ClientContext &context, CreateSec
 			throw InvalidInputException("Unknown parameter '%s' for secret type 'sap_rfc'", lower_name);
 		}
 		if (lower_name == "read_table_function") {
-			result->secret_map[lower_name] = NormalizeAndValidateReadTableFunctionName(named_param.second.ToString());
+			result->secret_map[duckdb_compat::Ident(lower_name)] = NormalizeAndValidateReadTableFunctionName(named_param.second.ToString());
 		} else if (lower_name == "read_table_delimiter") {
 			auto delim = named_param.second.ToString();
 			ValidateReadTableDelimiter(delim);
-			result->secret_map[lower_name] = delim;
+			result->secret_map[duckdb_compat::Ident(lower_name)] = delim;
 		} else {
-			result->secret_map[lower_name] = named_param.second.ToString();
+			result->secret_map[duckdb_compat::Ident(lower_name)] = named_param.second.ToString();
 		}
 	}
 
@@ -70,11 +71,11 @@ unique_ptr<BaseSecret> CreateSapSecretFunction(ClientContext &context, CreateSec
 
 void SetSapSecretParameters(CreateSecretFunction &function) {
 	for (auto &name : SapSecretParameterNames()) {
-		function.named_parameters[name] = LogicalType::VARCHAR;
+		duckdb_compat::AddNamedParameter(function, name, LogicalType::VARCHAR);
 	}
 }
 
-void RegisterSapSecretType(ExtensionLoader &loader) 
+void RegisterSapSecretType(ExtensionLoader &loader)
 {
     // Register the new type
 	duckdb::SecretType sap_rfc_secret_type;
@@ -106,17 +107,17 @@ RfcAuthParams ConvertSecretToAuthParams(const KeyValueSecret &duck_secret)
 
 // ------------------------------------------------------------------------------------------------
 
-std::string GetSecretNameFromParams(const TableFunctionBindInput &input) 
+std::string GetSecretNameFromParams(const TableFunctionBindInput &input)
 {
 	return GetSecretNameFromParams(input.named_parameters);
 }
 
-std::string GetSecretNameFromParams(const FunctionParameters &parameters) 
+std::string GetSecretNameFromParams(const FunctionParameters &parameters)
 {
 	return GetSecretNameFromParams(parameters.named_parameters);
 }
 
-std::string GetSecretNameFromParams(const named_parameter_map_t &named_params) 
+std::string GetSecretNameFromParams(const duckdb_compat::BindNamedParameters &named_params)
 {
 	if (named_params.find("secret") != named_params.end()) {
 		auto val = named_params.at("secret").ToString();
@@ -126,7 +127,7 @@ std::string GetSecretNameFromParams(const named_parameter_map_t &named_params)
 	}
 }
 
-RfcAuthParams GetAuthParamsFromContext(ClientContext &context, const TableFunctionBindInput &parameters) 
+RfcAuthParams GetAuthParamsFromContext(ClientContext &context, const TableFunctionBindInput &parameters)
 {
 	auto secret_name = GetSecretNameFromParams(parameters);
 	return GetAuthParamsFromContext(context, secret_name);
@@ -138,7 +139,7 @@ RfcAuthParams GetAuthParamsFromContext(ClientContext &context, const FunctionPar
 	return GetAuthParamsFromContext(context, secret_name);
 }
 
-RfcAuthParams GetAuthParamsFromContext(ClientContext &context, const std::string &secret_name) 
+RfcAuthParams GetAuthParamsFromContext(ClientContext &context, const std::string &secret_name)
 {
 	RfcAuthParams auth_params;
 	if (!secret_name.empty()) {
@@ -177,7 +178,7 @@ RfcSecretOptions LookupSecretOptions(ClientContext &context, const std::string &
 			if (secret_entry->secret->GetType() != SAP_SECRET_TYPE_NAME) {
 				throw InvalidInputException("Secret '%s' is of type '%s', expected '%s'",
 				                            SanitizeForErrorMessage(secret_name),
-				                            SanitizeForErrorMessage(secret_entry->secret->GetType()),
+				                            SanitizeForErrorMessage(duckdb_compat::Str(secret_entry->secret->GetType())),
 				                            SAP_SECRET_TYPE_NAME);
 			}
 			auto *kv = dynamic_cast<const KeyValueSecret *>(secret_entry->secret.get());
@@ -187,7 +188,7 @@ RfcSecretOptions LookupSecretOptions(ClientContext &context, const std::string &
 			}
 			throw InvalidInputException("Secret '%s' is of type '%s', expected 'key_value'",
 			                            SanitizeForErrorMessage(secret_name),
-			                            SanitizeForErrorMessage(secret_entry->secret->GetType()));
+			                            SanitizeForErrorMessage(duckdb_compat::Str(secret_entry->secret->GetType())));
 		}
 		return result;
 	}
@@ -207,7 +208,7 @@ RfcSecretOptions LookupSecretOptions(ClientContext &context, const std::string &
 	return result;
 }
 
-std::string LookupSecretOption(ClientContext &context, const std::string &secret_name, const std::string &key) 
+std::string LookupSecretOption(ClientContext &context, const std::string &secret_name, const std::string &key)
 {
 	auto opts = LookupSecretOptions(context, secret_name);
 	auto lower = StringUtil::Lower(key);
@@ -220,4 +221,4 @@ std::string LookupSecretOption(ClientContext &context, const std::string &secret
 	return "";
 }
 
-} // namespace duckdb 
+} // namespace duckdb

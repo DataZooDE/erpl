@@ -1,17 +1,18 @@
 #include "duckdb.hpp"
 #include "scanner_describe_fields.hpp"
 #include "telemetry.hpp"
+#include "duckdb_compat.hpp"
 
-namespace duckdb 
+namespace duckdb
 {
     static std::vector<Value> CreateFunctionArguments(TableFunctionBindInput &input) {
         child_list_t<Value> args;
 
 
         args.push_back(make_pair("TABNAME", input.inputs[0])) ;
-     
+
         auto &named_params = input.named_parameters;
-           
+
         if (named_params.find("LANGUAGE") != named_params.end()) {
             args.push_back(make_pair("LANGU", named_params["LANGUAGE"])) ;
         } else {
@@ -21,10 +22,10 @@ namespace duckdb
         return std::vector<Value>( { Value::STRUCT(args) });
     }
 
-    static unique_ptr<FunctionData> RfcDescribeFieldsBind(ClientContext &context, 
-                                                          TableFunctionBindInput &input, 
-                                                          vector<LogicalType> &return_types, 
-                                                          vector<string> &names) 
+    static unique_ptr<FunctionData> RfcDescribeFieldsBind(ClientContext &context,
+                                                          TableFunctionBindInput &input,
+                                                          vector<LogicalType> &return_types,
+                                                          duckdb_compat::BindNames &names)
     {
         PostHogTelemetry::Instance().RecordFunctionCall("sap_describe_fields");
 
@@ -36,33 +37,33 @@ namespace duckdb
         auto func_args = CreateFunctionArguments(input);
         auto invocation = func->BeginInvocation(func_args);
         auto result_set = invocation->Invoke("/DFIES_TAB");
-        
+
         // Create the bind data
         std::vector<std::tuple<std::string, std::string>> selected_fields = {
             {"POSITION",    "pos"},
             {"KEYFLAG",     "is_key"},
-            {"FIELDNAME",   "field"}, 
-            {"FIELDTEXT",   "text"}, 
-            {"DATATYPE",    "sap_type"}, 
-            {"LENG",        "length"}, 
+            {"FIELDNAME",   "field"},
+            {"FIELDTEXT",   "text"},
+            {"DATATYPE",    "sap_type"},
+            {"LENG",        "length"},
             {"DECIMALS",    "decimals"},
-            {"CHECKTABLE",  "check_table"}, 
-            {"REFTABLE",    "ref_table"}, 
+            {"CHECKTABLE",  "check_table"},
+            {"REFTABLE",    "ref_table"},
             {"REFFIELD",    "ref_field"},
             {"LANGU",       "language"}
         };
         auto bind_data = make_uniq<RfcFunctionBindData>(selected_fields);
         bind_data->invocation = invocation;
         bind_data->result_set = result_set;
-        names = bind_data->GetResultNames();
+        duckdb_compat::AssignBindNames(names, bind_data->GetResultNames());
         return_types = bind_data->GetResultTypes();
 
         return std::move(bind_data);
     }
 
-    static void RfcDescribeFieldsScan(ClientContext &context, 
-                                      TableFunctionInput &data, 
-                                      DataChunk &output) 
+    static void RfcDescribeFieldsScan(ClientContext &context,
+                                      TableFunctionInput &data,
+                                      DataChunk &output)
     {
         auto &bind_data = data.bind_data->CastNoConst<RfcFunctionBindData>();
         if (! bind_data.HasMoreResults()) {
@@ -72,7 +73,7 @@ namespace duckdb
         bind_data.FetchNextResult(output);
     }
 
-    TableFunction CreateRfcDescribeFieldsScanFunction() 
+    TableFunction CreateRfcDescribeFieldsScanFunction()
     {
         auto fun = TableFunction("sap_describe_fields", {LogicalType::VARCHAR}, RfcDescribeFieldsScan, RfcDescribeFieldsBind);
         fun.projection_pushdown = false;

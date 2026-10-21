@@ -198,6 +198,7 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../datazoo-banner datazoo-banner-bu
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../datazoo-banner/include)
 
 include_directories(src/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../duckdb-compat/include)
 
 message(STATUS "SAPNWRFC_LIB_OBJECTS: ${SAPNWRFC_LIB_OBJECTS}")
 

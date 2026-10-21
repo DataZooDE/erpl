@@ -7,12 +7,16 @@
 
 namespace duckdb {
 
-SapTableEntry::SapTableEntry(Catalog &catalog, SchemaCatalogEntry &schema, CreateTableInfo &info,
+SapTableEntry::SapTableEntry(Catalog &catalog, SchemaCatalogEntry &schema, CreateTableInfo &info, ColumnList columns,
                              string sap_table_name_p, string secret_name_p, string read_table_function_p,
                              string read_table_delimiter_p)
-    : TableCatalogEntry(catalog, schema, info), sap_table_name(std::move(sap_table_name_p)),
+    : TableCatalogEntry(catalog, schema, info), sap_columns(std::move(columns)), sap_table_name(std::move(sap_table_name_p)),
       secret_name(std::move(secret_name_p)), read_table_function(std::move(read_table_function_p)),
       read_table_delimiter(std::move(read_table_delimiter_p)) {
+}
+
+const ColumnList &SapTableEntry::GetColumns() const {
+	return sap_columns;
 }
 
 TableFunction SapTableEntry::GetScanFunction(ClientContext &context, unique_ptr<FunctionData> &bind_data) {

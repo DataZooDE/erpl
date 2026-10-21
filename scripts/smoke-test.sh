@@ -62,7 +62,15 @@ CACHE_DIR="${DUCKDB_CLI_CACHE_DIR:-/tmp/duckdb-cli-cache}"
 CLI_DIR="$CACHE_DIR/duckdb-${DUCKDB_VERSION_TAG}-${CLI_SLUG}"
 DUCK="$CLI_DIR/duckdb"
 
-if [[ ! -f "$DUCK" ]]; then
+if [[ "$DUCKDB_VERSION_TAG" =~ ^[0-9a-f]{40}$ ]]; then
+    # A source commit has no release download. The build workflow just built
+    # this exact DuckDB CLI together with the extension.
+    DUCK="$PROJ_DIR/build/release/duckdb"
+    if [[ ! -x "$DUCK" ]]; then
+        echo "ERROR: Source-commit smoke test needs the built CLI at $DUCK" >&2
+        exit 1
+    fi
+elif [[ ! -f "$DUCK" ]]; then
     mkdir -p "$CLI_DIR"
     URL="https://github.com/duckdb/duckdb/releases/download/${DUCKDB_VERSION_TAG}/duckdb_cli-${CLI_SLUG}.zip"
     echo "[smoke-test] Downloading DuckDB ${DUCKDB_VERSION_TAG} CLI for ${CLI_SLUG} ..."
@@ -120,6 +128,16 @@ run_step() {
 # ── 7. Step 1: Install extension ─────────────────────────────────────────────
 run_step "Step 1/6: Installing extension..." \
     "INSTALL '${EXTENSION_PATH}';"
+rm -f "$STEP_OUTPUT"
+
+# Installation alone must not register the bundled function family.
+run_step "Checking sap_read_table is absent before LOAD..." \
+    "SELECT count(*) = 0 AS absent_before_load FROM duckdb_functions() WHERE function_name = 'sap_read_table';"
+if ! grep -q 'true' "$STEP_OUTPUT"; then
+    echo "ERROR: sap_read_table was registered before LOAD erpl" >&2
+    rm -f "$STEP_OUTPUT"
+    exit 1
+fi
 rm -f "$STEP_OUTPUT"
 
 # ── 8. Step 2: Load and check duckdb_extensions() ────────────────────────────

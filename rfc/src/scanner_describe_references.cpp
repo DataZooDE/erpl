@@ -1,13 +1,14 @@
 #include "duckdb.hpp"
 #include "scanner_show_tables.hpp"
 #include "telemetry.hpp"
+#include "duckdb_compat.hpp"
 
-namespace duckdb 
+namespace duckdb
 {
-    static unique_ptr<FunctionData> RfcDescribeReferencesBind(ClientContext &context, 
-                                                              TableFunctionBindInput &input, 
-                                                              vector<LogicalType> &return_types, 
-                                                              vector<string> &names) 
+    static unique_ptr<FunctionData> RfcDescribeReferencesBind(ClientContext &context,
+                                                              TableFunctionBindInput &input,
+                                                              vector<LogicalType> &return_types,
+                                                              duckdb_compat::BindNames &names)
     {
         PostHogTelemetry::Instance().RecordFunctionCall("sap_describe_references");
 
@@ -15,14 +16,14 @@ namespace duckdb
         return std::move(bind_data);
     }
 
-    static void RfcDescribeReferencesScan(ClientContext &context, 
-                                          TableFunctionInput &data, 
-                                          DataChunk &output) 
+    static void RfcDescribeReferencesScan(ClientContext &context,
+                                          TableFunctionInput &data,
+                                          DataChunk &output)
     {
 
     }
 
-    TableFunction CreateRfcDescribeReferencessScanFunction() 
+    TableFunction CreateRfcDescribeReferencessScanFunction()
     {
         auto fun = TableFunction("sap_describe_references", {}, RfcDescribeReferencesScan, RfcDescribeReferencesBind);
         fun.projection_pushdown = false;

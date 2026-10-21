@@ -1,0 +1,3 @@
+# LeakSanitizer matches a stack frame's module name. This suppresses only
+# allocations retained by SAP's closed-source NW RFC SDK at process exit.
+leak:libsapnwrfc.so

@@ -3,8 +3,9 @@
 #include "sap_secret.hpp"
 #include "telemetry.hpp"
 #include "erpl_telemetry.hpp"
+#include "duckdb_compat.hpp"
 
-namespace duckdb 
+namespace duckdb
 {
     std::string GetPathNamedParam(TableFunctionBindInput &input) {
         auto &named_params = input.named_parameters;
@@ -18,10 +19,10 @@ namespace duckdb
     /**
      * @brief (Step 1) Binds the input arguments to the function.
     */
-    static unique_ptr<FunctionData> RfcInvokeBind(ClientContext &context, 
-                                                  TableFunctionBindInput &input, 
-                                                  vector<LogicalType> &return_types, 
-                                                  vector<string> &names) 
+    static unique_ptr<FunctionData> RfcInvokeBind(ClientContext &context,
+                                                  TableFunctionBindInput &input,
+                                                  vector<LogicalType> &return_types,
+                                                  duckdb_compat::BindNames &names)
     {
         PostHogTelemetry::Instance().RecordFunctionCall("sap_rfc_invoke");
 
@@ -55,7 +56,7 @@ namespace duckdb
             throw;
         }
         feat_timer.Fire();
-        names = result_set->GetResultNames();
+        duckdb_compat::AssignBindNames(names, result_set->GetResultNames());
         return_types = result_set->GetResultTypes();
 
         // DuckDB requires every table function to expose at least one column.
@@ -67,7 +68,7 @@ namespace duckdb
         bind_data->result_set = result_set;
         bind_data->ok_only = return_types.empty();
         if (bind_data->ok_only) {
-            names.push_back("ok");
+            names.emplace_back("ok");
             return_types.push_back(LogicalType::BOOLEAN);
         }
 
@@ -91,7 +92,7 @@ namespace duckdb
                 return;
             }
             bind_data.ok_only_emitted = true;
-            output.SetCardinality(1);
+            duckdb_compat::SetChildCardinality(output, 1);
             output.SetValue(0, 0, Value::BOOLEAN(true));
             return;
         }
@@ -103,13 +104,13 @@ namespace duckdb
         result_set->FetchNextResult(output);
     }
 
-    TableFunction CreateRfcInvokeScanFunction() 
+    TableFunction CreateRfcInvokeScanFunction()
     {
         auto fun = TableFunction("sap_rfc_invoke", { LogicalType::VARCHAR }, RfcInvokeScan, RfcInvokeBind);
         fun.projection_pushdown = false;
-        fun.varargs = LogicalType::ANY;
-        fun.named_parameters["path"] = LogicalType::VARCHAR;
-        fun.named_parameters["secret"] = LogicalType::VARCHAR;
+        duckdb_compat::SetVarArgs(fun, LogicalType::ANY);
+        duckdb_compat::AddNamedParameter(fun, "path", LogicalType::VARCHAR);
+        duckdb_compat::AddNamedParameter(fun, "secret", LogicalType::VARCHAR);
 
         return fun;
     }

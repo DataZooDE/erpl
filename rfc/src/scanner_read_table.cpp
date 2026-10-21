@@ -13,13 +13,14 @@
 #include "sap_storage.hpp"
 #include "telemetry.hpp"
 #include "erpl_telemetry.hpp"
+#include "duckdb_compat.hpp"
 
-namespace duckdb 
+namespace duckdb
 {
-    static unique_ptr<FunctionData> RfcReadTableBind(ClientContext &context, 
-                                                     TableFunctionBindInput &input, 
-                                                     vector<LogicalType> &return_types, 
-                                                     vector<string> &names) 
+    static unique_ptr<FunctionData> RfcReadTableBind(ClientContext &context,
+                                                     TableFunctionBindInput &input,
+                                                     vector<LogicalType> &return_types,
+                                                     duckdb_compat::BindNames &names)
     {
         PostHogTelemetry::Instance().RecordFunctionCall("sap_read_table");
 
@@ -33,13 +34,13 @@ namespace duckdb
         auto &named_params = input.named_parameters;
         // Per-query `threads` wins; otherwise the erpl_rfc_max_threads session default;
         // otherwise 0, which means erpl decides (one RFC call per projected column).
-        auto max_read_threads = named_params.find("THREADS") != named_params.end() 
+        auto max_read_threads = named_params.find("THREADS") != named_params.end()
                                     ? named_params["THREADS"].GetValue<unsigned int>()
                                     : GetRfcMaxThreads();
-        auto limit = named_params.find("MAX_ROWS") != named_params.end() 
+        auto limit = named_params.find("MAX_ROWS") != named_params.end()
                                     ? named_params["MAX_ROWS"].GetValue<unsigned int>()
                                     : 0;
-        auto where_clause = named_params.find("FILTER") != named_params.end() 
+        auto where_clause = named_params.find("FILTER") != named_params.end()
                                 ? named_params["FILTER"].ToString()
                                 : "";
         auto secret_name = named_params.find("SECRET") != named_params.end()
@@ -54,8 +55,8 @@ namespace duckdb
             }
         }
         auto rtf_opts = ResolveReadTableFunctionOptions(context, &named_params, secret_name, attach_fn, attach_del);
-        
-        auto fields = named_params.find("COLUMNS") != named_params.end() 
+
+        auto fields = named_params.find("COLUMNS") != named_params.end()
                             ? ConvertListValueToVector<std::string>(named_params["COLUMNS"])
                             : std::vector<std::string>();
 
@@ -87,14 +88,14 @@ namespace duckdb
             throw;
         }
 
-        names = bind_data->GetRfcColumnNames();
+        duckdb_compat::AssignBindNames(names, bind_data->GetRfcColumnNames());
         return_types = bind_data->GetReturnTypes();
 
         return std::move(bind_data);
     }
 
     static unique_ptr<GlobalTableFunctionState> RfcReadTableInitGlobalState(ClientContext &context,
-                                                                            TableFunctionInitInput &input) 
+                                                                            TableFunctionInitInput &input)
     {
         auto &bind_data = input.bind_data->CastNoConst<RfcReadTableBindData>();
         auto column_ids = input.column_ids;
@@ -209,7 +210,7 @@ namespace duckdb
 
             if (! window_finished) {
                 bind_data.StepWindow(context, output, lstate.machines);
-                bind_data.ApplyResidualFilters(output);
+                bind_data.ApplyResidualFilters(context, output);
                 if (output.size() > 0) {
                     return;
                 }
@@ -238,9 +239,9 @@ namespace duckdb
         }
     }
 
-    static void RfcReadTableScan(ClientContext &context, 
-                                 TableFunctionInput &data, 
-                                 DataChunk &output) 
+    static void RfcReadTableScan(ClientContext &context,
+                                 TableFunctionInput &data,
+                                 DataChunk &output)
     {
         auto &bind_data = data.bind_data->CastNoConst<RfcReadTableBindData>();
 
@@ -289,7 +290,7 @@ namespace duckdb
 
             // DuckDB removed these from the plan when it handed them to us, so if we do
             // not apply them nobody does.  See ApplyResidualFilters.
-            bind_data.ApplyResidualFilters(output);
+            bind_data.ApplyResidualFilters(context, output);
             if (output.size() > 0) {
                 return;
             }
@@ -303,7 +304,7 @@ namespace duckdb
 
     double RfcReadTableProgress(ClientContext &, const FunctionData *func_data, const GlobalTableFunctionState *)
     {
-        
+
         auto &bind_data = func_data->CastNoConst<RfcReadTableBindData>();
         auto progress = bind_data.GetProgress();
 
@@ -311,22 +312,22 @@ namespace duckdb
         return progress;
     }
 
-    TableFunction CreateRfcReadTableScanFunction() 
+    TableFunction CreateRfcReadTableScanFunction()
     {
-        auto fun = TableFunction("sap_read_table", { LogicalType::VARCHAR }, 
-                                 RfcReadTableScan, 
-                                 RfcReadTableBind, 
+        auto fun = TableFunction("sap_read_table", { LogicalType::VARCHAR },
+                                 RfcReadTableScan,
+                                 RfcReadTableBind,
                                  RfcReadTableInitGlobalState,
                                  RfcReadTableInitLocalState);
-        fun.named_parameters["THREADS"] = LogicalType::UINTEGER;
-        fun.named_parameters["FETCH_SIZE"] = LogicalType::UINTEGER;
-        fun.named_parameters["PARTITIONS"] = LogicalType::UINTEGER;
-        fun.named_parameters["COLUMNS"] = LogicalType::LIST(LogicalType::VARCHAR);
-        fun.named_parameters["FILTER"] = LogicalType::VARCHAR;
-        fun.named_parameters["MAX_ROWS"] = LogicalType::UINTEGER;
-        fun.named_parameters["READ_TABLE_FUNCTION"] = LogicalType::VARCHAR;
-        fun.named_parameters["READ_TABLE_DELIMITER"] = LogicalType::VARCHAR;
-        fun.named_parameters["SECRET"] = LogicalType::VARCHAR;
+        duckdb_compat::AddNamedParameter(fun, "THREADS", LogicalType::UINTEGER);
+        duckdb_compat::AddNamedParameter(fun, "FETCH_SIZE", LogicalType::UINTEGER);
+        duckdb_compat::AddNamedParameter(fun, "PARTITIONS", LogicalType::UINTEGER);
+        duckdb_compat::AddNamedParameter(fun, "COLUMNS", LogicalType::LIST(LogicalType::VARCHAR));
+        duckdb_compat::AddNamedParameter(fun, "FILTER", LogicalType::VARCHAR);
+        duckdb_compat::AddNamedParameter(fun, "MAX_ROWS", LogicalType::UINTEGER);
+        duckdb_compat::AddNamedParameter(fun, "READ_TABLE_FUNCTION", LogicalType::VARCHAR);
+        duckdb_compat::AddNamedParameter(fun, "READ_TABLE_DELIMITER", LogicalType::VARCHAR);
+        duckdb_compat::AddNamedParameter(fun, "SECRET", LogicalType::VARCHAR);
         fun.table_scan_progress = RfcReadTableProgress;
         fun.projection_pushdown = true;
         fun.filter_pushdown = true;

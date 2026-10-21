@@ -56,7 +56,16 @@ $CliSlug = "windows-amd64"
 $CliDir  = Join-Path $CliCacheDir "duckdb-$DuckdbVersion-$CliSlug"
 $CliExe  = Join-Path $CliDir "duckdb.exe"
 
-if (-not (Test-Path $CliExe)) {
+if ($DuckdbVersion -match '^[0-9a-f]{40}$') {
+    # Source commits have no release zip. Use the CLI from this build.
+    $CliExe = Join-Path $ProjDir 'build\release\Release\duckdb.exe'
+    if (-not (Test-Path $CliExe)) {
+        $CliExe = Join-Path $ProjDir 'build\release\duckdb.exe'
+    }
+    if (-not (Test-Path $CliExe)) {
+        throw "Source-commit smoke test needs the locally built DuckDB CLI"
+    }
+} elseif (-not (Test-Path $CliExe)) {
     New-Item -ItemType Directory -Path $CliDir -Force | Out-Null
     $Url    = "https://github.com/duckdb/duckdb/releases/download/$DuckdbVersion/duckdb_cli-$CliSlug.zip"
     $ZipTmp = Join-Path $env:TEMP "duckdb-cli-$([System.Guid]::NewGuid()).zip"

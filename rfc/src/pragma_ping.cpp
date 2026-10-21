@@ -1,6 +1,7 @@
 #include "pragma_ping.hpp"
 #include "duckdb/parser/parsed_data/create_pragma_function_info.hpp"
 #include "telemetry.hpp"
+#include "duckdb_compat.hpp"
 
 namespace duckdb {
     string RfcPingPragma(ClientContext &context, const FunctionParameters &parameters) 
@@ -19,7 +20,7 @@ namespace duckdb {
     PragmaFunction CreateRfcPingPragma() 
     {
         auto rfc_ping_pragma = PragmaFunction::PragmaCall("sap_rfc_ping", RfcPingPragma, {});
-        rfc_ping_pragma.named_parameters["secret"] = LogicalType::VARCHAR;
+        duckdb_compat::AddNamedParameter(rfc_ping_pragma, "secret", LogicalType::VARCHAR);
 
         return rfc_ping_pragma;
     }

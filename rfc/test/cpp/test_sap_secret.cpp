@@ -1,5 +1,6 @@
 #include "catch.hpp"
 #include "duckdb.hpp"
+#include "duckdb_compat.hpp"
 
 #include "sap_rfc_api.hpp"
 #include "sap_secret.hpp"
@@ -25,7 +26,7 @@ KeyValueSecret MakeSecret(const case_insensitive_map_t<string> &values) {
 	vector<string> prefix_paths;
 	KeyValueSecret secret(prefix_paths, "sap_rfc", "config", "test_secret");
 	for (const auto &kv : values) {
-		secret.secret_map[kv.first] = Value(kv.second);
+		secret.secret_map[duckdb_compat::Ident(kv.first)] = Value(kv.second);
 	}
 	return secret;
 }

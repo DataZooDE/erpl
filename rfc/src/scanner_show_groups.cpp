@@ -1,8 +1,9 @@
 #include "duckdb.hpp"
 #include "scanner_show_groups.hpp"
 #include "telemetry.hpp"
+#include "duckdb_compat.hpp"
 
-namespace duckdb 
+namespace duckdb
 {
 static std::vector<Value> CreateFunctionArguments(TableFunctionBindInput &input) {
     child_list_t<Value> args;
@@ -14,7 +15,7 @@ static std::vector<Value> CreateFunctionArguments(TableFunctionBindInput &input)
     else {
         args.push_back(make_pair("GROUPNAME", Value::CreateValue("*")));
     }
-    
+
     if (named_params.find("LANGUAGE") != named_params.end()) {
         args.push_back(make_pair("LANGUAGE", named_params["LANGUAGE"])) ;
     }
@@ -25,10 +26,10 @@ static std::vector<Value> CreateFunctionArguments(TableFunctionBindInput &input)
 /**
  * @brief (Step 1) Binds the input arguments to the function.
 */
-static unique_ptr<FunctionData> RfcShowGroupBind(ClientContext &context, 
-                                                        TableFunctionBindInput &input, 
-                                                        vector<LogicalType> &return_types, 
-                                                        vector<string> &names) 
+static unique_ptr<FunctionData> RfcShowGroupBind(ClientContext &context,
+                                                        TableFunctionBindInput &input,
+                                                        vector<LogicalType> &return_types,
+                                                        duckdb_compat::BindNames &names)
 {
     PostHogTelemetry::Instance().RecordFunctionCall("sap_rfc_search_group");
 
@@ -38,7 +39,7 @@ static unique_ptr<FunctionData> RfcShowGroupBind(ClientContext &context,
     // Create the function
     auto func_args = CreateFunctionArguments(input);
     auto result_set = RfcResultSet::InvokeFunction(connection, "RFC_GROUP_SEARCH", func_args, "/GROUPS");
-    names = std::vector<string>( { "name", "text" });
+    duckdb_compat::AssignBindNames(names, std::vector<string>({"name", "text"}));
     return_types = result_set->GetResultTypes();
 
     auto bind_data = make_uniq<RfcFunctionBindData>();
@@ -47,13 +48,13 @@ static unique_ptr<FunctionData> RfcShowGroupBind(ClientContext &context,
     return std::move(bind_data);
 }
 
-static void RfcShowGroupScan(ClientContext &context, 
-                                    TableFunctionInput &data, 
-                                    DataChunk &output) 
+static void RfcShowGroupScan(ClientContext &context,
+                                    TableFunctionInput &data,
+                                    DataChunk &output)
 {
     auto &bind_data = data.bind_data->Cast<RfcFunctionBindData>();
     auto result_set = bind_data.result_set;
-    
+
     if (! result_set->HasMoreResults()) {
         return;
     }
@@ -61,11 +62,11 @@ static void RfcShowGroupScan(ClientContext &context,
     result_set->FetchNextResult(output);
 }
 
-TableFunction CreateRfcShowGroupScanFunction() 
+TableFunction CreateRfcShowGroupScanFunction()
 {
     auto fun = TableFunction("sap_rfc_show_groups", {}, RfcShowGroupScan, RfcShowGroupBind);
-    fun.named_parameters["GROUPNAME"] = LogicalType::VARCHAR;
-    fun.named_parameters["LANGUAGE"] = LogicalType::VARCHAR;
+    duckdb_compat::AddNamedParameter(fun, "GROUPNAME", LogicalType::VARCHAR);
+    duckdb_compat::AddNamedParameter(fun, "LANGUAGE", LogicalType::VARCHAR);
 
     return fun;
 }

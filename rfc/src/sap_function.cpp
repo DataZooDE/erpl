@@ -10,6 +10,7 @@
 #include "duckdb_argument_helper.hpp"
 #include "sap_function.hpp"
 #include "erpl_tracing.hpp"
+#include "duckdb_compat.hpp"
 
 static std::atomic<bool> g_rfc_strict_type_check{false};
 
@@ -367,7 +368,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         child_list_t<LogicalType> child_types;
         for (auto &field_info : GetFieldInfos()) {
             auto rfc_type = field_info.GetRfcType();
-            child_types.push_back(make_pair(field_info.GetName(), rfc_type->CreateDuckDbType()));
+            child_types.emplace_back(duckdb_compat::Ident(field_info.GetName()), rfc_type->CreateDuckDbType());
         }
 
         return child_types;
@@ -601,7 +602,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         auto &child_types = StructType::GetChildTypes(struct_value.type());
 
         for (idx_t i = 0; i < struct_values.size(); i++) {
-			auto child_name = child_types[i].first;
+			auto child_name = duckdb_compat::Str(child_types[i].first);
             auto child_value = struct_values[i];
 			
             try {
@@ -1653,7 +1654,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
 
         for (std::size_t child_idx = 0; child_idx < child_values.size(); child_idx++) {
             auto child_value = child_values.at(child_idx);
-			auto child_name = child_types.at(child_idx).first;
+			auto child_name = duckdb_compat::Str(child_types.at(child_idx).first);
             
             try 
             {
@@ -2192,7 +2193,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             else {
                 auto &out_vec = output.data[src_col_idx];
                 out_vec.SetValue(0, _result_data[src_col_idx]);
-                output.SetCardinality(1);
+                duckdb_compat::SetChildCardinality(output, 1);
                 row_count++;
             }
         }
@@ -2228,7 +2229,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             auto cell_value = res_chunk[j];
             output.SetValue(tgt_col_idx, j, cell_value);
         }
-        output.SetCardinality(res_chunk.size());
+        duckdb_compat::SetChildCardinality(output, res_chunk.size());
         row_count = res_chunk.size();
 
         return row_count;
@@ -2238,7 +2239,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
     {
         child_list_t<Value> value_list;
         for (idx_t i=0; i < _result_data.size(); i++) {
-            value_list.push_back(std::make_pair(_result_names[i], _result_data[i]));
+            value_list.emplace_back(duckdb_compat::Ident(_result_names[i]), _result_data[i]);
         }
 
         return Value::STRUCT(value_list);
