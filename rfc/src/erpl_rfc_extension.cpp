@@ -37,6 +37,7 @@
 
 #if defined(__linux__) || defined(__APPLE__)
 #include <dlfcn.h>
+#include "duckdb_compat.hpp"
 #endif
 
 // Windows headers may redefine macros after our tracing.hpp include
@@ -426,6 +427,7 @@ namespace duckdb {
         auto &db = loader.GetDatabaseInstance();
         auto &system_catalog = Catalog::GetSystemCatalog(db);
         auto transaction = CatalogTransaction::GetSystemTransaction(db);
+        duckdb_compat::NameFunctionsFromDescriptions(info);
         system_catalog.CreatePragmaFunction(transaction, info);
     }
 
@@ -442,13 +444,15 @@ namespace duckdb {
             ScalarFunction backend_function("sap_rfc_backend", {}, LogicalType::VARCHAR, RfcBackendFunction);
             // The answer depends on process-wide state, not on the arguments, so it must
             // not be folded at bind time or cached across statements.
-            backend_function.stability = FunctionStability::VOLATILE;
+            duckdb_compat::SetStability(backend_function, FunctionStability::VOLATILE);
+            duckdb_compat::SetFallible(backend_function);
             CreateScalarFunctionInfo info(backend_function);
             FunctionDescription desc;
             desc.description = "Returns which implementation is serving SAP RFC calls: 'nwrfc' or 'proto'.";
             desc.examples    = {"SELECT sap_rfc_backend()"};
             desc.categories  = {"sap"};
             info.descriptions.push_back(std::move(desc));
+            duckdb_compat::NameFunctionsFromDescriptions(info);
             loader.RegisterFunction(std::move(info));
         }
 
@@ -469,14 +473,15 @@ namespace duckdb {
                 ScalarFunction f(sf.name, {}, LogicalType::BIGINT, sf.fn);
                 // Process-wide state, not a function of the arguments: must never be
                 // constant-folded at bind time or reused across statements.
-                f.stability = FunctionStability::VOLATILE;
+                duckdb_compat::SetStability(f, FunctionStability::VOLATILE);
                 CreateScalarFunctionInfo info(f);
                 FunctionDescription desc;
                 desc.description = sf.doc;
                 desc.examples    = {std::string("SELECT ") + sf.name + "()"};
                 desc.categories  = {"sap"};
                 info.descriptions.push_back(std::move(desc));
-                loader.RegisterFunction(std::move(info));
+                duckdb_compat::NameFunctionsFromDescriptions(info);
+            loader.RegisterFunction(std::move(info));
             }
         }
 
@@ -490,6 +495,7 @@ namespace duckdb {
             desc.categories  = {"sap"};
             desc.parameter_names = {"table_name"};
             info.descriptions.push_back(std::move(desc));
+            duckdb_compat::NameFunctionsFromDescriptions(info);
             loader.RegisterFunction(std::move(info));
         }
 
@@ -505,6 +511,7 @@ namespace duckdb {
             desc.categories  = {"sap"};
             desc.parameter_names = {"function_name"};
             info.descriptions.push_back(std::move(desc));
+            duckdb_compat::NameFunctionsFromDescriptions(info);
             loader.RegisterFunction(std::move(info));
         }
 
@@ -516,6 +523,7 @@ namespace duckdb {
                                 "SELECT * FROM sap_rfc_show_functions(FUNCNAME='RFC_READ*')"};
             desc.categories  = {"sap"};
             info.descriptions.push_back(std::move(desc));
+            duckdb_compat::NameFunctionsFromDescriptions(info);
             loader.RegisterFunction(std::move(info));
         }
 
@@ -527,6 +535,7 @@ namespace duckdb {
                                 "SELECT * FROM sap_rfc_show_groups(GROUPNAME='BASIS*')"};
             desc.categories  = {"sap"};
             info.descriptions.push_back(std::move(desc));
+            duckdb_compat::NameFunctionsFromDescriptions(info);
             loader.RegisterFunction(std::move(info));
         }
 
@@ -538,6 +547,7 @@ namespace duckdb {
             desc.categories  = {"sap"};
             desc.parameter_names = {"function_name"};
             info.descriptions.push_back(std::move(desc));
+            duckdb_compat::NameFunctionsFromDescriptions(info);
             loader.RegisterFunction(std::move(info));
         }
 
@@ -551,6 +561,7 @@ namespace duckdb {
                                 "SELECT * FROM sap_show_tables(TABLENAME='*FLIGHT*', read_table_function='/SAPDS/RFC_READ_TABLE2', read_table_delimiter=';')"};
             desc.categories  = {"sap"};
             info.descriptions.push_back(std::move(desc));
+            duckdb_compat::NameFunctionsFromDescriptions(info);
             loader.RegisterFunction(std::move(info));
         }
 
@@ -562,6 +573,7 @@ namespace duckdb {
             desc.categories  = {"sap"};
             desc.parameter_names = {"table_name"};
             info.descriptions.push_back(std::move(desc));
+            duckdb_compat::NameFunctionsFromDescriptions(info);
             loader.RegisterFunction(std::move(info));
         }
 
@@ -574,6 +586,7 @@ namespace duckdb {
             desc.categories  = {"sap"};
             desc.parameter_names = {};
             info.descriptions.push_back(std::move(desc));
+            duckdb_compat::NameFunctionsFromDescriptions(info);
             loader.RegisterFunction(std::move(info));
         }
 

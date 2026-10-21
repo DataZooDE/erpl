@@ -206,6 +206,16 @@ SELECT COUNT(*) > 0 FROM sap_issue54."/DMO/FLIGHT";
 ----
 true
 
+query I
+SELECT COUNT(*) > 0 FROM sap_issue54."/DMO/CARRIER";
+----
+true
+
+statement error
+SELECT * FROM sap_issue54."/DMO/FLIGHT" AT (VERSION => 1);
+----
+does not support time travel
+
 statement ok
 DETACH sap_issue54;
 

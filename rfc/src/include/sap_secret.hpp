@@ -3,6 +3,7 @@
 #include "duckdb.hpp"
 #include "duckdb/main/secret/secret.hpp"
 #include "duckdb/main/secret/secret_manager.hpp"
+#include "duckdb_compat.hpp"
 
 namespace duckdb {
 
@@ -42,7 +43,7 @@ void RegisterSapSecretType(ExtensionLoader &loader);
 // Get the secret name from the named parameters
 std::string GetSecretNameFromParams(const TableFunctionBindInput &parameters);
 std::string GetSecretNameFromParams(const FunctionParameters &parameters);
-std::string GetSecretNameFromParams(const named_parameter_map_t &named_params);
+std::string GetSecretNameFromParams(const duckdb_compat::BindNamedParameters &named_params);
 
 // Get the secret from the context
 RfcAuthParams GetAuthParamsFromContext(ClientContext &context, const TableFunctionBindInput &parameters);

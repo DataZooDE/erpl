@@ -4,6 +4,7 @@
 
 #include "duckdb/catalog/catalog.hpp"
 #include "duckdb/catalog/catalog_entry/schema_catalog_entry.hpp"
+#include "duckdb_compat.hpp"
 
 namespace duckdb {
 
@@ -37,7 +38,7 @@ bool AlreadyRegistered(DatabaseInstance &db, CatalogType type, const string &nam
 	if (!schema) {
 		return false;
 	}
-	return schema->GetEntry(transaction, type, name) != nullptr;
+	return schema->GetEntry(transaction, type, duckdb_compat::Ident(name)) != nullptr;
 }
 
 string MovedTunnelCreate(ClientContext &, const FunctionParameters &) {
@@ -53,7 +54,7 @@ string MovedTunnelCloseAll(ClientContext &, const FunctionParameters &) {
 }
 
 unique_ptr<FunctionData> MovedTunnelsBind(ClientContext &, TableFunctionBindInput &, vector<LogicalType> &,
-                                          vector<string> &) {
+                                          duckdb_compat::BindNames &) {
 	ThrowMoved("tunnels()");
 }
 
@@ -94,11 +95,11 @@ void RegisterDeprecatedTunnelFunctions(ExtensionLoader &loader) {
 		// realistic call fall through to a signature error instead of the message, which
 		// would defeat the point of having a stub at all.
 		auto pragma = PragmaFunction::PragmaCall("tunnel_create", MovedTunnelCreate, {});
-		pragma.named_parameters["secret"] = LogicalType::VARCHAR;
-		pragma.named_parameters["remote_host"] = LogicalType::VARCHAR;
-		pragma.named_parameters["remote_port"] = LogicalType::INTEGER;
-		pragma.named_parameters["local_port"] = LogicalType::INTEGER;
-		pragma.named_parameters["timeout"] = LogicalType::INTEGER;
+		duckdb_compat::AddNamedParameter(pragma, "secret", LogicalType::VARCHAR);
+		duckdb_compat::AddNamedParameter(pragma, "remote_host", LogicalType::VARCHAR);
+		duckdb_compat::AddNamedParameter(pragma, "remote_port", LogicalType::INTEGER);
+		duckdb_compat::AddNamedParameter(pragma, "local_port", LogicalType::INTEGER);
+		duckdb_compat::AddNamedParameter(pragma, "timeout", LogicalType::INTEGER);
 		RegisterIfAbsent(loader, "tunnel_create", std::move(pragma),
 		                 "MOVED to the erpl_tunnel extension, which owns tunnelling now. Calling this raises a message saying so. Install and load erpl_tunnel, then use tunnel_import (tunnel_create remains as its deprecated alias).");
 	}

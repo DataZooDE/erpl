@@ -1,5 +1,6 @@
 #include "catch.hpp"
 #include "duckdb.hpp"
+#include "duckdb_compat.hpp"
 
 #include "sap_rfc.hpp"
 #include "sap_rfc_api.hpp"
@@ -16,7 +17,7 @@ KeyValueSecret MakeTestSecret(const case_insensitive_map_t<string> &values) {
 	vector<string> prefix_paths;
 	KeyValueSecret secret(prefix_paths, "sap_rfc", "config", "test_secret");
 	for (const auto &kv : values) {
-		secret.secret_map[kv.first] = Value(kv.second);
+		secret.secret_map[duckdb_compat::Ident(kv.first)] = Value(kv.second);
 	}
 	return secret;
 }
@@ -177,7 +178,7 @@ TEST_CASE("ResolveReadTableFunctionOptions follows 5-tier precedence hierarchy",
 		run_query("CREATE SECRET sec_custom (TYPE sap_rfc, ashost 's4', user 'demo', read_table_function 'Z_SECRET_FUNC')");
 		run_query("SET erpl_rfc_read_table_function = 'Z_SESSION_FUNC'");
 
-		named_parameter_map_t named_params;
+		duckdb_compat::BindNamedParameters named_params;
 		named_params["READ_TABLE_FUNCTION"] = Value("z_named_func"); // lowercase should be normalized
 		named_params["READ_TABLE_DELIMITER"] = Value("~");
 
@@ -210,7 +211,7 @@ TEST_CASE("ResolveReadTableFunctionOptions follows 5-tier precedence hierarchy",
 		REQUIRE(opts2.delimiter == "^");
 
 		// Tier 1: Query parameter overrides ATTACH, secret & session
-		named_parameter_map_t named_params;
+		duckdb_compat::BindNamedParameters named_params;
 		named_params["READ_TABLE_DELIMITER"] = Value("~");
 		auto opts1 = ResolveReadTableFunctionOptions(context, &named_params, "sec_delim", "", "^");
 		REQUIRE(opts1.delimiter == "~");
@@ -286,7 +287,7 @@ TEST_CASE("ResolveReadTableFunctionOptions coupling, clearing, and fallback rule
 	// 1. Explicit empty delimiter at query level clears lower-tier secret delimiter
 	{
 		run_query("CREATE SECRET sec_del_override (TYPE sap_rfc, ashost 's4', user 'demo', read_table_delimiter '~')");
-		named_parameter_map_t empty_del_params;
+		duckdb_compat::BindNamedParameters empty_del_params;
 		empty_del_params["READ_TABLE_DELIMITER"] = Value("");
 		auto opts = ResolveReadTableFunctionOptions(context, &empty_del_params, "sec_del_override");
 		REQUIRE(opts.delimiter.empty());
@@ -299,7 +300,7 @@ TEST_CASE("ResolveReadTableFunctionOptions coupling, clearing, and fallback rule
 		
 		// Query specifies function only -> delimiter is inherited from secret ('~') independently.
 		// Explicit RFC_READ_TABLE query override pins the reader (AllowsFallback is false).
-		named_parameter_map_t fn_override_params;
+		duckdb_compat::BindNamedParameters fn_override_params;
 		fn_override_params["READ_TABLE_FUNCTION"] = Value("RFC_READ_TABLE");
 		auto opts = ResolveReadTableFunctionOptions(context, &fn_override_params, "sec_bods");
 		REQUIRE(opts.function_name == "RFC_READ_TABLE");
@@ -307,7 +308,7 @@ TEST_CASE("ResolveReadTableFunctionOptions coupling, clearing, and fallback rule
 		REQUIRE(opts.AllowsFallback() == false);
 
 		// Query specifies delimiter only -> function is inherited from secret ('/BODS/RFC_READ_TABLE'), delimiter is overridden by query ('^')
-		named_parameter_map_t del_override_params;
+		duckdb_compat::BindNamedParameters del_override_params;
 		del_override_params["READ_TABLE_DELIMITER"] = Value("^");
 		auto opts_del = ResolveReadTableFunctionOptions(context, &del_override_params, "sec_bods");
 		REQUIRE(opts_del.function_name == "/BODS/RFC_READ_TABLE");
@@ -512,7 +513,7 @@ TEST_CASE("LookupSecretOption throws InvalidInputException on wrong secret type"
 		SecretPersistType::TEMPORARY);
 
 	auto wrong_kv = make_uniq<KeyValueSecret>(vector<string>(), "custom_kv", "config", "sec_wrong_kv");
-	wrong_kv->secret_map["read_table_function"] = Value("Z_CUSTOM");
+	wrong_kv->secret_map[duckdb_compat::Ident("read_table_function")] = Value("Z_CUSTOM");
 	secret_manager.RegisterSecret(transaction,
 		std::move(wrong_kv),
 		OnCreateConflict::ERROR_ON_CONFLICT,
@@ -545,7 +546,7 @@ TEST_CASE("AllowsFallback accurately distinguishes default from pinned RFC_READ_
 	REQUIRE(def_opts.AllowsFallback());
 
 	// 2. Query parameter pins RFC_READ_TABLE: AllowsFallback is false
-	named_parameter_map_t params;
+	duckdb_compat::BindNamedParameters params;
 	params["read_table_function"] = Value("RFC_READ_TABLE");
 	auto pinned_opts = ResolveReadTableFunctionOptions(context, &params, "");
 	REQUIRE(pinned_opts.function_name == "RFC_READ_TABLE");

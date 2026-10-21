@@ -475,8 +475,8 @@ true
 # half the digits.
 query II
 SELECT
-    list_element(d.changing, list_position(list_transform(d.changing, p -> p.name), 'DECFLOAT16')).duckdb_type AS df16_type,
-    list_element(d.changing, list_position(list_transform(d.changing, p -> p.name), 'DECFLOAT34')).duckdb_type AS df34_type
+    list_element(d.changing, list_position(list_transform(d.changing, lambda p: p.name), 'DECFLOAT16')).duckdb_type AS df16_type,
+    list_element(d.changing, list_position(list_transform(d.changing, lambda p: p.name), 'DECFLOAT34')).duckdb_type AS df34_type
 FROM sap_rfc_describe_function('S_APCRFC_ALLTYPES') d;
 ----
 DECIMAL(16,0)	DECIMAL(34,0)

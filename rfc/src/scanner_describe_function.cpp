@@ -1,6 +1,7 @@
 #include "scanner_describe_function.hpp"
 #include "telemetry.hpp"
 #include "erpl_tracing.hpp"
+#include "duckdb_compat.hpp"
 
 namespace duckdb
 {
@@ -15,7 +16,7 @@ static std::vector<Value> CreateFunctionArguments(std::string &func_name)
 static unique_ptr<FunctionData> RfcDescribeFunctionBind(ClientContext &context,
                                                         TableFunctionBindInput &input,
                                                         vector<LogicalType> &return_types,
-                                                        vector<string> &names)
+                                                        duckdb_compat::BindNames &names)
 {
     PostHogTelemetry::Instance().RecordFunctionCall("sap_rfc_describe_function");
 
@@ -48,7 +49,7 @@ static unique_ptr<FunctionData> RfcDescribeFunctionBind(ClientContext &context,
     }
 
     auto bind_data = RfcDescribeFunctionBindData::FromFunctionHandleAndResultSet(func_handle, result_set);
-    names = bind_data->GetResultNames();
+    duckdb_compat::AssignBindNames(names, bind_data->GetResultNames());
     return_types = bind_data->GetResultTypes();
 
     return std::move(bind_data);

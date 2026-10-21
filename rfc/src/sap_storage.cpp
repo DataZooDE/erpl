@@ -9,6 +9,8 @@
 #include "duckdb/parser/parsed_data/create_table_function_info.hpp"
 #include "duckdb/parser/column_definition.hpp"
 #include "duckdb/main/config.hpp"
+#include "duckdb/main/attached_database.hpp"
+#include "duckdb/parser/parsed_data/attach_info.hpp"
 
 // sap_rfc.hpp / erpl_tracing.hpp are version-independent and are needed by the
 // TABLES pattern-expansion helper (ResolveTablePatterns), which runs for every
@@ -18,7 +20,6 @@
 #include "erpl_tracing.hpp"
 
 // entry_lookup_info.hpp was introduced alongside TryLookupEntryInternal in DuckDB v1.5+
-#if DUCKDB_MINOR_VERSION >= 5
 #include "duckdb/catalog/entry_lookup_info.hpp"
 #include "scanner_invoke.hpp"
 #include "scanner_read_table.hpp"
@@ -28,10 +29,10 @@
 #include "scanner_show_tables.hpp"
 #include "scanner_describe_fields.hpp"
 #include "sap_table_entry.hpp"
-#endif
 
 #include "sap_storage.hpp"
 #include "sap_connection.hpp"
+#include "duckdb_compat.hpp"
 
 namespace duckdb {
 
@@ -45,8 +46,6 @@ namespace duckdb {
 // between.  See issue #63 for the OOM the view wrapper caused.
 // ---------------------------------------------------------------------------
 
-#if DUCKDB_MINOR_VERSION >= 5
-
 class SapDefaultGenerator : public DefaultGenerator {
 public:
 	SapDefaultGenerator(Catalog &catalog, SchemaCatalogEntry &schema, string secret_name,
@@ -57,7 +56,8 @@ public:
 	      read_table_delimiter(std::move(read_table_delimiter)) {
 	}
 
-	unique_ptr<CatalogEntry> CreateDefaultEntry(ClientContext &context, const string &entry_name) override {
+	unique_ptr<CatalogEntry> CreateDefaultEntry(ClientContext &context, const duckdb_compat::IdentifierType &entry_identifier) override {
+		const string entry_name = duckdb_compat::Str(entry_identifier);
 		if (!allowed_tables.empty()) {
 			bool found = false;
 			for (auto &table : allowed_tables) {
@@ -136,77 +136,21 @@ public:
 		}
 
 		CreateTableInfo info;
-		info.catalog = catalog.GetName();
-		info.schema = DEFAULT_SCHEMA;
-		info.table = entry_name;
+		duckdb_compat::SetQualifiedName(info, duckdb_compat::Str(catalog.GetName()), DEFAULT_SCHEMA, entry_name);
 		for (idx_t i = 0; i < names.size(); i++) {
-			info.columns.AddColumn(ColumnDefinition(names[i], types[i]));
+			info.columns.AddColumn(ColumnDefinition(duckdb_compat::Ident(names[i]), types[i]));
 		}
 
-		return make_uniq_base<CatalogEntry, SapTableEntry>(catalog, schema, info, entry_name, secret_name, read_table_function, read_table_delimiter);
+		return make_uniq_base<CatalogEntry, SapTableEntry>(catalog, schema, info, info.columns.Copy(), entry_name,
+		                                               secret_name, read_table_function, read_table_delimiter);
 	}
 
-	vector<string> GetDefaultEntries() override {
-		return allowed_tables;
-	}
-
-private:
-	SchemaCatalogEntry &schema;
-	string secret_name;
-	vector<string> allowed_tables;
-	string read_table_function;
-	string read_table_delimiter;
-};
-
-#else
-
-// Pre-1.5 legacy view-based generator (kept for old DuckDB versions).
-class SapDefaultGenerator : public DefaultGenerator {
-public:
-	SapDefaultGenerator(Catalog &catalog, SchemaCatalogEntry &schema, string secret_name,
-	                    vector<string> allowed_tables, string read_table_function = "",
-	                    string read_table_delimiter = "")
-	    : DefaultGenerator(catalog), schema(schema), secret_name(std::move(secret_name)),
-	      allowed_tables(std::move(allowed_tables)), read_table_function(std::move(read_table_function)),
-	      read_table_delimiter(std::move(read_table_delimiter)) {
-	}
-
-	unique_ptr<CatalogEntry> CreateDefaultEntry(ClientContext &context, const string &entry_name) override {
-		if (!allowed_tables.empty()) {
-			bool found = false;
-			for (auto &table : allowed_tables) {
-				if (StringUtil::CIEquals(entry_name, table)) {
-					found = true;
-					break;
-				}
-			}
-			if (!found) {
-				return nullptr;
-			}
+	auto GetDefaultEntries() -> decltype(std::declval<DefaultGenerator &>().GetDefaultEntries()) override {
+		decltype(std::declval<DefaultGenerator &>().GetDefaultEntries()) entries;
+		for (const auto &table : allowed_tables) {
+			entries.emplace_back(table);
 		}
-
-		auto result = make_uniq<CreateViewInfo>();
-		result->schema = DEFAULT_SCHEMA;
-		result->view_name = entry_name;
-		string sql = StringUtil::Format("SELECT * FROM sap_read_table(%s", SQLString(entry_name));
-		if (!secret_name.empty()) {
-			sql += StringUtil::Format(", SECRET=%s", SQLString(secret_name));
-		}
-		if (!read_table_function.empty()) {
-			sql += StringUtil::Format(", READ_TABLE_FUNCTION=%s", SQLString(read_table_function));
-		}
-		if (!read_table_delimiter.empty()) {
-			sql += StringUtil::Format(", READ_TABLE_DELIMITER=%s", SQLString(read_table_delimiter));
-		}
-		sql += ")";
-		result->sql = sql;
-
-		auto view_info = CreateViewInfo::FromSelect(context, std::move(result));
-		return make_uniq_base<CatalogEntry, ViewCatalogEntry>(catalog, schema, *view_info);
-	}
-
-	vector<string> GetDefaultEntries() override {
-		return allowed_tables;
+		return entries;
 	}
 
 private:
@@ -216,8 +160,6 @@ private:
 	string read_table_function;
 	string read_table_delimiter;
 };
-
-#endif
 
 // ---------------------------------------------------------------------------
 // SapSecretInjectorInfo / SapSecretBind — secret injection trampoline
@@ -229,14 +171,16 @@ private:
 // SAP table function that is inserted into an attached catalog (issue #55).
 // ---------------------------------------------------------------------------
 
-#if DUCKDB_MINOR_VERSION >= 5
-
 static unique_ptr<FunctionData> SapSecretBind(ClientContext &ctx, TableFunctionBindInput &input,
-                                              vector<LogicalType> &return_types, vector<string> &names) {
+                                              vector<LogicalType> &return_types, duckdb_compat::BindNames &names) {
 	D_ASSERT(input.info);
 	auto &injector = input.info->Cast<SapSecretInjectorInfo>();
-	if (!injector.secret_name.empty() && input.table_function.named_parameters.count("secret") &&
-	    input.named_parameters.find("secret") == input.named_parameters.end()) {
+	bool accepts_secret = false;
+	for (const auto &parameter : duckdb_compat::NamedParameterTypes(input.table_function)) {
+		accepts_secret |= StringUtil::CIEquals(parameter.first, "secret");
+	}
+	if (!injector.secret_name.empty() && accepts_secret &&
+	    !duckdb_compat::FindNamedParameter(input.named_parameters, "secret")) {
 		input.named_parameters["secret"] = Value(injector.secret_name);
 	}
 	return injector.orig_bind(ctx, input, return_types, names);
@@ -244,27 +188,25 @@ static unique_ptr<FunctionData> SapSecretBind(ClientContext &ctx, TableFunctionB
 
 // Wrap every overload in info.functions to inject attach defaults (secret, read_table_function, read_table_delimiter) via the trampoline.
 static void WrapFunctionInfoWithAttachDefaults(CreateTableFunctionInfo &info, const string &secret_name, const string &read_table_function = "", const string &read_table_delimiter = "") {
-	for (auto &func : info.functions.functions) {
+	duckdb_compat::ForEachFunction(info.functions, [&](TableFunction &func) {
 		if (!func.bind) {
-			continue;
+			return;
 		}
 		func.function_info = make_shared_ptr<SapSecretInjectorInfo>(secret_name, read_table_function, read_table_delimiter, func.bind);
 		func.bind = SapSecretBind;
-	}
+	});
 }
 
 // ---------------------------------------------------------------------------
 // SapCatalog — DuckCatalog subclass that keeps the SAP DefaultGenerator
-// active after Scan() calls (issue #54; same logic applies for both the
-// pre-1.5 view-based generator and the 1.5+ SapTableEntry generator
-// introduced for issue #63).
+// active after Scan() calls (issue #54).
 //
 // DuckDB's CatalogSet::CreateDefaultEntries() sets created_all_entries=true
 // after iterating GetDefaultEntries().  When that returns [] (the no-TABLES
 // case for our generator), this permanently disables GetEntryDefault()
-// for on-demand entry creation.  Overriding TryLookupEntryInternal() to
-// reset the flag before each lookup keeps the generator alive across
-// Scans (e.g. from Ducklake or `information_schema.tables`).
+// for on-demand entry creation.  Every DuckDB line resolves the schema
+// through the virtual LookupSchema() before looking up a table, so reset
+// the flag there.  TryLookupEntryInternal() is not virtual on 1.4.
 // ---------------------------------------------------------------------------
 
 class SapCatalog : public DuckCatalog {
@@ -275,34 +217,22 @@ public:
 		view_generator_ = gen;
 	}
 
+	optional_ptr<SchemaCatalogEntry> LookupSchema(CatalogTransaction transaction,
+	                                              const EntryLookupInfo &schema_lookup,
+	                                              OnEntryNotFound if_not_found) override {
+		if (view_generator_) {
+			view_generator_->created_all_entries = false;
+		}
+		return DuckCatalog::LookupSchema(transaction, schema_lookup, if_not_found);
+	}
+
 private:
 	// Non-owning pointer; generator is owned by the CatalogSet inside this catalog.
 	SapDefaultGenerator *view_generator_;
 
-	CatalogEntryLookup TryLookupEntryInternal(CatalogTransaction transaction, const string &schema_name,
-	                                          const EntryLookupInfo &lookup_info) override {
-		// Reset so GetEntryDefault() still calls CreateDefaultEntry() even after
-		// a Scan() (e.g. from Ducklake) has set created_all_entries=true.
-		if (view_generator_) {
-			view_generator_->created_all_entries = false;
-		}
-		if (lookup_info.GetAtClause()) {
-			return {nullptr, nullptr, ErrorData(BinderException("SAP catalog does not support time travel"))};
-		}
-		auto schema_lookup = EntryLookupInfo::SchemaLookup(lookup_info, schema_name);
-		auto schema_entry = LookupSchema(transaction, schema_lookup, OnEntryNotFound::RETURN_NULL);
-		if (!schema_entry) {
-			return {nullptr, nullptr, ErrorData()};
-		}
-		auto entry = schema_entry->LookupEntry(transaction, lookup_info);
-		if (!entry) {
-			return {schema_entry, nullptr, ErrorData()};
-		}
-		return {schema_entry, entry, ErrorData()};
-	}
 };
 
-#endif // DUCKDB_MINOR_VERSION >= 5
+
 
 // ---------------------------------------------------------------------------
 // TABLES pattern expansion
@@ -474,7 +404,6 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
 	// Create an in-memory catalog
 	info.path = ":memory:";
 
-#if DUCKDB_MINOR_VERSION >= 5
 	auto sap_catalog = make_uniq<SapCatalog>(db);
 	sap_catalog->Initialize(false);
 
@@ -516,20 +445,6 @@ static unique_ptr<Catalog> SapStorageAttach(optional_ptr<StorageExtensionInfo> s
 	}
 
 	return std::move(sap_catalog);
-#else
-	auto catalog = make_uniq<DuckCatalog>(db);
-	catalog->Initialize(false);
-
-	auto system_transaction = CatalogTransaction::GetSystemTransaction(db.GetDatabase());
-	auto &schema = catalog->GetSchema(system_transaction, DEFAULT_SCHEMA);
-	auto &duck_schema = schema.Cast<DuckSchemaEntry>();
-	auto &catalog_set = duck_schema.GetCatalogSet(CatalogType::VIEW_ENTRY);
-	auto default_generator =
-	    make_uniq<SapDefaultGenerator>(*catalog, schema, std::move(secret_name), std::move(allowed_tables), read_table_function, read_table_delimiter);
-	catalog_set.SetDefaultGenerator(std::move(default_generator));
-
-	return std::move(catalog);
-#endif
 }
 
 static unique_ptr<TransactionManager> SapStorageTransactionManager(optional_ptr<StorageExtensionInfo> storage_info,
@@ -541,17 +456,10 @@ void RegisterSapStorageExtension(ExtensionLoader &loader) {
 	auto &instance = loader.GetDatabaseInstance();
 	auto &config = DBConfig::GetConfig(instance);
 
-#if DUCKDB_MINOR_VERSION >= 5
 	auto storage_ext = make_shared_ptr<StorageExtension>();
 	storage_ext->attach = SapStorageAttach;
 	storage_ext->create_transaction_manager = SapStorageTransactionManager;
-	StorageExtension::Register(config, "sap_rfc", std::move(storage_ext));
-#else
-	auto storage_ext = make_uniq<StorageExtension>();
-	storage_ext->attach = SapStorageAttach;
-	storage_ext->create_transaction_manager = SapStorageTransactionManager;
-	config.storage_extensions["sap_rfc"] = std::move(storage_ext);
-#endif
+	duckdb_compat::RegisterStorageExtension(config, "sap_rfc", std::move(storage_ext));
 }
 
 } // namespace duckdb

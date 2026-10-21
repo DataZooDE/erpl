@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "duckdb.hpp"
+#include "duckdb_compat.hpp"
 
 namespace duckdb
 {
@@ -62,8 +63,8 @@ private:
     std::vector<std::string> GetPathWithRoot(std::string path);
 };
 
-bool HasParam(named_parameter_map_t &named_params, const std::string &name);
-Value ConvertBoolArgument(named_parameter_map_t &named_params, const std::string &name, const bool default_value);
+bool HasParam(duckdb_compat::BindNamedParameters &named_params, const std::string &name);
+Value ConvertBoolArgument(duckdb_compat::BindNamedParameters &named_params, const std::string &name, const bool default_value);
 
 // Returns a copy of `named_args` (a single STRUCT Value as produced by
 // ArgBuilder::Build) with version-specific optional fields removed when the

@@ -20,6 +20,12 @@ on:
       duckdb_version:
         required: true
         type: string
+      # A 2.0 build needs the matching matrix tooling. Empty preserves the
+      # repository's pinned ci-tools submodule for the 1.4 and 1.5 jobs.
+      ci_tools_version:
+        required: false
+        type: string
+        default: ""
       # ';' separated list of architectures to exclude, for example: 'linux_amd64;osx_arm64'
       exclude_archs:
         required: false
@@ -85,10 +91,22 @@ jobs:
           submodules: 'true'
           token: ${{ steps.generate_token.outputs.token }}
 
+      - name: Fetch DuckDB 2.0 source commit
+        if: ${{ inputs.ci_tools_version != '' }}
+        shell: bash
+        run: git -C duckdb fetch --depth=1 https://github.com/duckdb/duckdb.git "${{ inputs.duckdb_version }}"
+
       - name: Checkout DuckDB to version
         run: |
           cd duckdb
           git checkout ${{ inputs.duckdb_version }}
+
+      - name: Checkout matching extension CI tools
+        if: ${{ inputs.ci_tools_version != '' }}
+        shell: bash
+        run: |
+          git -C extension-ci-tools fetch --depth=1 https://github.com/duckdb/extension-ci-tools.git "${{ inputs.ci_tools_version }}"
+          git -C extension-ci-tools checkout FETCH_HEAD
 
       - id: parse-matrices
         run: |
@@ -260,10 +278,22 @@ jobs:
           submodules: 'true'
           token: ${{ steps.generate_token.outputs.token }}
           
+      - name: Fetch DuckDB 2.0 source commit
+        if: ${{ inputs.ci_tools_version != '' }}
+        shell: bash
+        run: git -C duckdb fetch --depth=1 https://github.com/duckdb/duckdb.git "${{ inputs.duckdb_version }}"
+
       - name: Checkout DuckDB to version
         run: |
           cd duckdb
           git checkout ${{ inputs.duckdb_version }}
+
+      - name: Checkout matching extension CI tools
+        if: ${{ inputs.ci_tools_version != '' }}
+        shell: bash
+        run: |
+          git -C extension-ci-tools fetch --depth=1 https://github.com/duckdb/extension-ci-tools.git "${{ inputs.ci_tools_version }}"
+          git -C extension-ci-tools checkout FETCH_HEAD
 
       - name: Tag extension
         if: ${{inputs.extension_tag != ''}}
@@ -419,10 +449,22 @@ jobs:
           update-rtools: true
           rtools-version: '42' # linker bug in 43
 
+      - name: Fetch DuckDB 2.0 source commit
+        if: ${{ inputs.ci_tools_version != '' }}
+        shell: bash
+        run: git -C duckdb fetch --depth=1 https://github.com/duckdb/duckdb.git "${{ inputs.duckdb_version }}"
+
       - name: Checkout DuckDB to version
         run: |
           cd duckdb
           git checkout ${{ inputs.duckdb_version }}
+
+      - name: Checkout matching extension CI tools
+        if: ${{ inputs.ci_tools_version != '' }}
+        shell: bash
+        run: |
+          git -C extension-ci-tools fetch --depth=1 https://github.com/duckdb/extension-ci-tools.git "${{ inputs.ci_tools_version }}"
+          git -C extension-ci-tools checkout FETCH_HEAD
 
       - name: Setup Ccache
         uses: hendrikmuhs/ccache-action@main
@@ -542,10 +584,22 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Fetch DuckDB 2.0 source commit
+        if: ${{ inputs.ci_tools_version != '' }}
+        shell: bash
+        run: git -C duckdb fetch --depth=1 https://github.com/duckdb/duckdb.git "${{ inputs.duckdb_version }}"
+
       - name: Checkout DuckDB to version
         run: |
           cd duckdb
           git checkout ${{ inputs.duckdb_version }}
+
+      - name: Checkout matching extension CI tools
+        if: ${{ inputs.ci_tools_version != '' }}
+        shell: bash
+        run: |
+          git -C extension-ci-tools fetch --depth=1 https://github.com/duckdb/extension-ci-tools.git "${{ inputs.ci_tools_version }}"
+          git -C extension-ci-tools checkout FETCH_HEAD
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11.1

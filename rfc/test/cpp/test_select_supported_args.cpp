@@ -3,6 +3,7 @@
 #include "duckdb.hpp"
 
 #include "duckdb_argument_helper.hpp"
+#include "duckdb_compat.hpp"
 
 using namespace duckdb;
 using namespace std;
@@ -28,7 +29,7 @@ std::set<std::string> FieldNames(const Value &struct_value)
 {
     std::set<std::string> names;
     for (auto &child : StructType::GetChildTypes(struct_value.type())) {
-        names.insert(child.first);
+        names.insert(duckdb_compat::Str(child.first));
     }
     return names;
 }

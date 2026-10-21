@@ -8,6 +8,7 @@
 #include "sap_connection.hpp"
 #include "sap_function.hpp"
 #include "duckdb_argument_helper.hpp"
+#include "duckdb_compat.hpp"
 
 namespace duckdb 
 {
@@ -116,7 +117,7 @@ public:
         output.SetValue(8, 0, Source());
 
         _done = true;
-        output.SetCardinality(1);
+        duckdb_compat::SetChildCardinality(output, 1);
     }
 
 private:

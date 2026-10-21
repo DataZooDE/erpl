@@ -3,6 +3,7 @@
 #include "telemetry.hpp"
 
 #include <algorithm>
+#include "duckdb_compat.hpp"
 
 namespace duckdb
 {
@@ -134,7 +135,7 @@ struct RfcAuthorizationsBindData : public TableFunctionData {
 static unique_ptr<FunctionData> RfcAuthorizationsBind(ClientContext &context,
                                                       TableFunctionBindInput &input,
                                                       vector<LogicalType> &return_types,
-                                                      vector<string> &names)
+                                                      duckdb_compat::BindNames &names)
 {
     PostHogTelemetry::Instance().RecordFunctionCall("sap_rfc_authorizations");
 
@@ -162,7 +163,7 @@ static void RfcAuthorizationsScan(ClientContext &context, TableFunctionInput &da
         output.SetValue(3, i, Value(row.invocation));
         output.SetValue(4, i, Value(row.purpose));
     }
-    output.SetCardinality(count);
+    duckdb_compat::SetChildCardinality(output, count);
     bind_data.offset += count;
 }
 

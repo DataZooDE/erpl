@@ -1,5 +1,6 @@
 #include "duckdb_argument_helper.hpp"
 #include "duckdb_serialization_helper.hpp"
+#include "duckdb_compat.hpp"
 
 namespace duckdb 
 {   
@@ -7,19 +8,19 @@ namespace duckdb
 
     ArgBuilder& ArgBuilder::Add(const std::string& name, const Value &value) 
     {
-        _args.push_back(std::make_pair(name, value));
+        _args.emplace_back(duckdb_compat::Ident(name), value);
         return *this;
     }
 
     ArgBuilder& ArgBuilder::Add(const std::string& name, Value &value) 
     {
-        _args.push_back(std::make_pair(name, value));
+        _args.emplace_back(duckdb_compat::Ident(name), value);
         return *this;
     }
 
     ArgBuilder& ArgBuilder::Add(const std::string& name, const ArgBuilder& builder) 
     {
-        _args.push_back(std::make_pair(name, builder.Build()));
+        _args.emplace_back(duckdb_compat::Ident(name), builder.Build());
         return *this;
     }
 
@@ -318,12 +319,12 @@ namespace duckdb
 
     // ValueHelper ---------------------------------------------------------------
 
-    bool HasParam(named_parameter_map_t& named_params, const std::string& name) {
-        return named_params.find(name) != named_params.end();
+    bool HasParam(duckdb_compat::BindNamedParameters& named_params, const std::string& name) {
+        return named_params.find(duckdb_compat::Ident(name)) != named_params.end();
     };
 
-    Value ConvertBoolArgument(named_parameter_map_t& named_params, const std::string& name, const bool default_value) {
-        auto value = HasParam(named_params, name) ? BooleanValue::Get(named_params[name]) : default_value;
+    Value ConvertBoolArgument(duckdb_compat::BindNamedParameters& named_params, const std::string& name, const bool default_value) {
+        auto value = HasParam(named_params, name) ? BooleanValue::Get(named_params[duckdb_compat::Ident(name)]) : default_value;
 
         if (value == true) {
             return Value::CreateValue("X");
@@ -358,7 +359,7 @@ namespace duckdb
         child_list_t<Value> kept;
         for (idx_t i = 0; i < child_types.size(); i++) {
             const auto &field_name = child_types[i].first;
-            auto upper_name = StringUtil::Upper(field_name);
+            auto upper_name = StringUtil::Upper(duckdb_compat::Str(field_name));
 
             // Only drop a field that the target does not support AND that the
             // caller explicitly marked as droppable. Everything else is kept so
@@ -367,12 +368,12 @@ namespace duckdb
             bool droppable = droppable_upper.find(upper_name) != droppable_upper.end();
             if (unsupported && droppable) {
                 if (out_dropped != nullptr) {
-                    out_dropped->push_back(field_name);
+                    out_dropped->push_back(duckdb_compat::Str(field_name));
                 }
                 continue;
             }
 
-            kept.push_back(std::make_pair(field_name, child_values[i]));
+            kept.emplace_back(field_name, child_values[i]);
         }
 
         return Value::STRUCT(kept);

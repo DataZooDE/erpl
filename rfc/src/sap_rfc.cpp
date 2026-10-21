@@ -1,10 +1,11 @@
 #include "duckdb.hpp"
 #include <limits>
 #include <cmath>
+#include <functional>
 #include <iostream>
 #include <numeric>
 #include <set>
-#include <thread>  
+#include <thread>
 
 #include <stdint.h>
 #include "duckdb/parser/parser.hpp"
@@ -16,19 +17,24 @@
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/main/config.hpp"
 #include "duckdb/storage/storage_extension.hpp"
+#include "duckdb/execution/expression_executor.hpp"
+#include "duckdb/planner/filter/expression_filter.hpp"
 #include "duckdb/planner/filter/conjunction_filter.hpp"
 #include "duckdb/planner/filter/constant_filter.hpp"
 #include "duckdb/planner/filter/dynamic_filter.hpp"
+#include <unordered_map>
 #include "duckdb/planner/filter/in_filter.hpp"
 #include "duckdb/planner/filter/optional_filter.hpp"
 #include "duckdb/planner/filter/struct_filter.hpp"
 
 #include "sap_rfc.hpp"
+#include "duckdb_compat/filter.hpp"
 #include "sap_function.hpp"
 #include "sap_secret.hpp"
 #include "duckdb_argument_helper.hpp"
 #include "erpl_tracing.hpp"
 #include <regex>
+#include "duckdb_compat.hpp"
 
 namespace duckdb
 {
@@ -55,8 +61,8 @@ namespace duckdb
     unsigned int GetRfcMaxPersistentConnections()       { return g_rfc_max_persistent_connections.load(std::memory_order_relaxed); }
 
     // Whether SQL predicates are translated into RFC_READ_TABLE's OPTIONS table.
-    // Pushdown is a pure optimisation -- DuckDB re-evaluates every filter regardless --
-    // so turning this off can only cost throughput, never change results.  That is
+    // Pushdown is a pure optimisation -- this scan evaluates every filter it does
+    // not send to SAP -- so turning this off can only cost throughput.  That is
     // exactly what makes it the test suite's oracle: the same query with it on and off
     // must return the same rows.  It is also the escape hatch if a particular SAP
     // release rejects the generated syntax.
@@ -136,11 +142,11 @@ namespace duckdb
         return RfcAuthParams::FromContext(context).Connect();
     }
 
-    RfcReadTableBindData::RfcReadTableBindData(std::string table_name, 
-                                               int max_read_threads, 
+    RfcReadTableBindData::RfcReadTableBindData(std::string table_name,
+                                               int max_read_threads,
                                                unsigned int limit,
                                                const ReadTableFunctionOptions &function_options,
-                                               RfcConnectionFactory_t connection_factory, 
+                                               RfcConnectionFactory_t connection_factory,
                                                ClientContext &client_context)
         : table_name(std::move(table_name)),
           limit(limit),
@@ -168,7 +174,7 @@ namespace duckdb
         return column_names;
     }
 
-    duckdb::vector<Value> RfcReadTableBindData::GetRfcColumnName(unsigned int column_idx) 
+    duckdb::vector<Value> RfcReadTableBindData::GetRfcColumnName(unsigned int column_idx)
     {
         if (column_idx >= column_names.size()) {
             throw std::runtime_error(StringUtil::Format("Column index %d out of bounds", column_idx));
@@ -179,7 +185,7 @@ namespace duckdb
         return ret;
     }
 
-    std::string RfcReadTableBindData::GetProjectedColumnName(unsigned int projected_column_idx) 
+    std::string RfcReadTableBindData::GetProjectedColumnName(unsigned int projected_column_idx)
     {
         // Reads the projection map rather than scanning the state machines, so this
         // keeps working when a partitioned scan moves them into its workers.
@@ -396,7 +402,7 @@ namespace duckdb
 
     ReadTableFunctionOptions ResolveReadTableFunctionOptions(
         ClientContext &context,
-        const named_parameter_map_t *named_params,
+        const duckdb_compat::BindNamedParameters *named_params,
         const std::string &secret_name,
         const std::string &attach_override_function,
         const std::string &attach_override_delimiter)
@@ -793,15 +799,15 @@ namespace duckdb
 
         if (req_fields.empty()) {
             req_fields = std::vector<std::string>();
-            
+
             std::transform(available_fields.begin(), available_fields.end(), std::back_inserter(req_fields),
                            [](auto& fm) { return ValueHelper(fm)["FIELDNAME"].ToString(); });
         }
 
-        for (auto &req_field : req_fields) 
+        for (auto &req_field : req_fields)
         {
-            auto req_field_it = std::find_if(available_fields.begin(), available_fields.end(), 
-                                             [&req_field](auto &fm) { 
+            auto req_field_it = std::find_if(available_fields.begin(), available_fields.end(),
+                                             [&req_field](auto &fm) {
                                                  auto fm_helper = ValueHelper(fm);
                                                  auto field_name = fm_helper["FIELDNAME"].ToString();
                                                  return field_name == req_field;
@@ -815,7 +821,7 @@ namespace duckdb
 
         column_names.clear();
         column_names = req_fields;
-        
+
         column_types.clear();
         client_columns.clear();
         for (auto &req_field : req_fields) {
@@ -848,7 +854,7 @@ namespace duckdb
         column_state_machines = CreateReadColumnStateMachines();
     }
 
-    std::vector<RfcReadColumnStateMachine> RfcReadTableBindData::CreateReadColumnStateMachines() 
+    std::vector<RfcReadColumnStateMachine> RfcReadTableBindData::CreateReadColumnStateMachines()
     {
         auto ret = std::vector<RfcReadColumnStateMachine>();
         for (idx_t i = 0; i < column_names.size(); i++) {
@@ -857,7 +863,7 @@ namespace duckdb
         return ret;
     }
 
-    void RfcReadTableBindData::ActivateColumns(vector<column_t> &column_ids) 
+    void RfcReadTableBindData::ActivateColumns(vector<column_t> &column_ids)
     {
         for (auto &sm : column_state_machines) {
             sm.SetInactive();
@@ -885,38 +891,119 @@ namespace duckdb
     // Only ever used for predicates that could NOT be handed to SAP.  Row-at-a-time is
     // slow, but this path is the difference between right and wrong answers, and it
     // only runs for the residue.
-    static bool FilterMatchesValue(const TableFilter &filter, const Value &val)
-    {
+    using DynamicComparison = std::optional<std::pair<ExpressionType, Value>>;
+    struct ResidualFilterState {
+        std::unordered_map<const TableFilter *, unique_ptr<ExpressionExecutor>> executors;
+        std::unordered_map<const TableFilter *, DynamicComparison> dynamic_snapshots;
+    };
+
+    static bool IsResidualFilterEvaluable(const TableFilter &filter) {
+        if (duckdb_compat::FilterKind::BLOOM_FILTER &&
+            filter.filter_type == *duckdb_compat::FilterKind::BLOOM_FILTER) {
+            return true; // A Bloom filter is only an optional pruning hint.
+        }
         switch (filter.filter_type) {
-            case TableFilterType::CONSTANT_COMPARISON: {
-                auto &const_filter = filter.Cast<ConstantFilter>();
-                // SQL three-valued logic: a comparison against NULL is never true.
-                return val.IsNull() ? false : const_filter.Compare(val);
+        case duckdb_compat::FilterKind::CONSTANT_COMPARISON:
+        case duckdb_compat::FilterKind::IS_NULL:
+        case duckdb_compat::FilterKind::IS_NOT_NULL:
+        case duckdb_compat::FilterKind::IN_FILTER:
+        case duckdb_compat::FilterKind::DYNAMIC_FILTER:
+        case TableFilterType::EXPRESSION_FILTER:
+            return true;
+        case duckdb_compat::FilterKind::OPTIONAL_FILTER:
+            return true;
+        case duckdb_compat::FilterKind::CONJUNCTION_AND:
+        case duckdb_compat::FilterKind::CONJUNCTION_OR: {
+            const auto &children = filter.filter_type == duckdb_compat::FilterKind::CONJUNCTION_AND
+                ? filter.Cast<duckdb_compat::ConjunctionAndFilter>().child_filters
+                : filter.Cast<duckdb_compat::ConjunctionOrFilter>().child_filters;
+            for (auto &child : children) {
+                if (!IsResidualFilterEvaluable(*child)) return false;
             }
-            case TableFilterType::IS_NULL:
+            return true;
+        }
+        case duckdb_compat::FilterKind::STRUCT_EXTRACT:
+            return IsResidualFilterEvaluable(*filter.Cast<duckdb_compat::StructFilter>().child_filter);
+        default:
+            return false;
+        }
+    }
+
+    static void PrepareResidualFilter(const TableFilter &filter, ClientContext &context,
+                                      ResidualFilterState &state) {
+        switch (filter.filter_type) {
+        case TableFilterType::EXPRESSION_FILTER:
+            state.executors.emplace(&filter, make_uniq<ExpressionExecutor>(context, *filter.Cast<ExpressionFilter>().expr));
+            break;
+        case duckdb_compat::FilterKind::DYNAMIC_FILTER: {
+            const auto &dynamic_filter = filter.Cast<duckdb_compat::DynamicFilter>();
+            DynamicComparison comparison;
+            if (dynamic_filter.filter_data) {
+                // The lock is a std::mutex before 2.0 and an annotated_shared_mutex
+                // (a std::shared_mutex) in 2.0; lock_guard on its own type fits both.
+                auto &filter_lock = dynamic_filter.filter_data->lock;
+                std::lock_guard<typename std::decay<decltype(filter_lock)>::type> guard(filter_lock);
+                comparison = duckdb_compat::DynamicSnapshot(*dynamic_filter.filter_data);
+            }
+            state.dynamic_snapshots.emplace(&filter, std::move(comparison));
+            break;
+        }
+        case duckdb_compat::FilterKind::CONJUNCTION_AND:
+            for (auto &child : filter.Cast<duckdb_compat::ConjunctionAndFilter>().child_filters)
+                PrepareResidualFilter(*child, context, state);
+            break;
+        case duckdb_compat::FilterKind::CONJUNCTION_OR:
+            for (auto &child : filter.Cast<duckdb_compat::ConjunctionOrFilter>().child_filters)
+                PrepareResidualFilter(*child, context, state);
+            break;
+        case duckdb_compat::FilterKind::OPTIONAL_FILTER: {
+            auto &child = filter.Cast<duckdb_compat::OptionalFilter>().child_filter;
+            if (child && IsResidualFilterEvaluable(*child)) PrepareResidualFilter(*child, context, state);
+            break;
+        }
+        case duckdb_compat::FilterKind::STRUCT_EXTRACT:
+            PrepareResidualFilter(*filter.Cast<duckdb_compat::StructFilter>().child_filter, context, state);
+            break;
+        default:
+            break;
+        }
+    }
+
+    static bool FilterMatchesValue(const TableFilter &filter, const Value &val,
+                                   ResidualFilterState &state)
+    {
+        if (duckdb_compat::FilterKind::BLOOM_FILTER &&
+            filter.filter_type == *duckdb_compat::FilterKind::BLOOM_FILTER) return true;
+        switch (filter.filter_type) {
+            case duckdb_compat::FilterKind::CONSTANT_COMPARISON: {
+                auto &const_filter = filter.Cast<duckdb_compat::ConstantFilter>();
+                // SQL three-valued logic: a comparison against NULL is never true.
+                return val.IsNull() ? false : duckdb_compat::MatchesConstantFilter(const_filter, val);
+            }
+            case duckdb_compat::FilterKind::IS_NULL:
                 return val.IsNull();
-            case TableFilterType::IS_NOT_NULL:
+            case duckdb_compat::FilterKind::IS_NOT_NULL:
                 return ! val.IsNull();
-            case TableFilterType::CONJUNCTION_AND: {
-                auto &conj = filter.Cast<ConjunctionAndFilter>();
+            case duckdb_compat::FilterKind::CONJUNCTION_AND: {
+                auto &conj = filter.Cast<duckdb_compat::ConjunctionAndFilter>();
                 for (auto &child : conj.child_filters) {
-                    if (! FilterMatchesValue(*child, val)) {
+                    if (! FilterMatchesValue(*child, val, state)) {
                         return false;
                     }
                 }
                 return true;
             }
-            case TableFilterType::CONJUNCTION_OR: {
-                auto &conj = filter.Cast<ConjunctionOrFilter>();
+            case duckdb_compat::FilterKind::CONJUNCTION_OR: {
+                auto &conj = filter.Cast<duckdb_compat::ConjunctionOrFilter>();
                 for (auto &child : conj.child_filters) {
-                    if (FilterMatchesValue(*child, val)) {
+                    if (FilterMatchesValue(*child, val, state)) {
                         return true;
                     }
                 }
                 return false;
             }
-            case TableFilterType::IN_FILTER: {
-                auto &in_filter = filter.Cast<InFilter>();
+            case duckdb_compat::FilterKind::IN_FILTER: {
+                auto &in_filter = filter.Cast<duckdb_compat::InFilter>();
                 if (val.IsNull()) {
                     return false;
                 }
@@ -927,7 +1014,15 @@ namespace duckdb
                 }
                 return false;
             }
-            case TableFilterType::OPTIONAL_FILTER: {
+            case duckdb_compat::FilterKind::DYNAMIC_FILTER: {
+                auto &comparison = state.dynamic_snapshots.at(&filter);
+                if (!comparison) {
+                    return true;
+                }
+                duckdb_compat::ConstantFilter constant_filter(comparison->first, comparison->second);
+                return !val.IsNull() && duckdb_compat::MatchesConstantFilter(constant_filter, val);
+            }
+            case duckdb_compat::FilterKind::OPTIONAL_FILTER: {
                 // Enforced, not skipped.  DuckDB's own OptionalFilter::FilterSelection is
                 // a no-op, but that is a performance choice rather than a statement that
                 // the predicate may be violated: CheckStatistics delegates to the child
@@ -936,13 +1031,13 @@ namespace duckdb
                 // by the query.  DuckDB can afford to skip the exact check because
                 // something downstream re-applies it; here the filter was removed from the
                 // plan, so nothing would.
-                auto &optional_filter = filter.Cast<OptionalFilter>();
-                return optional_filter.child_filter == nullptr
-                     ? true
-                     : FilterMatchesValue(*optional_filter.child_filter, val);
+                auto &optional_filter = filter.Cast<duckdb_compat::OptionalFilter>();
+                return optional_filter.child_filter == nullptr ||
+                       !IsResidualFilterEvaluable(*optional_filter.child_filter) ||
+                       FilterMatchesValue(*optional_filter.child_filter, val, state);
             }
-            case TableFilterType::STRUCT_EXTRACT: {
-                auto &struct_filter = filter.Cast<StructFilter>();
+            case duckdb_compat::FilterKind::STRUCT_EXTRACT: {
+                auto &struct_filter = filter.Cast<duckdb_compat::StructFilter>();
                 if (val.IsNull()) {
                     return false;
                 }
@@ -950,13 +1045,18 @@ namespace duckdb
                 if (struct_filter.child_idx >= children.size()) {
                     return true;
                 }
-                return FilterMatchesValue(*struct_filter.child_filter, children[struct_filter.child_idx]);
+                return FilterMatchesValue(*struct_filter.child_filter, children[struct_filter.child_idx], state);
+            }
+            case TableFilterType::EXPRESSION_FILTER: {
+                auto &expression_filter = filter.Cast<ExpressionFilter>();
+                return expression_filter.EvaluateWithConstant(*state.executors.at(&filter), val);
             }
             default:
-                // An unrecognised filter kind must not silently delete rows.  Keeping the
-                // row over-produces, which is the same thing that happened before this
-                // function existed; dropping it would be a new way to be wrong.
-                return true;
+                // The plan has no filter above a scan that advertises pushdown.
+                // Failing closed here prevents a new filter kind from silently
+                // changing query results when DuckDB adds one.
+                throw NotImplementedException("sap_read_table cannot evaluate table filter type %d",
+                                              static_cast<int>(filter.filter_type));
         }
     }
 
@@ -969,19 +1069,28 @@ namespace duckdb
     // instead of 14, and EXPLAIN shows no FILTER operator above SAP_READ_TABLE.
     //
     // Everything that could not be pushed is therefore applied here instead.
-    void RfcReadTableBindData::ApplyResidualFilters(DataChunk &output)
+    void RfcReadTableBindData::ApplyResidualFilters(ClientContext &context, DataChunk &output)
     {
         if (residual_filters.empty() || output.size() == 0) {
             return;
+        }
+
+        // 2.0 sends ordinary predicates as ExpressionFilter.  Keep one executor per
+        // filter and batch; constructing it for each row is prohibitively expensive
+        // on catalog tables that span hundreds of batches.
+        ResidualFilterState state;
+        for (auto &entry : residual_filters) {
+            PrepareResidualFilter(*entry.second, context, state);
         }
 
         SelectionVector sel(STANDARD_VECTOR_SIZE);
         idx_t kept = 0;
         for (idx_t row = 0; row < output.size(); row++) {
             bool matches = true;
-            for (auto &entry : residual_filters) {
+            for (idx_t filter_idx = 0; filter_idx < residual_filters.size(); filter_idx++) {
+                auto &entry = residual_filters[filter_idx];
                 auto val = output.GetValue(entry.first, row);
-                if (! FilterMatchesValue(*entry.second, val)) {
+                if (! FilterMatchesValue(*entry.second, val, state)) {
                     matches = false;
                     break;
                 }
@@ -996,10 +1105,22 @@ namespace duckdb
         }
     }
 
-    void RfcReadTableBindData::AddOptionsFromFilters(duckdb::optional_ptr<duckdb::TableFilterSet> filter_set) 
+    void RfcReadTableBindData::AddOptionsFromFilters(duckdb::optional_ptr<duckdb::TableFilterSet> filter_set)
     {
         residual_filters.clear();
-        if (filter_set == nullptr || filter_set->filters.empty()) {
+        if (filter_set == nullptr) {
+            return;
+        }
+        duckdb_compat::ForEachFilter(*filter_set, [](idx_t, const TableFilter &filter) {
+            if (!IsResidualFilterEvaluable(filter)) {
+                throw NotImplementedException("sap_read_table cannot evaluate table filter type %d",
+                                              static_cast<int>(filter.filter_type));
+            }
+        });
+        if (duckdb_compat::FilterCount(*filter_set) == 0) {
+            // A future 2.0 planner may send only multi-column filters.  The
+            // iterator rejects those; never silently skip the entire set.
+            duckdb_compat::ForEachFilter(*filter_set, [](idx_t, const TableFilter &) {});
             return;
         }
 
@@ -1007,33 +1128,32 @@ namespace duckdb
         // applied, or turning it off would change the answer rather than just the speed.
         if (! GetRfcPushdownFilters()) {
             ERPL_TRACE_DEBUG("sap_rfc", "Filter pushdown disabled by erpl_rfc_pushdown_filters");
-            for (auto &[projected_column_idx, filter] : filter_set->filters) {
-                residual_filters.emplace_back(projected_column_idx, filter->Copy());
-            }
+            duckdb_compat::ForEachFilter(*filter_set, [&](idx_t projected_column_idx, const TableFilter &filter) {
+                residual_filters.emplace_back(projected_column_idx, duckdb_compat::CopyFilter(filter));
+            });
             return;
         }
 
         vector<std::string> filter_entries;
         bool pushed_filters = false;
         bool skipped_filters = false;
-        for (auto &[projected_column_idx, filter] : filter_set->filters)
-        {
+        duckdb_compat::ForEachFilter(*filter_set, [&](idx_t projected_column_idx, const TableFilter &filter) {
             auto column_name = GetProjectedColumnName(projected_column_idx);
             // Never generate a predicate on the client field; SAP refuses the whole
             // clause if one appears.  DuckDB still needs the filter applied, so it goes
             // to the residual path rather than being dropped.
             auto transformed = client_columns.count(column_name) > 0
                              ? std::string()
-                             : TransformFilter(column_name, *filter);
+                             : TransformFilter(column_name, filter);
             if (!transformed.empty()) {
                 filter_entries.push_back(transformed);
                 pushed_filters = true;
             } else {
                 skipped_filters = true;
                 // Not expressible in ABAP -- so it has to be applied on this side.
-                residual_filters.emplace_back(projected_column_idx, filter->Copy());
+                residual_filters.emplace_back(projected_column_idx, duckdb_compat::CopyFilter(filter));
             }
-        }
+        });
 
         if (!pushed_filters) {
             ERPL_TRACE_DEBUG("sap_rfc", "Skipping filter pushdown; RFC_READ_TABLE cannot represent any conditions");
@@ -1050,14 +1170,55 @@ namespace duckdb
 
         if (! options.empty()) {
             filter_string = " AND " + filter_string;
-        }   
+        }
 
         AddOptionsFromWhereClause(filter_string);
         ERPL_TRACE_DEBUG_DATA("sap_rfc", "Filter pushdown applied", filter_string);
     }
 
-    std::string RfcReadTableBindData::TransformFilter(std::string &column_name, TableFilter &filter)
+    std::string RfcReadTableBindData::TransformFilter(std::string &column_name, const TableFilter &filter)
     {
+        if (filter.filter_type == TableFilterType::EXPRESSION_FILTER) {
+            // 2.0 delivers normal scan predicates as ExpressionFilter.  The legacy
+            // switch below cannot see those comparisons.  The compatibility helper
+            // only accepts a single-column tree of comparisons and null checks;
+            // everything else stays in the local residual evaluator.
+            auto tree = duckdb_compat::SimpleExpressionTree(filter);
+            if (!tree) {
+                return std::string();
+            }
+            std::function<std::string(const duckdb_compat::FilterExpressionNode &)> render;
+            render = [&](const duckdb_compat::FilterExpressionNode &node) -> std::string {
+                using Kind = duckdb_compat::FilterExpressionNode::Kind;
+                if (node.kind == Kind::COMPARISON) {
+                    auto literal = TransformLiteral(node.constant);
+                    if (literal.empty() || literal.size() > MAX_OPTION_LEN) {
+                        return std::string();
+                    }
+                    return column_name + " " + TransformComparision(node.comparison_type) + " " + literal;
+                }
+                if (node.kind == Kind::IS_NULL || node.kind == Kind::IS_NOT_NULL) {
+                    return std::string();
+                }
+                const auto separator = node.kind == Kind::CONJUNCTION_AND ? " AND " : " OR ";
+                std::string result;
+                for (auto &child : node.children) {
+                    auto part = render(child);
+                    if (part.empty()) {
+                        return std::string();
+                    }
+                    if (!result.empty()) {
+                        result += separator;
+                    }
+                    result += part;
+                    if (result.size() > MAX_PUSHDOWN_CLAUSE_LEN) {
+                        return std::string();
+                    }
+                }
+                return result.empty() ? std::string() : "( " + result + " )";
+            };
+            return render(*tree);
+        }
         switch(filter.filter_type)
         {
             // DuckDB expresses `BETWEEN a AND b` on one column as a CONJUNCTION_AND of
@@ -1068,16 +1229,16 @@ namespace duckdb
             // predicate (harmless -- DuckDB re-filters), but dropping one arm of an OR
             // *narrows* it and would silently lose rows.  Rather than encode two
             // different rules, neither is pushed partially.
-            case TableFilterType::CONJUNCTION_AND: {
-                auto &conj = filter.Cast<ConjunctionAndFilter>();
+            case duckdb_compat::FilterKind::CONJUNCTION_AND: {
+                auto &conj = filter.Cast<duckdb_compat::ConjunctionAndFilter>();
                 return TransformConjunction(column_name, conj.child_filters, "AND");
             }
-            case TableFilterType::CONJUNCTION_OR: {
-                auto &conj = filter.Cast<ConjunctionOrFilter>();
+            case duckdb_compat::FilterKind::CONJUNCTION_OR: {
+                auto &conj = filter.Cast<duckdb_compat::ConjunctionOrFilter>();
                 return TransformConjunction(column_name, conj.child_filters, "OR");
             }
-            case TableFilterType::CONSTANT_COMPARISON: {
-                auto &const_filter = filter.Cast<ConstantFilter>();
+            case duckdb_compat::FilterKind::CONSTANT_COMPARISON: {
+                auto &const_filter = filter.Cast<duckdb_compat::ConstantFilter>();
 
                 // TransformComparision maps all six comparison operators; ranges are
                 // exactly the shape a date-window extract uses, and leaving them to
@@ -1113,18 +1274,18 @@ namespace duckdb
 
                 return StringUtil::Format("%s %s %s", column_name, operator_string, constant_string);
             }
-            case TableFilterType::OPTIONAL_FILTER: {
-                auto &optional_filter = filter.Cast<OptionalFilter>();
+            case duckdb_compat::FilterKind::OPTIONAL_FILTER: {
+                auto &optional_filter = filter.Cast<duckdb_compat::OptionalFilter>();
 		        return TransformFilter(column_name, *optional_filter.child_filter);
             }
-            case TableFilterType::STRUCT_EXTRACT: {
-                auto &struct_filter = filter.Cast<StructFilter>();
-                auto child_name = KeywordHelper::WriteQuoted(struct_filter.child_name, '\"');
+            case duckdb_compat::FilterKind::STRUCT_EXTRACT: {
+                auto &struct_filter = filter.Cast<duckdb_compat::StructFilter>();
+                auto child_name = KeywordHelper::WriteQuoted(duckdb_compat::Str(struct_filter.child_name), '\"');
                 auto new_name = "(" + column_name + ")." + child_name;
                 return TransformFilter(new_name, *struct_filter.child_filter);
 	        }
-            case TableFilterType::IN_FILTER: {
-                auto &in_filter = filter.Cast<InFilter>();
+            case duckdb_compat::FilterKind::IN_FILTER: {
+                auto &in_filter = filter.Cast<duckdb_compat::InFilter>();
                 if (in_filter.values.empty()) {
                     return std::string();
                 }
@@ -1153,19 +1314,19 @@ namespace duckdb
                 // chunker somewhere legal to break a long list.
                 return column_name + " IN ( " + in_list + " )";
             }
-            case TableFilterType::DYNAMIC_FILTER: {
+            case duckdb_compat::FilterKind::DYNAMIC_FILTER: {
                 return std::string();
             }
-            case TableFilterType::IS_NOT_NULL: {
+            case duckdb_compat::FilterKind::IS_NOT_NULL: {
                 // Not supported in RFC_READ_TABLE OPTIONS; skip pushdown
                 return std::string();
             }
-            case TableFilterType::IS_NULL: {
+            case duckdb_compat::FilterKind::IS_NULL: {
                 // Not supported in RFC_READ_TABLE OPTIONS; skip pushdown
                 return std::string();
             }
             default: {
-                // For any other filter types, don't push down - let DuckDB handle them
+                // Any other filter is evaluated locally by ApplyResidualFilters.
                 return std::string();
             }
         }
@@ -1254,7 +1415,7 @@ namespace duckdb
     }
 
     std::string RfcReadTableBindData::TransformConjunction(std::string &column_name,
-                                                          vector<unique_ptr<TableFilter>> &children,
+                                                          const vector<unique_ptr<TableFilter>> &children,
                                                           const std::string &op)
     {
         if (children.empty()) {
@@ -1283,7 +1444,7 @@ namespace duckdb
         return "( " + result + " )";
     }
 
-    std::string RfcReadTableBindData::CreateExpression(string &column_name, vector<unique_ptr<TableFilter>> &filters, string op) 
+    std::string RfcReadTableBindData::CreateExpression(string &column_name, const vector<unique_ptr<TableFilter>> &filters, string op)
     {
         auto filter_strings = std::vector<std::string>();
         for (auto &filter : filters) {
@@ -1343,7 +1504,7 @@ namespace duckdb
         return field_metas;
     }
 
-    RfcType RfcReadTableBindData::GetRfcTypeForFieldMeta(Value &DFIES_entry) 
+    RfcType RfcReadTableBindData::GetRfcTypeForFieldMeta(Value &DFIES_entry)
     {
         auto entry_helper = ValueHelper(DFIES_entry);
         auto type_name = entry_helper["DATATYPE"].ToString();
@@ -1558,7 +1719,7 @@ namespace duckdb
             }
         }
 
-        output.SetCardinality(cardinality);
+        duckdb_compat::SetChildCardinality(output, cardinality);
     }
 
     void RfcReadTableBindData::Step(ClientContext &context, DataChunk &output,
@@ -1617,12 +1778,12 @@ namespace duckdb
         }
 
         auto cardinality = FirstActiveStateMachineCardinality(machines);
-        output.SetCardinality(cardinality);
+        duckdb_compat::SetChildCardinality(output, cardinality);
     }
 
-    unsigned int RfcReadTableBindData::NActiveStateMachines() 
+    unsigned int RfcReadTableBindData::NActiveStateMachines()
     {
-        return std::count_if(column_state_machines.begin(), column_state_machines.end(), 
+        return std::count_if(column_state_machines.begin(), column_state_machines.end(),
                              [](auto &sm) { return sm.Active(); });
     }
 
@@ -1638,7 +1799,7 @@ namespace duckdb
         throw std::runtime_error("No active state machine found. This should not happen.");
     }
 
-    
+
     bool RfcReadTableBindData::AreActiveStateMachineCaridnalitiesEqual(
         std::vector<RfcReadColumnStateMachine> &machines)
     {
@@ -1663,10 +1824,10 @@ namespace duckdb
 
         return true;
     }
-    
-    std::string RfcReadTableBindData::ToString() 
+
+    std::string RfcReadTableBindData::ToString()
     {
-        return StringUtil::Format("BindData(\n\ttable_name=%s, \n\toptions=%s, \n\tcolumn_names=%s, \n\tcolumn_types=%s\n)\n", 
+        return StringUtil::Format("BindData(\n\ttable_name=%s, \n\toptions=%s, \n\tcolumn_names=%s, \n\tcolumn_types=%s\n)\n",
                                     table_name, StringUtil::Join(options, options.size(), ", ", [](auto &o) { return o; }),
                                     StringUtil::Join(column_names, column_names.size(), ", ", [](auto &o) { return o; }),
                                     StringUtil::Join(column_types, column_types.size(), ", ", [](auto &o) { return o.GetName(); }));
@@ -1674,10 +1835,10 @@ namespace duckdb
 
     double RfcReadTableBindData::GetProgress()
     {
-        auto batch_sum = std::accumulate(column_state_machines.begin(), column_state_machines.end(), 0, 
+        auto batch_sum = std::accumulate(column_state_machines.begin(), column_state_machines.end(), 0,
                                          [](auto &acc, auto &sm) { return acc + sm.GetBatchCount(); });
         auto progress = (int)(batch_sum / column_state_machines.size()) % 100;
-        return progress * 1.0; 
+        return progress * 1.0;
     }
 
     // --------------------------------------------------------------------------------------------
@@ -1726,29 +1887,29 @@ namespace duckdb
           current_state(other.current_state)
     {}
 
-    RfcReadColumnStateMachine::~RfcReadColumnStateMachine() 
+    RfcReadColumnStateMachine::~RfcReadColumnStateMachine()
     {}
 
-    bool RfcReadColumnStateMachine::Active() 
+    bool RfcReadColumnStateMachine::Active()
     {
         std::lock_guard<mutex> t(thread_lock);
         return active;
     }
 
-    void RfcReadColumnStateMachine::SetInactive() 
+    void RfcReadColumnStateMachine::SetInactive()
     {
         std::lock_guard<mutex> t(thread_lock);
         active = false;
     }
 
-    void RfcReadColumnStateMachine::SetActive(idx_t col_idx) 
+    void RfcReadColumnStateMachine::SetActive(idx_t col_idx)
     {
         std::lock_guard<mutex> t(thread_lock);
         active = true;
         projected_column_idx = col_idx;
     }
 
-    bool RfcReadColumnStateMachine::Finished() 
+    bool RfcReadColumnStateMachine::Finished()
     {
         std::lock_guard<mutex> t(thread_lock);
         return current_state == ReadTableStates::FINISHED;
@@ -1763,13 +1924,13 @@ namespace duckdb
         return task;
     }
 
-    unsigned int RfcReadColumnStateMachine::GetRfcColumnIndex() 
+    unsigned int RfcReadColumnStateMachine::GetRfcColumnIndex()
     {
         std::lock_guard<mutex> t(thread_lock);
         return column_idx;
     }
 
-    unsigned int RfcReadColumnStateMachine::GetProjectedColumnIndex() 
+    unsigned int RfcReadColumnStateMachine::GetProjectedColumnIndex()
     {
         std::lock_guard<mutex> t(thread_lock);
         return projected_column_idx;
@@ -1781,13 +1942,13 @@ namespace duckdb
         return row_id_column_id;
     }
 
-    void RfcReadColumnStateMachine::SetRowIdColumnId() 
+    void RfcReadColumnStateMachine::SetRowIdColumnId()
     {
         std::lock_guard<mutex> t(thread_lock);
         row_id_column_id = true;
     }
 
-    unsigned int RfcReadColumnStateMachine::GetCardinality() 
+    unsigned int RfcReadColumnStateMachine::GetCardinality()
     {
         std::lock_guard<mutex> t(thread_lock);
         return cardinality;
@@ -1944,13 +2105,13 @@ namespace duckdb
 
     std::string RfcReadColumnStateMachine::ToString()
     {
-        return StringUtil::Format("ReadColumn(\n\tcolumn_idx=%d, \n\tcurrent_state=%s, \n\tdesired_batch_size=%d, \n\tpending_records=%d, \n\tcardinality=%d, \n\tbatch_count=%d, \n\tduck_count=%d\n)\n", 
-                                    column_idx, 
-                                    ReadTableStatesToString(current_state).c_str(), 
-                                    desired_batch_size, 
+        return StringUtil::Format("ReadColumn(\n\tcolumn_idx=%d, \n\tcurrent_state=%s, \n\tdesired_batch_size=%d, \n\tpending_records=%d, \n\tcardinality=%d, \n\tbatch_count=%d, \n\tduck_count=%d\n)\n",
+                                    column_idx,
+                                    ReadTableStatesToString(current_state).c_str(),
+                                    desired_batch_size,
                                     pending_records,
-                                    cardinality, 
-                                    batch_count, 
+                                    cardinality,
+                                    batch_count,
                                     duck_count);
     }
 
@@ -1964,7 +2125,7 @@ namespace duckdb
         :  duckdb::BaseExecutorTask(executor), owning_state_machine(owning_state_machine), current_column_output(current_column_output)
     { }
 
-    void RfcReadColumnTask::ExecuteTask() 
+    void RfcReadColumnTask::ExecuteTask()
     {
         std::lock_guard<mutex> t(owning_state_machine->thread_lock);
 
@@ -1980,7 +2141,7 @@ namespace duckdb
         cardinality = 0;
         bool return_control_to_duck = false;
         while (return_control_to_duck == false) {
-            switch(current_state) 
+            switch(current_state)
             {
                 case ReadTableStates::INIT: {
                     current_state = ReadTableStates::EXTRACT_FROM_SAP;
@@ -2033,10 +2194,10 @@ namespace duckdb
                         break;
                     }
 
-                    current_state = (pending_records > 0) 
-                                        ? ReadTableStates::LOAD_TO_DUCKDB 
+                    current_state = (pending_records > 0)
+                                        ? ReadTableStates::LOAD_TO_DUCKDB
                                         : ReadTableStates::EXTRACT_FROM_SAP;
-                    
+
                     return_control_to_duck = true;
                     break;
                 }
@@ -2072,17 +2233,17 @@ namespace duckdb
                     break;
                 }
                 case ReadTableStates::FINISHED: {
-                    // Never actually reached / called, 
+                    // Never actually reached / called,
                     // as the Finished() method will return true;
                     break;
                 }
             }
         }
-        
+
         //printf("[%lu] %s\n", owning_state_machine->column_idx, owning_state_machine->ToString().c_str());
     }
 
-    
+
     unsigned int RfcReadColumnTask::ExecuteNextTableReadForColumn()
     {
         auto bind_data = owning_state_machine->bind_data;
@@ -2206,7 +2367,7 @@ namespace duckdb
         throw std::runtime_error(StringUtil::Format("Could not complete read task after %d attempts.", max_attempts));
     }
 
-    std::vector<Value> RfcReadColumnTask::CreateFunctionArguments(const ReadTableFunctionDescriptor &desc, const std::string &delimiter, bool use_et_data) 
+    std::vector<Value> RfcReadColumnTask::CreateFunctionArguments(const ReadTableFunctionDescriptor &desc, const std::string &delimiter, bool use_et_data)
     {
         auto bind_data = owning_state_machine->bind_data;
         auto table_name = bind_data->table_name;
@@ -2434,9 +2595,9 @@ namespace duckdb
         }
         return rfc_type.ConvertCsvValue(orig);
     }
-    
+
     // --------------------------------------------------------------------------------------------
-    std::string ReadTableStatesToString(ReadTableStates &state) 
+    std::string ReadTableStatesToString(ReadTableStates &state)
     {
         switch (state) {
             case ReadTableStates::INIT: return "INIT";

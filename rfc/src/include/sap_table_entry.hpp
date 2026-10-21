@@ -14,7 +14,7 @@ namespace duckdb {
 // without a view-expansion hop in between.  See issue #63.
 class SapTableEntry : public TableCatalogEntry {
 public:
-	SapTableEntry(Catalog &catalog, SchemaCatalogEntry &schema, CreateTableInfo &info,
+	SapTableEntry(Catalog &catalog, SchemaCatalogEntry &schema, CreateTableInfo &info, ColumnList columns,
 	              string sap_table_name, string secret_name, string read_table_function = "",
 	              string read_table_delimiter = "");
 
@@ -23,8 +23,10 @@ public:
 	unique_ptr<BaseStatistics> GetStatistics(ClientContext &context, column_t column_id) override;
 
 	TableStorageInfo GetStorageInfo(ClientContext &context) override;
+	const ColumnList &GetColumns() const;
 
 private:
+	ColumnList sap_columns;
 	string sap_table_name;
 	string secret_name;
 	string read_table_function;

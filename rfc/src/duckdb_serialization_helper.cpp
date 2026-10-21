@@ -1,6 +1,7 @@
 #include "duckdb_serialization_helper.hpp"
 #include "duckdb/common/types/blob.hpp"
 #include "yyjson.hpp"
+#include "duckdb_compat.hpp"
 
 namespace duckdb 
 {
@@ -152,7 +153,7 @@ namespace duckdb
 
     yyjson_mut_val *ErplSerializer::SerializeJson(yyjson_mut_doc *doc, const dtime_t &value) 
     {
-        return SerializeJson(doc, value.micros);
+        return SerializeJson(doc, static_cast<int64_t>(value));
     }
 
     yyjson_mut_val *ErplSerializer::SerializeJson(yyjson_mut_doc *doc, const timestamp_t &value) 
@@ -177,7 +178,7 @@ namespace duckdb
 
         auto ret = yyjson_mut_obj(doc);
         for (std::size_t i = 0; i < child_values.size(); i++) {
-            auto child_name = SerializeJson(doc, StructType::GetChildName(struct_type, i));
+            auto child_name = SerializeJson(doc, duckdb_compat::Str(StructType::GetChildName(struct_type, i)));
             auto child_value = SerializeJson(doc, child_values[i], include_type);
 
             yyjson_mut_obj_add(ret, child_name, child_value);
@@ -355,7 +356,7 @@ namespace duckdb
         {
             auto key = std::string(yyjson_get_str(key_obj));
             auto val = yyjson_obj_iter_get_val(key_obj);
-            child_values.push_back(std::pair(key, DeserializeJson(val)));
+            child_values.emplace_back(duckdb_compat::Ident(key), DeserializeJson(val));
         }
 
         return Value::STRUCT(child_values);
@@ -420,10 +421,10 @@ namespace duckdb
 			auto &name = child_types[i].first;
 			auto &child = struct_values[i];
             if (pretty_print) {
-                ret += StringUtil::Format("%s\"%s\" := %s", StringUtil::Repeat(" ", indent + 2), name, SerializeSQL(child, pretty_print, indent + 4));
+                ret += StringUtil::Format("%s\"%s\" := %s", StringUtil::Repeat(" ", indent + 2), duckdb_compat::Str(name), SerializeSQL(child, pretty_print, indent + 4));
             }
             else {
-                ret += StringUtil::Format("\"%s\" := %s", name, SerializeSQL(child, pretty_print, indent + 4));
+                ret += StringUtil::Format("\"%s\" := %s", duckdb_compat::Str(name), SerializeSQL(child, pretty_print, indent + 4));
             }
 			if (i < struct_values.size() - 1) {
 				ret += ", ";
@@ -504,10 +505,10 @@ namespace duckdb
 			auto &name = child_types[i].first;
 			auto &child_type = child_types[i].second;
             if (pretty_print) {
-                ret += StringUtil::Format("%s\"%s\" %s", StringUtil::Repeat(" ", indent + 2), name, SerializeSQLType(child_type, pretty_print, indent + 4));
+                ret += StringUtil::Format("%s\"%s\" %s", StringUtil::Repeat(" ", indent + 2), duckdb_compat::Str(name), SerializeSQLType(child_type, pretty_print, indent + 4));
             }
             else {
-                ret += StringUtil::Format("\"%s\" %s", name, SerializeSQLType(child_type, pretty_print, indent + 4));
+                ret += StringUtil::Format("\"%s\" %s", duckdb_compat::Str(name), SerializeSQLType(child_type, pretty_print, indent + 4));
             }
 			if (i < child_types.size() - 1) {
 				ret += ", ";

@@ -25,3 +25,6 @@
 [submodule "ape"]
 	path = ape
 	url = https://github.com/DataZooDE/erpl-ape.git
+[submodule "duckdb-compat"]
+	path = duckdb-compat
+	url = https://github.com/DataZooDE/duckdb-compat.git

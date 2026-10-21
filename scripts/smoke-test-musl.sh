@@ -40,6 +40,35 @@ DUCKDB_VERSION="${DUCKDB_GIT_VERSION#v}"  # strip leading 'v' for pip install
 EXT_DIR="$(dirname "$EXTENSION_PATH")"
 EXT_FILE="$(basename "$EXTENSION_PATH")"
 
+if [[ "$DUCKDB_GIT_VERSION" =~ ^[0-9a-f]{40}$ ]]; then
+    # There is no Python wheel for a source commit.  The musl release build
+    # produced the matching CLI, so run the load/registration smoke with it in
+    # Alpine.  Tagged builds keep their stronger Python double-load path below.
+    CLI="$PROJ_DIR/build/release/duckdb"
+    if [[ ! -x "$CLI" ]]; then
+        echo "ERROR: Source-commit musl smoke needs the built CLI at $CLI" >&2
+        exit 1
+    fi
+    result="$(docker run --rm \
+        -v "${CLI}:/duckdb:ro" -v "${EXT_DIR}:/ext:ro" \
+        -e EXT_FILE="$EXT_FILE" alpine:3 /bin/sh -c '
+            set -e
+            apk add -q libstdc++ libgcc >/dev/null
+            /duckdb -unsigned -c "INSTALL '\''/ext/${EXT_FILE}'\''; LOAD erpl;
+              SELECT function_name FROM duckdb_functions()
+              WHERE function_name IN ('\''sap_read_table'\'', '\''sap_bics_begin'\'',
+                                      '\''sap_odp_show'\'', '\''sap_ape_show'\'') ORDER BY 1;"
+        ')"
+    for function in sap_read_table sap_bics_begin sap_odp_show sap_ape_show; do
+        if [[ "$result" != *"$function"* ]]; then
+            echo "ERROR: $function is missing from the source-commit musl smoke" >&2
+            exit 1
+        fi
+    done
+    echo "=== Smoke test PASSED (musl source commit) ==="
+    exit 0
+fi
+
 echo ""
 echo "=== ERPL Smoke Test (musl/alpine) ==="
 echo "Extension: $EXTENSION_PATH"

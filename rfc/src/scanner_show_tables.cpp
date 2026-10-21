@@ -8,38 +8,39 @@
 #include "sap_rfc.hpp"
 #include "sap_storage.hpp"
 #include "telemetry.hpp"
+#include "duckdb_compat.hpp"
 
-namespace duckdb 
+namespace duckdb
 {
-    
-static std::string GetEscapedSearchPattern(const std::string &param_name, 
-                                           const TableFunctionBindInput &input) 
+
+static std::string GetEscapedSearchPattern(const std::string &param_name,
+                                           const TableFunctionBindInput &input)
 {
     auto &named_params = input.named_parameters;
-    auto search_string = named_params.find(param_name) != named_params.end() 
-        ? named_params.at(param_name).ToString() : "%";
+    auto search_value = duckdb_compat::FindNamedParameter(named_params, param_name);
+    auto search_string = search_value ? search_value->ToString() : "%";
     search_string = std::regex_replace(search_string, std::regex("\\*"), "%");
     return StringUtil::Replace(search_string, "'", "''");
 }
 
-static unique_ptr<FunctionData> RfcShowTablesBind(ClientContext &context, 
-                                                    TableFunctionBindInput &input, 
-                                                    vector<LogicalType> &return_types, 
-                                                    vector<string> &names) 
+static unique_ptr<FunctionData> RfcShowTablesBind(ClientContext &context,
+                                                    TableFunctionBindInput &input,
+                                                    vector<LogicalType> &return_types,
+                                                    duckdb_compat::BindNames &names)
 {
     PostHogTelemetry::Instance().RecordFunctionCall("sap_show_tables");
 
     auto &named_params = input.named_parameters;
     auto table_search_str = GetEscapedSearchPattern("TABLENAME", input);
     auto text_search_str = GetEscapedSearchPattern("TEXT", input);
-    auto max_read_threads = named_params.find("THREADS") != named_params.end() 
+    auto max_read_threads = named_params.find("THREADS") != named_params.end()
                                 ? named_params["THREADS"].GetValue<unsigned int>()
                                 : 0;
 
     auto where_clause = StringUtil::Format(
         "DDLANGUAGE = 'E' AND "
         "TABNAME LIKE '%s' AND ( TABCLASS = 'VIEW' OR TABCLASS = 'TRANSP' OR "
-        "TABCLASS = 'POOL' OR TABCLASS = 'CLUSTER' ) AND DDTEXT LIKE '%s'", 
+        "TABCLASS = 'POOL' OR TABCLASS = 'CLUSTER' ) AND DDTEXT LIKE '%s'",
         table_search_str, text_search_str
     );
 
@@ -73,7 +74,7 @@ static unique_ptr<FunctionData> RfcShowTablesBind(ClientContext &context,
 }
 
 static unique_ptr<GlobalTableFunctionState> RfcShowTablesInitGlobalState(ClientContext &context,
-                                                                            TableFunctionInitInput &input) 
+                                                                            TableFunctionInitInput &input)
 {
     auto &bind_data = input.bind_data->CastNoConst<RfcReadTableBindData>();
     auto column_ids = input.column_ids;
@@ -89,9 +90,9 @@ static unique_ptr<GlobalTableFunctionState> RfcShowTablesInitGlobalState(ClientC
     return std::move(gstate);
 }
 
-static void RfcShowTablesScan(ClientContext &context, 
-                              TableFunctionInput &data, 
-                              DataChunk &output) 
+static void RfcShowTablesScan(ClientContext &context,
+                              TableFunctionInput &data,
+                              DataChunk &output)
 {
     auto &bind_data = data.bind_data->CastNoConst<RfcReadTableBindData>();
     auto &machines = data.global_state->Cast<RfcReadTableGlobalState>().serial_machines;
@@ -103,18 +104,18 @@ static void RfcShowTablesScan(ClientContext &context,
     bind_data.Step(context, output, machines);
 }
 
-TableFunction CreateRfcShowTablesScanFunction() 
+TableFunction CreateRfcShowTablesScanFunction()
 {
-    auto fun = TableFunction("sap_show_tables", { }, 
-                                RfcShowTablesScan, 
+    auto fun = TableFunction("sap_show_tables", { },
+                                RfcShowTablesScan,
                                 RfcShowTablesBind,
                                 RfcShowTablesInitGlobalState);
-    fun.named_parameters["TABLENAME"] = LogicalType::VARCHAR;
-    fun.named_parameters["TEXT"] = LogicalType::VARCHAR;
-    fun.named_parameters["THREADS"] = LogicalType::UINTEGER;
-    fun.named_parameters["SECRET"] = LogicalType::VARCHAR;
-    fun.named_parameters["READ_TABLE_FUNCTION"] = LogicalType::VARCHAR;
-    fun.named_parameters["READ_TABLE_DELIMITER"] = LogicalType::VARCHAR;
+    duckdb_compat::AddNamedParameter(fun, "TABLENAME", LogicalType::VARCHAR);
+    duckdb_compat::AddNamedParameter(fun, "TEXT", LogicalType::VARCHAR);
+    duckdb_compat::AddNamedParameter(fun, "THREADS", LogicalType::UINTEGER);
+    duckdb_compat::AddNamedParameter(fun, "SECRET", LogicalType::VARCHAR);
+    duckdb_compat::AddNamedParameter(fun, "READ_TABLE_FUNCTION", LogicalType::VARCHAR);
+    duckdb_compat::AddNamedParameter(fun, "READ_TABLE_DELIMITER", LogicalType::VARCHAR);
     fun.projection_pushdown = true;
 
     return TableFunction(fun);

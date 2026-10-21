@@ -7,6 +7,7 @@
 #include "duckdb_argument_helper.hpp"
 
 #include <cstdlib>
+#include "duckdb_compat.hpp"
 
 using namespace duckdb;
 
@@ -64,10 +65,10 @@ TEST_CASE("Converted table rows share one STRUCT LogicalType", "[erpl_rfc][type_
 	REQUIRE(rows[0].type().id() == LogicalTypeId::STRUCT);
 
 	// Every row must point at the *same* ExtraTypeInfo, not an equal copy of it.
-	auto first = rows[0].type().AuxInfo();
+	auto first = duckdb_compat::TypeInfoIdentity(rows[0].type());
 	REQUIRE(first != nullptr);
 	for (idx_t i = 1; i < rows.size(); i++) {
-		REQUIRE(rows[i].type().AuxInfo() == first);
+		REQUIRE(duckdb_compat::TypeInfoIdentity(rows[i].type()) == first);
 	}
 }
 
