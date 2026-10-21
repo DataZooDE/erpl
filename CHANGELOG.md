@@ -23,6 +23,39 @@ LOAD erpl;
 
 ---
 
+## v2026.10.21 — DuckDB 2.0
+
+ERPL now builds on **DuckDB 2.0.0** as well as v1.5.6 and v1.4.5 LTS, from one source tree. API differences
+between the lines go through the header-only [duckdb-compat](https://github.com/DataZooDE/duckdb-compat) helpers.
+Verified against a live SAP system (ABAP trial) on all three lines: rfc, odp, bics and ape suites.
+
+### Changed
+
+- **[all]** Builds on DuckDB 2.0.0. The self-distributed set on get.erpl.io stays v1.5.6 and v1.4.5; 2.0
+  binaries are built and smoke-tested in CI.
+- **[rfc]** On DuckDB 2.0, pushed-down predicates arrive as expression filters. They are now translated into
+  `RFC_READ_TABLE` options; predicates SAP cannot express are evaluated locally. Before this, a 2.0 build would
+  have returned unfiltered rows.
+- **[rfc]** Unknown required filter kinds are rejected when the scan starts instead of being ignored; optional
+  filter hints (for example join Bloom filters) never drop rows.
+- **[rfc]** `ATTACH` on DuckDB 1.4.5: the lazy SAP catalog is re-read correctly after `information_schema`
+  scans; `AT (VERSION => …)` on an attached SAP catalog is rejected.
+- **[bics]** `duckdb_functions()` reports the correct parameter names for every overload of
+  `sap_bics_describe` on DuckDB 2.0.
+
+### Internal
+
+- **[all]** The C++ test targets (`make cpp_tests_*`) run again; three of the four never executed their tests.
+- **[all]** Versioned binaries on get.erpl.io are now published from release tags only (pull requests publish
+  nothing; `master` updates `latest`).
+
+### Known limitations
+
+- **[trampoline]** The `linux_amd64_musl` binaries cannot load the SAP NetWeaver RFC SDK, which is glibc-only;
+  the musl smoke test skips on every DuckDB line. This predates this release.
+
+---
+
 ## v2026.10.09 — structure members, flat and addressable
 
 The follow-ups to the hidden-members work of v2026.10.08, verified against a live BW system on the SAP
