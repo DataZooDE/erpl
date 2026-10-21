@@ -35,9 +35,10 @@
 // Needed for OPENSSL_init_ssl / OPENSSL_INIT_NO_ATEXIT
 #include <openssl/ssl.h>
 
+#include "duckdb_compat.hpp"
+
 #if defined(__linux__) || defined(__APPLE__)
 #include <dlfcn.h>
-#include "duckdb_compat.hpp"
 #endif
 
 // Windows headers may redefine macros after our tracing.hpp include
