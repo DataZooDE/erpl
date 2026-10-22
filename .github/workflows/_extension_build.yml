@@ -21,7 +21,7 @@ on:
         required: true
         type: string
       # A 2.0 build needs the matching matrix tooling. Empty preserves the
-      # repository's pinned ci-tools submodule for the 1.4 and 1.5 jobs.
+      # repository's pinned ci-tools submodule for the 1.5 jobs.
       ci_tools_version:
         required: false
         type: string

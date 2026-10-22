@@ -17,46 +17,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  duckdb-stable-build-v145:
-    name: Build v.1.4.5 extension binaries
-    uses: ./.github/workflows/_extension_build.yml
-    secrets: inherit
-    with:
-      duckdb_version: v1.4.5
-      extension_name: erpl
-      exclude_archs: linux_arm64;windows_amd64_rtools;wasm_mvp;wasm_eh;wasm_threads;
-
-  # A deploy job depends on its build job, and `needs` normally requires that job
-  # to have succeeded outright. Because the build is a matrix over platforms, a
-  # single broken platform made the whole build job "failure" and skipped deploy
-  # for *every* platform. That is how a Windows-only outage (msys2 purging a pinned
-  # runtime, issue #115) silently stopped all publishing to get.erpl.io for ten
-  # days, across Linux and macOS too.
-  #
-  # `!cancelled()` lets deploy run when the build job did not succeed outright. The
-  # deploy job is itself a matrix over architectures and each leg downloads only its
-  # own artifact, so the platforms that built still publish. A platform whose build
-  # failed has no artifact, so its deploy leg fails at download — which is the
-  # honest signal, and keeps the broken platform visible in CI rather than hiding it.
-  duckdb-stable-deploy-v145:
-    name: Deploy extension binaries
-    needs: duckdb-stable-build-v145
-    # PR runs publish nothing (no versioned or latest path), so skip the job outright.
-    if: ${{ !cancelled() && github.event_name != 'pull_request' }}
-    uses: ./.github/workflows/_extension_deploy.yml
-    secrets: inherit
-    with:
-      duckdb_version: v1.4.5
-      extension_name: erpl
-      exclude_archs: linux_arm64;windows_amd64_rtools;wasm_mvp;wasm_eh;wasm_threads;
-      deploy_latest: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
-      # Versioned paths (erpl/vYYYY.MM.DD/...) come ONLY from the tag run, so users can pin
-      # a release. They used to come from every PR/branch run (by short SHA) and never
-      # from tags. A master push of the release commit must not write them either: it
-      # builds before the tag exists and its deploy resolves the tag at upload time, so
-      # it could overwrite the release with a pre-tag build (hit duckdb-gdrive v2026.10.17).
-      deploy_versioned: ${{ startsWith(github.ref, 'refs/tags/v') }}
-
   duckdb-stable-build-v154:
     name: Build v.1.5.6 extension binaries
     uses: ./.github/workflows/_extension_build.yml
@@ -76,10 +36,21 @@ jobs:
       extension_name: erpl
       exclude_archs: linux_arm64;windows_amd64_rtools;wasm_mvp;wasm_eh;wasm_threads;
 
+  # A deploy job depends on its build job, and `needs` normally requires that job
+  # to have succeeded outright. Because the build is a matrix over platforms, a
+  # single broken platform made the whole build job "failure" and skipped deploy
+  # for *every* platform. That is how a Windows-only outage (msys2 purging a pinned
+  # runtime, issue #115) silently stopped all publishing to get.erpl.io for ten
+  # days, across Linux and macOS too.
+  #
+  # `!cancelled()` lets deploy run when the build job did not succeed outright. The
+  # deploy job is itself a matrix over architectures and each leg downloads only its
+  # own artifact, so the platforms that built still publish. A platform whose build
+  # failed has no artifact, so its deploy leg fails at download — which is the
+  # honest signal, and keeps the broken platform visible in CI rather than hiding it.
   duckdb-stable-deploy-v154:
     name: Deploy extension binaries
     needs: duckdb-stable-build-v154
-    # See the note above duckdb-stable-deploy-v145.
     # PR runs publish nothing (no versioned or latest path), so skip the job outright.
     if: ${{ !cancelled() && github.event_name != 'pull_request' }}
     uses: ./.github/workflows/_extension_deploy.yml
