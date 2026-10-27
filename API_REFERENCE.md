@@ -767,7 +767,7 @@ List the BEx variables of a query, to find out what `variables` has to fill.
 | `text` | VARCHAR | Description |
 | `mandatory` | BOOLEAN | BW refuses to produce a result until this one has a value |
 | `input_enabled` | BOOLEAN | Can be filled by the caller (exit variables cannot) |
-| `is_exit_variable` | BOOLEAN | Filled by a BW customer-exit, not by the caller |
+| `is_exit_variable` | BOOLEAN | Filled by a BW customer-exit, not by the caller. NULL on releases whose BICS does not report it (BW 7.50) |
 | `var_type` | VARCHAR | `CHARACTERISTIC_VALUE`, `HIERARCHY_NODE` (selects nodes of a hierarchy), `TEXT`, `FORMULA`, `HIERARCHY` (selects a hierarchy) |
 | `selection_type` | VARCHAR | `SINGLE_VALUE`, `INTERVAL`, `SELECTION_OPTION`, `MULTIPLE_VALUES`, `PRECALCULATED_VALUE_SET` |
 | `entry_type` | VARCHAR | `OPTIONAL`, `MANDATORY`, `MANDATORY_NOT_INITIAL` |
@@ -776,6 +776,9 @@ List the BEx variables of a query, to find out what `variables` has to fill.
 ```sql
 SELECT * FROM sap_bics_variables('MY_QUERY');
 ```
+
+BICS reports fewer of these fields on older BW releases. A field the connected release does not have
+reads as NULL instead of failing the call; only `name` is always present.
 
 #### Step 2: `sap_bics_rows(state_id, char1 [, char2, ..., op, return])`
 
