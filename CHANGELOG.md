@@ -23,6 +23,23 @@ LOAD erpl;
 
 ---
 
+## v2026.10.28 — BEx variables on BW 7.50
+
+### Fixed
+
+- **[bics]** `sap_bics_describe(cube, query)` and `sap_bics_variables` work on classic BW 7.x again for queries
+  with variables. BW 7.50's BICS does not report `IS_EXIT_VARIABLE`, and the variable mapping added in
+  v2026.10.01 failed the whole call with `Field 'IS_EXIT_VARIABLE' not found in struct`. A variable field the
+  connected release does not have now reads as NULL; only the name is required.
+  ([#176](https://github.com/DataZooDE/erpl/issues/176))
+
+### Changed
+
+- **[all]** DuckDB 1.4.x LTS is no longer supported. Binaries on get.erpl.io are built for DuckDB v1.5.6;
+  2.0 binaries are built and smoke-tested in CI. (#175)
+
+---
+
 ## v2026.10.21 — DuckDB 2.0
 
 ERPL now builds on **DuckDB 2.0.0** as well as v1.5.6 and v1.4.5 LTS, from one source tree. API differences
