@@ -32,23 +32,36 @@ def check_result(schema, records, member_column, member, attribute_column, expec
 
 def run(connection, args):
     report = {}
-    # Capture each stage before checking the result so a missing column does not
-    # prevent collecting the statistics needed to locate the loss in BICS.
-    report['duckdb_version'] = rows(connection, 'SELECT version() AS version')
-    report['extensions'] = rows(connection, "SELECT extension_name, extension_version FROM duckdb_extensions() WHERE loaded")
-    report['design_metadata'] = rows(connection, f'SELECT * FROM sap_bics_describe({literal(args.cube)}, {literal(args.query)})')
-    state_rows = rows(connection, f'SELECT * FROM sap_bics_begin({literal(args.query)})')
-    if not state_rows or not state_rows[0].get('state_id'):
-        raise ValueError('sap_bics_begin returned no state_id')
-    state = literal(state_rows[0]['state_id'])
-    report['session_metadata'] = state_rows
-    report['result_stats'] = rows(connection, f'SELECT * FROM sap_bics_result_stats({state})')
-    report['schema'] = rows(connection, f'DESCRIBE SELECT * FROM sap_bics_result({state})')
-    records = rows(connection, f'SELECT * FROM sap_bics_result({state})')
-    report['row_count'] = len(records)
-    # Limit persisted data to the fixture member. Use only a small test query.
-    report['fixture_rows'] = [row for row in records if row.get(args.member_column) == args.member]
-    print(json.dumps(report, indent=2, default=str), flush=True)
+    stage = 'duckdb_version'
+    try:
+        report[stage] = rows(connection, 'SELECT version() AS version')
+        stage = 'extensions'
+        report[stage] = rows(connection, "SELECT extension_name, extension_version FROM duckdb_extensions() WHERE loaded")
+        stage = 'design_metadata'
+        report[stage] = rows(connection, f'SELECT * FROM sap_bics_describe({literal(args.cube)}, {literal(args.query)})')
+        stage = 'session_metadata'
+        state_rows = rows(connection, f'SELECT * FROM sap_bics_begin({literal(args.query)})')
+        report[stage] = state_rows
+        if not state_rows or not state_rows[0].get('state_id'):
+            raise ValueError('sap_bics_begin returned no state_id')
+        state = literal(state_rows[0]['state_id'])
+        stage = 'result_stats'
+        report[stage] = rows(connection, f'SELECT * FROM sap_bics_result_stats({state})')
+        stage = 'schema'
+        report[stage] = rows(connection, f'DESCRIBE SELECT * FROM sap_bics_result({state})')
+        stage = 'result'
+        records = rows(connection, f'SELECT * FROM sap_bics_result({state})')
+        report['row_count'] = len(records)
+        # Limit persisted data to the fixture member. Use only a small test query.
+        report['fixture_rows'] = [row for row in records if row.get(args.member_column) == args.member]
+    except Exception:
+        # Keep the original exception/traceback; do not copy SDK error text into
+        # the report, since it may include connection details or SQL secrets.
+        report['failed_stage'] = stage
+        raise
+    finally:
+        # Preserve completed diagnostics even when binding or fetching fails.
+        print(json.dumps(report, indent=2, default=str), flush=True)
     check_result(report['schema'], records, args.member_column, args.member, args.attribute_column, args.expected)
 
 

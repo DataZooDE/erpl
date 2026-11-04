@@ -51,6 +51,10 @@ exits nonzero. Connection, metadata and RFC errors also exit nonzero and must
 not be interpreted as a reproduction of the missing-column bug. The script
 reads the full result: use only the small fixture above, not a production query.
 
+If a diagnostic stage fails, the script emits the partial report with a
+`failed_stage` field, then re-raises the original error. Failures before the
+diagnostic run (import, connection or initialization SQL) have no report.
+
 Output contains extension versions, design/session metadata, result statistics,
 the bound schema, row count, and rows for the fixture member. Treat this report
 as private until inspected: metadata and statistics may identify the system/user,
@@ -106,5 +110,7 @@ python3 -m unittest discover -s scripts/tests -v
 ```
 
 These tests validate the acceptance oracle against missing columns, incorrect or
-null values, empty results and wrong members. They do **not** validate SAP/BICS
+null values, empty results and wrong members. Connection doubles also exercise
+report generation/filtering, partial output on failures, session-ID validation,
+exception propagation and CLI success/failure reporting. They do **not** validate SAP/BICS
 behavior. No live BW verification is claimed by this PR.
