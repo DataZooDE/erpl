@@ -3,12 +3,31 @@
 
 import argparse
 import json
+import os
 from pathlib import Path
 import sys
+
+# The a4h trial fixture ZERPL_Q179_ATTR (scripts/sap/provision.d/41-bics-q179-query.sh):
+# 0D_NW_PROD on rows with display attribute 0D_NW_PRDGP active in the query definition.
+A4H_DEFAULTS = dict(cube='0D_NW_C01', query='ZERPL_Q179_ATTR', member_column='0D_NW_PROD',
+                    member='CN0F17', attribute_column='0D_NW_PROD__0D_NW_PRDGP', expected='MON1')
+SECRET_ENV = (('ASHOST', 'ERPL_SAP_ASHOST'), ('SYSNR', 'ERPL_SAP_SYSNR'), ('CLIENT', 'ERPL_SAP_CLIENT'),
+              ('USER', 'ERPL_SAP_USER'), ('PASSWD', 'ERPL_SAP_PASSWORD'), ('LANG', 'ERPL_SAP_LANG'))
 
 
 def literal(value):
     return "'" + value.replace("'", "''") + "'"
+
+
+def env_init_sql(environ, repository='http://get.erpl.io'):
+    """INSTALL/LOAD the published erpl and a default sap_rfc secret from the ERPL_SAP_* variables
+    the SQL test suites use, so the check runs against the released binaries."""
+    missing = [name for _, name in SECRET_ENV if not environ.get(name)]
+    if missing:
+        raise ValueError(f"--init-from-env needs {', '.join(missing)}")
+    options = ', '.join(f'{key} {literal(environ[name])}' for key, name in SECRET_ENV)
+    return (f'INSTALL erpl FROM {literal(repository)}; LOAD erpl;\n'
+            f'CREATE SECRET erpl_check (TYPE sap_rfc, {options});')
 
 
 def rows(connection, sql):
@@ -61,24 +80,37 @@ def run(connection, args):
         raise
     finally:
         # Preserve completed diagnostics even when binding or fetching fails.
-        print(json.dumps(report, indent=2, default=str), flush=True)
+        text = json.dumps(report, indent=2, default=str)
+        if getattr(args, 'report', None):
+            # The erpl trampoline prints its load banner to stdout, ahead of any report there.
+            Path(args.report).write_text(text + '\n')
+        else:
+            print(text, flush=True)
     check_result(report['schema'], records, args.member_column, args.member, args.attribute_column, args.expected)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--init-sql', type=Path, required=True, help='Local SQL to LOAD extensions and create the SAP secret')
-    parser.add_argument('--cube', required=True)
-    parser.add_argument('--query', default='ZMAT_Q002')
-    parser.add_argument('--member-column', default='ZMATERIAL')
-    parser.add_argument('--member', default='M1 Material1', help='Exact formatted member returned by BICS')
-    parser.add_argument('--attribute-column', default='ZMATERIAL_ZMAT_GRP', help='Agreed output name; default is a proposal, not an existing API')
-    parser.add_argument('--expected', default='GRP1', help='Exact formatted attribute value')
+    init = parser.add_mutually_exclusive_group(required=True)
+    init.add_argument('--init-sql', type=Path, help='Local SQL to LOAD extensions and create the SAP secret')
+    init.add_argument('--init-from-env', action='store_true',
+                      help='INSTALL erpl from --repository and create the secret from ERPL_SAP_*')
+    parser.add_argument('--repository', default='http://get.erpl.io', help='Extension repository for --init-from-env')
+    parser.add_argument('--report', type=Path, help='Write the JSON report to this file instead of stdout')
+    parser.add_argument('--cube', default=A4H_DEFAULTS['cube'])
+    parser.add_argument('--query', default=A4H_DEFAULTS['query'])
+    parser.add_argument('--member-column', default=A4H_DEFAULTS['member_column'])
+    parser.add_argument('--member', default=A4H_DEFAULTS['member'], help='Exact formatted member returned by BICS')
+    parser.add_argument('--attribute-column', default=A4H_DEFAULTS['attribute_column'],
+                        help='Result column of the attribute: <char>__<attr>')
+    parser.add_argument('--expected', default=A4H_DEFAULTS['expected'], help='Exact formatted attribute value')
     args = parser.parse_args()
+    init_sql = env_init_sql(os.environ, args.repository) if args.init_from_env else args.init_sql.read_text()
     import duckdb
 
-    with duckdb.connect() as connection:
-        connection.execute(args.init_sql.read_text())
+    # erpl is self-distributed and unsigned.
+    with duckdb.connect(config={'allow_unsigned_extensions': 'true'}) as connection:
+        connection.execute(init_sql)
         run(connection, args)
     print('PASS: display attribute schema and fixture value match', file=sys.stderr)
 

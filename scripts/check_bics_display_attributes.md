@@ -1,15 +1,42 @@
 # BICS display-attribute regression (#179)
 
-This is a diagnostic and acceptance-test contribution for
-[issue #179](https://github.com/DataZooDE/erpl/issues/179), **not a runtime fix**.
-The implementation lives in the private `DataZooDE/erpl-bics` submodule. This
-public checkout cannot establish which BICS decoding/state step loses attributes.
-The check runs against installed extensions, so maintainers can compare the
-reported release with a candidate BICS fix without changing a downstream service.
+An acceptance check for
+[issue #179](https://github.com/DataZooDE/erpl/issues/179), run against *installed*
+extensions, so it checks the binaries users get rather than a debug build. The fix
+lives in the private `DataZooDE/erpl-bics` submodule; its own regression test is
+`bics/test/sql/sap_bics_display_attributes.test`.
+
+## On the a4h trial
+
+The defaults target the `ZERPL_Q179_ATTR` fixture that
+`scripts/sap/provision.d/41-bics-q179-query.sh` saves on the a4h trial: `0D_NW_PROD` on
+rows with display attribute `0D_NW_PRDGP` active in the query definition, so member
+`CN0F17` must come back with `0D_NW_PROD__0D_NW_PRDGP = 'MON1'`. With the `ERPL_SAP_*`
+variables the SQL test suites use:
+
+```sh
+./scripts/sap/provision.sh --only 41
+uv run --no-project --with duckdb==1.5.6 python -I scripts/check_bics_display_attributes.py \
+  --init-from-env --report /tmp/bics-display-attributes.json
+```
+
+`--init-from-env` installs `erpl` from get.erpl.io (`--repository` to change) into the
+connection and creates the secret from `ERPL_SAP_*`. The trampoline extracts its
+sub-extensions into `~/.duckdb/extensions`; if a local build left differently built
+`erpl_*` binaries there, loading fails with "Metadata mismatch", so run with a fresh
+`HOME` or clear them. Releases up to v2026.10.28 fail with
+`Missing result column '0D_NW_PROD__0D_NW_PRDGP'`; v2026.11.05 passes.
+
+`--report` writes the JSON report to a file: the trampoline prints its load banner to
+stdout.
+
+## On another BW system
 
 ## Fixture prerequisite
 
-Use a small disposable BW query with no key figures (the reported `ZMAT_Q002`):
+Pass `--cube`, `--query`, `--member-column`, `--member`, `--attribute-column` and
+`--expected` for your own fixture. For the reported query, a small disposable BW query
+with no key figures (`ZMAT_Q002`):
 
 - Row characteristic `ZMATERIAL`, with member `M1` / text `Material1`.
 - Time-independent display attribute `ZMAT_GRP`, with value `GRP1` for `M1`.
@@ -35,13 +62,14 @@ prompts and use the default SAP secret selected by the BICS functions.
 
 ```sh
 python scripts/check_bics_display_attributes.py \
-  --init-sql /private/path/bw-init.sql --cube '<CUBE>' \
-  > /private/path/bics-display-attributes.json
+  --init-sql /private/path/bw-init.sql --cube '<CUBE>' --query ZMAT_Q002 \
+  --member-column ZMATERIAL --member 'M1 Material1' \
+  --attribute-column ZMATERIAL__ZMAT_GRP --expected GRP1 \
+  --report /private/path/bics-display-attributes.json
 ```
 
-The default expected name `ZMATERIAL_ZMAT_GRP` is a **proposed** name from the
-issue, not a documented existing column contract. Pass `--attribute-column`
-when the maintainer chooses a different convention, e.g. `ZMATERIAL__ZMAT_GRP`.
+A display attribute column is named `<char>__<attr>` (see `sap_bics_attributes` in
+`API_REFERENCE.md`), e.g. `--attribute-column ZMATERIAL__ZMAT_GRP` for the reported query.
 Use `--member` and `--expected` for the exact formatted values produced by the
 query's display settings. The check does not change display/axis state, so it
 exercises the saved query definition, including the no-key-figures case.

@@ -91,6 +91,15 @@ class DiagnosticFlowTest(unittest.TestCase):
         self.assertEqual(connection.execute.call_args.args[0],
                          "SELECT * FROM sap_bics_result('state''1')")
 
+    def test_report_file_keeps_stdout_free(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            self.args.report = Path(tmp) / 'report.json'
+            with redirect_stdout(self.output):
+                check.run(self.connection(), self.args)
+            self.assertEqual(self.output.getvalue(), '')
+            self.assertEqual(json.loads(self.args.report.read_text())['row_count'], 2)
+
     def test_oracle_rejection_still_emits_report(self):
         self.responses[-1] = (['ZMATERIAL', 'ZMATERIAL_ZMAT_GRP'], [('M1 Material1', None)])
         with redirect_stdout(self.output), self.assertRaisesRegex(ValueError, 'does not equal'):
@@ -153,10 +162,12 @@ class DiagnosticFlowTest(unittest.TestCase):
                 connection = self.connection()
                 # Initialization SQL executes before the diagnostic selects.
                 connection.execute.side_effect = [None, *connection.execute.side_effect]
-                duckdb = SimpleNamespace(connect=lambda: connection)
+                duckdb = SimpleNamespace(connect=lambda **kwargs: connection)
                 output, errors = io.StringIO(), io.StringIO()
                 with patch.dict('sys.modules', {'duckdb': duckdb}), \
-                     patch('sys.argv', ['check', '--init-sql', '/local/init.sql', '--cube', 'CUBE']), \
+                     patch('sys.argv', ['check', '--init-sql', '/local/init.sql', '--cube', 'CUBE',
+                                         '--member-column', 'ZMATERIAL', '--member', 'M1 Material1',
+                                         '--attribute-column', 'ZMATERIAL_ZMAT_GRP', '--expected', 'GRP1']), \
                      patch.object(Path, 'read_text', return_value='SELECT 1;'), \
                      redirect_stdout(output), redirect_stderr(errors):
                     if value is None:
@@ -169,6 +180,23 @@ class DiagnosticFlowTest(unittest.TestCase):
                 self.assertEqual(connection.execute.call_args_list[0].args, ('SELECT 1;',))
                 self.assertEqual(json.loads(output.getvalue())['row_count'], 1)
                 connection.__exit__.assert_called_once()
+
+
+class InitFromEnvTest(unittest.TestCase):
+    ENV = {'ERPL_SAP_ASHOST': 'localhost', 'ERPL_SAP_SYSNR': '00', 'ERPL_SAP_CLIENT': '001',
+           'ERPL_SAP_USER': 'DEVELOPER', 'ERPL_SAP_PASSWORD': "pa'ss#00", 'ERPL_SAP_LANG': 'EN'}
+
+    def test_builds_install_and_escaped_secret(self):
+        sql = check.env_init_sql(self.ENV)
+        self.assertIn("INSTALL erpl FROM 'http://get.erpl.io'; LOAD erpl;", sql)
+        self.assertIn("PASSWD 'pa''ss#00'", sql)
+        self.assertIn("ASHOST 'localhost'", sql)
+
+    def test_missing_variable_is_named(self):
+        env = dict(self.ENV)
+        del env['ERPL_SAP_PASSWORD']
+        with self.assertRaisesRegex(ValueError, 'ERPL_SAP_PASSWORD'):
+            check.env_init_sql(env)
 
 
 if __name__ == '__main__':
