@@ -69,10 +69,12 @@ Do not activate all discoverable attributes to make the test pass.
 Use a Python environment with `duckdb` matching the installed ERPL binaries.
 Create an **untracked local** initialization file containing the normal `LOAD`
 statements and `CREATE SECRET ... (TYPE sap_rfc, ...)` for the test system. It is
-executed in the same in-memory connection as the check. Extension installation
-and credentials are deliberately left to the operator; the script does not
-install or upgrade anything. The query must open without mandatory variable
-prompts and use the default SAP secret selected by the BICS functions.
+executed in the same in-memory connection as the check. With `--init-sql`, the
+operator controls extension installation and credentials through that file; the
+script adds no installation commands. The separate `--init-from-env` mode
+explicitly runs `INSTALL` and `LOAD` as described above. The query must open
+without mandatory variable prompts and use the default SAP secret selected by
+the BICS functions.
 
 ```sh
 python scripts/check_bics_display_attributes.py \
