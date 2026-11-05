@@ -929,7 +929,9 @@ SELECT * FROM sap_bics_attributes('q1', '0D_NW_PROD');                          
 
 An attribute value follows the characteristic's `DISPLAY` setting (key, text, or both); a
 member without a value for it gets `NULL`. An unknown attribute raises an error listing the
-characteristic's attributes.
+characteristic's attributes. Attribute columns are returned for characteristics on the **row
+axis** only; attributes active on a column-axis or free characteristic stay in the state and are
+reported in the trace (`erpl_trace_level = 'INFO'`).
 
 #### Step 5: `sap_bics_result(state_id)`
 
