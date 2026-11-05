@@ -71,6 +71,7 @@ SELECT * FROM sap_bics_show_cubes();
 | `sap_bics_hierarchy` | Extract BW hierarchy | `SELECT * FROM sap_bics_hierarchy('MY_HIER')` |
 | `sap_bics_set_char_prop` | AO-style char property (Display/Sort/Totals) | `SELECT * FROM sap_bics_set_char_prop('q1', '0CNTRY', 'DISPLAY', 'TEXT')` |
 | `sap_bics_hidden_members` | Show / hide the structure members a query hides with "Hide (can be shown)" | `SELECT * FROM sap_bics_hidden_members('q1', '<structure>', 'SHOW')` |
+| `sap_bics_attributes` | Show / hide a characteristic's display attributes as `<char>__<attr>` result columns | `SELECT * FROM sap_bics_attributes('q1', '0D_NW_PROD', '0D_NW_PRDGP')` |
 | `sap_bics_structure_members` | One row per structure member: uid, text, position, visibility, in_selection | `SELECT * FROM sap_bics_structure_members('MY_QUERY') WHERE visibility = 'HIDDEN'` |
 | `sap_odp_read_full` | Extract ODP data (full snapshot) | `SELECT * FROM sap_odp_read_full('BW', 'MY_ODP')` |
 | `sap_odp_read_delta` | Extract ODP data (incremental delta) | `SELECT * FROM sap_odp_read_delta('BW', 'MY_ODP', 'MY_PIPELINE')` |
@@ -903,6 +904,33 @@ clients can read the current values without an extra round-trip.
 > (visible in DESCRIBE) but the SUMME row still appears in the result set;
 > downstream clients can filter it out client-side. AO does the same.
 
+#### Step 4b (optional): `sap_bics_attributes(state_id, char_name [, attribute, ...] [, op, return])`
+
+Show, or hide, display attributes of a characteristic on the row axis. Each active attribute
+comes back from `sap_bics_result` as its own `VARCHAR` column named `<char>__<attr>`, e.g.
+`0D_NW_PROD__0D_NW_PRDGP`. Attributes the query definition already activates are returned without
+this call; use it to add others or to switch those off. Mutates the characteristic's
+`RESULT_SET_ATTRIBUTES` in `/E_TH_STATE_CHARACTERISTICS`.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `state_id` | VARCHAR | *required* | State ID |
+| `char_name` | VARCHAR | *required* | Characteristic technical name |
+| `attribute, ...` | VARCHAR (varargs) | — | Attribute technical names as `sap_bics_describe` lists them in `characteristics[].attributes`, or the `<char>__<attr>` column name |
+| `op` | BICS_OPERATION | `'ADD'` with attributes, `'SET'` without | `'ADD'` appends, `'SET'` replaces the list (order = column order), `'REMOVE'` drops the given ones |
+| `return` | BICS_RETURN | `'DESCRIBE'` | Return format |
+
+```sql
+SELECT * FROM sap_bics_attributes('q1', '0D_NW_PROD', '0D_NW_PRDGP');                  -- add
+SELECT * FROM sap_bics_attributes('q1', '0D_NW_PROD', '0D_NW_PRDCT', '0D_NW_PRDGP', op => 'SET');
+SELECT * FROM sap_bics_attributes('q1', '0D_NW_PROD', '0D_NW_PRDGP', op => 'REMOVE');
+SELECT * FROM sap_bics_attributes('q1', '0D_NW_PROD');                                 -- all off
+```
+
+An attribute value follows the characteristic's `DISPLAY` setting (key, text, or both); a
+member without a value for it gets `NULL`. An unknown attribute raises an error listing the
+characteristic's attributes.
+
 #### Step 5: `sap_bics_result(state_id)`
 
 Fetch result set from configured query state.
@@ -912,8 +940,11 @@ Fetch result set from configured query state.
 | `state_id` | VARCHAR | *required* | State ID |
 
 **Result shape** — one `VARCHAR` column per row-axis element carrying the formatted
-member key or text, one `INTEGER` `<name>_HIER_LEVEL` column per row-axis element, then
-one `DOUBLE` column per column-axis leaf.
+member key or text, one `INTEGER` `<name>_HIER_LEVEL` column per row-axis element, one
+`VARCHAR` `<char>__<attr>` column per active display attribute (in row-axis order, then in the
+characteristic's attribute order; see `sap_bics_attributes`), then one `DOUBLE` column per
+column-axis leaf. A display attribute column whose name is already taken, for example by the
+same navigation attribute drilled down on the row axis, gets a `__2` suffix.
 
 The number of row-axis columns follows the result set the BW server returns; when a
 result carries no rows at all, the session state's axis is used instead so a query's

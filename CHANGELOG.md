@@ -23,6 +23,25 @@ LOAD erpl;
 
 ---
 
+## v2026.11.05 — Display attributes in BICS results
+
+### Added
+
+- **[bics]** Display attributes of a characteristic come back from `sap_bics_result` as their own `VARCHAR`
+  columns named `<char>__<attr>`, e.g. `0D_NW_PROD__0D_NW_PRDGP`, placed after the `_HIER_LEVEL` columns.
+  Attributes the query definition activates appear without any extra call, as in RSRT; previously they were
+  listed by `sap_bics_describe` but never returned. ([#179](https://github.com/DataZooDE/erpl/issues/179))
+- **[bics]** `sap_bics_attributes(state, char, attr, ..., op => 'ADD'|'SET'|'REMOVE')` switches display
+  attributes on or off in a session, for cubes and queries alike. (#179)
+
+### Fixed
+
+- **[bics]** With a display attribute active, the characteristic's own column no longer picks up attribute
+  values: in `DISPLAY = 'TEXT'` it showed the last attribute value instead of the member text, and in
+  `'BOTH'` every attribute value was appended to key and text. (#179)
+
+---
+
 ## v2026.10.28 — BEx variables on BW 7.50
 
 ### Fixed
