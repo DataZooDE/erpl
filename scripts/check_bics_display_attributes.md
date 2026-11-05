@@ -8,6 +8,13 @@ lives in the private `DataZooDE/erpl-bics` submodule; its own regression test is
 
 ## On the a4h trial
 
+**Prerequisite:** use a checkout containing the provisioning step from
+[PR #181](https://github.com/DataZooDE/erpl/pull/181) and its matching private
+`erpl-bics` submodule revision. That revision supplies
+`bics/test/fixtures/setup_q179_query.sh`, which the provisioning step
+needs. Neither the new step nor that fixture is supplied by this diagnostic PR.
+Access to the private submodule is required to provision the trial fixture.
+
 The defaults target the `ZERPL_Q179_ATTR` fixture that
 `scripts/sap/provision.d/41-bics-q179-query.sh` saves on the a4h trial: `0D_NW_PROD` on
 rows with display attribute `0D_NW_PRDGP` active in the query definition, so member
@@ -15,10 +22,17 @@ rows with display attribute `0D_NW_PRDGP` active in the query definition, so mem
 variables the SQL test suites use:
 
 ```sh
-./scripts/sap/provision.sh --only 41
-uv run --no-project --with duckdb==1.5.6 python -I scripts/check_bics_display_attributes.py \
+test -f scripts/sap/provision.d/41-bics-q179-query.sh && \
+  test -x bics/test/fixtures/setup_q179_query.sh && \
+  ./scripts/sap/provision.sh --only 41 && \
+  uv run --no-project --with duckdb==1.5.6 python -I scripts/check_bics_display_attributes.py \
   --init-from-env --report /tmp/bics-display-attributes.json
 ```
+
+If the provisioning step is missing or the private fixture script is not executable, stop and obtain the checkout/submodule
+from #181 before running the check. On older checkouts, `--only 41` can finish
+without running any step, so its exit status alone does not establish that the
+query was provisioned. Confirm `ZERPL_Q179_ATTR` exists with the active attribute.
 
 `--init-from-env` installs `erpl` from get.erpl.io (`--repository` to change) into the
 connection and creates the secret from `ERPL_SAP_*`. The trampoline extracts its
@@ -69,7 +83,9 @@ python scripts/check_bics_display_attributes.py \
 ```
 
 A display attribute column is named `<char>__<attr>` (see `sap_bics_attributes` in
-`API_REFERENCE.md`), e.g. `--attribute-column ZMATERIAL__ZMAT_GRP` for the reported query.
+the `API_REFERENCE.md` update in [PR #181](https://github.com/DataZooDE/erpl/pull/181);
+that entry is not present in this diagnostic PR’s base), e.g.
+`--attribute-column ZMATERIAL__ZMAT_GRP` for the reported query.
 Use `--member` and `--expected` for the exact formatted values produced by the
 query's display settings. The check does not change display/axis state, so it
 exercises the saved query definition, including the no-key-figures case.
