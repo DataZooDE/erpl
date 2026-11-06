@@ -7,7 +7,7 @@
 
 _bw_active() {
     docker exec "$A4H_CONTAINER" /usr/sap/A4H/hdbclient/hdbsql -i 02 -d HDB \
-        -u "${A4H_DB_USER:-SAPA4H}" -p "${A4H_DB_PASSWORD:-ABAPtr2023#00}" \
+        -u "${A4H_DB_USER:-SAPA4H}" -p "${A4H_DB_PASSWORD:-ABAPtr2025#SP00}" \
         "SELECT ICF_NAME, ICFACTIVE FROM ${A4H_DB_USER:-SAPA4H}.ICFSERVLOC
          WHERE ICF_NAME IN ('BW','MODELING')" 2>/dev/null \
       | grep -c '"X"'

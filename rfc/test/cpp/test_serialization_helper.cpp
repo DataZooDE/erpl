@@ -298,3 +298,18 @@ TEST_CASE("Serialize SQL of list type", "[duckdb_serialization_helper]")
     auto sql = ErplSerializer::SerializeSQL(list_val);
     REQUIRE(sql == "LIST_VALUE(STRUCT_PACK(\"a\" := 123, \"b\" := 'TEST'), STRUCT_PACK(\"a\" := 456, \"b\" := 'TEST2'), STRUCT_PACK(\"a\" := 789, \"b\" := 'TEST3'))");
 }
+// A struct with an unset nested table (the BICS selection entry's REPL_FILTER on SAP_BW 816): the
+// NULL list has no children to walk.
+TEST_CASE("Serializing a struct with a NULL nested list", "[serialization_helper]")
+{
+    auto row_type = LogicalType::STRUCT({{"SIGN", LogicalType(LogicalTypeId::VARCHAR)}});
+    child_list_t<Value> fields;
+    fields.push_back({"LOW", Value("DE")});
+    fields.push_back({"REPL_FILTER", Value(LogicalType::LIST(row_type))});
+    auto entry = Value::STRUCT(std::move(fields));
+
+    std::string sql;
+    REQUIRE_NOTHROW(sql = ErplSerializer::SerializeSQL(entry));
+    CHECK(sql.find("NULL") != std::string::npos);
+    REQUIRE_NOTHROW(ErplSerializer::SerializeJson(entry));
+}

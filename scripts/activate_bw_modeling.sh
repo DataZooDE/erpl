@@ -31,7 +31,7 @@ set -euo pipefail
 CONTAINER=${A4H_CONTAINER:-a4h}
 HDBSQL=/usr/sap/A4H/hdbclient/hdbsql
 DBUSER=${A4H_DB_USER:-SAPA4H}
-DBPASS=${A4H_DB_PASSWORD:-'ABAPtr2023#00'}   # standard credential of the public trial image
+DBPASS=${A4H_DB_PASSWORD:-'ABAPtr2025#SP00'}   # standard credential of the public trial image
 
 # Delivered content, stable across restarts on the same image.
 BW_GUID=DFFAEATGKMFLCDXQ04F0J7FXK
@@ -77,5 +77,5 @@ cat <<'DONE'
 ==> done.  Verify with:
 
     uvx erpl-adt --host localhost --port 50000 --user DEVELOPER \
-        --password 'ABAPtr2023#00' --client 001 bw discover
+        --password 'ABAPtr2025#SP00' --client 001 bw discover
 DONE

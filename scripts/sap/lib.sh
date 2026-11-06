@@ -10,7 +10,7 @@
 : "${SAP_PORT:=50000}"
 : "${SAP_USER:=DEVELOPER}"
 : "${SAP_CLIENT:=001}"
-: "${SAP_PASSWORD:=ABAPtr2023#00}"   # the public trial image's standard credential
+: "${SAP_PASSWORD:=ABAPtr2025#SP00}"   # the public trial image's standard credential
 
 export SAP_PASSWORD                   # erpl-adt reads this name via --password-env
 

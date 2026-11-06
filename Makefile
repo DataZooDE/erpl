@@ -113,7 +113,7 @@ COMMON_TEST_ENV = RFC_TRACE=0 \
                   LD_LIBRARY_PATH=$${LD_LIBRARY_PATH}:../nwrfcsdk/linux/lib
 
 # Common SAP connection variables
-SAP_PASSWORD = ABAPtr2023\#00
+SAP_PASSWORD = ABAPtr2025\#SP00
 SAP_COMMON_VARS = ERPL_SAP_ASHOST=localhost \
                   ERPL_SAP_SYSNR=00 \
                   ERPL_SAP_CLIENT=001 \

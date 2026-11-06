@@ -417,9 +417,12 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         // (DATE/TIME/NUM/INT*/BCD/FLOAT) call duck2rfc()/GetValue<>() on a NULL
         // and throw "Calling GetValueInternal on a value that is NULL"
         // (issue #72: a NULL HIERARCHY_DUEDATE in the BICS I_TH_CHARACTERISTICS
-        // table).  Containers (STRUCTURE/TABLE) are not scalars, so they still
-        // recurse — their child fields are guarded by this same check.
-        if (arg_value.IsNull() && _rfc_type != RFCTYPE_STRUCTURE && _rfc_type != RFCTYPE_TABLE) {
+        // table).  A NULL structure or table is initial too: it is left as the SDK
+        // created it (all fields initial / no rows).  Recursing into it called
+        // ListValue::GetChildren on a NULL: the BICS selection entry on SAP_BW 816
+        // carries a nested table REPL_FILTER that erpl leaves NULL, and every filter
+        // failed.  The children of a non-NULL container are guarded by this same check.
+        if (arg_value.IsNull()) {
             return;
         }
 

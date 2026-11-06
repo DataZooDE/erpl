@@ -31,7 +31,7 @@ fi
 # Already loaded?  Re-running the whole load on a system that has it would cost hours for
 # nothing, so ask the provider first.
 _have=$(docker exec "$A4H_CONTAINER" /usr/sap/A4H/hdbclient/hdbsql -i 02 -d HDB \
-          -u "${A4H_DB_USER:-SAPA4H}" -p "${A4H_DB_PASSWORD:-ABAPtr2023#00}" \
+          -u "${A4H_DB_USER:-SAPA4H}" -p "${A4H_DB_PASSWORD:-ABAPtr2025#SP00}" \
           "SELECT COUNT(*) FROM ${A4H_DB_USER:-SAPA4H}.\"/BIC/AZERPLBIG2\"" 2>/dev/null \
         | sed -n '2p' | tr -dc '0-9')
 if [ -n "$_have" ] && [ "$_have" -ge "$_ROWS" ] 2>/dev/null; then
