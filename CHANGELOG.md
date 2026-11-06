@@ -23,6 +23,41 @@ LOAD erpl;
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **[bics]** Cross-tab results with two or more characteristics on the column axis put every value under its own
+  column again; previously values shifted into the wrong columns. ([#183](https://github.com/DataZooDE/erpl/issues/183))
+- **[bics]** `sap_bics_hierarchy` returns BW's node texts, dates and paths, and `version` means the hierarchy
+  version; leaf texts of compounded characteristics (e.g. region `US NY`) are found. ([#184](https://github.com/DataZooDE/erpl/issues/184))
+- **[bics]** BW's own messages reach the user in errors, including when a session opens with unfilled variables or
+  BW rejects a variable value. ([#185](https://github.com/DataZooDE/erpl/issues/185))
+- **[bics]** A result read that BW aborts raises an error instead of returning an empty result. ([#186](https://github.com/DataZooDE/erpl/issues/186))
+- **[bics]** Several values for a single-value or parameter variable, and unknown variable names, are rejected
+  instead of silently using the first value or being ignored. ([#187](https://github.com/DataZooDE/erpl/issues/187))
+- **[bics]** `sap_bics_rows(..., op => 'SET')` keeps a key-figure structure on the row axis unless it is named,
+  as `sap_bics_columns` does; every cell was NULL. ([#188](https://github.com/DataZooDE/erpl/issues/188))
+- **[bics]** A query's display hierarchy survives `sap_bics_result` and state restores; `begin(return => 'RESULT')`
+  handles negative node ids. ([#189](https://github.com/DataZooDE/erpl/issues/189))
+- **[bics]** Non-English logons can open sessions, and quotes, backslashes and non-ASCII text in states round-trip
+  byte-exact. ([#190](https://github.com/DataZooDE/erpl/issues/190))
+- **[bics]** Release drift: filters keep BW's own selection-entry line type, state fields BW does not send are
+  tolerated, and optional RFC parameters are only sent where the function has them. ([#191](https://github.com/DataZooDE/erpl/issues/191))
+- **[bics]** `op`/`return` values and characteristic/query names are case-insensitive; wrong values list the valid
+  ones; an unknown query name says so. ([#192](https://github.com/DataZooDE/erpl/issues/192))
+- **[bics]** Mutations reject characteristics on no axis that BW cannot navigate, and explain sessions opened
+  without characteristics (unfilled variables). ([#193](https://github.com/DataZooDE/erpl/issues/193))
+- **[bics]** `DESCRIBE`, `EXPLAIN` and `PREPARE` of a mutation no longer apply it; `EXECUTE` does. ([#194](https://github.com/DataZooDE/erpl/issues/194))
+- **[bics]** The cell-budget error names `erpl_bics_max_data_cells` when that is the limit. ([#195](https://github.com/DataZooDE/erpl/issues/195))
+- **[bics]** BEx local calculations are documented as not applied, and a warning says so. ([#196](https://github.com/DataZooDE/erpl/issues/196))
+- **[rfc]** A NULL structure or table argument is sent as initial; BICS filters failed on SAP_BW 816 (the new
+  `REPL_FILTER` table). ([#198](https://github.com/DataZooDE/erpl/issues/198))
+- **[bics]** Structure, structure-member and display-attribute names resolve like characteristic names: exact
+  first, then trimmed and case-insensitive. ([#199](https://github.com/DataZooDE/erpl/issues/199))
+
+---
+
 ## v2026.11.05 — Display attributes in BICS results
 
 ### Added
