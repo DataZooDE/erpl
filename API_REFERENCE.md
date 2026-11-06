@@ -72,6 +72,7 @@ SELECT * FROM sap_bics_show_cubes();
 | `sap_bics_set_char_prop` | AO-style char property (Display/Sort/Totals) | `SELECT * FROM sap_bics_set_char_prop('q1', '0CNTRY', 'DISPLAY', 'TEXT')` |
 | `sap_bics_hidden_members` | Show / hide the structure members a query hides with "Hide (can be shown)" | `SELECT * FROM sap_bics_hidden_members('q1', '<structure>', 'SHOW')` |
 | `sap_bics_attributes` | Show / hide a characteristic's display attributes as `<char>__<attr>` result columns | `SELECT * FROM sap_bics_attributes('q1', '0D_NW_PROD', '0D_NW_PRDGP')` |
+| `sap_bics_end` | Release a session's stored state versions | `SELECT * FROM sap_bics_end('q1')` |
 | `sap_bics_structure_members` | One row per structure member: uid, text, position, visibility, in_selection | `SELECT * FROM sap_bics_structure_members('MY_QUERY') WHERE visibility = 'HIDDEN'` |
 | `sap_odp_read_full` | Extract ODP data (full snapshot) | `SELECT * FROM sap_odp_read_full('BW', 'MY_ODP')` |
 | `sap_odp_read_delta` | Extract ODP data (incremental delta) | `SELECT * FROM sap_odp_read_delta('BW', 'MY_ODP', 'MY_PIPELINE')` |
@@ -497,20 +498,22 @@ at `ATTACH` time, against the data dictionary (`DD02V`, the same source as
 
 ### Discovery
 
-#### `sap_bics_show([obj_type, search, search_in_key, search_in_text, fetch_levels, secret])`
+#### `sap_bics_show([obj_type, search, search_in_key, search_in_text, secret])`
 
 List InfoProviders, cubes, queries, or info areas.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `obj_type` | ENUM | — | `'INFOPROVIDER'`, `'QUERY'`, `'CUBE'`, `'INFOAREA'` |
-| `search` | VARCHAR | — | Search pattern (supports wildcards) |
-| `search_in_key` | BOOLEAN | — | Search in technical names |
-| `search_in_text` | BOOLEAN | — | Search in descriptions |
-| `fetch_levels` | UINTEGER | — | Number of hierarchy levels to fetch |
+| `obj_type` | ENUM | `'INFOPROVIDER'` | `'INFOPROVIDER'`, `'QUERY'`, `'CUBE'`, `'INFOAREA'` |
+| `search` | VARCHAR | `'*'` | Search pattern (supports wildcards) |
+| `search_in_key` | BOOLEAN | `true` | Search in technical names |
+| `search_in_text` | BOOLEAN | `true` | Search in descriptions |
 | `secret` | VARCHAR | — | Named secret to use |
 
 **Returns:** `technical_name`, `text`, `type`, `cube_name`, `is_folder`, `last_changed`, `last_changed_by`, `level`
+
+The result is the top level of the BW object tree: `level` is always 0, and folders (`is_folder = 'X'`) are not
+expanded. There is no `fetch_levels` parameter.
 
 ```sql
 SELECT * FROM sap_bics_show();
@@ -561,17 +564,22 @@ SELECT * FROM sap_bics_show_hierarchies(info_object='0COSTCENTER');
 
 ### Describe
 
-#### `sap_bics_describe(cube_name [, query_name, id, version, secret])`
+#### `sap_bics_describe(name [, query_name, secret])` / `sap_bics_describe(id => ... [, version, secret])`
 
-Retrieve metadata structure for cubes or queries.
+Retrieve metadata structure for cubes or queries, or for a session.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `cube_name` | VARCHAR | *required* | Cube technical name |
-| `query_name` | VARCHAR | — | Query technical name |
-| `id` | VARCHAR | — | State ID for persisted session |
+| `name` | VARCHAR | *required* | An InfoProvider, or a BEx query name, resolved like `sap_bics_begin` resolves it (RSRREPDIR, active version) |
+| `query_name` | VARCHAR | — | Query technical name; `name` is then the InfoProvider |
+| `id` | VARCHAR | — | State ID of a session (only without positional arguments) |
 | `version` | UINTEGER | — | State version |
 | `secret` | VARCHAR | — | Named secret |
+
+A query that exists only as delivered BI Content (RSRREPDIR has no active version) is an error saying
+so; BW cannot open it. A session opened without its mandatory variables has no characteristics in its
+state; its description then takes `technical_name`, `text`, `characteristics` and `keyfigures` from the
+query definition, like the `(cube, query)` form.
 
 ```sql
 -- Describe a cube
@@ -725,6 +733,13 @@ SELECT * FROM sap_bics_begin('MY_QUERY', id='q1',
     ]);
 ```
 
+Values go to BW in its internal format: dates as `YYYYMMDD`, NUMC and ALPHA keys with their
+leading zeros. An ISO date (`'2026-01-31'`, which is also what a DuckDB `DATE` in the struct
+becomes) given for a variable whose InfoObject is date-typed is converted to `YYYYMMDD`. A value
+BW rejects (`Value 'X' is not valid for variable Y`) fails `sap_bics_begin` with BW's message; an
+unfilled mandatory variable is reported when the result is read, since the chain may still fill
+it. A value BW cannot convert names the variables and values sent.
+
 Values are stored with the session state and replayed whenever the session is
 restored, so a chained `begin → rows → result` workflow stays restricted.
 
@@ -740,6 +755,23 @@ not input-ready (e.g. customer-exit) variables. A single-value variable (`select
 'SINGLE_VALUE'`) takes exactly one row with `OP = 'EQ'`, an interval variable exactly one row;
 more rows are rejected, because BW would silently use only the first. Repeat `NAME` only for
 `MULTIPLE_VALUES` and `SELECTION_OPTION` variables.
+
+#### `sap_bics_end(state_id)`
+
+Releases a session: removes every stored version of its state from the in-memory
+repository and returns `(state_id VARCHAR, versions_removed BIGINT)`. Each
+`sap_bics_begin` and each mutation keeps a full copy of the state (100–300 KB for
+typical queries) for the life of the connection, so a long-lived connection ends
+the sessions it no longer needs. It deletes when the statement executes, so a
+`DESCRIBE` of it changes nothing; an unknown id removes nothing. `sap_bics_begin`
+on an id that already exists starts a new session and discards the old versions.
+
+```sql
+SELECT * FROM sap_bics_end(getvariable('_bw_state_id'));
+```
+
+A NULL state id (a chain whose `sap_bics_begin` failed) is an error pointing back
+to that `sap_bics_begin`.
 
 #### `sap_bics_result_stats(state_id [, secret])`
 
@@ -757,7 +789,7 @@ SELECT * FROM sap_bics_result_stats('my_state');
 |--------|------|-------------|
 | `query`, `info_provider` | VARCHAR | What the session opened |
 | `rfc_user`, `rfc_host` | VARCHAR | Who executed it, where |
-| `bw_release`, `bw_support_package`, `bics_version` | INTEGER | `BICS_PROV_GET_VERSION` |
+| `bw_release`, `bw_support_package`, `bics_version` | INTEGER | Installed BW release and support package (CVERS `SAP_BW`, or `DW4CORE` on BW/4HANA; `BICS_PROV_GET_VERSION` when CVERS cannot be read); `bics_version` from `BICS_PROV_GET_VERSION` |
 | `no_authority` | BOOLEAN | BW opened the provider without authority |
 | `backend`, `duckdb_version`, `stream_result_tables` | VARCHAR, VARCHAR, BOOLEAN | Client environment |
 | `error` | VARCHAR | The error `sap_bics_result` would raise, or NULL |
@@ -892,7 +924,7 @@ server and the change is honoured by the next `sap_bics_result` call.
 
 | `prop`    | Allowed `value`                | Server field mutated                                        |
 |-----------|--------------------------------|-------------------------------------------------------------|
-| `DISPLAY` | `'KEY'` \| `'TEXT'` \| `'BOTH'` | `RESULT_SET_PRESENTATION` + `MEMBER_ACCESS_PRESENTATION` (bitflag: KEY=4, TEXT=32) |
+| `DISPLAY` | `'KEY'` \| `'TEXT'` \| `'BOTH'` | `RESULT_SET_PRESENTATION` + `MEMBER_ACCESS_PRESENTATION` (bit list over the presentation types; written as KEY=4, TEXT=32) |
 | `TOTALS`  | `'SHOW'` \| `'HIDE'`            | `RESULT_VISIBILITY` ('A' / 'N')                             |
 | `SORT`    | `'ASC'` \| `'DESC'` \| `'NONE'`  | `RESULT_SET_SORTING.DIRECTION` ('A' / 'D' / '')             |
 
@@ -903,9 +935,19 @@ SELECT * FROM sap_bics_set_char_prop('q1', '0D_NW_CNTRY', 'DISPLAY', 'TEXT');
 SELECT * FROM sap_bics_set_char_prop('q1', '0D_NW_PROD', 'SORT', 'DESC');
 ```
 
-The result-set parser is display-mode aware: when BICS returns both key and
-text presentation entries for a member, the renderer picks key / text / both
-according to the per-char setting. The DESCRIBE payload of `state_rows`,
+The result-set parser is display-mode aware. BW sends each member's internal key
+(PRESENTATION type 0) and then the presentations the characteristic asks for: key
+types 0–4, text types 5–8 (default, short, medium, long text). Entries are picked
+by their type, not their position:
+
+- `KEY`: the internal key, as `sap_read_table` and `sap_bics_filter` take it. BW's
+  external display formatting (dates as `20.06.2013`, ALPHA keys without leading
+  zeros, compounding with `/`) is not applied, so keys stay joinable and filterable.
+- `TEXT`: the requested text (short, medium or long, as the query defines it). A
+  value without a text, such as a date, shows its external key.
+- `BOTH`: the key, a space, and the text.
+
+`display` in the DESCRIBE payload reports `TEXT` for any text type. The DESCRIBE payload of `state_rows`,
 `state_columns`, and `state_free` now carries `{display, totals, sort}` so
 clients can read the current values without an extra round-trip.
 
@@ -996,75 +1038,152 @@ SELECT * FROM sap_bics_result('q1');
 
 ### Metadata Views
 
-Functions for extracting BW system metadata. All accept an optional `secret` parameter.
+Functions for extracting BW system metadata from the BW repository tables (read with `RFC_READ_TABLE`).
+Every function accepts an optional `secret` named parameter; all named parameters are optional unless stated.
+Each requested repository field is checked against the connected system's DDIC: a field the release does not
+have is an error naming table and field, never an empty result. Tables of object types a release may lack
+(DataStore objects (advanced), CompositeProviders, classic DataStore objects, OLAP statistics) are skipped with a
+WARN trace when missing, and the function returns no rows for that type.
 
 | Function | Description |
 |----------|-------------|
-| `sap_bics_meta_providers([provider_type, secret])` | List BW InfoProviders by type (CUBE, ADSO, HCPR, ODSO, ODSVIEW) |
-| `sap_bics_meta_provider_fields(provider_name [, secret])` | Fields/characteristics for a provider |
-| `sap_bics_meta_datasources([secret])` | List all DataSources |
-| `sap_bics_meta_datasource_fields(datasource_name [, secret])` | Fields for a DataSource |
-| `sap_bics_meta_transformations([secret])` | List all transformations |
-| `sap_bics_meta_transform_fields(transformation_name [, secret])` | Field mappings and rules |
-| `sap_bics_meta_hcpr([secret])` | List all CompositeProviders |
-| `sap_bics_meta_hcpr_mapping(hcpr_name [, secret])` | Field mappings for CompositeProviders |
-| `sap_bics_meta_queries([secret])` | List all BW queries |
-| `sap_bics_meta_query_usage(query_name [, secret])` | Query usage and dependencies |
-| `sap_bics_meta_query_elements(query_name [, secret])` | Detailed query structure elements |
-| `sap_bics_meta_query_stats([secret])` | Query performance and usage statistics |
-| `sap_bics_meta_objxref([secret])` | Dependencies between BW objects |
-| `sap_bics_meta_infoobjects([secret])` | List all InfoObjects |
+| `sap_bics_meta_providers([type, secret])` | InfoProviders. `type`: `'CUBE'` (RSDCUBE: InfoCubes, MultiProviders, VirtualProviders, ...), `'ADSO'` (RSOADSO), `'HCPR'` (RSOHCPR), `'ODSO'` (RSDODSO); empty or omitted = all |
+| `sap_bics_meta_provider_fields(provider [, provider_type, secret])` | Fields of an InfoProvider; `provider_type` (`CUBE`, `ADSO`, `HCPR`, `ODSO`) is detected when omitted |
+| `sap_bics_meta_datasources([appcomp, secret])` | DataSources (ROOSOURCE, plus RSDS DataSources of remote source systems) |
+| `sap_bics_meta_datasource_fields(datasource [, secret])` | Fields of a DataSource |
+| `sap_bics_meta_transformations([active_only, secret])` | Transformations (RSTRAN, texts RSTRANT); `active_only` defaults to `true` |
+| `sap_bics_meta_transform_fields(transid [, secret])` | Rules of a transformation (RSTRANFIELD) |
+| `sap_bics_meta_hcpr_components(hcpr [, secret])` | Part providers of a CompositeProvider |
+| `sap_bics_meta_hcpr_mapping([composite_provider, secret])` | Part providers and InfoObject fields of CompositeProviders |
+| `sap_bics_meta_queries([secret])` | BEx queries (RSRREPDIR) |
+| `sap_bics_meta_query_usage(query [, secret])` | A query's InfoProvider, text and change information |
+| `sap_bics_meta_query_elements(query [, secret])` | The elements of a query |
+| `sap_bics_meta_query_stats([query_name, from_date, to_date, secret])` | Query runtime statistics per day (RSDDSTAT_OLAP); dates as `YYYYMMDD` |
+| `sap_bics_meta_objxref([tlogo, objnm, tlogo_dep, secret])` | BW object cross reference (RSOOBJXREF) |
+| `sap_bics_meta_infoobjects([iobjnm, iobjtp, secret])` | InfoObjects with type information |
 
 ```sql
-SELECT * FROM sap_bics_meta_providers(provider_type='CUBE');
-SELECT * FROM sap_bics_meta_provider_fields('MY_CUBE');
+SELECT * FROM sap_bics_meta_providers(type => 'CUBE');
+SELECT * FROM sap_bics_meta_provider_fields('0D_NW_C01');
 SELECT * FROM sap_bics_meta_queries();
+SELECT * FROM sap_bics_meta_query_elements('0D_FC_NW_C01_Q0001');
 ```
+
+**Returns and sources, where not obvious:**
+
+- `sap_bics_meta_providers`: `provider`, `provider_type`, `objvers`, `txtlg`, `created_on`, `changed_on`
+  (`YYYY-MM-DD` text). `created_on` is empty for `CUBE` and `ODSO` (BW stores no creation date for them) and
+  for releases without `CRTSTP`. Open ODS views are not listed.
+- `sap_bics_meta_provider_fields`: `provider`, `field_name`, `infoobject`, `is_key`, `data_type`, `length`,
+  `decimals`, `text`. Fields: `CUBE` RSDCUBEIOBJ, `ADSO` RSDODSOFIELD (key fields have KEYFDTP set), `ODSO`
+  RSDODSOIOBJ (KEYFLAG). A CompositeProvider's field list lives in its XML definition, which `RFC_READ_TABLE`
+  cannot read; for `HCPR` the function lists the InfoObjects the CompositeProvider requires (RSOOBJXREF) and
+  `is_key` is false. Types come from the InfoObject: `data_type`/`length` from RSDCHABAS (via the base
+  characteristic in RSDCHA) for characteristics, `data_type`/`decimals` from RSDKYF for key figures; a value an
+  InfoObject type does not have is NULL. A name that is no active InfoProvider returns no rows.
+- `sap_bics_meta_datasources`: `datasource`, `objvers`, `source_system`, `type`, `applcomp`, `txtlg`, `txtmd`,
+  `txtsh`.
+- `sap_bics_meta_datasource_fields`: `datasource`, `fieldname`, `position`, `datatype`, `length`, `decimals`,
+  `keyflag`, `txtlg`, `conversion_exit`, `selection_option`, `source_system`. A BW DataSource (RSDS) is read
+  from RSDSSEGFD/RSDSSEGFDT, one set of fields per source system. A DataSource of the system itself
+  (ROOSOURCE) is read from the DDIC of its extract structure, with `keyflag`/`selection_option` from ROOSFIELD
+  and `txtlg` from the data element; `conversion_exit` and `source_system` are empty there. (The former
+  `source_field` column is gone: no repository table records it.)
+- `sap_bics_meta_hcpr_components`: `hcpr_name`, `part_name`, `part_type` — the providers the CompositeProvider
+  "receives data from" (RSOOBJXREF association `005`).
+- `sap_bics_meta_hcpr_mapping`: `composite_provider`, `source_provider`, `source_field`, `target_field`,
+  `mapping_type`. `PART_PROVIDER` rows name a part provider, `INFOOBJECT` rows an InfoObject field of the
+  CompositeProvider (RSOOBJXREF). The field-to-field mapping is in the CompositeProvider's XML definition,
+  which `RFC_READ_TABLE` cannot read, so `source_field` is always empty.
+- `sap_bics_meta_query_usage`: `query`, `infoprovider`, `objvers`, `query_text` (RSZELTTXT), `created_on`
+  (RSZCOMPDIR-CREATED, NULL on releases without it), `changed_on` (RSZCOMPDIR-TSTPDAT), `changed_by`
+  (RSZCOMPDIR-TSTPNM). A name that is no active query returns no rows.
+- `sap_bics_meta_query_elements`: `query_name`, `element_uid`, `element_name`, `element_type`, `iobjnm`,
+  `usage_type`, `description`, `selection_info`, `formula` — one row per element reachable from the query in
+  RSZELTXREF (the query itself excluded). `element_type`: `CHA` (characteristic), `KYF` (a key figure without
+  restriction), `SEL` (restricted key figure or other selection), `CAL` (calculated key figure or formula),
+  otherwise RSZELTDIR-DEFTP (`STR`, `VAR`, `SHT`, `SOB`, ...). `element_name` is the technical name of a
+  reusable element (RSZELTDIR-MAPNAME), else the InfoObject of a `CHA`/`KYF` element, else empty. `iobjnm` is the
+  selected key figure or characteristic (RSZSELECT/RSZRANGE). `selection_info` renders the RSZRANGE rows as
+  `IOBJNM SIGN OPT LOW[..HIGH]` joined by `; ` (variables as `VARIABLE <name>`); `formula` renders the RSZCALC
+  steps as one expression, operands by technical name, else `'text'`, else `{uid}`. A name that is no active
+  query returns no rows.
+- `sap_bics_meta_query_stats`: `query_name`, `stat_date`, `exec_count`, `avg_duration_sec`,
+  `total_duration_sec`, `user_count`, aggregated per query (OBJNAME) and day (CALDAY) from the event rows of
+  RSDDSTAT_OLAP: `exec_count` = distinct navigation steps (STEPUID), `total_duration_sec` = sum of EVTIME,
+  `avg_duration_sec` = total / steps, `user_count` = distinct UNAME. Without `query_name` the whole statistics
+  view is read.
+- `sap_bics_meta_infoobjects`: `iobjnm`, `objvers`, `iobjtp`, `datatp`, `leng` (RSDCHABAS-INTLEN), `decimals`
+  (RSDKYF-KYFDECIM), `unitfix`, `currfix`, `attribfl`, `attronly` (RSDIOBJ-ATRONLYFL), `compobjnm` (the
+  characteristics it is compounded to, RSDIOBJCMP, comma-separated), `txtlg`.
 
 ---
 
 ### Lineage & Impact Analysis
 
-Functions for BW data lineage extraction. All accept an optional `secret` parameter.
+Functions for BW data lineage extraction from the repository. All accept an optional `secret` parameter. Every
+row is derived from repository data; nothing is inferred.
 
 #### `sap_bics_lineage_edges([scope, secret])`
 
-Extract lineage edges between BW objects.
+Lineage edges between BW objects. `transformation` edges come from RSTRAN, one per source/target field pair of
+each RSTRANFIELD rule (an object-level edge with empty fields when a transformation has no rules);
+`query_usage` edges link an InfoProvider to each query defined on it (RSRREPDIR), one per InfoObject the
+query's elements use. With `scope`, only transformations into or out of that object and the queries on it (or
+the query of that name) are read. Kinds: `datasource`, `infocube`, `adso`, `odso`, `infoobject`,
+`compositeprovider`, `infosource`, otherwise the object type in lower case.
 
 **Returns:** `edge_type`, `src_kind`, `src_name`, `src_field`, `tgt_kind`, `tgt_name`, `tgt_field`
 
 ```sql
 SELECT * FROM sap_bics_lineage_edges();
+SELECT * FROM sap_bics_lineage_edges(scope => '0D_NW_C01');
 ```
 
 ---
 
 #### `sap_bics_lineage_graph_json([scope, secret])`
 
-Full lineage graph in JSON format.
+The object-level graph of the same edges as one JSON document:
+`{"nodes": [{"id", "type"}], "edges": [{"source", "target", "type"}]}`.
+
+**Returns:** `lineage_graph_json`
 
 ```sql
-SELECT * FROM sap_bics_lineage_graph_json();
+SELECT * FROM sap_bics_lineage_graph_json(scope => '0D_NW_C01');
 ```
 
 ---
 
-#### `sap_bics_lineage_trace(object_name [, secret])`
+#### `sap_bics_lineage_trace(source_object => name [, source_field, secret])`
 
-Trace lineage from a specific object.
+Downstream lineage from an object, or from one of its fields: the transformations that read it and the queries
+defined on it, hop by hop. With `source_field`, only transformation rules that read the field and queries that
+use the InfoObject are followed. `source_object` is required and named.
+
+**Returns:** `hop`, `source_object`, `source_field`, `target_object`, `target_field`, `edge_type`
+(`TRANSFORMATION`, `QUERY`), `path`
 
 ```sql
-SELECT * FROM sap_bics_lineage_trace('MY_CUBE');
+SELECT * FROM sap_bics_lineage_trace(source_object => '0D_NW_C01');
+SELECT * FROM sap_bics_lineage_trace(source_object => '0TCTHP24O', source_field => '0CALDAY');
 ```
 
 ---
 
 #### `sap_bics_query_lineage(query_name [, secret])`
 
-Complete field-level lineage for a specific BW query.
+Lineage of one BEx query, upstream. `level` is the distance from the query: 0 the query (`QUERY`), 1 its
+InfoProvider (`INFOPROVIDER`, from RSRREPDIR) and the InfoObjects its elements use (`FIELD`), 2 the
+transformations loading the provider (`TRANSFORMATION`, with their rules as `TRANSFORMATION_FIELD`), 3 their
+sources (`DATASOURCE`, `INFOPROVIDER`, ...), then further upstream; a DataSource is followed by its
+`SOURCE_SYSTEM` (RSDS-LOGSYS). A name that is not an active BEx query is an error.
+
+**Returns:** `level`, `object_type`, `object_name`, `object_desc`, `field_name`, `target_type`, `target_name`,
+`target_field`, `edge_type`, `metadata`, `path`
 
 ```sql
-SELECT * FROM sap_bics_query_lineage('MY_QUERY');
+SELECT * FROM sap_bics_query_lineage('0D_FC_NW_C01_Q0001');
 ```
 
 ---

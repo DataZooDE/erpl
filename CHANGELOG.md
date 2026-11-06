@@ -55,6 +55,27 @@ LOAD erpl;
   `REPL_FILTER` table). ([#198](https://github.com/DataZooDE/erpl/issues/198))
 - **[bics]** Structure, structure-member and display-attribute names resolve like characteristic names: exact
   first, then trimmed and case-insensitive. ([#199](https://github.com/DataZooDE/erpl/issues/199))
+- **[bics]** Member labels follow BW's PRESENTATION type: short, medium and long texts are shown as text instead
+  of the key, and BOTH is key + text. KEY stays the internal key. ([#200](https://github.com/DataZooDE/erpl/issues/200))
+- **[bics]** A query that exists only as delivered BI Content says so instead of "giving up!";
+  `sap_bics_describe('<query>')` resolves query names like `sap_bics_begin`. ([#201](https://github.com/DataZooDE/erpl/issues/201))
+- **[bics]** Variables: ISO dates are sent as `YYYYMMDD`, a value BW rejects fails `sap_bics_begin` with BW's
+  message, and conversion errors name the variables and values. ([#202](https://github.com/DataZooDE/erpl/issues/202))
+- **[bics]** The catalog and lineage functions read only fields that exist on the connected release and report
+  a missing one instead of returning empty or invented data; `sap_bics_query_lineage` no longer fabricates
+  lineage. String fields are read through `ET_DATA`. ([#203](https://github.com/DataZooDE/erpl/issues/203))
+- **[bics]** `sap_bics_describe` and `sap_bics_describe_infoobject` take `secret`; a NULL state id points at the
+  failed `sap_bics_begin`; sessions with unfilled variables describe the query; filtering a non-navigable
+  characteristic says so; `sap_bics_result_stats` reports the installed BW release. ([#204](https://github.com/DataZooDE/erpl/issues/204))
+
+### Added
+
+- **[bics]** `sap_bics_end(state_id)` releases a session's stored state versions; `sap_bics_begin` on an existing
+  id starts a new session. ([#205](https://github.com/DataZooDE/erpl/issues/205))
+
+### Removed
+
+- **[bics]** `sap_bics_show(fetch_levels => ...)`, which never did anything. (#203)
 
 ---
 
