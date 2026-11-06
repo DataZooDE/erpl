@@ -33,7 +33,7 @@ query against it.
 ## End-to-end recipe
 
 Assumes the `a4h` container is running with ICM on port 50000 and the
-DEVELOPER user (`ABAPtr2023#00`).
+DEVELOPER user (`ABAPtr2025#SP00`).
 
 1. Generate the DDL:
 
@@ -42,13 +42,13 @@ DEVELOPER user (`ABAPtr2023#00`).
 
 2. Push the table:
 
-       SAP_PASSWORD='ABAPtr2023#00' uvx erpl-adt \
+       SAP_PASSWORD='ABAPtr2025#SP00' uvx erpl-adt \
            --host localhost --port 50000 --user DEVELOPER --client 001 \
            --password-env SAP_PASSWORD \
            object create --type TABL/DT --name ZWIDE_BSEG \
            --package '$TMP' --description "Issue 67 wide-table reproduction"
 
-       SAP_PASSWORD='ABAPtr2023#00' uvx erpl-adt \
+       SAP_PASSWORD='ABAPtr2025#SP00' uvx erpl-adt \
            --host localhost --port 50000 --user DEVELOPER --client 001 \
            --password-env SAP_PASSWORD \
            source write '/sap/bc/adt/ddic/tables/zwide_bseg' \
@@ -57,19 +57,19 @@ DEVELOPER user (`ABAPtr2023#00`).
 3. Push and run the populator. Runtime on the trial is roughly two
    minutes for 1 000 000 rows.
 
-       SAP_PASSWORD='ABAPtr2023#00' uvx erpl-adt \
+       SAP_PASSWORD='ABAPtr2025#SP00' uvx erpl-adt \
            --host localhost --port 50000 --user DEVELOPER --client 001 \
            --password-env SAP_PASSWORD \
            object create --type CLAS/OC --name ZCL_WIDE_BSEG \
            --package '$TMP' --description "Populator for ZWIDE_BSEG"
 
-       SAP_PASSWORD='ABAPtr2023#00' uvx erpl-adt \
+       SAP_PASSWORD='ABAPtr2025#SP00' uvx erpl-adt \
            --host localhost --port 50000 --user DEVELOPER --client 001 \
            --password-env SAP_PASSWORD \
            source write ZCL_WIDE_BSEG --type CLAS \
            --file tools/issue-67-repro/zcl_wide_bseg.abap --activate
 
-       SAP_PASSWORD='ABAPtr2023#00' uvx erpl-adt \
+       SAP_PASSWORD='ABAPtr2025#SP00' uvx erpl-adt \
            --host localhost --port 50000 --user DEVELOPER --client 001 \
            --password-env SAP_PASSWORD --timeout 900 \
            object run ZCL_WIDE_BSEG
