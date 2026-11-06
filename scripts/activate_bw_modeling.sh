@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Activates the BW Modeling ADT services on the local a4h trial container.
 #
-# They ship INACTIVE on sapse/abap-cloud-developer-trial:2023, so every `erpl-adt bw ...`
+# They ship INACTIVE on sapse/abap-cloud-developer-trial:2025, so every `erpl-adt bw ...`
 # command returns HTTP 403 until this has run.  Activation survives a container restart
 # but not an image recreation, so this needs re-running after a rebuild.
 #
@@ -31,7 +31,7 @@ set -euo pipefail
 CONTAINER=${A4H_CONTAINER:-a4h}
 HDBSQL=/usr/sap/A4H/hdbclient/hdbsql
 DBUSER=${A4H_DB_USER:-SAPA4H}
-DBPASS=${A4H_DB_PASSWORD:-'ABAPtr2023#00'}   # standard credential of the public trial image
+DBPASS=${A4H_DB_PASSWORD:-'ABAPtr2025#SP00'}   # standard credential of the public trial image
 
 # Delivered content, stable across restarts on the same image.
 BW_GUID=DFFAEATGKMFLCDXQ04F0J7FXK
@@ -77,5 +77,5 @@ cat <<'DONE'
 ==> done.  Verify with:
 
     uvx erpl-adt --host localhost --port 50000 --user DEVELOPER \
-        --password 'ABAPtr2023#00' --client 001 bw discover
+        --password 'ABAPtr2025#SP00' --client 001 bw discover
 DONE

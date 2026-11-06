@@ -8,7 +8,7 @@ CREATE OR REPLACE PERSISTENT SECRET abap_trial (
     SYSNR '00', 
     CLIENT '001', 
     USER 'DEVELOPER', 
-    PASSWD 'ABAPtr2023#00',
+    PASSWD 'ABAPtr2025#SP00',
     LANG 'EN'
 );
 
