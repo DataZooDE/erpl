@@ -317,3 +317,7 @@ snc/data_protection/use = 3
 # This trial is a local throwaway; on any real system prefer a reginfo allowlist.
 gw/acl_mode = 0
 
+
+# SAP GUI Scripting, so fairyfly (and other GUI automation) can drive this trial.
+# Without it the value set in RZ11 is lost on every instance restart.
+sapgui/user_scripting = TRUE
