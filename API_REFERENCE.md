@@ -659,15 +659,21 @@ Extract hierarchy structure with node relationships and paths.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `hierarchy_name` | VARCHAR | *required* | Hierarchy technical name |
-| `version` | VARCHAR | `'A'` | Hierarchy version |
-| `date_to` | VARCHAR | — | Valid-to date (`YYYYMMDD`) |
+| `version` | VARCHAR | — (the unversioned hierarchy) | Hierarchy version as in `RSHIEDIR-VERSION` (e.g. `'100'`); `'A'` is accepted for the unversioned one |
+| `date_to` | VARCHAR | — | Valid-to date (`YYYYMMDD`) of a time-dependent hierarchy; without it the one valid longest |
 | `secret` | VARCHAR | — | Named secret |
 
 **Returns:** `node_id`, `parent_id`, `child_id`, `next_id`, `info_object`, `node_name`, `node_value`, `date_from`, `date_to`, `level`, `path`
 
+- `node_value`: the node's text as BW shows it, in the logon language: a text node's text
+  (`0HIER_NODE`), a leaf's master-data text from the characteristic's text table, else the name.
+- `date_from` / `date_to`: the node's validity in a time-dependent hierarchy structure, else the
+  hierarchy's.
+- `path`: the node names from the root, e.g. `/ROOT/MOB/MOB1`.
+
 ```sql
 SELECT * FROM sap_bics_hierarchy('ZCOSTCENTER_H01');
-SELECT * FROM sap_bics_hierarchy('ZCOSTCENTER_H01', version='A', date_to='20251231');
+SELECT * FROM sap_bics_hierarchy('ZCOSTCENTER_H01', version='100', date_to='20251231');
 ```
 
 ---
@@ -728,7 +734,12 @@ common case does not have to spell out the hierarchy fields;
 `HIERARCHY_DUE_DATE` defaults to `'99991231'`.
 
 A variable name the query does not expose as input-ready is rejected — BW would
-otherwise ignore it silently and return an unrestricted result.
+otherwise ignore it silently and return an unrestricted result. This includes queries without
+any input-ready variable and InfoProvider sessions, and the error lists the input-ready and the
+not input-ready (e.g. customer-exit) variables. A single-value variable (`selection_type =
+'SINGLE_VALUE'`) takes exactly one row with `OP = 'EQ'`, an interval variable exactly one row;
+more rows are rejected, because BW would silently use only the first. Repeat `NAME` only for
+`MULTIPLE_VALUES` and `SELECTION_OPTION` variables.
 
 #### `sap_bics_result_stats(state_id [, secret])`
 
@@ -945,8 +956,21 @@ Fetch result set from configured query state.
 member key or text, one `INTEGER` `<name>_HIER_LEVEL` column per row-axis element, one
 `VARCHAR` `<char>__<attr>` column per active display attribute (in row-axis order, then in the
 characteristic's attribute order; see `sap_bics_attributes`), then one `DOUBLE` column per
-column-axis leaf. A display attribute column whose name is already taken, for example by the
+column-axis tuple. A display attribute column whose name is already taken, for example by the
 same navigation attribute drilled down on the row axis, gets a `__2` suffix.
+
+The column axis is read as tuples, one data column per tuple (BW's `E_N_COLUMNS`). With one
+element on the axis a column is named after its member (`0D_NW_NETV`); a cross-tab joins the
+members of all elements outer to inner (`0D_NW_NETV_2010`, `0D_NW_NETV_SUMME`). Names that are
+still equal get a `_1`, `_2` suffix.
+
+When BW aborts the read (message type `E` or `A`) and returns no data cells, the call fails
+with BW's messages rather than returning an empty result; a selection that is legitimately
+empty returns no rows without an error.
+
+Local calculations of a BEx query ("Calculate Single Values As", "Calculate Results As",
+cumulation) are **not** applied: BW returns the plain values and leaves the calculation to the
+client. The trace reports the affected members (#196).
 
 The number of row-axis columns follows the result set the BW server returns; when a
 result carries no rows at all, the session state's axis is used instead so a query's
@@ -1951,6 +1975,18 @@ CREATE SECRET my_ssh_key (
 |------|--------|---------|
 | `BICS_RETURN` | `'DESCRIBE'`, `'RESULT'` | BICS query workflow functions |
 | `BICS_OPERATION` | `'SET'`, `'ADD'`, `'REMOVE'` | BICS axis/filter configuration |
+
+The `return =>` and `op =>` parameters take plain text and accept any case (`op => 'set'`);
+an unknown value is an error listing the allowed ones. Characteristic and query names are
+matched case-insensitively too, and an unknown characteristic is an error listing the
+query's characteristics.
+
+A mutation with the default `return => 'DESCRIBE'` changes the session when the statement
+executes, so `DESCRIBE`, `EXPLAIN` or `PREPARE` of it leave the session alone. With
+`return => 'RESULT'` the result schema is the BW result's, so that form submits the state to
+BW already when the statement is bound. Clearing an axis (`op => 'SET'`) keeps the key-figure
+structure on it; remove it explicitly with `op => 'REMOVE'`. A characteristic the query uses
+only internally (on no axis and not free) cannot be moved onto an axis.
 | `ODP_REPLICATION_MODE` | `'FULL'`, `'DELTA'`, `'RECOVER'` | ODP extraction mode |
 
 ---
