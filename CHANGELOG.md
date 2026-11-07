@@ -99,6 +99,13 @@ LOAD erpl;
   ([#219](https://github.com/DataZooDE/erpl/issues/219))
 - **[bics]** Catalog errors keep their type and plain message; variable values are trimmed and rejections list
   the values sent. ([#220](https://github.com/DataZooDE/erpl/issues/220))
+- **[bics]** The session store is located on every call: a re-attached or renamed store file, or a dropped
+  schema, no longer serves another file's sessions or fails every call; concurrent mutations of one session all
+  apply; read-only instances get their in-memory store; `saved_at` is UTC. ([#221](https://github.com/DataZooDE/erpl/issues/221))
+- **[bics]** A rejected hierarchy-variable value fails `sap_bics_begin`; axis mutations take a structure's
+  designer name; a mixed Top/Bottom N condition keeps the order; the `VALUE` column of an empty long layout;
+  DISPLAY/SORT without the picker fields; a query whose conditions cannot be read (no view definition) fails
+  like one whose conditions cannot be translated. ([#222](https://github.com/DataZooDE/erpl/issues/222))
 
 ### Added
 

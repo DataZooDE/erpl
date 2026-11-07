@@ -776,7 +776,11 @@ restarts), or the attached database named by `SET erpl_bics_state_database = '<n
 `ATTACH` do not move them. When the main database is read-only, sessions go to an in-memory
 database `erpl_bics_sessions` (with a trace warning) and last as long as the instance. Every
 `sap_bics_begin` and every mutation stores a full version of the state (100–300 KB for typical
-queries), and every version is kept until it is removed.
+queries), and every version is kept until it is removed. The store is located on every call, so a
+store file attached again (or under another name), or a dropped `erpl_bics` schema, is picked up
+or set up again at once; the store name in `erpl_bics_state_database` is matched ignoring case.
+Mutations of one session from several connections at once all apply: a mutation that finds a
+newer version than the one it read applies itself again to that version.
 
 #### `sap_bics_sessions()`
 
@@ -1046,7 +1050,7 @@ still equal get a `_1`, `_2` suffix. With every structure on the row axis (`sap_
 op => 'SET')`) the column axis has no element and the result has a single data column, `VALUE`,
 holding each row's value.
 
-A cross-tab's columns come from the data: an empty slice of a query with a characteristic on
+The `VALUE` column is there also when such a result is empty. A cross-tab's columns come from the data: an empty slice of a query with a characteristic on
 the column axis has no member to name a column after, so it returns no data columns.
 
 When BW aborts the read (message type `E` or `A`) and returns no data cells, the call fails
@@ -1060,9 +1064,12 @@ client. The trace reports the affected members (#196).
 The active conditions of a BEx query (Top N, Bottom N, thresholds) are applied, as BW's own
 runtime does: a condition on specific characteristics while all of them are drilled down, an
 "all characteristics independently" condition to each drilled-down characteristic. The
-characteristics of a Top/Bottom N condition come back ranked by its value, which wins over their
-own sort. A condition erpl cannot send to BW (an operator it does not know, or a release without
-`I_TX_CONDITIONS`) is an error naming it; `SET erpl_bics_unapplied_conditions = 'ignore'` reads the
+characteristics of a Top/Bottom N condition come back ranked by its value (a condition that mixes Top and Bottom N keeps
+their order; a characteristic shown as a hierarchy keeps its node order, because BW applies no sorting
+to it, see [#223](https://github.com/DataZooDE/erpl/issues/223)), which wins over their
+own sort. A condition erpl cannot send to BW (an operator it does not know, a release without
+`I_TX_CONDITIONS`, or a release that exports no `E_DEFAULT_VIEW_DEFINITION` to read the conditions
+from, in which case the query's element catalogue names them) is an error naming it; `SET erpl_bics_unapplied_conditions = 'ignore'` reads the
 result without it, with a trace warning.
 
 The number of row-axis columns follows the result set the BW server returns; when a
@@ -2153,7 +2160,9 @@ CREATE SECRET my_ssh_key (
 The `return =>` and `op =>` parameters take plain text and accept any case (`op => 'set'`);
 an unknown value is an error listing the allowed ones. Characteristic and query names are
 matched case-insensitively too, and an unknown characteristic is an error listing the
-query's characteristics.
+query's characteristics. Axis and property mutations take a characteristic or a structure, by its
+technical name or the name the query designer gave it; a structure member there is an error naming
+its structure (select members with `sap_bics_filter`).
 
 `sap_bics_begin` and every mutation change the stored session when the statement executes, so
 `DESCRIBE`, `EXPLAIN` or `PREPARE` of them leave the session alone; each `EXECUTE` of a prepared
