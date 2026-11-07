@@ -4,6 +4,14 @@
 #   ./scripts/start-sap.sh                  # start, wait, provision, stay in foreground
 #   ./scripts/start-sap.sh --detach         # same but return once provisioned
 #   ./scripts/start-sap.sh --no-provision   # bare container, nothing applied
+#   ./scripts/start-sap.sh --no-lcp         # boot unpatched (SAP date window enforced)
+#
+# The trial keys expire 2027-02-06 (ABAP) and 2028-02-11 (HANA) and cannot be re-issued, so by
+# default the container is started through the lcp submodule's entrypoint wrapper, which removes
+# the two date comparisons in the license engine before SAP starts.  lcp lives in the private
+# erpl-license-patch repo, checked out as ./lcp (git submodule update --init lcp, ERP_LCP_DIR
+# overrides).  The ready-made plan is pinned to the 2025 image, which is why that image is used.
+# ERP_LCP=off does the same via the environment.
 #
 # The container is disposable (--rm, no data volume), so EVERYTHING the tests need is
 # destroyed with it and has to be reapplied on every start -- the ABAP repository, the BW
@@ -16,10 +24,14 @@
 # returns in a few minutes; `scripts/sap/provision.sh --status` reports the rest.
 set -uo pipefail
 
-APAB_PLATFORM_IMAGE="sapse/abap-cloud-developer-trial:2023"
+APAB_PLATFORM_IMAGE="sapse/abap-cloud-developer-trial:2025"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 PROFILE_FILE="$SCRIPT_DIR/A4H_D00_vhcala4hci.profile"
 LICENSE_FILE="$SCRIPT_DIR/A4H_Multiple.txt"
+# Private submodule (like bics/odp); ERP_LCP_DIR points elsewhere if needed.
+LCP_DIR="${ERP_LCP_DIR:-$SCRIPT_DIR/../lcp}"
+LCP=1
+[ "${ERP_LCP:-on}" = "off" ] && LCP=0
 
 PROVISION=1
 DETACH=0
@@ -28,6 +40,7 @@ while [ $# -gt 0 ]; do
         --no-provision) PROVISION=0 ;;
         --detach|-d)    DETACH=1 ;;
         --license)      LICENSE_FILE="${2:?--license needs a path}"; shift ;;
+        --no-lcp)       LCP=0 ;;
         -h|--help)      sed -n '2,18p' "$0"; exit 0 ;;
         *)              LICENSE_FILE="$1" ;;   # backwards compatible: bare licence path
     esac
@@ -48,7 +61,40 @@ provision_when_ready() {
     "$SCRIPT_DIR/sap/provision.sh"
 }
 
+ensure_lcp() {
+    [ "$LCP" = 1 ] || return 0
+    if [ ! -f "$LCP_DIR/CMakeLists.txt" ]; then
+        echo "note: lcp submodule not checked out at $LCP_DIR (git submodule update --init lcp); booting unpatched" >&2
+        echo "note: the SAP keys expire 2027-02-06, so this container will stop working then" >&2
+        LCP=0
+        return 0
+    fi
+    if [ ! -x "$LCP_DIR/build/lcp" ]; then
+        echo "==> building lcp (first run)"
+        cmake -S "$LCP_DIR" -B "$LCP_DIR/build" -DCMAKE_BUILD_TYPE=Release >/dev/null &&
+            cmake --build "$LCP_DIR/build" -j >/dev/null || {
+            echo "lcp build failed; booting unpatched" >&2
+            LCP=0
+            return 0
+        }
+    fi
+    if [ ! -x "$LCP_DIR/build/lcp" ] || [ ! -f "$LCP_DIR/scripts/lcp-init.sh" ]; then
+        echo "lcp build is incomplete in $LCP_DIR; booting unpatched" >&2
+        LCP=0
+    fi
+}
+
 docker_run() {  # docker_run <-d|-i>
+    local lcp_mount=() lcp_entrypoint=()
+    if [ "$LCP" = 1 ]; then
+        lcp_mount=(
+            -v "$LCP_DIR/build/lcp":/opt/erpl/lcp:ro
+            -v "$LCP_DIR/scripts/lcp-init.sh":/opt/erpl/lcp-init:ro
+        )
+        lcp_entrypoint=(--entrypoint /opt/erpl/lcp-init)
+    else
+        echo "note: lcp disabled; the SAP keys expire 2027-02-06" >&2
+    fi
     docker run \
         --stop-timeout 3600 "$1" --rm \
         --name a4h -h vhcala4hci \
@@ -63,8 +109,12 @@ docker_run() {  # docker_run <-d|-i>
         --ulimit nofile=1048576:1048576 \
         -v "$PROFILE_FILE":/usr/sap/A4H/SYS/profile/A4H_D00_vhcala4hci \
         -v "$LICENSE_FILE":/opt/sap/ASABAP_license \
+        "${lcp_mount[@]}" \
+        "${lcp_entrypoint[@]}" \
         $APAB_PLATFORM_IMAGE -agree-to-sap-license -skip-limits-check
 }
+
+ensure_lcp
 
 if [ "$DETACH" = 1 ]; then
     docker_run -d || exit $?

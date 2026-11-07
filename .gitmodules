@@ -28,3 +28,7 @@
 [submodule "duckdb-compat"]
 	path = duckdb-compat
 	url = https://github.com/DataZooDE/duckdb-compat.git
+[submodule "lcp"]
+	path = lcp
+	url = git@github.com:DataZooDE/erpl-license-patch.git
+	branch = main
