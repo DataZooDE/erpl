@@ -4,6 +4,7 @@
 #   ./scripts/start-sap.sh                  # start, wait, provision, stay in foreground
 #   ./scripts/start-sap.sh --detach         # same but return once provisioned
 #   ./scripts/start-sap.sh --no-provision   # bare container, nothing applied
+#   ./scripts/start-sap.sh --hdb-license F  # HANA licence key (default scripts/HDB_license.txt, if present)
 #
 # The container is disposable (--rm, no data volume), so EVERYTHING the tests need is
 # destroyed with it and has to be reapplied on every start -- the ABAP repository, the BW
@@ -20,6 +21,11 @@ APAB_PLATFORM_IMAGE="sapse/abap-cloud-developer-trial:2023"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 PROFILE_FILE="$SCRIPT_DIR/A4H_D00_vhcala4hci.profile"
 LICENSE_FILE="$SCRIPT_DIR/A4H_Multiple.txt"
+# HANA licence key for this trial's hardware key (B4023091879), from SAP's trial licence page.
+# The image installs it at start when it is mounted at /opt/sap/HDB_license; without it a
+# fresh container whose built-in HANA licence has expired stays in licence lockdown (SQL code
+# 437) and ABAP never starts.  Optional, and never committed.
+HDB_LICENSE_FILE="$SCRIPT_DIR/HDB_license.txt"
 
 PROVISION=1
 DETACH=0
@@ -28,6 +34,7 @@ while [ $# -gt 0 ]; do
         --no-provision) PROVISION=0 ;;
         --detach|-d)    DETACH=1 ;;
         --license)      LICENSE_FILE="${2:?--license needs a path}"; shift ;;
+        --hdb-license)  HDB_LICENSE_FILE="${2:?--hdb-license needs a path}"; shift ;;
         -h|--help)      sed -n '2,18p' "$0"; exit 0 ;;
         *)              LICENSE_FILE="$1" ;;   # backwards compatible: bare licence path
     esac
@@ -49,6 +56,12 @@ provision_when_ready() {
 }
 
 docker_run() {  # docker_run <-d|-i>
+    local hdb_license_mount=()
+    if [ -f "$HDB_LICENSE_FILE" ]; then
+        hdb_license_mount=(-v "$HDB_LICENSE_FILE":/opt/sap/HDB_license)
+    else
+        echo "note: no HANA licence key at $HDB_LICENSE_FILE; a container whose built-in licence expired will not start" >&2
+    fi
     docker run \
         --stop-timeout 3600 "$1" --rm \
         --name a4h -h vhcala4hci \
@@ -63,6 +76,7 @@ docker_run() {  # docker_run <-d|-i>
         --ulimit nofile=1048576:1048576 \
         -v "$PROFILE_FILE":/usr/sap/A4H/SYS/profile/A4H_D00_vhcala4hci \
         -v "$LICENSE_FILE":/opt/sap/ASABAP_license \
+        "${hdb_license_mount[@]}" \
         $APAB_PLATFORM_IMAGE -agree-to-sap-license -skip-limits-check
 }
 

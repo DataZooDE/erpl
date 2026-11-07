@@ -73,7 +73,17 @@ namespace duckdb
     Value ValueHelper::operator[](const std::string& name) 
     {
         auto full_path = GetPathWithRoot(name);
-        return GetValueForPath(_value, full_path);
+        try {
+            return GetValueForPath(_value, full_path);
+        } catch (std::runtime_error &e) {
+            // Name the whole path: "Field 'X' not found" alone does not say which RFC structure
+            // lacked it, which is what made a missing DDIC field on one release so hard to place.
+            std::string path;
+            for (auto &token : full_path) {
+                path += "/" + token;
+            }
+            throw std::runtime_error(StringUtil::Format("%s (path '%s')", e.what(), path));
+        }
     }
 
     std::vector<std::string> ValueHelper::GetPathWithRoot(std::string path) 
@@ -121,7 +131,17 @@ namespace duckdb
                         return GetValueForPath(child_value, remaining_tokens);
                     }
                 }
-                throw std::runtime_error(StringUtil::Format("Field '%s' not found in struct", *token_it));
+                {
+                    std::string available;
+                    for (std::size_t i = 0; i < child_values.size() && i < 12; i++) {
+                        available += (i ? ", " : "") + StructType::GetChildName(value_type, i);
+                    }
+                    if (child_values.size() > 12) {
+                        available += ", ...";
+                    }
+                    throw std::runtime_error(StringUtil::Format("Field '%s' not found in struct (it has: %s)",
+                                                                *token_it, available));
+                }
             }
             case LogicalTypeId::LIST:
             {

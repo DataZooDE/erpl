@@ -23,6 +23,103 @@ LOAD erpl;
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **[bics]** Cross-tab results with two or more characteristics on the column axis put every value under its own
+  column again; previously values shifted into the wrong columns. ([#183](https://github.com/DataZooDE/erpl/issues/183))
+- **[bics]** `sap_bics_hierarchy` returns BW's node texts, dates and paths, and `version` means the hierarchy
+  version; leaf texts of compounded characteristics (e.g. region `US NY`) are found. ([#184](https://github.com/DataZooDE/erpl/issues/184))
+- **[bics]** BW's own messages reach the user in errors, including when a session opens with unfilled variables or
+  BW rejects a variable value. ([#185](https://github.com/DataZooDE/erpl/issues/185))
+- **[bics]** A result read that BW aborts raises an error instead of returning an empty result. ([#186](https://github.com/DataZooDE/erpl/issues/186))
+- **[bics]** Several values for a single-value or parameter variable, and unknown variable names, are rejected
+  instead of silently using the first value or being ignored. ([#187](https://github.com/DataZooDE/erpl/issues/187))
+- **[bics]** `sap_bics_rows(..., op => 'SET')` keeps a key-figure structure on the row axis unless it is named,
+  as `sap_bics_columns` does; every cell was NULL. ([#188](https://github.com/DataZooDE/erpl/issues/188))
+- **[bics]** A query's display hierarchy survives `sap_bics_result` and state restores; `begin(return => 'RESULT')`
+  handles negative node ids. ([#189](https://github.com/DataZooDE/erpl/issues/189))
+- **[bics]** Non-English logons can open sessions, and quotes, backslashes and non-ASCII text in states round-trip
+  byte-exact. ([#190](https://github.com/DataZooDE/erpl/issues/190))
+- **[bics]** Release drift: filters keep BW's own selection-entry line type, state fields BW does not send are
+  tolerated, and optional RFC parameters are only sent where the function has them. ([#191](https://github.com/DataZooDE/erpl/issues/191))
+- **[bics]** `op`/`return` values and characteristic/query names are case-insensitive; wrong values list the valid
+  ones; an unknown query name says so. ([#192](https://github.com/DataZooDE/erpl/issues/192))
+- **[bics]** Mutations reject characteristics on no axis that BW cannot navigate, and explain sessions opened
+  without characteristics (unfilled variables). ([#193](https://github.com/DataZooDE/erpl/issues/193))
+- **[bics]** `DESCRIBE`, `EXPLAIN` and `PREPARE` of a mutation no longer apply it; `EXECUTE` does. ([#194](https://github.com/DataZooDE/erpl/issues/194))
+- **[bics]** The cell-budget error names `erpl_bics_max_data_cells` when that is the limit. ([#195](https://github.com/DataZooDE/erpl/issues/195))
+- **[bics]** BEx local calculations are documented as not applied, and a warning says so. ([#196](https://github.com/DataZooDE/erpl/issues/196))
+- **[rfc]** A NULL structure or table argument is sent as initial; BICS filters failed on SAP_BW 816 (the new
+  `REPL_FILTER` table). ([#198](https://github.com/DataZooDE/erpl/issues/198))
+- **[bics]** Structure, structure-member and display-attribute names resolve like characteristic names: exact
+  first, then trimmed and case-insensitive. ([#199](https://github.com/DataZooDE/erpl/issues/199))
+- **[bics]** Member labels follow BW's PRESENTATION type: short, medium and long texts are shown as text instead
+  of the key, and BOTH is key + text. KEY stays the internal key. ([#200](https://github.com/DataZooDE/erpl/issues/200))
+- **[bics]** A query that exists only as delivered BI Content says so instead of "giving up!";
+  `sap_bics_describe('<query>')` resolves query names like `sap_bics_begin`. ([#201](https://github.com/DataZooDE/erpl/issues/201))
+- **[bics]** Variables: ISO dates are sent as `YYYYMMDD`, a value BW rejects fails `sap_bics_begin` with BW's
+  message, and conversion errors name the variables and values. ([#202](https://github.com/DataZooDE/erpl/issues/202))
+- **[bics]** The catalog and lineage functions read only fields that exist on the connected release and report
+  a missing one instead of returning empty or invented data; `sap_bics_query_lineage` no longer fabricates
+  lineage. String fields are read through `ET_DATA`. ([#203](https://github.com/DataZooDE/erpl/issues/203))
+- **[bics]** `sap_bics_describe` and `sap_bics_describe_infoobject` take `secret`; a NULL state id points at the
+  failed `sap_bics_begin`; sessions with unfilled variables describe the query; filtering a non-navigable
+  characteristic says so; `sap_bics_result_stats` reports the installed BW release. ([#204](https://github.com/DataZooDE/erpl/issues/204))
+- **[bics]** With every structure on the row axis, `sap_bics_result` returns the values in a `VALUE` column;
+  every data cell was dropped. ([#206](https://github.com/DataZooDE/erpl/issues/206))
+- **[bics]** The active conditions of a BEx query (Top N, Bottom N, thresholds) are applied, as BW's own runtime
+  does; they were silently ignored. ([#207](https://github.com/DataZooDE/erpl/issues/207))
+- **[bics]** Variables: `variables` and `hierarchy_variables` can be combined (the hierarchy fields were cut off),
+  `HIERARCHY_DUE_DATE` takes ISO, `YYYYMMDD` or empty, a `HIGH` with an operator other than `BT`/`NB` and an
+  unknown `OP` are rejected, names are case-insensitive, and a failed open names the values sent. ([#208](https://github.com/DataZooDE/erpl/issues/208))
+- **[bics]** Hierarchy nodes on rows follow their characteristic's display (texts in TEXT/BOTH);
+  `sap_bics_hierarchy` shows text nodes in the logon language only, as BW does. ([#209](https://github.com/DataZooDE/erpl/issues/209))
+- **[bics]** Catalog texts are in the logon language (English fallback); `sap_bics_meta_queries` lists only active
+  queries; a release without the data cells' `HIDDEN` flag no longer fails describe. ([#210](https://github.com/DataZooDE/erpl/issues/210))
+- **[bics]** `sap_bics_filter` on a structure resolves member values like other names and rejects a value that is
+  no member instead of returning an empty result. ([#211](https://github.com/DataZooDE/erpl/issues/211))
+- **[bics]** Prepared statements return their rows on every `EXECUTE`, and `DESCRIBE`/`EXPLAIN`/`PREPARE` of
+  `sap_bics_begin` no longer replace a live session; begin and mutations store the session when the statement
+  executes. ([#212](https://github.com/DataZooDE/erpl/issues/212))
+- **[bics]** The session store lives in one fixed database (the main one, or `erpl_bics_state_database`), works with
+  read-only databases (in-memory fallback), uses 64-bit ids, survives concurrent saves and no longer re-parses a
+  cached state on every call. ([#213](https://github.com/DataZooDE/erpl/issues/213))
+- **[bics]** Prepared `sap_bics_result` and `sap_bics_result_stats` read the session as it is at each `EXECUTE`;
+  `sap_bics_query_lineage` returns its rows every time; a prepared `sap_bics_begin` without `id` starts a new
+  session per execution. ([#214](https://github.com/DataZooDE/erpl/issues/214))
+- **[bics]** Conditions keep the totals when a condition characteristic leaves the axes, Top/Bottom N rows come
+  back ranked, and a condition that cannot be sent is an error (`erpl_bics_unapplied_conditions`). ([#215](https://github.com/DataZooDE/erpl/issues/215))
+- **[bics]** `variant =>` survives session restores, and an unknown variant is an error. ([#216](https://github.com/DataZooDE/erpl/issues/216))
+- **[bics]** Display attribute columns follow the characteristic's `DISPLAY`. ([#217](https://github.com/DataZooDE/erpl/issues/217))
+- **[rfc]** A NULL struct member is left initial without looking the field up, so a release without the field no
+  longer fails the call. ([#218](https://github.com/DataZooDE/erpl/issues/218))
+- **[bics]** The cell-budget advice uses the configured cost model, and a smaller budget never lets more through.
+  ([#219](https://github.com/DataZooDE/erpl/issues/219))
+- **[bics]** Catalog errors keep their type and plain message; variable values are trimmed and rejections list
+  the values sent. ([#220](https://github.com/DataZooDE/erpl/issues/220))
+- **[bics]** The session store is located on every call: a re-attached or renamed store file, or a dropped
+  schema, no longer serves another file's sessions or fails every call; concurrent mutations of one session all
+  apply; read-only instances get their in-memory store; `saved_at` is UTC. ([#221](https://github.com/DataZooDE/erpl/issues/221))
+- **[bics]** A rejected hierarchy-variable value fails `sap_bics_begin`; axis mutations take a structure's
+  designer name; a mixed Top/Bottom N condition keeps the order; the `VALUE` column of an empty long layout;
+  DISPLAY/SORT without the picker fields; a query whose conditions cannot be read (no view definition) fails
+  like one whose conditions cannot be translated. ([#222](https://github.com/DataZooDE/erpl/issues/222))
+
+### Added
+
+- **[bics]** `sap_bics_sessions()` and `sap_bics_gc(keep_versions, older_than)` list and clean up stored sessions;
+  settings `erpl_bics_state_database` and `erpl_bics_unapplied_conditions`. ([#213](https://github.com/DataZooDE/erpl/issues/213), [#215](https://github.com/DataZooDE/erpl/issues/215))
+- **[bics]** `sap_bics_end(state_id)` releases a session's stored state versions; `sap_bics_begin` on an existing
+  id starts a new session. ([#205](https://github.com/DataZooDE/erpl/issues/205))
+
+### Removed
+
+- **[bics]** `sap_bics_show(fetch_levels => ...)`, which never did anything. (#203)
+
+---
+
 ## v2026.11.05 — Display attributes in BICS results
 
 ### Added

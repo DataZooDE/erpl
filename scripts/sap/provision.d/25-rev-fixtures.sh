@@ -76,7 +76,7 @@ if adt object run ZCL_ERPL_REV_MKFM  >/dev/null 2>&1; then ok "RFC FMs (Z_DUCKDB
 # ~100,000 rows, tens of seconds.  Skipped when the table already holds data, so a re-run
 # against a provisioned system costs nothing.
 _wide_rows=$(docker exec "$A4H_CONTAINER" /usr/sap/A4H/hdbclient/hdbsql -i 02 -d HDB \
-               -u "${A4H_DB_USER:-SAPA4H}" -p "${A4H_DB_PASSWORD:-ABAPtr2023#00}" \
+               -u "${A4H_DB_USER:-SAPA4H}" -p "${A4H_DB_PASSWORD:-ABAPtr2025#SP00}" \
                "SELECT COUNT(*) FROM ${A4H_DB_USER:-SAPA4H}.ZWIDE_BSEG" 2>/dev/null \
              | sed -n '2p' | tr -dc '0-9')
 if [ -n "$_wide_rows" ] && [ "$_wide_rows" -gt 0 ] 2>/dev/null; then

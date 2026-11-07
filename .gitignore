@@ -70,6 +70,7 @@ trace/*
 
 # SAP License files
 A4H*.txt
+HDB_license*.txt
 
 # Venv 
 .pixi

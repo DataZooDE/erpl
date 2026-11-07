@@ -417,9 +417,12 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         // (DATE/TIME/NUM/INT*/BCD/FLOAT) call duck2rfc()/GetValue<>() on a NULL
         // and throw "Calling GetValueInternal on a value that is NULL"
         // (issue #72: a NULL HIERARCHY_DUEDATE in the BICS I_TH_CHARACTERISTICS
-        // table).  Containers (STRUCTURE/TABLE) are not scalars, so they still
-        // recurse — their child fields are guarded by this same check.
-        if (arg_value.IsNull() && _rfc_type != RFCTYPE_STRUCTURE && _rfc_type != RFCTYPE_TABLE) {
+        // table).  A NULL structure or table is initial too: it is left as the SDK
+        // created it (all fields initial / no rows).  Recursing into it called
+        // ListValue::GetChildren on a NULL: the BICS selection entry on SAP_BW 816
+        // carries a nested table REPL_FILTER that erpl leaves NULL, and every filter
+        // failed.  The children of a non-NULL container are guarded by this same check.
+        if (arg_value.IsNull()) {
             return;
         }
 
@@ -604,6 +607,14 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         for (idx_t i = 0; i < struct_values.size(); i++) {
 			auto child_name = duckdb_compat::Str(child_types[i].first);
             auto child_value = struct_values[i];
+            // NULL means "leave the field initial", which needs no field: a NULL member the
+            // connected release's structure does not have is skipped instead of failing the whole
+            // call.  BICS sends one row type to every release (variable rows carry NULL
+            // HIERARCHY_* fields, selection entries NULL *_IS_EXIT_VARIABLE), and a field missing
+            // on one release killed whole calls before (#72, #176).
+            if (child_value.IsNull()) {
+                continue;
+            }
 			
             try {
                 auto rfc_type = GetFieldInfo(child_name).GetRfcType();
