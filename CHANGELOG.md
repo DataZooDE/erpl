@@ -67,6 +67,19 @@ LOAD erpl;
 - **[bics]** `sap_bics_describe` and `sap_bics_describe_infoobject` take `secret`; a NULL state id points at the
   failed `sap_bics_begin`; sessions with unfilled variables describe the query; filtering a non-navigable
   characteristic says so; `sap_bics_result_stats` reports the installed BW release. ([#204](https://github.com/DataZooDE/erpl/issues/204))
+- **[bics]** With every structure on the row axis, `sap_bics_result` returns the values in a `VALUE` column;
+  every data cell was dropped. ([#206](https://github.com/DataZooDE/erpl/issues/206))
+- **[bics]** The active conditions of a BEx query (Top N, Bottom N, thresholds) are applied, as BW's own runtime
+  does; they were silently ignored. ([#207](https://github.com/DataZooDE/erpl/issues/207))
+- **[bics]** Variables: `variables` and `hierarchy_variables` can be combined (the hierarchy fields were cut off),
+  `HIERARCHY_DUE_DATE` takes ISO, `YYYYMMDD` or empty, a `HIGH` with an operator other than `BT`/`NB` and an
+  unknown `OP` are rejected, names are case-insensitive, and a failed open names the values sent. ([#208](https://github.com/DataZooDE/erpl/issues/208))
+- **[bics]** Hierarchy nodes on rows follow their characteristic's display (texts in TEXT/BOTH);
+  `sap_bics_hierarchy` shows text nodes in the logon language only, as BW does. ([#209](https://github.com/DataZooDE/erpl/issues/209))
+- **[bics]** Catalog texts are in the logon language (English fallback); `sap_bics_meta_queries` lists only active
+  queries; a release without the data cells' `HIDDEN` flag no longer fails describe. ([#210](https://github.com/DataZooDE/erpl/issues/210))
+- **[bics]** `sap_bics_filter` on a structure resolves member values like other names and rejects a value that is
+  no member instead of returning an empty result. ([#211](https://github.com/DataZooDE/erpl/issues/211))
 
 ### Added
 

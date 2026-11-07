@@ -674,7 +674,8 @@ Extract hierarchy structure with node relationships and paths.
 **Returns:** `node_id`, `parent_id`, `child_id`, `next_id`, `info_object`, `node_name`, `node_value`, `date_from`, `date_to`, `level`, `path`
 
 - `node_value`: the node's text as BW shows it, in the logon language: a text node's text
-  (`0HIER_NODE`), a leaf's master-data text from the characteristic's text table, else the name.
+  (`0HIER_NODE`), a leaf's master-data text from the characteristic's text table, else the name
+  (also for a text node that has a text only in another language, as BW shows it).
 - `date_from` / `date_to`: the node's validity in a time-dependent hierarchy structure, else the
   hierarchy's.
 - `path`: the node names from the root, e.g. `/ROOT/MOB/MOB1`.
@@ -718,9 +719,11 @@ variable instead of a field:
 |-------|------|-----------|
 | `NAME` | VARCHAR | BEx variable technical name |
 | `SIGN` | VARCHAR | `'I'` (include) or `'E'` (exclude); defaults to `'I'` |
-| `OP` | VARCHAR | `'EQ'`, `'BT'`, `'GE'`, `'LE'`, `'CP'`, …; defaults to `'BT'` when `HIGH` is given, else `'EQ'` |
+| `OP` | VARCHAR | One of `'EQ'`, `'NE'`, `'GT'`, `'GE'`, `'LT'`, `'LE'`, `'BT'`, `'NB'`, `'CP'`, `'NP'`; defaults to `'BT'` when `HIGH` is given, else `'EQ'`. Anything else is rejected |
 | `LOW` | VARCHAR | Value, or lower bound of an interval |
-| `HIGH` | VARCHAR | Upper bound of an interval; empty otherwise |
+| `HIGH` | VARCHAR | Upper bound of an interval (`'BT'`, `'NB'`); empty otherwise. A `HIGH` with any other `OP` is rejected, because BW would ignore it |
+
+`NAME` is matched in upper case and without padding: BEx variable names are upper case.
 
 Repeat `NAME` to fill a multi-value variable — that is how multiple values
 travel on the wire.
@@ -738,15 +741,17 @@ leading zeros. An ISO date (`'2026-01-31'`, which is also what a DuckDB `DATE` i
 becomes) given for a variable whose InfoObject is date-typed is converted to `YYYYMMDD`. A value
 BW rejects (`Value 'X' is not valid for variable Y`) fails `sap_bics_begin` with BW's message; an
 unfilled mandatory variable is reported when the result is read, since the chain may still fill
-it. A value BW cannot convert names the variables and values sent.
+it. A value BW cannot convert, or one that makes BW refuse to open the query, names the
+variables and values sent.
 
 Values are stored with the session state and replayed whenever the session is
 restored, so a chained `begin → rows → result` workflow stays restricted.
 
 **`hierarchy_variables` shape** — `LIST<STRUCT(NAME, LOW, HIERARCHY_NAME,
 HIERARCHY_VERSION, HIERARCHY_DUE_DATE)>`. Separate from `variables` so the
-common case does not have to spell out the hierarchy fields;
-`HIERARCHY_DUE_DATE` defaults to `'99991231'`.
+common case does not have to spell out the hierarchy fields.
+`HIERARCHY_DUE_DATE` takes `'YYYY-MM-DD'` or `'YYYYMMDD'`; empty or omitted means 9999-12-31,
+the current hierarchy. `variables` and `hierarchy_variables` can be combined in one call.
 
 A variable name the query does not expose as input-ready is rejected — BW would
 otherwise ignore it silently and return an unrestricted result. This includes queries without
@@ -857,7 +862,7 @@ name; pass zero members with `op='SET'` to clear the filter.
 |-----------|------|---------|-------------|
 | `state_id` | VARCHAR | *required* | State ID |
 | `char_name` | VARCHAR | *required* | Characteristic technical name, or a structure's |
-| `member1, …` | VARCHAR (varargs) | — | Member values to include (or remove with `op='REMOVE'`). For a structure: the members' `element_uid` from `sap_bics_describe` |
+| `member1, …` | VARCHAR (varargs) | — | Member values to include (or remove with `op='REMOVE'`). For a structure: the members' `element_uid` (or alternative name) from `sap_bics_structure_members`, matched like every other name, ignoring case and padding; a value that is no member of the structure is an error listing the members |
 | `op` | BICS_OPERATION | `'ADD'` if members supplied, else `'SET'` | `'SET'`, `'ADD'`, `'REMOVE'` |
 | `return` | BICS_RETURN | `'DESCRIBE'` | Return format |
 
@@ -947,6 +952,10 @@ by their type, not their position:
   value without a text, such as a date, shows its external key.
 - `BOTH`: the key, a space, and the text.
 
+The nodes of a display hierarchy on the rows follow the display of their characteristic.
+Compounded characteristics take BW's internal compound key in `sap_bics_filter`, as `KEY`
+shows it (e.g. `'DE 11'` with the compounding parent first).
+
 `display` in the DESCRIBE payload reports `TEXT` for any text type. The DESCRIBE payload of `state_rows`,
 `state_columns`, and `state_free` now carries `{display, totals, sort}` so
 clients can read the current values without an extra round-trip.
@@ -1004,7 +1013,12 @@ same navigation attribute drilled down on the row axis, gets a `__2` suffix.
 The column axis is read as tuples, one data column per tuple (BW's `E_N_COLUMNS`). With one
 element on the axis a column is named after its member (`0D_NW_NETV`); a cross-tab joins the
 members of all elements outer to inner (`0D_NW_NETV_2010`, `0D_NW_NETV_SUMME`). Names that are
-still equal get a `_1`, `_2` suffix.
+still equal get a `_1`, `_2` suffix. With every structure on the row axis (`sap_bics_rows(...,
+op => 'SET')`) the column axis has no element and the result has a single data column, `VALUE`,
+holding each row's value.
+
+A cross-tab's columns come from the data: an empty slice of a query with a characteristic on
+the column axis has no member to name a column after, so it returns no data columns.
 
 When BW aborts the read (message type `E` or `A`) and returns no data cells, the call fails
 with BW's messages rather than returning an empty result; a selection that is legitimately
@@ -1013,6 +1027,9 @@ empty returns no rows without an error.
 Local calculations of a BEx query ("Calculate Single Values As", "Calculate Results As",
 cumulation) are **not** applied: BW returns the plain values and leaves the calculation to the
 client. The trace reports the affected members (#196).
+
+The active conditions of a BEx query (Top N, Bottom N, thresholds) are applied, as BW's own
+runtime does. A condition erpl cannot translate is left out with a trace warning.
 
 The number of row-axis columns follows the result set the BW server returns; when a
 result carries no rows at all, the session state's axis is used instead so a query's
@@ -1045,6 +1062,10 @@ have is an error naming table and field, never an empty result. Tables of object
 (DataStore objects (advanced), CompositeProviders, classic DataStore objects, OLAP statistics) are skipped with a
 WARN trace when missing, and the function returns no rows for that type.
 
+Texts (InfoProviders, InfoObjects, query elements, DataSources and their fields, transformations, hierarchies)
+are in the logon language of the secret, like `sap_bics_describe` and `sap_bics_result`; an object without a
+text in that language falls back to English.
+
 | Function | Description |
 |----------|-------------|
 | `sap_bics_meta_providers([type, secret])` | InfoProviders. `type`: `'CUBE'` (RSDCUBE: InfoCubes, MultiProviders, VirtualProviders, ...), `'ADSO'` (RSOADSO), `'HCPR'` (RSOHCPR), `'ODSO'` (RSDODSO); empty or omitted = all |
@@ -1055,7 +1076,7 @@ WARN trace when missing, and the function returns no rows for that type.
 | `sap_bics_meta_transform_fields(transid [, secret])` | Rules of a transformation (RSTRANFIELD) |
 | `sap_bics_meta_hcpr_components(hcpr [, secret])` | Part providers of a CompositeProvider |
 | `sap_bics_meta_hcpr_mapping([composite_provider, secret])` | Part providers and InfoObject fields of CompositeProviders |
-| `sap_bics_meta_queries([secret])` | BEx queries (RSRREPDIR) |
+| `sap_bics_meta_queries([secret])` | BEx queries (RSRREPDIR), active version only: a query that exists only as delivered content cannot be opened |
 | `sap_bics_meta_query_usage(query [, secret])` | A query's InfoProvider, text and change information |
 | `sap_bics_meta_query_elements(query [, secret])` | The elements of a query |
 | `sap_bics_meta_query_stats([query_name, from_date, to_date, secret])` | Query runtime statistics per day (RSDDSTAT_OLAP); dates as `YYYYMMDD` |
