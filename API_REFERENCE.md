@@ -73,6 +73,8 @@ SELECT * FROM sap_bics_show_cubes();
 | `sap_bics_hidden_members` | Show / hide the structure members a query hides with "Hide (can be shown)" | `SELECT * FROM sap_bics_hidden_members('q1', '<structure>', 'SHOW')` |
 | `sap_bics_attributes` | Show / hide a characteristic's display attributes as `<char>__<attr>` result columns | `SELECT * FROM sap_bics_attributes('q1', '0D_NW_PROD', '0D_NW_PRDGP')` |
 | `sap_bics_end` | Release a session's stored state versions | `SELECT * FROM sap_bics_end('q1')` |
+| `sap_bics_sessions` | List the stored sessions | `SELECT * FROM sap_bics_sessions()` |
+| `sap_bics_gc` | Remove old session versions and stale sessions | `SELECT * FROM sap_bics_gc(keep_versions => 1)` |
 | `sap_bics_structure_members` | One row per structure member: uid, text, position, visibility, in_selection | `SELECT * FROM sap_bics_structure_members('MY_QUERY') WHERE visibility = 'HIDDEN'` |
 | `sap_odp_read_full` | Extract ODP data (full snapshot) | `SELECT * FROM sap_odp_read_full('BW', 'MY_ODP')` |
 | `sap_odp_read_delta` | Extract ODP data (incremental delta) | `SELECT * FROM sap_odp_read_delta('BW', 'MY_ODP', 'MY_PIPELINE')` |
@@ -703,7 +705,7 @@ name, which is resolved to its InfoProvider via `RSRREPDIR`.
 | `return` | BICS_RETURN | `'DESCRIBE'` | `'DESCRIBE'` for metadata, `'RESULT'` for data |
 | `variables` | LIST\<STRUCT\> | — | BEx variable values (see below) |
 | `hierarchy_variables` | LIST\<STRUCT\> | — | Hierarchy-node variable values (see below) |
-| `variant` | VARCHAR | — | Name of a saved BEx variant to fill the variables |
+| `variant` | VARCHAR | — | Name of a saved BEx variant of the query (`RSRVARIANTDIR`) to fill the variables; an unknown name is an error listing the query's variants. It is stored with the session and applies to every later call |
 | `secret` | VARCHAR | — | Named secret |
 
 ```sql
@@ -763,13 +765,40 @@ more rows are rejected, because BW would silently use only the first. Repeat `NA
 
 #### `sap_bics_end(state_id)`
 
-Releases a session: removes every stored version of its state from the in-memory
-repository and returns `(state_id VARCHAR, versions_removed BIGINT)`. Each
-`sap_bics_begin` and each mutation keeps a full copy of the state (100–300 KB for
-typical queries) for the life of the connection, so a long-lived connection ends
-the sessions it no longer needs. It deletes when the statement executes, so a
-`DESCRIBE` of it changes nothing; an unknown id removes nothing. `sap_bics_begin`
-on an id that already exists starts a new session and discards the old versions.
+Releases a session: removes every stored version of its state and returns `(state_id VARCHAR,
+versions_removed BIGINT)`. It deletes when the statement executes, so a `DESCRIBE` of it changes
+nothing; an unknown id removes nothing. `sap_bics_begin` on an id that already exists starts a new
+session and discards the old versions.
+
+**Where sessions live.** Sessions are persisted in the table `erpl_bics.bics_state` of one fixed
+database: the main database of the DuckDB instance (so a file database keeps them across
+restarts), or the attached database named by `SET erpl_bics_state_database = '<name>'`. `USE` and
+`ATTACH` do not move them. When the main database is read-only, sessions go to an in-memory
+database `erpl_bics_sessions` (with a trace warning) and last as long as the instance. Every
+`sap_bics_begin` and every mutation stores a full version of the state (100–300 KB for typical
+queries), and every version is kept until it is removed.
+
+#### `sap_bics_sessions()`
+
+The stored sessions: `state_id`, `latest_version`, `versions`, `info_provider`, `query`,
+`stored_bytes`, `last_saved` (UTC).
+
+#### `sap_bics_gc([keep_versions, older_than])`
+
+Removes old session versions and stale sessions, then checkpoints the store's database so the
+space is reclaimed. Returns `(sessions_removed BIGINT, versions_removed BIGINT)`. At least one
+parameter is required.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `keep_versions` | BIGINT | Keep the latest N versions of every session (0 keeps all) |
+| `older_than` | INTERVAL | Remove whole sessions whose latest version was saved longer ago |
+
+```sql
+SELECT * FROM sap_bics_sessions();
+SELECT * FROM sap_bics_gc(keep_versions => 1);
+SELECT * FROM sap_bics_gc(older_than => INTERVAL '7 days');
+```
 
 ```sql
 SELECT * FROM sap_bics_end(getvariable('_bw_state_id'));
@@ -1029,7 +1058,12 @@ cumulation) are **not** applied: BW returns the plain values and leaves the calc
 client. The trace reports the affected members (#196).
 
 The active conditions of a BEx query (Top N, Bottom N, thresholds) are applied, as BW's own
-runtime does. A condition erpl cannot translate is left out with a trace warning.
+runtime does: a condition on specific characteristics while all of them are drilled down, an
+"all characteristics independently" condition to each drilled-down characteristic. The
+characteristics of a Top/Bottom N condition come back ranked by its value, which wins over their
+own sort. A condition erpl cannot send to BW (an operator it does not know, or a release without
+`I_TX_CONDITIONS`) is an error naming it; `SET erpl_bics_unapplied_conditions = 'ignore'` reads the
+result without it, with a trace warning.
 
 The number of row-axis columns follows the result set the BW server returns; when a
 result carries no rows at all, the session state's axis is used instead so a query's
@@ -2252,6 +2286,10 @@ backend you had not.
 | `erpl_bics_stream_result_tables` | BOOLEAN | `true` | Stream the large BICS response tables off the SAP SDK handle instead of materialising them |
 | `erpl_bics_max_result_memory` | VARCHAR | `''` (DuckDB's `memory_limit`) | Memory a single BICS result set may use, e.g. `'8GB'` |
 | `erpl_bics_max_data_cells` | BIGINT | `0` (derive from the memory budget) | Explicit cell budget (`I_MAX_DATA_CELLS`), for pinning exactly what BW receives |
+| `erpl_bics_bytes_per_data_cell` | BIGINT | `128` | Cost per data cell the memory budget is divided by |
+| `erpl_bics_fetch_fixed_overhead` | BIGINT | `0` | Fixed cost of a fetch, subtracted from the budget first; a budget that does not cover it yields one cell, so the query reports the budget it needs |
+| `erpl_bics_state_database` | VARCHAR | `''` (the main database) | Attached database that stores BICS sessions |
+| `erpl_bics_unapplied_conditions` | VARCHAR | `'error'` | `'ignore'` reads a result without the query conditions erpl cannot send |
 
 `erpl_bics_stream_result_tables` controls how the response is read. With it on (the
 default) the four tables that grow with the result — `E_T_DATA_CELLS`, `E_T_ROWS`,

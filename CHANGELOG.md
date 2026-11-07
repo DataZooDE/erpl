@@ -83,9 +83,27 @@ LOAD erpl;
 - **[bics]** Prepared statements return their rows on every `EXECUTE`, and `DESCRIBE`/`EXPLAIN`/`PREPARE` of
   `sap_bics_begin` no longer replace a live session; begin and mutations store the session when the statement
   executes. ([#212](https://github.com/DataZooDE/erpl/issues/212))
+- **[bics]** The session store lives in one fixed database (the main one, or `erpl_bics_state_database`), works with
+  read-only databases (in-memory fallback), uses 64-bit ids, survives concurrent saves and no longer re-parses a
+  cached state on every call. ([#213](https://github.com/DataZooDE/erpl/issues/213))
+- **[bics]** Prepared `sap_bics_result` and `sap_bics_result_stats` read the session as it is at each `EXECUTE`;
+  `sap_bics_query_lineage` returns its rows every time; a prepared `sap_bics_begin` without `id` starts a new
+  session per execution. ([#214](https://github.com/DataZooDE/erpl/issues/214))
+- **[bics]** Conditions keep the totals when a condition characteristic leaves the axes, Top/Bottom N rows come
+  back ranked, and a condition that cannot be sent is an error (`erpl_bics_unapplied_conditions`). ([#215](https://github.com/DataZooDE/erpl/issues/215))
+- **[bics]** `variant =>` survives session restores, and an unknown variant is an error. ([#216](https://github.com/DataZooDE/erpl/issues/216))
+- **[bics]** Display attribute columns follow the characteristic's `DISPLAY`. ([#217](https://github.com/DataZooDE/erpl/issues/217))
+- **[rfc]** A NULL struct member is left initial without looking the field up, so a release without the field no
+  longer fails the call. ([#218](https://github.com/DataZooDE/erpl/issues/218))
+- **[bics]** The cell-budget advice uses the configured cost model, and a smaller budget never lets more through.
+  ([#219](https://github.com/DataZooDE/erpl/issues/219))
+- **[bics]** Catalog errors keep their type and plain message; variable values are trimmed and rejections list
+  the values sent. ([#220](https://github.com/DataZooDE/erpl/issues/220))
 
 ### Added
 
+- **[bics]** `sap_bics_sessions()` and `sap_bics_gc(keep_versions, older_than)` list and clean up stored sessions;
+  settings `erpl_bics_state_database` and `erpl_bics_unapplied_conditions`. ([#213](https://github.com/DataZooDE/erpl/issues/213), [#215](https://github.com/DataZooDE/erpl/issues/215))
 - **[bics]** `sap_bics_end(state_id)` releases a session's stored state versions; `sap_bics_begin` on an existing
   id starts a new session. ([#205](https://github.com/DataZooDE/erpl/issues/205))
 

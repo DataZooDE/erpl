@@ -607,6 +607,14 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         for (idx_t i = 0; i < struct_values.size(); i++) {
 			auto child_name = duckdb_compat::Str(child_types[i].first);
             auto child_value = struct_values[i];
+            // NULL means "leave the field initial", which needs no field: a NULL member the
+            // connected release's structure does not have is skipped instead of failing the whole
+            // call.  BICS sends one row type to every release (variable rows carry NULL
+            // HIERARCHY_* fields, selection entries NULL *_IS_EXIT_VARIABLE), and a field missing
+            // on one release killed whole calls before (#72, #176).
+            if (child_value.IsNull()) {
+                continue;
+            }
 			
             try {
                 auto rfc_type = GetFieldInfo(child_name).GetRfcType();
