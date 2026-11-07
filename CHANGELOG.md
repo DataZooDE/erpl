@@ -80,6 +80,9 @@ LOAD erpl;
   queries; a release without the data cells' `HIDDEN` flag no longer fails describe. ([#210](https://github.com/DataZooDE/erpl/issues/210))
 - **[bics]** `sap_bics_filter` on a structure resolves member values like other names and rejects a value that is
   no member instead of returning an empty result. ([#211](https://github.com/DataZooDE/erpl/issues/211))
+- **[bics]** Prepared statements return their rows on every `EXECUTE`, and `DESCRIBE`/`EXPLAIN`/`PREPARE` of
+  `sap_bics_begin` no longer replace a live session; begin and mutations store the session when the statement
+  executes. ([#212](https://github.com/DataZooDE/erpl/issues/212))
 
 ### Added
 

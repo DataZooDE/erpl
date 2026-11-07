@@ -2121,10 +2121,15 @@ an unknown value is an error listing the allowed ones. Characteristic and query 
 matched case-insensitively too, and an unknown characteristic is an error listing the
 query's characteristics.
 
-A mutation with the default `return => 'DESCRIBE'` changes the session when the statement
-executes, so `DESCRIBE`, `EXPLAIN` or `PREPARE` of it leave the session alone. With
-`return => 'RESULT'` the result schema is the BW result's, so that form submits the state to
-BW already when the statement is bound. Clearing an axis (`op => 'SET'`) keeps the key-figure
+`sap_bics_begin` and every mutation change the stored session when the statement executes, so
+`DESCRIBE`, `EXPLAIN` or `PREPARE` of them leave the session alone; each `EXECUTE` of a prepared
+statement applies it again, to the session as it is then. With `return => 'RESULT'` the result
+schema is the BW result's, so that form sends the state to BW already when the statement is
+bound (a fetch that fails there, e.g. on the cell budget, still keeps the change). Every BICS
+function returns its rows on each execution of a prepared statement; a result read again whose
+columns changed since `PREPARE` is an error asking to prepare it again. A query with `LIMIT 0`
+is answered by DuckDB without running the function, so it neither applies a mutation nor ends a
+session. Clearing an axis (`op => 'SET'`) keeps the key-figure
 structure on it; remove it explicitly with `op => 'REMOVE'`. A characteristic the query uses
 only internally (on no axis and not free) cannot be moved onto an axis.
 | `ODP_REPLICATION_MODE` | `'FULL'`, `'DELTA'`, `'RECOVER'` | ODP extraction mode |
