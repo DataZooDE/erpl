@@ -52,7 +52,7 @@
                 },
                 {
                     "name": "ERPL_SAP_PASSWORD",
-                    "value": "ABAPtr2023#00"
+                    "value": "ABAPtr2025#SP00"
                 }
             ],
             "externalConsole": false,
@@ -156,7 +156,7 @@
                 },
                 {
                     "name": "ERPL_SAP_PASSWORD",
-                    "value": "ABAPtr2023#00"
+                    "value": "ABAPtr2025#SP00"
                 }
             ],
             "externalConsole": false,
@@ -364,7 +364,7 @@
                 },
                 {
                     "name": "ERPL_SAP_PASSWORD",
-                    "value": "ABAPtr2023#00"
+                    "value": "ABAPtr2025#SP00"
                 }
             ],
             "externalConsole": false,

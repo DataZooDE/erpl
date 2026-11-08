@@ -4,6 +4,13 @@
 #   ./scripts/start-sap.sh                  # start, wait, provision, stay in foreground
 #   ./scripts/start-sap.sh --detach         # same but return once provisioned
 #   ./scripts/start-sap.sh --no-provision   # bare container, nothing applied
+#   ./scripts/start-sap.sh --license FILE   # also install this AS ABAP licence (minisap, system A4H)
+#
+# The image ships a three-month AS ABAP licence and a valid HANA licence, so no licence file
+# is needed.  A licence file is bound to the hardware key of one image: the image's update
+# script deletes the installed licence before it installs the file, so a file for another
+# image (A4H_Multiple.txt was issued for :2023) leaves the system with no valid licence.
+# That is why a licence is only mounted when one is passed explicitly.
 #
 # The container is disposable (--rm, no data volume), so EVERYTHING the tests need is
 # destroyed with it and has to be reapplied on every start -- the ABAP repository, the BW
@@ -16,10 +23,10 @@
 # returns in a few minutes; `scripts/sap/provision.sh --status` reports the rest.
 set -uo pipefail
 
-APAB_PLATFORM_IMAGE="sapse/abap-cloud-developer-trial:2023"
+APAB_PLATFORM_IMAGE="${A4H_IMAGE:-sapse/abap-cloud-developer-trial:2025}"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 PROFILE_FILE="$SCRIPT_DIR/A4H_D00_vhcala4hci.profile"
-LICENSE_FILE="$SCRIPT_DIR/A4H_Multiple.txt"
+LICENSE_FILE=""
 
 PROVISION=1
 DETACH=0
@@ -28,7 +35,7 @@ while [ $# -gt 0 ]; do
         --no-provision) PROVISION=0 ;;
         --detach|-d)    DETACH=1 ;;
         --license)      LICENSE_FILE="${2:?--license needs a path}"; shift ;;
-        -h|--help)      sed -n '2,18p' "$0"; exit 0 ;;
+        -h|--help)      sed -n '2,25p' "$0"; exit 0 ;;
         *)              LICENSE_FILE="$1" ;;   # backwards compatible: bare licence path
     esac
     shift
@@ -62,7 +69,7 @@ docker_run() {  # docker_run <-d|-i>
         --sysctl kernel.sem="1250 256000 100 8192" \
         --ulimit nofile=1048576:1048576 \
         -v "$PROFILE_FILE":/usr/sap/A4H/SYS/profile/A4H_D00_vhcala4hci \
-        -v "$LICENSE_FILE":/opt/sap/ASABAP_license \
+        ${LICENSE_FILE:+-v "$LICENSE_FILE":/opt/sap/ASABAP_license} \
         $APAB_PLATFORM_IMAGE -agree-to-sap-license -skip-limits-check
 }
 
