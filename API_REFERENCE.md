@@ -706,6 +706,9 @@ name, which is resolved to its InfoProvider via `RSRREPDIR`.
 | `variables` | LIST\<STRUCT\> | — | BEx variable values (see below) |
 | `hierarchy_variables` | LIST\<STRUCT\> | — | Hierarchy-node variable values (see below) |
 | `variant` | VARCHAR | — | Name of a saved BEx variant of the query (`RSRVARIANTDIR`) to fill the variables; an unknown name is an error listing the query's variants. It is stored with the session and applies to every later call |
+| `rows` | LIST\<VARCHAR\> | — | Characteristics to put on the row axis, as `sap_bics_rows(..., op => 'SET')` would |
+| `columns` | LIST\<VARCHAR\> | — | Characteristics to put on the column axis, as `sap_bics_columns(..., op => 'SET')` would |
+| `filters` | LIST\<VARCHAR\> | — | Characteristic **names** to take off the axes and make free, so they can be filtered with `sap_bics_filter`; it takes no member values |
 | `secret` | VARCHAR | — | Named secret |
 
 ```sql
@@ -1080,9 +1083,28 @@ When BW aborts the read (message type `E` or `A`) and returns no data cells, the
 with BW's messages rather than returning an empty result; a selection that is legitimately
 empty returns no rows without an error.
 
-Local calculations of a BEx query ("Calculate Single Values As", "Calculate Results As",
-cumulation) are **not** applied: BW returns the plain values and leaves the calculation to the
-client. The trace reports the affected members (#196).
+Local calculations of a BEx query ("Calculate Single Values As", "Calculate Results As") are
+applied by erpl: BW returns the plain values and leaves the calculation to the client, so erpl
+reads the whole result first and computes them along the rows, per data column, as BW's own
+runtime does (#196):
+
+- *Single values* (detail rows; result rows keep BW's total): minimum and maximum over the
+  row's group (the detail rows under the same innermost result row), counter, counter of
+  non-zero values, moving average and moving average of non-zero values running along the group
+  in row order, rank (1 2 2 3) and olympic rank (1 2 2 4) descending within the group,
+  normalisation to the group result and to the overall result (in percent, NULL when that total
+  is 0), and hide (NULL).
+- *Results* (result rows; detail rows keep their values): sum, maximum, minimum, count, count of
+  non-zero values, average, average of non-zero values, standard deviation and variance (sample,
+  n − 1), first value, last value and hide, each over the plain values of the detail rows the
+  result row totals (the overall result over all of them).
+
+A missing cell is no value. Not applied, with the plain values and a trace warning naming the
+member and the calculation: normalisation to the unrestricted overall result (the result set
+does not carry that total), the hierarchy-node calculations, the cumulated and "normal values
+only" variants, count all / average all, rounded sum, hide in hierarchy, cumulation, a
+calculation direction other than the default, single values applied to the results, and any
+calculation when a structure is on the row axis or a hierarchy is shown on it.
 
 The active conditions of a BEx query (Top N, Bottom N, thresholds) are applied, as BW's own
 runtime does: a condition on specific characteristics while all of them are drilled down on one
