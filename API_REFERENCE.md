@@ -701,7 +701,7 @@ name, which is resolved to its InfoProvider via `RSRREPDIR`.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `cube_name` | VARCHAR | *required* | Cube or BEx query technical name |
-| `id` | VARCHAR | — | User-defined state ID |
+| `id` | VARCHAR | — | User-defined state ID; omit it to get a generated one. An empty or blank id is an error |
 | `return` | BICS_RETURN | `'DESCRIBE'` | `'DESCRIBE'` for metadata, `'RESULT'` for data |
 | `variables` | LIST\<STRUCT\> | — | BEx variable values (see below) |
 | `hierarchy_variables` | LIST\<STRUCT\> | — | Hierarchy-node variable values (see below) |
@@ -746,7 +746,9 @@ unfilled mandatory variable is reported when the result is read, since the chain
 it. A value BW cannot convert, or one that makes BW refuse to open the query, names the
 variables and values sent. BW's read-back of the variables is checked too: a value it silently replaced
 by `#` (not assigned), or a hierarchy node it holds without its hierarchy, fails `sap_bics_begin` and
-names the variable. Dates for a date-typed variable are checked before they are sent, and an empty
+names the variable, and so does a value BW holds changed (a sign dropped, a key cut to its length). A formula
+variable takes a plain number with `.` as the decimal separator (`'2.5'`; BW reads `'2,5'` as 25). Dates for a
+date-typed variable are checked before they are sent, and an empty
 `LOW` is refused for a variable whose entry type does not allow the initial value. Applying a
 hierarchy-node variable as a node is not supported yet
 ([#227](https://github.com/DataZooDE/erpl/issues/227)).
@@ -923,6 +925,16 @@ A structure's selection is the list of its members that appear in the result. BW
 with the members not hidden at design time, so an **empty** structure selection (`op='SET'`
 without members) shows every member, the hidden ones included.
 
+Values of a characteristic go to BW in its internal format, converted the way RSRT and Analysis for
+Office convert what is typed: upper case unless the InfoObject allows lower-case keys, ALPHA and NUMC
+keys padded with leading zeros (`'1001'` → `'0000001001'`), ISO dates for date characteristics.
+
+`op='REMOVE'` takes values out of what the selection selects (AO "Exclude"): an include entry of
+exactly the value is removed, and when the rest of the selection still selects it (no restriction, a
+range, a pattern) an exclusion is added. A range or an exclusion is never removed because its low value
+matches. For a structure, REMOVE keeps the remaining visible members selected; removing the last ones
+is an error, since an empty structure selection shows every member.
+
 #### Step 3b (optional): `sap_bics_hidden_members(state_id, structure, action [, return])`
 
 Show, or hide again, every member of a structure that the query hides with **Hide (can be
@@ -972,7 +984,7 @@ server and the change is honoured by the next `sap_bics_result` call.
 | `prop`    | Allowed `value`                | Server field mutated                                        |
 |-----------|--------------------------------|-------------------------------------------------------------|
 | `DISPLAY` | `'KEY'` \| `'TEXT'` \| `'BOTH'` | `RESULT_SET_PRESENTATION` + `MEMBER_ACCESS_PRESENTATION` (bit list over the presentation types; written as KEY=4, TEXT=32) |
-| `TOTALS`  | `'SHOW'` \| `'HIDE'`            | `RESULT_VISIBILITY` ('A' / 'N')                             |
+| `TOTALS`  | `'SHOW'` \| `'HIDE'`            | `RESULT_VISIBILITY` (' ' / 'U', BW's visible / hidden)          |
 | `SORT`    | `'ASC'` \| `'DESC'` \| `'NONE'`  | `RESULT_SET_SORTING.DIRECTION` ('A' / 'D' / '')             |
 
 ```sql
@@ -1002,11 +1014,10 @@ shows it (e.g. `'DE 11'` with the compounding parent first).
 `state_columns`, and `state_free` now carries `{display, totals, sort}` so
 clients can read the current values without an extra round-trip.
 
-> **Note:** the grand-total "SUMME" / "Overall Result" row in `sap_bics_result`
-> is not affected by per-char `TOTALS='HIDE'` — BICS does not expose a state
-> field for grand-total visibility. The flag is applied to the server state
-> (visible in DESCRIBE) but the SUMME row still appears in the result set;
-> downstream clients can filter it out client-side. AO does the same.
+`TOTALS = 'HIDE'` on the outermost row characteristic also removes the grand-total "SUMME" /
+"Overall Result" row; on an inner one it removes that characteristic's subtotals. `'SHOW'` shows them always,
+also under a group of one member; a query's own setting is reported as `SHOW`, `HIDE` or `CONDITIONAL`
+(only with more than one member).
 
 #### Step 4b (optional): `sap_bics_attributes(state_id, char_name [, attribute, ...] [, op, return])`
 
@@ -2300,6 +2311,10 @@ backend you had not.
 ---
 
 #### erpl_bics
+
+Every `erpl_bics_*` option applies to the whole DuckDB instance: a `SET` in one connection (one Python
+cursor) reaches all of them, like `memory_limit`. `erpl_bics_state_database` is read from the instance's
+value only, so a `SET SESSION` cannot give one connection a store of its own.
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|

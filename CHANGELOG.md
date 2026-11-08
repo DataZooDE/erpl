@@ -114,6 +114,13 @@ LOAD erpl;
   blanks; variable values BW silently replaced (`#`, a node without its hierarchy), invalid dates and an empty
   value where none is allowed fail `sap_bics_begin`; without a `HIDDEN` field visibility is `NULL`; nested RFC
   fields a release lacks are dropped instead of failing the call. ([#226](https://github.com/DataZooDE/erpl/issues/226))
+- **[bics]** `sap_bics_filter` REMOVE excludes values instead of deleting ranges, and never empties a structure;
+  `TOTALS` writes BW's own visibility values, so HIDE hides subtotals and the overall result; filter values are
+  converted to BW's internal format; property and attribute mutations refuse non-navigable characteristics;
+  a nested field a release lacks is dropped only when it carries nothing. ([#228](https://github.com/DataZooDE/erpl/issues/228))
+- **[bics]** Formula variables take plain numbers; rejections in BW's external spelling and values BW changed fail
+  `sap_bics_begin`; the store survives concurrent first use, end and re-begin; every `erpl_bics_*` setting is
+  instance-wide; blank state ids are refused. ([#229](https://github.com/DataZooDE/erpl/issues/229))
 
 ### Added
 
