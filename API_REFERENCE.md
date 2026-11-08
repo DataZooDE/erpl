@@ -930,8 +930,8 @@ Office convert what is typed: upper case unless the InfoObject allows lower-case
 keys padded with leading zeros (`'1001'` → `'0000001001'`), ISO dates for date characteristics.
 
 `op='REMOVE'` takes values out of what the selection selects (AO "Exclude"): an include entry of
-exactly the value is removed, and when the rest of the selection still selects it (no restriction, a
-range, a pattern) an exclusion is added. A range or an exclusion is never removed because its low value
+exactly the value is removed (taking the only listed value out leaves the characteristic unfiltered),
+and a value the selection selects otherwise (no restriction, a range, a pattern) gets an exclusion. A range or an exclusion is never removed because its low value
 matches. For a structure, REMOVE keeps the remaining visible members selected; removing the last ones
 is an error, since an empty structure selection shows every member.
 
