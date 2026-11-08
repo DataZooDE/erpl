@@ -121,6 +121,10 @@ LOAD erpl;
 - **[bics]** Formula variables take plain numbers; rejections in BW's external spelling and values BW changed fail
   `sap_bics_begin`; the store survives concurrent first use, end and re-begin; every `erpl_bics_*` setting is
   instance-wide; blank state ids are refused. ([#229](https://github.com/DataZooDE/erpl/issues/229))
+- **[bics]** ADD undoes REMOVE; a prepared result follows a re-begin with other variables; external periods in
+  filters are converted by BW; SORT ASC/DESC works on characteristics sorted by selection state; a not-assigned
+  member's key is empty, not `'NULL'`; descriptive metadata a release lacks reads as empty.
+  ([#230](https://github.com/DataZooDE/erpl/issues/230))
 
 ### Added
 
