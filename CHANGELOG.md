@@ -106,6 +106,14 @@ LOAD erpl;
   designer name; a mixed Top/Bottom N condition keeps the order; the `VALUE` column of an empty long layout;
   DISPLAY/SORT without the picker fields; a query whose conditions cannot be read (no view definition) fails
   like one whose conditions cannot be translated. ([#222](https://github.com/DataZooDE/erpl/issues/222))
+- **[bics]** `erpl_bics_state_database` applies to every connection of the instance; concurrent
+  `sap_bics_end`/`sap_bics_gc` and a mutation racing them no longer fail; the not-found error names the store.
+  ([#225](https://github.com/DataZooDE/erpl/issues/225))
+- **[bics]** A combination condition across both axes is not sent (BW drops the totals); `REMOVE` is scoped to
+  its axis and refuses non-navigable characteristics; catalog functions match object names ignoring case and
+  blanks; variable values BW silently replaced (`#`, a node without its hierarchy), invalid dates and an empty
+  value where none is allowed fail `sap_bics_begin`; without a `HIDDEN` field visibility is `NULL`; nested RFC
+  fields a release lacks are dropped instead of failing the call. ([#226](https://github.com/DataZooDE/erpl/issues/226))
 
 ### Added
 

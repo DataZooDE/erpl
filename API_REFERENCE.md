@@ -612,7 +612,7 @@ rows flat:
 | `text` | The member's description |
 | `technical_name` | The technical name given in the query designer; usually empty |
 | `element_uid` | The 25-character element id BW addresses the member by. This is the value `sap_bics_filter` takes to select the member |
-| `visibility` | `VISIBLE`, or `HIDDEN` for a member the query hides with **Hide (can be shown)**. This is the design-time setting: `sap_bics_hidden_members` does not change it. Members defined as **Hide** are not reported by BW at all and never appear |
+| `visibility` | `VISIBLE`, or `HIDDEN` for a member the query hides with **Hide (can be shown)**. This is the design-time setting: `sap_bics_hidden_members` does not change it. Members defined as **Hide** are not reported by BW at all and never appear. `NULL` on a release whose `BICS_PROV_META_DATA_CELL` has no `HIDDEN` field: it does not say which members are hidden, and `sap_bics_hidden_members` is then an error |
 | `in_selection` | Whether an include/equal entry of the structure's current selection selects the member, i.e. whether it will appear in the result: `true` for every member when the selection has no entries (BW shows all then); a selection holding only exclusions or ranges selects nothing. `NULL` in the `(cube, query)` form, which has no session state; filled in `sap_bics_describe(id => ...)` and in the DESCRIBE return of the session functions, so the effect of `sap_bics_hidden_members` and `sap_bics_filter` is visible without a result fetch |
 
 ```sql
@@ -744,7 +744,12 @@ becomes) given for a variable whose InfoObject is date-typed is converted to `YY
 BW rejects (`Value 'X' is not valid for variable Y`) fails `sap_bics_begin` with BW's message; an
 unfilled mandatory variable is reported when the result is read, since the chain may still fill
 it. A value BW cannot convert, or one that makes BW refuse to open the query, names the
-variables and values sent.
+variables and values sent. BW's read-back of the variables is checked too: a value it silently replaced
+by `#` (not assigned), or a hierarchy node it holds without its hierarchy, fails `sap_bics_begin` and
+names the variable. Dates for a date-typed variable are checked before they are sent, and an empty
+`LOW` is refused for a variable whose entry type does not allow the initial value. Applying a
+hierarchy-node variable as a node is not supported yet
+([#227](https://github.com/DataZooDE/erpl/issues/227)).
 
 Values are stored with the session state and replayed whenever the session is
 restored, so a chained `begin → rows → result` workflow stays restricted.
@@ -772,15 +777,16 @@ session and discards the old versions.
 
 **Where sessions live.** Sessions are persisted in the table `erpl_bics.bics_state` of one fixed
 database: the main database of the DuckDB instance (so a file database keeps them across
-restarts), or the attached database named by `SET erpl_bics_state_database = '<name>'`. `USE` and
-`ATTACH` do not move them. When the main database is read-only, sessions go to an in-memory
+restarts), or the attached database named by `SET erpl_bics_state_database = '<name>'`, which
+applies to every connection of the instance. `USE` and `ATTACH` do not move them. When the main database is read-only, sessions go to an in-memory
 database `erpl_bics_sessions` (with a trace warning) and last as long as the instance. Every
 `sap_bics_begin` and every mutation stores a full version of the state (100–300 KB for typical
 queries), and every version is kept until it is removed. The store is located on every call, so a
 store file attached again (or under another name), or a dropped `erpl_bics` schema, is picked up
 or set up again at once; the store name in `erpl_bics_state_database` is matched ignoring case.
 Mutations of one session from several connections at once all apply: a mutation that finds a
-newer version than the one it read applies itself again to that version.
+newer version than the one it read applies itself again to that version, and `sap_bics_end` or
+`sap_bics_gc` running at the same time from several connections all succeed.
 
 #### `sap_bics_sessions()`
 
@@ -872,6 +878,9 @@ Configure row axis characteristics.
 | `char1, ...` | VARCHAR | *required* | Characteristics to add/set |
 | `op` | BICS_OPERATION | `'ADD'` | `'SET'`, `'ADD'`, or `'REMOVE'` |
 | `return` | BICS_RETURN | `'DESCRIBE'` | Return format |
+
+`'REMOVE'` takes a characteristic off this axis and makes it free; one that is not on this axis is
+left where it is. Like `'ADD'`, it refuses a characteristic the query does not offer for navigation.
 
 ```sql
 SELECT * FROM sap_bics_rows('my_session', '0CALDAY', '0MATERIAL');
@@ -1062,7 +1071,8 @@ cumulation) are **not** applied: BW returns the plain values and leaves the calc
 client. The trace reports the affected members (#196).
 
 The active conditions of a BEx query (Top N, Bottom N, thresholds) are applied, as BW's own
-runtime does: a condition on specific characteristics while all of them are drilled down, an
+runtime does: a condition on specific characteristics while all of them are drilled down on one
+axis (on two axes BW cannot use it, RSCRM 170), an
 "all characteristics independently" condition to each drilled-down characteristic. The
 characteristics of a Top/Bottom N condition come back ranked by its value (a condition that mixes Top and Bottom N keeps
 their order; a characteristic shown as a hierarchy keeps its node order, because BW applies no sorting
@@ -1130,6 +1140,9 @@ SELECT * FROM sap_bics_meta_provider_fields('0D_NW_C01');
 SELECT * FROM sap_bics_meta_queries();
 SELECT * FROM sap_bics_meta_query_elements('0D_FC_NW_C01_Q0001');
 ```
+
+BW object names (queries, InfoProviders, InfoObjects, hierarchies, DataSources, ...) are matched
+ignoring case and surrounding blanks in every catalog and metadata function, as in `sap_bics_begin`.
 
 **Returns and sources, where not obvious:**
 
