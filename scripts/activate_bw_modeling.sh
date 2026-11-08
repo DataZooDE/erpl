@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Activates the BW Modeling ADT services on the local a4h trial container.
 #
-# They ship INACTIVE on sapse/abap-cloud-developer-trial:2023, so every `erpl-adt bw ...`
+# They ship INACTIVE on sapse/abap-cloud-developer-trial:2025, so every `erpl-adt bw ...`
 # command returns HTTP 403 until this has run.  Activation survives a container restart
 # but not an image recreation, so this needs re-running after a rebuild.
 #

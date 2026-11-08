@@ -1,6 +1,6 @@
 # Activate the BW Modeling ADT services.
 #
-# They ship INACTIVE on sapse/abap-cloud-developer-trial:2023, so every `erpl-adt bw ...`
+# They ship INACTIVE on sapse/abap-cloud-developer-trial:2025, so every `erpl-adt bw ...`
 # call returns HTTP 403 until they are on.  Activating them needs a full instance restart
 # to flush the ICF cache -- and that restart destroys certificate trust, which is why
 # 30-cert-trust.sh runs after this one and keys off RESTARTED.

@@ -94,9 +94,14 @@ container_up() {
     docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$A4H_CONTAINER"
 }
 
+# sapcontrol's exit code is a state, not success: GetProcessList returns 3 when every
+# process is GREEN and 4 when all are stopped.  Callers grep the list under pipefail, so
+# passing that code on made the fully started instance look like a failure and
+# wait_for_sap loop until its deadline.  The list itself is what callers judge.
 _process_list() {
     docker exec "$A4H_CONTAINER" bash -c \
         "su - a4hadm -c 'sapcontrol -nr 00 -function GetProcessList'" 2>/dev/null
+    return 0
 }
 
 # Default 40 minutes.  A *restart* is back in about a minute, but a COLD container is not:
