@@ -4,7 +4,14 @@
 #   ./scripts/start-sap.sh                  # start, wait, provision, stay in foreground
 #   ./scripts/start-sap.sh --detach         # same but return once provisioned
 #   ./scripts/start-sap.sh --no-provision   # bare container, nothing applied
+#   ./scripts/start-sap.sh --license FILE   # also install this AS ABAP licence (minisap, system A4H)
 #   ./scripts/start-sap.sh --no-lcp         # boot unpatched (SAP date window enforced)
+#
+# The image ships a three-month AS ABAP licence and a valid HANA licence, so no licence file
+# is needed.  A licence file is bound to the hardware key of one image: the image's update
+# script deletes the installed licence before it installs the file, so a file for another
+# image (A4H_Multiple.txt was issued for :2023) leaves the system with no valid licence.
+# That is why a licence is only mounted when one is passed explicitly.
 #
 # The trial keys expire 2027-02-06 (ABAP) and 2028-02-11 (HANA) and cannot be re-issued, so by
 # default the container is started through the lcp submodule's entrypoint wrapper, which removes
@@ -24,10 +31,10 @@
 # returns in a few minutes; `scripts/sap/provision.sh --status` reports the rest.
 set -uo pipefail
 
-APAB_PLATFORM_IMAGE="sapse/abap-cloud-developer-trial:2025"
+APAB_PLATFORM_IMAGE="${A4H_IMAGE:-sapse/abap-cloud-developer-trial:2025}"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 PROFILE_FILE="$SCRIPT_DIR/A4H_D00_vhcala4hci.profile"
-LICENSE_FILE="$SCRIPT_DIR/A4H_Multiple.txt"
+LICENSE_FILE=""
 # Private submodule (like bics/odp); ERP_LCP_DIR points elsewhere if needed.
 LCP_DIR="${ERP_LCP_DIR:-$SCRIPT_DIR/../lcp}"
 LCP=1
@@ -41,7 +48,7 @@ while [ $# -gt 0 ]; do
         --detach|-d)    DETACH=1 ;;
         --license)      LICENSE_FILE="${2:?--license needs a path}"; shift ;;
         --no-lcp)       LCP=0 ;;
-        -h|--help)      sed -n '2,18p' "$0"; exit 0 ;;
+        -h|--help)      sed -n '2,30p' "$0"; exit 0 ;;
         *)              LICENSE_FILE="$1" ;;   # backwards compatible: bare licence path
     esac
     shift
@@ -108,7 +115,7 @@ docker_run() {  # docker_run <-d|-i>
         --sysctl kernel.sem="1250 256000 100 8192" \
         --ulimit nofile=1048576:1048576 \
         -v "$PROFILE_FILE":/usr/sap/A4H/SYS/profile/A4H_D00_vhcala4hci \
-        -v "$LICENSE_FILE":/opt/sap/ASABAP_license \
+        ${LICENSE_FILE:+-v "$LICENSE_FILE":/opt/sap/ASABAP_license} \
         "${lcp_mount[@]}" \
         "${lcp_entrypoint[@]}" \
         $APAB_PLATFORM_IMAGE -agree-to-sap-license -skip-limits-check
