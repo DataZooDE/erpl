@@ -27,6 +27,10 @@ namespace duckdb
 
     yyjson_mut_val *ErplSerializer::SerializeJson(yyjson_mut_doc *doc, const Value &value, bool include_type)
     {
+        // A NULL of any type, containers included, is JSON null (GetValue / GetChildren throw on it).
+        if (value.IsNull()) {
+            return yyjson_mut_null(doc);
+        }
         auto type = value.type().id();
         yyjson_mut_val *ret = nullptr;
         switch (type) 
@@ -388,6 +392,11 @@ namespace duckdb
 
     std::string ErplSerializer::SerializeSQL(const Value &value, const bool pretty_print, const uint32_t indent) 
     {
+        // A NULL struct or list has no children to walk (a nested table erpl leaves unset,
+        // e.g. REPL_FILTER in the BICS selection entry on SAP_BW 816).
+        if (value.IsNull()) {
+            return value.ToSQLString();
+        }
         auto type = value.type().id();
         switch(type) {
             case LogicalTypeId::STRUCT:
