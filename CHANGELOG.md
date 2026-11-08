@@ -51,6 +51,14 @@ LOAD erpl;
 - **[bics]** `DESCRIBE`, `EXPLAIN` and `PREPARE` of a mutation no longer apply it; `EXECUTE` does. ([#194](https://github.com/DataZooDE/erpl/issues/194))
 - **[bics]** The cell-budget error names `erpl_bics_max_data_cells` when that is the limit. ([#195](https://github.com/DataZooDE/erpl/issues/195))
 - **[bics]** BEx local calculations are documented as not applied, and a warning says so. ([#196](https://github.com/DataZooDE/erpl/issues/196))
+- **[bics]** BEx local calculations ("Calculate single values as", "Calculate results as") are computed: rank,
+  olympic rank, min, max, counters, moving averages, normalisation to the group / overall result and hide on single
+  values; sum, min, max, counts, averages, standard deviation, variance, first, last and hide on results, matching
+  BW's runtime. The rest keep the plain values and the trace names them. ([#196](https://github.com/DataZooDE/erpl/issues/196))
+- **[bics]** `sap_bics_describe(id => ...)` lists the session's variables; prepared metadata functions read the
+  session as it is at each execution; `sap_bics_structure_members('<cube>')` lists the key-figure structure;
+  `sap_bics_variables(id => ...)` needs no positional argument; out-of-range calendar periods in filters are refused.
+  ([#231](https://github.com/DataZooDE/erpl/issues/231))
 - **[rfc]** A NULL structure or table argument is sent as initial; BICS filters failed on SAP_BW 816 (the new
   `REPL_FILTER` table). ([#198](https://github.com/DataZooDE/erpl/issues/198))
 - **[bics]** Structure, structure-member and display-attribute names resolve like characteristic names: exact
