@@ -23,7 +23,14 @@ LOAD erpl;
 
 ---
 
-## Unreleased
+## v2026.11.09 — BICS hardening: eight rounds of generated-SQL testing
+
+About fifty BICS fixes, found by exploratory test rounds that drive erpl_bics the way a SQL generator does:
+`sap_bics_describe` feeds `sap_bics_begin`, mutations and `sap_bics_result`, compared with BW's own runtime
+(RRW3) on SAP_BW 816. The common causes are fixed once each: names resolve through one resolver, values erpl sends
+are checked against what BW holds, values erpl writes are BW's own constants, and the session store is one per
+instance and safe under concurrency. BEx conditions and local calculations are applied as BW's runtime applies
+them. Hierarchy-node variables (#227) and value sorting on a hierarchy (#223) are documented BW-side limitations.
 
 ### Fixed
 
@@ -50,7 +57,6 @@ LOAD erpl;
   without characteristics (unfilled variables). ([#193](https://github.com/DataZooDE/erpl/issues/193))
 - **[bics]** `DESCRIBE`, `EXPLAIN` and `PREPARE` of a mutation no longer apply it; `EXECUTE` does. ([#194](https://github.com/DataZooDE/erpl/issues/194))
 - **[bics]** The cell-budget error names `erpl_bics_max_data_cells` when that is the limit. ([#195](https://github.com/DataZooDE/erpl/issues/195))
-- **[bics]** BEx local calculations are documented as not applied, and a warning says so. ([#196](https://github.com/DataZooDE/erpl/issues/196))
 - **[bics]** BEx local calculations ("Calculate single values as", "Calculate results as") are computed: rank,
   olympic rank, min, max, counters, moving averages, normalisation to the group / overall result and hide on single
   values; sum, min, max, counts, averages, standard deviation, variance, first, last and hide on results, matching
