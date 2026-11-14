@@ -18,7 +18,7 @@ statements in one `duckdb -c` string, never print passwords.
 3. Collect in one pass: `duckdb_extensions()` erpl versions, `version()`, `sap_rfc_backend()`,
    `sap_rfc_live_connections()`; for BICS `SELECT * FROM sap_bics_result_stats('<id>');`.
 4. Classify with the symptom table in `erpl-operate`. Check the known traps first: several statements in
-   `duckdb -c`; projection on an ODP BW provider (aggregates); `LIMIT` on a delta read; missing
+   `duckdb -c`; `columns` on an ODP BW provider (aggregates; any projection did on erpl ≤ v2026.11.09); `LIMIT` on a delta read; missing
    `ET_DATA` for string columns; unfilled BEx variables; analysis authorizations (`no_authority`,
    `data_cells = 0`).
 5. State the root cause with the evidence, apply the smallest fix and re-run the reproduction.

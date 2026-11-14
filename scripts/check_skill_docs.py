@@ -33,8 +33,8 @@ Two modes:
             fail.
 
 Illustrative or deliberately broken SQL belongs in a ```text fence, which is never run.
-Keys in synopsis.txt / expected_errors.txt are `<file>\\t<first non-comment line>`; two
-fences of one file with the same key are an error, because one entry would silence both.
+Keys in synopsis.txt / expected_errors.txt are `<file>\\t<first non-comment line>`; a key that
+matches two fences of one file is an error, because the entry would silence both.
 
 Documented CREATE PERSISTENT SECRETs never reach the real ~/.duckdb/stored_secrets: every
 block runs with `secret_directory` set to a throwaway directory.
@@ -400,9 +400,9 @@ def main():
             if lang != "sql":
                 continue
             key = f"{path}\t{first_line(body)}"
-            if key in file_keys:
+            if key in file_keys and key in (synopsis | expected):
                 add("FAIL", path, line, first_line(body),
-                    "another sql fence of this file starts with the same line; one support-file key would cover both")
+                    "another sql fence of this file starts with the same line; its support-file key covers both")
             file_keys.add(key)
             seen_keys.add(key)
             head = body.lstrip().splitlines()[0].strip() if body.strip() else ""

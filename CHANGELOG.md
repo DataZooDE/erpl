@@ -23,6 +23,26 @@ LOAD erpl;
 
 ---
 
+## Unreleased
+
+### Added
+
+- **[all]** A Claude Code plugin in `plugins/erpl/` (install: `/plugin marketplace add DataZooDE/erpl` →
+  `/plugin install erpl@erpl`). Twelve skills cover setup, choosing an interface, RFC tables and function
+  modules, ODP, APE, BICS queries and metadata, pipelines, deployment, operation and performance. Seven commands
+  check a connection, diagnose a failure, write the Basis handout, and find, run, navigate and clean up BW
+  queries. `make check_skill_names` (run in CI by the smoke test) checks every name the plugin and the reference
+  docs use against the build; `make check_skills` runs the plugin's SQL against the trial system.
+
+### Fixed
+
+- **[docs]** API_REFERENCE.md: `sap_bics_show_hierarchies` columns, the read-table function scope
+  (`sap_bics_begin`, not the removed `sap_bics_query`), the SSH tunnel example (`tunnel_import`, matching
+  gateway port), `sap_odp_drop` semantics. README: telemetry section matches TELEMETRY.md. DEVELOPMENT.md
+  rewritten for the current build.
+
+---
+
 ## v2026.11.09 — BICS hardening: eight rounds of generated-SQL testing
 
 About fifty BICS fixes, found by exploratory test rounds that drive erpl_bics the way a SQL generator does:

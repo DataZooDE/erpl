@@ -48,7 +48,7 @@ SELECT extension_name, extension_version FROM duckdb_extensions() WHERE extensio
 | `no RFC authorization` | `S_RFC` missing for a function group | `sap_rfc_authorizations()` → Basis |
 | `Secret '*' not found` in a CLI one-liner | Statements in one `duckdb -c` string | Pipe a script through stdin |
 | `sap_read_table` fails on a string column | No `ET_DATA` support | `READ_TABLE_FUNCTION`; see `erpl-rfc-tables` |
-| ODP numbers look aggregated | Projection on a BW provider | Read `SELECT *` first (`erpl-odp-replication`) |
+| ODP numbers look aggregated | `columns` on a BW provider (or any projection on erpl ≤ v2026.11.09) | Read `SELECT *` into a table first (`erpl-odp-replication`) |
 | APE read waits long, then times out | SAP prepare job not finished | Check the application log named in the error; `erpl_ape_prepare_timeout` |
 | BICS result empty / all NULL | Authorizations, variables, budget | `sap_bics_result_stats` (below) |
 | BICS "too large to read in one go" | Cell budget | Filter, or the suggested `erpl_bics_max_result_memory` |

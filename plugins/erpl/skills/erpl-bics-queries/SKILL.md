@@ -121,9 +121,10 @@ charts, export) are in `references/result-rendering.md`.
 ## Hierarchies
 
 ```sql
-SELECT * FROM sap_bics_show_hierarchies(info_object => '0D_NW_PROD');
+SELECT hierarchy_name, description, date_to, version FROM sap_bics_show_hierarchies(info_object => '0D_NW_PROD');
+-- a time-dependent hierarchy: pick the version valid at date_to
 SELECT node_id, parent_id, node_name, node_value, level, path
-FROM sap_bics_hierarchy('<hierarchy>') ORDER BY node_id;
+FROM sap_bics_hierarchy('0D_NW_PROD_HIER', date_to => '20201231') ORDER BY node_id;
 ```
 
 ## Sessions

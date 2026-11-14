@@ -7,7 +7,7 @@ description: >
   subscriber_process (auto DELTAINIT, resume, recover => true), ODQ_CHANGEMODE / ODQ_TSN change columns,
   the cheap probe sap_odp_get_last_modified, subscription and cursor management (sap_odp_show_subscriptions,
   sap_odp_show_cursors, sap_odp_get_subscriptions, PRAGMA sap_odp_close_delta_cursor, PRAGMA sap_odp_drop),
-  and why projecting columns aggregates BW providers. Use when reading SAP extractors/DataSources (SAPI),
+  and why the columns argument aggregates BW providers. Use when reading SAP extractors/DataSources (SAPI),
   BW InfoProviders (BW context), extraction-enabled CDS views (ABAP_CDS) or SLT, when building an
   incremental (delta) load, or when ODP row counts look wrong.
 user-invocable: false
@@ -21,13 +21,14 @@ over RFC. Objects live in **contexts** — `SAPI` (extractors/DataSources), `BW`
 
 ## Critical gotchas
 
-1. **Reading fewer columns aggregates the data on BW providers.** ODP returns key figures aggregated over
-   the fields you request. `SELECT CALYEAR FROM sap_odp_read_full('BW', …)` yields one row per year, and
-   `count(*)` is answered from a single column, so it counts aggregated rows, not records. The same holds
-   for `columns => [...]`. To work with records, land the full row first
-   (`CREATE TABLE t AS SELECT * FROM sap_odp_read_full(…)`) and aggregate in DuckDB.
-2. **Selecting only `ODQ_*` columns returns nothing.** They are change metadata, not source fields; always
-   read at least one source field with them.
+1. **`columns => [...]` aggregates on BW providers.** ODP returns key figures aggregated over the fields a
+   request names: `sap_odp_read_full('BW', '0D_FC_C01$F', columns => ['CALYEAR'])` yields one row per
+   year, not one per record. A SQL projection (`SELECT CALYEAR FROM sap_odp_read_full(…)`) does not — erpl
+   requests every field and projects locally (erpl ≥ the release after v2026.11.09; older versions
+   aggregated here too). Use `columns` only when you want SAP to aggregate or to cut the transfer of a
+   non-aggregating source.
+2. **`ODQ_*` columns are change metadata**, not source fields: `ODQ_CHANGEMODE`, `ODQ_ENTITYCNTR`,
+   `ODQ_TSN`, `ODQ_UNITNO`, `ODQ_RECORDNO`. Never put them in `columns`.
 3. **The first `sap_odp_read_delta` with a new `subscriber_process` is the initial load** (auto DELTAINIT): it
    returns the current snapshot and registers a server-side pointer. Later calls with the same name return
    only changes. Changing the name starts over with a new full snapshot.
@@ -71,7 +72,7 @@ SELECT * FROM sap_odp_read_full('BW', '0D_FC_C01$F',
 | Parameter | Meaning |
 |---|---|
 | `threads` | Parallel package fetch (default 5) — full reads only |
-| `columns` | Fields to request — **aggregates** on BW providers (gotcha 1) |
+| `columns` | Fields to request from SAP — **aggregates** on BW providers (gotcha 1) |
 | `filters` | `LIST(STRUCT(FIELDNAME, SIGN, OP, LOW, HIGH))`; `OP` is `EQ`, `NE`, `GT`, `LT`, `GE`, `LE`, `BT`, `CP` |
 | `secret` | Named `sap_rfc` secret |
 
@@ -141,7 +142,7 @@ destructive for the pipeline: confirm with the user before running it.
 | Run crashed mid-delta | Re-run with `recover => true`, then continue normally |
 | Need to reload everything | `sap_odp_drop`, then the next delta read is an initial load |
 | Need deletes from a CDS view | APE (`erpl-ape-cds`) |
-| Counts or sums look wrong | You projected columns on a BW provider (gotcha 1): read `SELECT *` first |
+| Counts or sums look wrong | `columns` on a BW provider aggregates (gotcha 1); on erpl ≤ v2026.11.09 any projection did — read `SELECT *` into a table first |
 
 ## Canonical delta cycle
 

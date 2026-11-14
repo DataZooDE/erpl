@@ -2,7 +2,7 @@
 
 > Complete function reference for SAP data integration in DuckDB
 
-**DuckDB Version:** >= v1.2.0
+**DuckDB Version:** v1.5.6 (binaries are built per DuckDB release; see the matrix in CHANGELOG.md)
 **Extensions:** erpl_rfc, erpl_bics, erpl_odp, erpl_ape
 
 ---
@@ -24,6 +24,9 @@ The ERPL extension suite brings SAP data integration directly into DuckDB. It en
 | **erpl_odp** | SAP ODP data extraction and replication |
 | **erpl_ape** | SAP CDS entity extraction via the ABAP Pipeline Engine — full and delta reads including deletes |
 | *(SSH tunnelling)* | moved to the [erpl_tunnel](https://github.com/DataZooDE/erpl-tunnel) extension |
+
+> **Working with an AI assistant?** The [Claude Code plugin](./README.md#-claude-code-plugin) carries this
+> reference as task-oriented skills; `make check_skill_names` keeps both in sync with the build.
 
 ---
 
@@ -555,7 +558,7 @@ List available BW hierarchies.
 | `info_object` | VARCHAR | — | Filter by InfoObject |
 | `secret` | VARCHAR | — | Named secret |
 
-**Returns:** `technical_name`, `text`, `version`, `valid_to_date`
+**Returns:** `hierarchy_name`, `info_object`, `description`, `date_to`, `version`
 
 ```sql
 SELECT * FROM sap_bics_show_hierarchies();
@@ -1561,7 +1564,7 @@ will re-snapshot via DELTAINIT.
 #### `PRAGMA sap_odp_drop(odp_context, subscriber_name, subscriber_process, odp_name)`
 
 Drop an ODP subscription/cursor on the SAP system (invokes `RODPS_REPL_ODP_RESET`).
-A subsequent `sap_odp_read_full` will re-create the subscription from scratch.
+The next `sap_odp_read_delta` with the same subscriber starts over with an initial load (DELTAINIT).
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -2205,6 +2208,7 @@ CREATE SECRET my_ssh_key (
 |------|--------|---------|
 | `BICS_RETURN` | `'DESCRIBE'`, `'RESULT'` | BICS query workflow functions |
 | `BICS_OPERATION` | `'SET'`, `'ADD'`, `'REMOVE'` | BICS axis/filter configuration |
+| `ODP_REPLICATION_MODE` | `'FULL'`, `'DELTA'`, `'RECOVER'` | ODP extraction mode |
 
 The `return =>` and `op =>` parameters take plain text and accept any case (`op => 'set'`);
 an unknown value is an error listing the allowed ones. Characteristic and query names are
@@ -2224,7 +2228,6 @@ is answered by DuckDB without running the function, so it neither applies a muta
 session. Clearing an axis (`op => 'SET'`) keeps the key-figure
 structure on it; remove it explicitly with `op => 'REMOVE'`. A characteristic the query uses
 only internally (on no axis and not free) cannot be moved onto an axis.
-| `ODP_REPLICATION_MODE` | `'FULL'`, `'DELTA'`, `'RECOVER'` | ODP extraction mode |
 
 ---
 
@@ -2557,25 +2560,29 @@ client program. Check with your Basis team first.
 
 ### SSH Tunnel + SAP Connection
 
-Complete workflow for connecting through an SSH jump host:
+Reaching an SAP system behind a jump host, with the separate `erpl_tunnel` extension. The RFC gateway
+port is `33<sysnr>`, so the local end of the tunnel must be `33<sysnr>` as well (or set `GWSERV` in the
+secret):
 
 ```sql
--- 1. Create SSH tunnel secret
+INSTALL erpl_tunnel FROM 'http://get.erpl.io';
+LOAD erpl_tunnel;
+
+-- 1. SSH secret and tunnel: local 3300 -> sap.internal:3300 (system number 00)
 CREATE SECRET my_ssh (TYPE ssh_tunnel, ssh_host 'jump.example.com', ssh_user 'user', password 'pw');
+PRAGMA tunnel_import(secret = 'my_ssh', remote_host = 'sap.internal', remote_port = 3300, local_port = 3300);
 
--- 2. Create tunnel
-PRAGMA tunnel_create(secret='my_ssh', remote_host='sap.internal', remote_port=3300, local_port=13300);
-
--- 3. Create SAP connection pointing to local tunnel port
-CREATE SECRET my_sap (TYPE sap_rfc, ASHOST 'localhost', SYSNR '00', CLIENT '100', USER 'sap', PASSWD 'pw');
-
--- 4. Query through tunnel
+-- 2. SAP connection through the local end
+CREATE SECRET my_sap (TYPE sap_rfc, ASHOST '127.0.0.1', SYSNR '00', CLIENT '100', USER 'sap', PASSWD 'pw');
 SELECT * FROM sap_read_table('SFLIGHT');
 
--- 5. Cleanup
+-- 3. Cleanup
 PRAGMA tunnel_close_all;
 ```
 
+See the [erpl_tunnel README](https://github.com/DataZooDE/erpl-tunnel) for key authentication, reverse
+tunnels and Tailscale/NetBird.
+
 ---
 
-**Last Updated:** 2026-02-11
+

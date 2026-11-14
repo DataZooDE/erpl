@@ -5,6 +5,7 @@ columns, then one DOUBLE per column-axis tuple. Persist it first, then shape it 
 `sap_bics_result` call re-executes the query on BW.
 
 ```sql
+-- check:skip-live (needs an open session 'q1')
 CREATE OR REPLACE TABLE r AS SELECT * FROM sap_bics_result('q1');
 DESCRIBE r;
 ```
