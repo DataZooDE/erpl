@@ -76,6 +76,9 @@ namespace duckdb
     TableFunction CreateRfcDescribeFieldsScanFunction()
     {
         auto fun = TableFunction("sap_describe_fields", {LogicalType::VARCHAR}, RfcDescribeFieldsScan, RfcDescribeFieldsBind);
+        // The bind reads LANGUAGE, but without the declaration DuckDB rejects the documented
+        // sap_describe_fields('T', LANGUAGE => 'D') at bind time.
+        duckdb_compat::AddNamedParameter(fun, "LANGUAGE", LogicalType::VARCHAR);
         fun.projection_pushdown = false;
 
         return fun;

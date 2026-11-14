@@ -40,6 +40,9 @@ LOAD erpl;
   (`sap_bics_begin`, not the removed `sap_bics_query`), the SSH tunnel example (`tunnel_import`, matching
   gateway port), `sap_odp_drop` semantics. README: telemetry section matches TELEMETRY.md. DEVELOPMENT.md
   rewritten for the current build.
+- **[rfc]** `sap_describe_fields('T', LANGUAGE => 'D')` returns the field texts in the requested language.
+  The parameter was documented and read, but never declared, so DuckDB rejected the call with
+  `Invalid named parameter "LANGUAGE"`.
 
 ---
 

@@ -80,3 +80,16 @@ SELECT COUNT(*) > 0 FROM sap_describe_fields('T002') WHERE sap_type = 'LANG';
 ----
 1
 
+
+# ---------------------------------------------------------------------
+# LANGUAGE selects the language of the field texts (it used to be read by the bind but
+# never declared, so the documented call failed with "Invalid named parameter").
+query I
+SELECT DISTINCT language FROM sap_describe_fields('SFLIGHT', LANGUAGE => 'D');
+----
+D
+
+query I
+SELECT DISTINCT language FROM sap_describe_fields('SFLIGHT');
+----
+E
