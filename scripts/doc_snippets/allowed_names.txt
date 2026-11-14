@@ -6,3 +6,5 @@ erpl_bics_sessions	the in-memory session table a read-only database falls back t
 erpl_only	a named parameter of sap_odp_show_subscriptions / sap_ape_show_subscriptions
 erpl_something	placeholder for a third party's subscription name in the APE prefix convention
 tunnel_import	registered by the separate erpl_tunnel extension, not by erpl
+erpl-tunnel-*	skills of the separate erpl-tunnel plugin (DataZooDE/erpl-tunnel)
+erpl-adt-*	skills of the separate erpl-adt plugin (DataZooDE/erpl-adt)

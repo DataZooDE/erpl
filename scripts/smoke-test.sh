@@ -98,9 +98,11 @@ trap 'rm -rf "$SMOKE_HOME"' EXIT INT TERM
 
 # ── 6. Build CLI invocation (Rosetta for osx_amd64 on arm64 runner) ─────────
 RUN_CLI=("$DUCK" -unsigned)
+CHECK_CLI="$DUCK"   # the same CLI for step 7; check_skill_docs.py adds -unsigned itself
 if [[ "$OS" == "Darwin" && "${OSX_BUILD_ARCH:-}" == "x86_64" ]]; then
     echo "[smoke-test] osx_amd64 extension — using Rosetta (arch -x86_64)"
     RUN_CLI=(arch -x86_64 "$DUCK" -unsigned)
+    CHECK_CLI="arch -x86_64 $DUCK"
 fi
 
 echo ""
@@ -238,14 +240,15 @@ fi
 # register would have it write SQL that fails. Offline: checks names, sap_rfc secret
 # fields and `-- check:offline` fences against the extension just installed.
 echo "[smoke-test] Step 7/7: Checking the Claude Code plugin against the registered surface..."
-if [[ -f "$PROJ_DIR/scripts/check_skill_docs.py" ]] && command -v python3 &>/dev/null; then
-    CHECK_CLI=("${RUN_CLI[@]}")
-    unset 'CHECK_CLI[${#CHECK_CLI[@]}-1]'   # drop -unsigned; the checker adds it
+if command -v python3 &>/dev/null; then
     python3 "$PROJ_DIR/scripts/check_skill_docs.py" --names \
-        --duckdb "$(printf '%q ' "${CHECK_CLI[@]}")" --preamble "LOAD erpl;" --home "$SMOKE_HOME" \
+        --duckdb "$CHECK_CLI" --preamble "LOAD erpl;" --home "$SMOKE_HOME" \
         --out "$SMOKE_HOME/skill-docs.tsv"
+elif [[ -n "${CI:-}" ]]; then
+    echo "ERROR: python3 is required for Step 7 in CI" >&2
+    exit 1
 else
-    echo "[smoke-test] WARNING: python3 or scripts/check_skill_docs.py missing — skipping Step 7"
+    echo "[smoke-test] WARNING: python3 not found — skipping Step 7"
 fi
 
 echo ""

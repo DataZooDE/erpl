@@ -253,4 +253,4 @@ check_skill_names:
 	python3 scripts/check_skill_docs.py --names
 
 check_skills:
-	$(SAP_COMMON_VARS) python3 scripts/check_skill_docs.py --live
+	@$(SAP_COMMON_VARS) python3 scripts/check_skill_docs.py --live

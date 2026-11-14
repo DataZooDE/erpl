@@ -45,9 +45,9 @@ Not sure which interface fits an SAP object? See `erpl-choose-interface`.
    `secret='name'` (pragmas) — otherwise erpl uses the best match and you may hit the wrong system.
 6. **The RFC backend is chosen once per process.** `SET erpl_rfc_backend = 'proto'` must come before
    the first SAP call; afterwards a different value is refused. erpl never falls back silently.
-7. **CLI `-s`/`-c` with several statements runs them in one transaction** — a secret created there is
-   not visible to the later statements. Pipe a script through stdin instead
-   (`duckdb -unsigned < setup.sql`) or create the secret `PERSISTENT`.
+7. **`duckdb -c "…"` with several statements binds them together.** A `LOAD erpl` or `CREATE SECRET` in
+   that string is not visible to the statements after it (`Pragma Function … does not exist`,
+   `Secret '*' not found`). Pipe a script through stdin instead: `duckdb -unsigned < session.sql`.
 
 ## Install
 
@@ -130,8 +130,10 @@ CREATE SECRET my_sap_cloud (
 );
 ```
 
-- **`PERSISTENT`** (`CREATE PERSISTENT SECRET …`) writes the secret to `~/.duckdb/stored_secrets/`, so it
-  survives restarts. Use it for interactive work; for servers see `erpl-deploy`.
+- **`PERSISTENT`** (`CREATE PERSISTENT SECRET …`) writes the secret to `~/.duckdb/stored_secrets/` so it
+  survives restarts — **unencrypted**, password included; redaction only affects what `duckdb_secrets()`
+  displays. Remove it with `DROP PERSISTENT SECRET my_sap;`. Prefer temporary secrets on shared machines;
+  for servers see `erpl-deploy`.
 - **`dest`** reads every parameter from a destination in `sapnwrfc.ini` instead
   (`PRAGMA sap_rfc_set_ini_path('/etc/erpl')` points at the file).
 - Passwords, SSO2 tickets and X.509 certificates are redacted in `duckdb_secrets()`.
@@ -213,16 +215,26 @@ export DATAZOO_DISABLE_TELEMETRY=1
 
 ## Canonical first session
 
+Save as `session.sql` and run `duckdb -unsigned < session.sql` (after the one-time `INSTALL` above):
+
 ```sql
-INSTALL erpl FROM 'http://get.erpl.io';
+-- check:skip-live (example host; the live check supplies its own secret)
 LOAD erpl;
-CREATE PERSISTENT SECRET my_sap (
+CREATE SECRET my_sap (
     TYPE sap_rfc,
     ASHOST 'sap.example.com', SYSNR '00', CLIENT '100',
     USER 'ERPL_USER', PASSWD 'change-me', LANG 'EN'
 );
 PRAGMA sap_rfc_ping;
 SELECT * FROM sap_show_tables(TABLENAME => 'T00*') LIMIT 5;
+```
+
+The same session against an existing secret, as an assistant would run it to check access:
+
+```sql
+PRAGMA sap_rfc_ping;
+SELECT * FROM sap_show_tables(TABLENAME => 'T00*') LIMIT 5;
+SELECT sap_rfc_live_connections();
 ```
 
 See also: `erpl-choose-interface` (which function for which SAP object), `erpl-deploy` (servers,

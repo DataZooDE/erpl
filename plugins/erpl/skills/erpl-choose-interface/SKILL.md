@@ -68,11 +68,11 @@ SELECT * FROM sap_show_tables(TABLENAME => 'SFLIGHT');
 SELECT technical_name, text, cube_name FROM sap_bics_show_queries(search => 'SALES');
 ```
 
-## Editions
+## Before choosing APE or BICS
 
-The Community Edition covers RFC table reads; BW access (BICS) and replication (ODP) are Enterprise
-Edition capabilities, and CDS extraction via APE needs an SAP-side role that is set up per engagement
-(`ape/docs/security.md`). See `erpl-setup` for licensing pointers.
+BW access (BICS) and replication (ODP) belong to the Enterprise Edition, and CDS extraction via APE needs an
+SAP-side role — `sap_ape_check_authorizations()` tells you whether the user has it. Editions and licensing:
+`erpl-setup`.
 
 See also: `erpl-setup` (install and connect), `erpl-rfc-tables`, `erpl-rfc-functions`,
 `erpl-odp-replication`, `erpl-ape-cds`, `erpl-bics-queries`, `erpl-bics-metadata`, `erpl-pipelines`
