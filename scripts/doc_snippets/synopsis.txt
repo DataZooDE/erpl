@@ -1,0 +1,7 @@
+# Keys of ```sql fences that are signatures or placeholders, never run: <file>\t<first non-comment line>
+plugins/erpl/skills/erpl-setup/SKILL.md	INSTALL erpl FROM 'http://get.erpl.io';
+plugins/erpl/skills/erpl-setup/SKILL.md	CREATE SECRET my_sap (
+plugins/erpl/skills/erpl-setup/SKILL.md	CREATE SECRET my_sap_lb (
+plugins/erpl/skills/erpl-setup/SKILL.md	CREATE SECRET my_sap_router (
+plugins/erpl/skills/erpl-setup/SKILL.md	CREATE SECRET my_sap_snc (
+plugins/erpl/skills/erpl-setup/SKILL.md	CREATE SECRET my_sap_cloud (

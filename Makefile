@@ -2,7 +2,7 @@ PROJ_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 EXT_CONFIG=${PROJ_DIR}extension_config.cmake
 
-.PHONY: all clean format debug debug_tests cpp_tests_rfc cpp_tests_bics cpp_tests_odp cpp_tests_ape release pull update wasm_mvp wasm_eh wasm_threads sql_tests_rfc sql_tests_bics sql_tests_odp sql_tests_ape sql_tests_rfc_proto sql_tests_bics_proto sql_tests_odp_proto sql_tests_ape_proto sql_tests_all_backends delta_fixtures_odp delta_tests_odp ape_fixtures ape_delta_tests smoke_test smoke_test_musl
+.PHONY: all clean format debug debug_tests cpp_tests_rfc cpp_tests_bics cpp_tests_odp cpp_tests_ape release pull update wasm_mvp wasm_eh wasm_threads sql_tests_rfc sql_tests_bics sql_tests_odp sql_tests_ape sql_tests_rfc_proto sql_tests_bics_proto sql_tests_odp_proto sql_tests_ape_proto sql_tests_all_backends delta_fixtures_odp delta_tests_odp ape_fixtures ape_delta_tests smoke_test smoke_test_musl check_skill_names check_skills
 
 # Test file argument - if provided, run only that specific test
 TEST_FILE ?=
@@ -241,3 +241,16 @@ endif
 
 smoke_test_musl: release
 	./scripts/smoke-test-musl.sh "$(PROJ_DIR)$(SMOKE_EXT)"
+
+#### Claude Code plugin checks (plugins/erpl/) — see scripts/check_skill_docs.py
+# check_skill_names: offline. Every sap_*/erpl_* name the plugin, README.md, API_REFERENCE.md and
+#   TROUBLESHOOTING.md use must be registered, every sap_rfc secret in their SQL must be accepted,
+#   and every `-- check:offline` fence must run. Uses the debug build (no SAP needed); CI runs the
+#   same check against the release artifact inside scripts/smoke-test.sh.
+# check_skills: runs the plugin's SQL fences against the a4h trial (same credentials as the SQL
+#   suites). Part of the release checklist. Do not run it while a SQL suite runs.
+check_skill_names:
+	python3 scripts/check_skill_docs.py --names
+
+check_skills:
+	$(SAP_COMMON_VARS) python3 scripts/check_skill_docs.py --live

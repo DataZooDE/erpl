@@ -126,7 +126,7 @@ run_step() {
 }
 
 # ── 7. Step 1: Install extension ─────────────────────────────────────────────
-run_step "Step 1/6: Installing extension..." \
+run_step "Step 1/7: Installing extension..." \
     "INSTALL '${EXTENSION_PATH}';"
 rm -f "$STEP_OUTPUT"
 
@@ -141,7 +141,7 @@ fi
 rm -f "$STEP_OUTPUT"
 
 # ── 8. Step 2: Load and check duckdb_extensions() ────────────────────────────
-run_step "Step 2/6: Loading extension and checking duckdb_extensions()..." \
+run_step "Step 2/7: Loading extension and checking duckdb_extensions()..." \
     "LOAD erpl;
 SELECT extension_name, loaded
   FROM duckdb_extensions()
@@ -157,7 +157,7 @@ fi
 rm -f "$EXT_OUTPUT"
 
 # ── 9. Step 3: Count sap_* functions via duckdb_functions() ──────────────────
-run_step "Step 3/6: Counting sap_* functions in duckdb_functions()..." \
+run_step "Step 3/7: Counting sap_* functions in duckdb_functions()..." \
     "LOAD erpl;
 SELECT count(*) AS sap_function_count
   FROM duckdb_functions()
@@ -170,7 +170,7 @@ rm -f "$STEP_OUTPUT"
 # it is never embedded, and `LOAD erpl` succeeds with its functions simply absent.
 # That is exactly how erpl_ape went unshipped, and only a per-extension assertion
 # notices it.
-run_step "Step 4/6: Verifying specific SAP function names..." \
+run_step "Step 4/7: Verifying specific SAP function names..." \
     "LOAD erpl;
 SELECT function_name
   FROM duckdb_functions()
@@ -195,7 +195,7 @@ rm -f "$FUNC_OUTPUT"
 # a regression here -- the SQL suites use ERPL_SAP_* names and the ape harness
 # explicitly runs `env -u SAP_PASSWORD` -- and it needs no SAP system, so it belongs
 # in the smoke test.
-echo "[smoke-test] Step 5/6: LOAD with SAP_* in the environment..."
+echo "[smoke-test] Step 5/7: LOAD with SAP_* in the environment..."
 SAP_ENV_OUT="$(mktemp /tmp/erpl-smoke-sapenv-XXXXXX.txt)"
 if HOME="$SMOKE_HOME" SAP_ASHOST=nosuchhost SAP_SYSNR=00 SAP_CLIENT=001        SAP_USER=nobody SAP_PASSWORD=not-a-real-password SAP_LANG=EN        "${RUN_CLI[@]}" -c "LOAD erpl; SELECT 42 AS answer;" >"$SAP_ENV_OUT" 2>&1; then
     if grep -q "42" "$SAP_ENV_OUT"; then
@@ -215,7 +215,7 @@ fi
 rm -f "$SAP_ENV_OUT"
 
 # ── 12. Step 6: Double-connection regression test (issue #52) ─────────────────
-echo "[smoke-test] Step 6/6: Double-connection load regression test (issue #52)..."
+echo "[smoke-test] Step 6/7: Double-connection load regression test (issue #52)..."
 DUCKDB_PY_VERSION="${DUCKDB_VERSION_TAG#v}"   # strip leading 'v' for pip
 PY_PKG_DIR="$(mktemp -d /tmp/erpl-duckdb-py-XXXXXX)"
 trap 'rm -rf "$SMOKE_HOME" "$PY_PKG_DIR"' EXIT INT TERM
@@ -231,6 +231,21 @@ elif command -v python3 &>/dev/null && python3 -m pip install --quiet --only-bin
         python3 "$PROJ_DIR/trampoline/test/python/test_double_load.py" "$EXTENSION_PATH"
 else
     echo "[smoke-test] WARNING: duckdb Python wheel not available for ${DUCKDB_PY_VERSION} — skipping Step 6"
+fi
+
+# ── 13. Step 7: Claude Code plugin names (plugins/erpl/) ──────────────────────
+# The plugin's skills teach an assistant the SQL surface; a name this build does not
+# register would have it write SQL that fails. Offline: checks names, sap_rfc secret
+# fields and `-- check:offline` fences against the extension just installed.
+echo "[smoke-test] Step 7/7: Checking the Claude Code plugin against the registered surface..."
+if [[ -f "$PROJ_DIR/scripts/check_skill_docs.py" ]] && command -v python3 &>/dev/null; then
+    CHECK_CLI=("${RUN_CLI[@]}")
+    unset 'CHECK_CLI[${#CHECK_CLI[@]}-1]'   # drop -unsigned; the checker adds it
+    python3 "$PROJ_DIR/scripts/check_skill_docs.py" --names \
+        --duckdb "$(printf '%q ' "${CHECK_CLI[@]}")" --preamble "LOAD erpl;" --home "$SMOKE_HOME" \
+        --out "$SMOKE_HOME/skill-docs.tsv"
+else
+    echo "[smoke-test] WARNING: python3 or scripts/check_skill_docs.py missing — skipping Step 7"
 fi
 
 echo ""

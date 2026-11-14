@@ -15,6 +15,10 @@ INSTALL 'erpl' FROM 'http://get.erpl.io';
 LOAD 'erpl';
 ```
 
+> **🤖 Using an AI assistant?** ERPL ships a [Claude Code plugin](#-claude-code-plugin) whose skills know the
+> erpl SQL surface — which interface fits which SAP object, how to set up the connection, which functions
+> to call. Install with `/plugin marketplace add DataZooDE/erpl` → `/plugin install erpl@erpl`.
+
 
 ## Quicklinks
 
@@ -22,6 +26,7 @@ LOAD 'erpl';
 - [⚙ Example Usage](#-example-usage) 
 - [➜ Obtaining the ERPL Extension](#-obtaining-the-erpl-extension)
 - [💻 Installing the ERPL Binaries](#-installing-the-erpl-binaries)
+- [🤖 Claude Code Plugin](#-claude-code-plugin)
 - [Tracking](#tracking)
 - [Licence](#license)
 
@@ -319,6 +324,29 @@ libicuuc.so.50
 libsapnwrfc.so
 libsapucum.so
 ```
+
+[Back to Top](#top)
+
+## 🤖 Claude Code Plugin
+
+ERPL ships a [Claude Code](https://claude.com/claude-code) plugin, so an assistant working with you on SAP
+data knows the erpl functions, secret fields and settings instead of guessing them. Install it in any
+Claude Code session:
+
+```
+/plugin marketplace add DataZooDE/erpl
+/plugin install erpl@erpl
+```
+
+| Skill | Covers |
+|-------|--------|
+| `erpl-setup` | Installing erpl, `sap_rfc` secrets (direct, load-balanced, SAProuter, SNC, wsRFC), RFC backend, connection check, authorizations, telemetry |
+| `erpl-choose-interface` | Which interface for which SAP object: tables, function modules, CDS views, extractors, BW providers and queries; full vs delta |
+
+The skills load on their own when a question needs them. They live in [`plugins/erpl/`](plugins/erpl/);
+`make check_skill_names` verifies every function, setting and secret field they mention against the build
+(it runs in CI after the smoke test), and `make check_skills` runs their SQL against an SAP trial system.
+To try local changes, start Claude Code with `claude --plugin-dir ./plugins/erpl`.
 
 [Back to Top](#top)
 
