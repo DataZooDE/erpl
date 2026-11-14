@@ -43,6 +43,12 @@ LOAD erpl;
 - **[rfc]** `sap_describe_fields('T', LANGUAGE => 'D')` returns the field texts in the requested language.
   The parameter was documented and read, but never declared, so DuckDB rejected the call with
   `Invalid named parameter "LANGUAGE"`.
+- **[odp]** A SQL projection no longer changes which records `sap_odp_read_full` and `sap_odp_read_delta`
+  return. ODP aggregates key figures over the fields a request names, and erpl used to send DuckDB's
+  projection along: on a BW provider `SELECT CALYEAR …` returned one row per year, `count(*)` counted the
+  distinct values of one column, and selecting only `ODQ_*` columns returned no rows. erpl now always
+  requests the bound fields (the `columns` argument, or every field) and projects locally. `columns` keeps
+  its meaning: it asks SAP for fewer fields, and SAP aggregates over them.
 
 ---
 
