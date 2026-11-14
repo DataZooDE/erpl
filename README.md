@@ -11,7 +11,7 @@ With ERPL, use Enterprise Data in your Data Science and ML pipelines within minu
 Install with two lines of code in DuckDB (unsigned option must be set):
 
 ```
-INSTALL 'erpl' FROM 'http://get.erpl.io';
+INSTALL 'erpl' FROM 'https://get.erpl.io';
 LOAD 'erpl';
 ```
 
@@ -370,7 +370,7 @@ anofox and flapi plugins instead of repeating them.
 
 The skills load on their own when a question needs them. They live in [`plugins/erpl/`](plugins/erpl/);
 `make check_skill_names` verifies every function, setting and secret field they mention against the build
-(it runs in CI after the smoke test), and `make check_skills` runs their SQL against an SAP trial system.
+(it runs in the Linux and macOS smoke tests in CI), and `make check_skills` runs their SQL against an SAP trial system.
 To try local changes, start Claude Code with `claude --plugin-dir ./plugins/erpl`.
 
 [Back to Top](#top)
@@ -387,7 +387,7 @@ The complete API reference is in [API_REFERENCE.md](./API_REFERENCE.md); what to
 | **erpl_bics** | `sap_bics_show*`, `sap_bics_begin/rows/columns/filter/result`, `sap_bics_hierarchy`, `sap_bics_meta_*`, `sap_bics_lineage_*` | SAP BW queries, hierarchies, metadata views, lineage analysis |
 | **erpl_odp** | `sap_odp_show*`, `sap_odp_describe`, `sap_odp_read_full`, `sap_odp_preview` | SAP ODP data extraction and replication |
 | **erpl_ape** | `sap_ape_show`, `sap_ape_describe`, `sap_ape_preview`, `sap_ape_read_full`, `sap_ape_read_delta`, `sap_ape_show_subscriptions`, `sap_ape_check_authorizations` | SAP CDS entity extraction via the ABAP Pipeline Engine — full and delta reads including deletes |
-| *(SSH tunnelling)* | — | Moved to the dedicated [erpl_tunnel](https://github.com/DataZooDE/erpl-tunnel) extension: `INSTALL erpl_tunnel FROM 'http://get.erpl.io'` |
+| *(SSH tunnelling)* | — | Moved to the dedicated [erpl_tunnel](https://github.com/DataZooDE/erpl-tunnel) extension: `INSTALL erpl_tunnel FROM 'https://get.erpl.io'` |
 
 ### Common Functions Quick Reference
 

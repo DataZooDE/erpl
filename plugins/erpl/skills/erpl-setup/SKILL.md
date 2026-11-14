@@ -16,7 +16,7 @@ user-invocable: false
 
 erpl is a DuckDB extension suite that reads SAP data with SQL over RFC. One umbrella extension, `erpl`,
 installs everything: it embeds the SAP NetWeaver RFC SDK and four sub-extensions and extracts them on
-first `LOAD`. Binaries are published to `http://get.erpl.io` per DuckDB release (currently DuckDB v1.5.6
+first `LOAD`. Binaries are published to `https://get.erpl.io` per DuckDB release (currently DuckDB v1.5.6
 on linux_amd64, linux_amd64_musl, osx_amd64, osx_arm64 and windows_amd64; CHANGELOG.md has the matrix).
 
 | Sub-extension | What it reads | Skill |
@@ -52,9 +52,13 @@ Not sure which interface fits an SAP object? See `erpl-choose-interface`.
 ## Install
 
 ```sql
-INSTALL erpl FROM 'http://get.erpl.io';
+-- check:skip-live (network install)
+INSTALL erpl FROM 'https://get.erpl.io';
 LOAD erpl;
 ```
+
+The download goes over HTTPS (DuckDB loads `httpfs` for it). Use the `https://` URL: with unsigned
+extensions allowed, nothing else verifies what is installed.
 
 Clients other than the CLI enable unsigned extensions in the connection config:
 
@@ -131,12 +135,14 @@ CREATE SECRET my_sap_cloud (
 ```
 
 - **`PERSISTENT`** (`CREATE PERSISTENT SECRET …`) writes the secret to `~/.duckdb/stored_secrets/` so it
-  survives restarts — **unencrypted**, password included; redaction only affects what `duckdb_secrets()`
-  displays. Remove it with `DROP PERSISTENT SECRET my_sap;`. Prefer temporary secrets on shared machines;
-  for servers see `erpl-deploy`.
+  survives restarts — **unencrypted**, password included. Remove it with `DROP PERSISTENT SECRET my_sap;`.
+  Prefer temporary secrets on shared machines; for servers see `erpl-deploy`.
 - **`dest`** reads every parameter from a destination in `sapnwrfc.ini` instead
   (`PRAGMA sap_rfc_set_ini_path('/etc/erpl')` points at the file).
-- Passwords, SSO2 tickets and X.509 certificates are redacted in `duckdb_secrets()`.
+- Passwords, SSO2 tickets and X.509 certificates are redacted in `duckdb_secrets()` — for secrets created by
+  erpl v2026.07.30.1 or later. A persistent secret created by an older version shows its password there:
+  re-create it. Redaction only affects display; never `SELECT secret_string` (or `*`) from
+  `duckdb_secrets()` in a shared session or transcript.
 - No direct network path to the SAP host? Tunnel it with the companion `erpl_tunnel` extension (skill
   `erpl-tunnel-import`; install with `/plugin marketplace add DataZooDE/erpl-tunnel` →
   `/plugin install erpl-tunnel@erpl-tunnel`).

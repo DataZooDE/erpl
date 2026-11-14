@@ -35,7 +35,7 @@ make check_skills                                  # plugin SQL against a4h
 ## Releasing
 
 Releases are date-tagged (`vYYYY.MM.DD`); CI builds every platform on the tag and publishes to
-`http://get.erpl.io`. Before tagging: add the release to `CHANGELOG.md`, set `plugins/erpl/.claude-plugin/plugin.json`
+`https://get.erpl.io`. Before tagging: add the release to `CHANGELOG.md`, set `plugins/erpl/.claude-plugin/plugin.json`
 `version` to the tag's date, and run `make check_skills` against a4h.
 
 ## Looking at the SAP side

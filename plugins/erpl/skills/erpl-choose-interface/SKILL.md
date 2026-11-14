@@ -24,7 +24,7 @@ Pick by the object *and* by whether the load will recur.
 | You have… | Use | Delta? | Discover with | Skill |
 |---|---|---|---|---|
 | Transparent table, DDIC database view (MARA, BKPF, SFLIGHT, Z-table) | `sap_read_table('T')` or `ATTACH '' AS sap (TYPE sap_rfc)` | No — full reads; filter with `WHERE` | `sap_show_tables`, `sap_describe_fields` | `erpl-rfc-tables` |
-| BAPI / RFC-enabled function module | `sap_rfc_invoke('BAPI_…', …)` | — | `sap_rfc_show_function`, `sap_rfc_describe_function` | `erpl-rfc-functions` |
+| BAPI / RFC-enabled function module that reads (`…_GETLIST`, `…_GETDETAIL`) | `sap_rfc_invoke('BAPI_…', …)` | — | `sap_rfc_show_function`, `sap_rfc_describe_function` | `erpl-rfc-functions` |
 | CDS view or entity (`I_*`, `C_*`, `/DMO/*`, `Z*`), recurring or large load | `sap_ape_read_full('ENTITY')` | Yes, with deletes: `sap_ape_read_delta` (needs the CDC annotation) | `sap_ape_show`, `sap_ape_describe`, `sap_ape_preview` | `erpl-ape-cds` |
 | CDS view, quick ad-hoc look | `sap_read_table('/DMO/R_BOOKING_D')` also works | No | `sap_describe_fields` | `erpl-rfc-tables` |
 | Extraction-enabled CDS view via ODP | `sap_odp_read_full('ABAP_CDS', '<name from sap_odp_show>')` | Yes: `sap_odp_read_delta` (deletes only with CDC delta) | `sap_odp_show('ABAP_CDS')` | `erpl-odp-replication` |
@@ -56,7 +56,7 @@ Pick by the object *and* by whether the load will recur.
 | Table or CDS view: `sap_read_table` or ODP/SLT/APE? | `sap_read_table` for occasional reads and small/medium tables; ODP/SLT for recurring incremental loads | `sap_read_table` has no change tracking; every run is a full (filtered) read |
 | BW: BICS or ODP `BW`? | BICS when the answer must match what users see in the BW query; ODP when you want the provider's raw records | BICS executes the query (variables, restrictions, conditions); ODP bypasses query logic |
 | BW query too large for one result? | Narrow it with `sap_bics_filter`, or read the underlying provider via ODP | BW cannot page a query result |
-| Need a business object with logic (e.g. create/read a sales order with checks)? | `sap_rfc_invoke` on the BAPI | Tables bypass the application logic |
+| Need a business object as the application derives it (e.g. read a sales order with its texts and status)? | `sap_rfc_invoke` on the reading BAPI | Tables bypass the application logic. Writing BAPIs that need `BAPI_TRANSACTION_COMMIT` are not supported: each call is its own RFC session |
 
 ## Discover first, then read
 

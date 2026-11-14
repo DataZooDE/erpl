@@ -34,7 +34,7 @@ The ERPL extension suite brings SAP data integration directly into DuckDB. It en
 
 ```sql
 -- 1. Install and load
-INSTALL 'erpl' FROM 'http://get.erpl.io';
+INSTALL 'erpl' FROM 'https://get.erpl.io';
 LOAD 'erpl';
 
 -- 2. Create SAP connection secret
@@ -2042,7 +2042,7 @@ The SSH tunnel that erpl used to bundle now lives in a dedicated extension,
 Tailscale and NetBird backends, and peer discovery.
 
 ```sql
-INSTALL erpl_tunnel FROM 'http://get.erpl.io';
+INSTALL erpl_tunnel FROM 'https://get.erpl.io';
 LOAD erpl_tunnel;
 ```
 
@@ -2565,7 +2565,7 @@ port is `33<sysnr>`, so the local end of the tunnel must be `33<sysnr>` as well 
 secret):
 
 ```sql
-INSTALL erpl_tunnel FROM 'http://get.erpl.io';
+INSTALL erpl_tunnel FROM 'https://get.erpl.io';
 LOAD erpl_tunnel;
 
 -- 1. SSH secret and tunnel: local 3300 -> sap.internal:3300 (system number 00)

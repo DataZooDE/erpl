@@ -1,15 +1,17 @@
 ---
 description: Run a SAP BW query or cube — fill variables, set rows/columns/filters, fetch, render as table, chart, dashboard or file, and close the session
-argument-hint: "<query or cube> [rows=… cols=… filter=char:v1,v2 var=NAME:value] [--render pivot|chart|dashboard|export] [--db file]"
+argument-hint: "<query or cube> [rows=… cols=… filter=char:v1,v2 var=NAME:value] [--render pivot|chart|dashboard|export] [--db file] [secret=name]"
 ---
 
 Run this BW query: $ARGUMENTS
 
 Use the `erpl-bics-queries` skill and its `references/variables.md` and `references/result-rendering.md`.
 
-**How to run SQL.** DuckDB CLI with `-unsigned`, script through stdin, `LOAD erpl;` first, never several
+**How to run SQL.** DuckDB CLI with `-unsigned -bail`, script through stdin, `LOAD erpl;` first, never several
 statements in one `duckdb -c` string, never print passwords. Use a **database file** (the `--db` argument,
-else `erpl_bics.duckdb` in the current directory) so the session store and the result table persist.
+else `erpl_bics.duckdb` in the current directory) so the session store and the result table persist. With
+`secret=` given (or more than one `sap_rfc` secret in scope) pass `secret => '<name>'` to every call that
+accepts it (`sap_bics_begin`, `sap_bics_variables`, `sap_bics_describe`, `sap_bics_result_stats`).
 
 1. Resolve the object. If unsure whether it is a query or cube, or names are unknown, run the describe step
    of `/erpl:bics-find` first. Map every characteristic the user names to its technical name from
@@ -35,5 +37,5 @@ else `erpl_bics.duckdb` in the current directory) so the session store and the r
      `anofox-visualization-serving`.
    - `export`: `COPY bics_result TO '<file>.parquet' (FORMAT parquet);` (csv/xlsx on request).
 6. Close: `SELECT * FROM sap_bics_end('<id>');` unless the user wants to keep navigating — then print the id
-   and point to `/erpl:bics-navigate <id>`.
+   and the exact follow-up `/erpl:bics-navigate <id> --db <file> secret=<name>`.
 7. Print the SQL that was run as one reproducible script.

@@ -39,8 +39,10 @@ distinguishing feature: **delta with deletes**.
 6. **Deletes arrive as keys only.** A `D` row has its key fields set and other columns blank/zero. Inserts
    arrive as `U`, the same as updates.
 7. **A delta read is consumed when SAP hands it over.** There is no re-read from SAP; erpl keeps a copy of
-   the last batch in `erpl_ape.delta_spill` for `recover => true`. Run deltas against a **persistent**
-   database so that copy survives a crash — and note it holds business data in clear text.
+   the last batch in `erpl_ape.delta_spill` for `recover => true`. The spill is always written to the **main
+   database** of the process (an `ATTACH …; USE …` does not move it), so run delta jobs with the warehouse
+   file as main database (`duckdb -unsigned -bail warehouse.duckdb < job.sql`). It holds business data in
+   clear text: that file needs the same protection and backups as the target data.
 8. **Amounts are currency-shifted** (JPY 106136.00, not the raw 1061.36 `sap_read_table` returns).
 
 ## Readiness
@@ -75,6 +77,8 @@ SELECT * FROM sap_ape_preview('ZERPL_APE_FLIGHT', max_rows => 10);   -- no graph
 ## Full read
 
 ```sql
+-- ZERPL_APE_FLIGHT is a custom view without a release contract (gotcha 5): allow it deliberately
+SET erpl_ape_allow_unreleased = true;
 CREATE OR REPLACE TABLE flights AS
 SELECT * FROM sap_ape_read_full('ZERPL_APE_FLIGHT');
 
@@ -89,11 +93,15 @@ error. `chunk_size` (records per round-trip, default 1000) is the transport knob
 
 ## Delta read
 
+`ZERPL_APE_D` below is a delta-enabled view (key `Rid`); `ZERPL_APE_FLIGHT` carries only the
+initial-load annotation, so it serves full reads only.
+
 ```sql
+-- check:skip-live (creates a delta subscription on SAP)
 -- First call on a new subscriber_process: initial load (blank /1DH/OPERATION) + subscription
 -- Later calls: only the changes since the previous call
-CREATE OR REPLACE TABLE flight_batch AS
-SELECT * FROM sap_ape_read_delta('ZERPL_APE_FLIGHT', 'DWH_FLIGHTS');
+CREATE OR REPLACE TABLE stage_d AS
+SELECT * FROM sap_ape_read_delta('ZERPL_APE_D', 'DWH_APE_D');
 ```
 
 | `/1DH/OPERATION` | Meaning | Row content |
@@ -102,16 +110,8 @@ SELECT * FROM sap_ape_read_delta('ZERPL_APE_FLIGHT', 'DWH_FLIGHTS');
 | `U` | Insert or update | full after-image |
 | `D` | Delete | key fields only |
 
-Apply a batch idempotently — delete every key in the batch, re-insert the non-deletes:
-
-```sql
--- check:skip-live (needs the target table and a batch)
-BEGIN;
-DELETE FROM flights USING (SELECT DISTINCT Carrid, Connid, Fldate FROM flight_batch) k
-WHERE flights.Carrid = k.Carrid AND flights.Connid = k.Connid AND flights.Fldate = k.Fldate;
-INSERT INTO flights SELECT * EXCLUDE ("/1DH/OPERATION") FROM flight_batch WHERE "/1DH/OPERATION" <> 'D';
-COMMIT;
-```
+Apply a batch idempotently — delete every key in the batch, then insert the non-deletes. The full job
+(stage, apply, guard, scheduling) is in `erpl-pipelines`.
 
 `subscriber_process`: stable, at most 30 characters, one reader at a time. A delta query returns what is
 available and stops — schedule it (`erpl-pipelines`).
@@ -120,7 +120,7 @@ available and stops — schedule it (`erpl-pipelines`).
 
 ```sql
 -- check:skip-live (replays the spilled batch of the previous run)
-SELECT * FROM sap_ape_read_delta('ZERPL_APE_FLIGHT', 'DWH_FLIGHTS', recover => true);
+SELECT * FROM sap_ape_read_delta('ZERPL_APE_D', 'DWH_APE_D', recover => true);
 ```
 
 Replays the most recent batch from `erpl_ape.delta_spill` — no SAP connection needed, safe to repeat, cannot
@@ -136,7 +136,7 @@ FROM sap_ape_show_subscriptions();                     -- erpl_only => true by d
 
 ```sql
 -- check:skip-live (destructive: the next delta read is an initial load again)
-PRAGMA sap_ape_drop('ZERPL_APE_FLIGHT', 'DWH_FLIGHTS');   -- DROPPED / NOT_FOUND / STILL_PRESENT / REFUSED: …
+PRAGMA sap_ape_drop('ZERPL_APE_D', 'DWH_APE_D');   -- DROPPED / NOT_FOUND / STILL_PRESENT / REFUSED: …
 ```
 
 erpl stores subscriptions as `ERPL_<subscriber_process>` (what Basis sees in `DHCDC_MON`); you always pass
@@ -158,19 +158,8 @@ If a client was killed mid-scan, its graph keeps running on SAP and the subscrip
 
 ## Canonical delta cycle
 
-```sql
--- check:skip-live (illustrates the cycle; needs a persistent database)
-ATTACH 'warehouse.duckdb' AS wh;
-USE wh;
-CREATE TABLE IF NOT EXISTS flights AS SELECT * FROM sap_ape_read_full('ZERPL_APE_FLIGHT') WHERE 1 = 0;
-CREATE OR REPLACE TEMP TABLE flight_batch AS
-SELECT * FROM sap_ape_read_delta('ZERPL_APE_FLIGHT', 'DWH_FLIGHTS');
-BEGIN;
-DELETE FROM flights USING (SELECT DISTINCT Carrid, Connid, Fldate FROM flight_batch) k
-WHERE flights.Carrid = k.Carrid AND flights.Connid = k.Connid AND flights.Fldate = k.Fldate;
-INSERT INTO flights SELECT * EXCLUDE ("/1DH/OPERATION") FROM flight_batch WHERE "/1DH/OPERATION" <> 'D';
-COMMIT;
-```
+Stage → apply → log, as a `-bail` job on the warehouse file: see `erpl-pipelines` ("Incremental with deletes
+(APE delta)").
 
 See also: `erpl-choose-interface` (APE vs ODP vs `sap_read_table`), `erpl-pipelines`, `erpl-operate`
 (stuck subscriptions), `erpl-deploy` (the role, persistent databases).

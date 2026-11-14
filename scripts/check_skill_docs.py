@@ -26,15 +26,13 @@ Two modes:
   --live    (needs SAP: the a4h trial, credentials from ERPL_SAP_* like the SQL suites)
             Executes every ```sql fence of the plugin files, each in a fresh in-memory
             database. Unless the fence creates a secret itself, a secret named `my_sap` --
-            the name the docs use -- is created first from ERPL_SAP_*. Skipped: fences keyed
-            in scripts/doc_snippets/synopsis.txt (placeholders, network installs, example
-            hosts) and fences starting with `-- check:skip-live` (destructive or
-            system-specific). A fence keyed in scripts/doc_snippets/expected_errors.txt must
-            fail.
+            the name the docs use -- is created first from ERPL_SAP_*. Skipped: fences whose
+            first line is `-- check:skip-live (reason)` -- network installs, example hosts,
+            and anything that creates state on SAP (delta subscriptions) or on disk.
 
-Illustrative or deliberately broken SQL belongs in a ```text fence, which is never run.
-Keys in synopsis.txt / expected_errors.txt are `<file>\\t<first non-comment line>`; a key that
-matches two fences of one file is an error, because the entry would silence both.
+A fence's first line steers the checker: `-- check:offline` (runs without SAP, in both modes)
+or `-- check:skip-live (reason)`. Illustrative or deliberately broken SQL belongs in a ```text
+fence, which is never run.
 
 Documented CREATE PERSISTENT SECRETs never reach the real ~/.duckdb/stored_secrets: every
 block runs with `secret_directory` set to a throwaway directory.
@@ -61,21 +59,19 @@ import tempfile
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 SUPPORT_DIR = os.path.join(SCRIPT_DIR, "doc_snippets")
-SYNOPSIS_FILE = os.path.join(SUPPORT_DIR, "synopsis.txt")
-EXPECTED_ERRORS_FILE = os.path.join(SUPPORT_DIR, "expected_errors.txt")
 ALLOWED_NAMES_FILE = os.path.join(SUPPORT_DIR, "allowed_names.txt")
-ALLOWED_NAMES_REL = os.path.relpath(ALLOWED_NAMES_FILE, REPO_ROOT)
+ALLOWED_NAMES_REL = "scripts/doc_snippets/allowed_names.txt"
 
-PLUGIN_DIR = os.path.join("plugins", "erpl")
-SKILLS_DIR = os.path.join(PLUGIN_DIR, "skills")
-COMMANDS_DIR = os.path.join(PLUGIN_DIR, "commands")
+PLUGIN_DIR = "plugins/erpl"
+SKILLS_DIR = PLUGIN_DIR + "/skills"
+COMMANDS_DIR = PLUGIN_DIR + "/commands"
 # Repo docs whose SQL names are checked alongside the plugin: the ones a user (and an
 # assistant) reads as the reference.
 NAME_SCAN_FILES = ["README.md", "API_REFERENCE.md", "TROUBLESHOOTING.md"]
 # Repo docs whose skill and command references are checked (the plugin's own files always are).
 REFERENCE_SCAN_FILES = ["README.md"]
 # A table whose first column lists sap_rfc secret fields in backticks.
-SECRET_FIELD_DOC = os.path.join(SKILLS_DIR, "erpl-setup", "references", "secret-fields.md")
+SECRET_FIELD_DOC = SKILLS_DIR + "/erpl-setup/references/secret-fields.md"
 
 FENCE_RE = re.compile(r"^```[ \t]*([A-Za-z0-9_+-]*)[ \t]*$")
 NAME = r"(?:sap|tunnel|erpl)_[a-z0-9_]*[a-z0-9]"
@@ -98,6 +94,11 @@ OFFLINE_TAG = "-- check:offline"
 SKIP_LIVE_TAG = "-- check:skip-live"
 
 
+def rel(abs_path):
+    """Repo-relative path with '/' separators on every platform."""
+    return os.path.relpath(abs_path, REPO_ROOT).replace(os.sep, "/")
+
+
 def read(path):
     with open(os.path.join(REPO_ROOT, path), encoding="utf-8") as f:
         return f.read()
@@ -107,7 +108,7 @@ def plugin_files():
     out = []
     for base, dirs, files in os.walk(os.path.join(REPO_ROOT, PLUGIN_DIR)):
         dirs.sort()
-        out += [os.path.relpath(os.path.join(base, fn), REPO_ROOT) for fn in sorted(files) if fn.endswith(".md")]
+        out += [rel(os.path.join(base, fn)) for fn in sorted(files) if fn.endswith(".md")]
     return out
 
 
@@ -123,13 +124,6 @@ def shipped_commands():
     if not os.path.isdir(root):
         return set()
     return {fn[:-3] for fn in os.listdir(root) if fn.endswith(".md")}
-
-
-def load_keys(path):
-    if not os.path.exists(path):
-        return set()
-    with open(path, encoding="utf-8") as f:
-        return {l.rstrip("\n") for l in f if l.strip() and not l.startswith("#")}
 
 
 def load_allowed(path):
@@ -273,6 +267,10 @@ class DuckDB:
 
 
 def error_line(out, err):
+    # DuckDB may echo a statement as error context; never let the live password into a report.
+    password = os.environ.get("ERPL_SAP_PASSWORD")
+    if password:
+        out, err = out.replace(password, "***"), err.replace(password, "***")
     for stream in (err, out):
         for line in stream.splitlines():
             if line.strip() and "Suppressions used" not in line and not line.startswith("---"):
@@ -349,12 +347,10 @@ def main():
     else:
         files = plugin
 
-    synopsis = load_keys(SYNOPSIS_FILE)
-    expected = load_keys(EXPECTED_ERRORS_FILE)
     allowed = load_allowed(ALLOWED_NAMES_FILE)
     skills, commands = shipped_skills(), shipped_commands()
     rows, counts = [], {}
-    seen_keys, mentioned = set(), set()
+    mentioned = set()
     names_checked = 0
 
     def add(status, path, line, head, detail=""):
@@ -376,7 +372,7 @@ def main():
                     continue
                 reported.add(name)
                 add("FAIL", path, line, "", f"unknown name {name}")
-            if path.startswith(PLUGIN_DIR + os.sep) or path in REFERENCE_SCAN_FILES:
+            if path.startswith(PLUGIN_DIR + "/") or path in REFERENCE_SCAN_FILES:
                 for kind, name, line in refs:
                     names_checked += 1
                     mentioned.add(name)
@@ -395,16 +391,9 @@ def main():
                     add("PASS" if rc == 0 else "FAIL", path, fields[0][1], "secret field table",
                         f"{len(fields)} fields accepted" if rc == 0 else error_line(out, err))
 
-        file_keys = set()
         for lang, body, line in fences(text):
             if lang != "sql":
                 continue
-            key = f"{path}\t{first_line(body)}"
-            if key in file_keys and key in (synopsis | expected):
-                add("FAIL", path, line, first_line(body),
-                    "another sql fence of this file starts with the same line; its support-file key covers both")
-            file_keys.add(key)
-            seen_keys.add(key)
             head = body.lstrip().splitlines()[0].strip() if body.strip() else ""
             if args.names:
                 for stmt in SECRET_RE.findall(body):
@@ -419,24 +408,15 @@ def main():
                         "" if rc == 0 else error_line(out, err))
                 continue
             # --live
-            if key in synopsis:
-                add("SYNOPSIS", path, line, first_line(body))
-                continue
             if head.startswith(SKIP_LIVE_TAG):
                 add("SKIP", path, line, first_line(body), "check:skip-live")
                 continue
             prefix = "" if SECRET_RE.search(body) else secret + "\n"
             rc, out, err = db.run(prefix + body)
-            if key in expected:
-                add("EXPECTED-ERROR" if rc != 0 else "FAIL", path, line, first_line(body),
-                    "" if rc != 0 else "expected an error but it passed")
-            else:
-                add("PASS" if rc == 0 else "FAIL", path, line, first_line(body),
-                    "" if rc == 0 else error_line(out, err))
+            add("PASS" if rc == 0 else "FAIL", path, line, first_line(body),
+                "" if rc == 0 else error_line(out, err))
 
     if full_scan:
-        for key in sorted((synopsis | expected) - seen_keys):
-            add("STALE", key.split("\t", 1)[0], "", "", f"support-file key matches no fence: {key}")
         if args.names:
             for name in sorted(allowed):
                 if name in surface or name in skills or name in commands:

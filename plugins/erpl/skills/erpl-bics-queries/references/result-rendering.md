@@ -20,15 +20,26 @@ such as `Gesamtergebnis`). Hide them in BW instead of guessing the text:
 SELECT * FROM sap_bics_set_char_prop('q1', '0D_NW_CNTRY', 'TOTALS', 'HIDE');
 ```
 
-or locally with `SELECT * EXCLUDE (COLUMNS('_HIER_LEVEL$')) FROM r`.
+or locally by dropping the result rows and the level columns (shown on a stand-in for `r`):
+
+```sql
+-- check:offline
+CREATE TABLE r AS SELECT * FROM (VALUES ('DE', 0, 10.0, 1.0), ('FR', 0, 20.0, 2.0), ('Overall Result', 0, 30.0, 3.0))
+    t("0D_NW_CNTRY", "0D_NW_CNTRY_HIER_LEVEL", "0D_NW_NETV", "0D_NW_QUANT");
+SELECT COLUMNS(c -> NOT ends_with(c, '_HIER_LEVEL')) FROM r WHERE "0D_NW_CNTRY" <> 'Overall Result';
+```
 
 ## Long format (one row per label × measure)
 
 ```sql
--- check:skip-live (needs the table r)
-UNPIVOT (SELECT * EXCLUDE (COLUMNS('_HIER_LEVEL$')) FROM r)
+-- check:offline
+CREATE TABLE r AS SELECT * FROM (VALUES ('DE', 0, 10.0, 1.0), ('FR', 0, 20.0, 2.0))
+    t("0D_NW_CNTRY", "0D_NW_CNTRY_HIER_LEVEL", "0D_NW_NETV", "0D_NW_QUANT");
+CREATE TABLE long_r AS
+UNPIVOT (SELECT COLUMNS(c -> NOT ends_with(c, '_HIER_LEVEL')) FROM r)
 ON COLUMNS(* EXCLUDE ("0D_NW_CNTRY"))
 INTO NAME measure VALUE amount;
+PIVOT long_r ON measure USING sum(amount) GROUP BY "0D_NW_CNTRY";
 ```
 
 ## Terminal crosstab
@@ -42,7 +53,7 @@ SELECT * FROM sap_bics_columns('q1', '0CALYEAR', op => 'SET');
 CREATE OR REPLACE TABLE r AS SELECT * FROM sap_bics_result('q1');
 ```
 
-Or pivot a long result in DuckDB: `PIVOT long_r ON measure USING sum(amount) GROUP BY "0D_NW_CNTRY"`.
+Or pivot a long result in DuckDB, as the last statement above shows.
 In the CLI, `.mode box` (or `-box`) and `.maxrows` give a compact view; round key figures with
 `round(col, 2)`.
 

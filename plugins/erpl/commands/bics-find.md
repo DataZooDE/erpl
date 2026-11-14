@@ -1,6 +1,6 @@
 ---
 description: Find SAP BW queries or cubes by name or text and describe one — characteristics, key figures, variables
-argument-hint: "<search text> [secret name]"
+argument-hint: "<search text> [secret=name] [--db file]"
 ---
 
 Find BW queries or cubes matching: $ARGUMENTS
@@ -21,5 +21,6 @@ secret exists.
      lists (technical name, text).
    - `SELECT name, text, mandatory, input_enabled, var_type, selection_type, reference_char FROM
      sap_bics_variables('<query>');` — highlight mandatory input-ready variables.
-3. Finish with the exact `/erpl:bics-run` call that would open it, including placeholders for the mandatory
+3. Pass `secret => '<name>'` to every call when a secret was given. Finish with the exact `/erpl:bics-run`
+   call that would open it, carrying the same `secret=` and `--db` and placeholders for the mandatory
    variables.

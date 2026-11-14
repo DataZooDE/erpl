@@ -35,7 +35,7 @@ user-invocable: false
 
 ```sql
 -- check:skip-live (network install)
-INSTALL erpl FROM 'http://get.erpl.io';
+INSTALL erpl FROM 'https://get.erpl.io';
 LOAD erpl;
 SELECT extension_name, extension_version FROM duckdb_extensions() WHERE extension_name LIKE 'erpl%';
 ```
@@ -45,7 +45,7 @@ SELECT extension_name, extension_version FROM duckdb_extensions() WHERE extensio
 FROM python:3.12-slim
 RUN pip install duckdb==1.5.6
 RUN python -c "import duckdb; c = duckdb.connect(config={'allow_unsigned_extensions': 'true'}); \
-               c.execute(\"INSTALL erpl FROM 'http://get.erpl.io'\"); c.execute('LOAD erpl')"
+               c.execute(\"INSTALL erpl FROM 'https://get.erpl.io'\"); c.execute('LOAD erpl')"
 ENV DATAZOO_DISABLE_TELEMETRY=1
 ```
 

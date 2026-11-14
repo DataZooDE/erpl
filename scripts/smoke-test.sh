@@ -98,11 +98,11 @@ trap 'rm -rf "$SMOKE_HOME"' EXIT INT TERM
 
 # ── 6. Build CLI invocation (Rosetta for osx_amd64 on arm64 runner) ─────────
 RUN_CLI=("$DUCK" -unsigned)
-CHECK_CLI="$DUCK"   # the same CLI for step 7; check_skill_docs.py adds -unsigned itself
+CHECK_CLI="$(printf '%q' "$DUCK")"   # step 7; shell-quoted for the checker, which adds -unsigned itself
 if [[ "$OS" == "Darwin" && "${OSX_BUILD_ARCH:-}" == "x86_64" ]]; then
     echo "[smoke-test] osx_amd64 extension — using Rosetta (arch -x86_64)"
     RUN_CLI=(arch -x86_64 "$DUCK" -unsigned)
-    CHECK_CLI="arch -x86_64 $DUCK"
+    CHECK_CLI="arch -x86_64 $(printf '%q' "$DUCK")"
 fi
 
 echo ""

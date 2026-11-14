@@ -93,11 +93,11 @@ SELECT lineage_graph_json FROM sap_bics_lineage_graph_json(scope => '0D_NW_C01')
 -- Queries nobody ran in the statistics window (statistics must be switched on in BW)
 SELECT q.* FROM sap_bics_meta_queries() q
 ANTI JOIN (SELECT DISTINCT query_name FROM sap_bics_meta_query_stats(from_date => '20260101')) s
-ON q.compuid = s.query_name;
+ON q.query = s.query_name;
 ```
 
-The column names of `sap_bics_meta_queries` depend on RSRREPDIR — `DESCRIBE SELECT * FROM
-sap_bics_meta_queries()` before joining. Also useful:
+`sap_bics_meta_queries` returns `query`, `infoprovider`, `objvers`, `compuid`, `author`, `lastuser`,
+`modtime`. Also useful:
 
 | Question | Approach |
 |---|---|

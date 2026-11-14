@@ -191,7 +191,7 @@ skills under `skills/erpl-*/SKILL.md` (with `references/` for long material) and
 It documents the same public API as `API_REFERENCE.md`, task by task, so every public API change updates **both**:
 the reference and the skill (or command) that covers it.
 
-- `make check_skill_names` (offline, also step 7 of `scripts/smoke-test.sh` in CI) fails on any `sap_*`/`erpl_*`
+- `make check_skill_names` (offline; also step 7 of `scripts/smoke-test.sh`, i.e. the Linux and macOS CI legs) fails on any `sap_*`/`erpl_*`
   name, `sap_rfc` secret field, skill or `/erpl:` command the plugin or the reference docs mention that the build or
   the plugin does not have. Exceptions go in `scripts/doc_snippets/allowed_names.txt` with a reason.
 - `make check_skills` runs the plugin's SQL against a4h; part of the release checklist. Fences that cannot run there

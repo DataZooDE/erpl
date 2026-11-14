@@ -81,6 +81,7 @@ A full read opens and closes its own request; it leaves no subscription behind.
 ## Delta extraction
 
 ```sql
+-- check:skip-live (creates an ODP subscription on SAP)
 -- First call: initial load + pointer registration. Same call later: only the changes.
 CREATE OR REPLACE TABLE fc_c01_changes AS
 SELECT * FROM sap_odp_read_delta('BW', '0D_FC_C01$F', 'SALES_DWH_FC_C01');
@@ -99,6 +100,7 @@ SELECT ODQ_CHANGEMODE, count(*) FROM fc_c01_changes GROUP BY ALL;
 (`'<TEAM>_<TARGET>_<OBJECT>'`). Delta fetches run with one thread regardless of `threads`.
 
 ```sql
+-- check:skip-live (needs an interrupted delta request)
 -- Re-deliver the last package after an interrupted run (the pointer does not advance)
 SELECT * FROM sap_odp_read_delta('BW', '0D_FC_C01$F', 'SALES_DWH_FC_C01', recover => true);
 ```
@@ -142,17 +144,18 @@ destructive for the pipeline: confirm with the user before running it.
 | Run crashed mid-delta | Re-run with `recover => true`, then continue normally |
 | Need to reload everything | `sap_odp_drop`, then the next delta read is an initial load |
 | Need deletes from a CDS view | APE (`erpl-ape-cds`) |
-| Counts or sums look wrong | `columns` on a BW provider aggregates (gotcha 1); on erpl ≤ v2026.11.09 any projection did — read `SELECT *` into a table first |
+| Counts or sums look wrong | `columns` on a BW provider aggregates (gotcha 1) |
 
 ## Canonical delta cycle
 
 ```sql
+-- check:skip-live (creates an ODP subscription on SAP)
 -- 1. capability check
 SELECT supports_delta FROM sap_odp_describe('BW', '0D_FC_C01$F');
 -- 2. land the delta (first run = initial load)
 CREATE OR REPLACE TABLE fc_c01_batch AS
 SELECT * FROM sap_odp_read_delta('BW', '0D_FC_C01$F', 'SALES_DWH_FC_C01');
--- 3. apply fc_c01_batch to the target (see erpl-pipelines), then close the request
+-- 3. apply fc_c01_batch to the target (latest image per key — see erpl-pipelines), then close the request
 PRAGMA sap_odp_close_delta_cursor('BW', 'SALES_DWH_FC_C01', '0D_FC_C01$F');
 ```
 
