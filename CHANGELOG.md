@@ -23,6 +23,19 @@ LOAD erpl;
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **[odp]** A SQL projection no longer changes which records `sap_odp_read_full` and `sap_odp_read_delta`
+  return. ODP aggregates key figures over the fields a request names, and erpl used to send DuckDB's
+  projection along: on a BW provider `SELECT CALYEAR …` returned one row per year, `count(*)` counted the
+  distinct values of one column, and selecting only `ODQ_*` columns returned no rows. erpl now always
+  requests the bound fields (the `columns` argument, or every field) and projects locally. `columns` keeps
+  its meaning: it asks SAP for fewer fields, and SAP aggregates over them.
+
+---
+
 ## v2026.11.09 — BICS hardening: eight rounds of generated-SQL testing
 
 About fifty BICS fixes, found by exploratory test rounds that drive erpl_bics the way a SQL generator does:
