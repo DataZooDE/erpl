@@ -234,7 +234,7 @@ class DuckDB:
         self.home = home
         self.env = dict(os.environ, DATAZOO_DISABLE_TELEMETRY="1", **env_extra)
 
-    def run(self, sql, timeout=300):
+    def run(self, sql, timeout=1000):   # above erpl_ape_prepare_timeout (900 s)
         tmp = tempfile.mkdtemp(prefix="skill_docs_")
         try:
             # A documented CREATE PERSISTENT SECRET must never land in the real
