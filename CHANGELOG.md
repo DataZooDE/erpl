@@ -23,6 +23,16 @@ LOAD erpl;
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **[rfc]** `sap_describe_fields('T', LANGUAGE => 'D')` returns the field texts in the requested language.
+  The parameter was documented and read, but never declared, so DuckDB rejected the call with
+  `Invalid named parameter "LANGUAGE"`.
+
+---
+
 ## v2026.11.09 — BICS hardening: eight rounds of generated-SQL testing
 
 About fifty BICS fixes, found by exploratory test rounds that drive erpl_bics the way a SQL generator does:
