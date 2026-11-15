@@ -9,3 +9,4 @@ tunnel_import	registered by the separate erpl_tunnel extension, not by erpl
 erpl-tunnel-*	skills of the separate erpl-tunnel plugin (DataZooDE/erpl-tunnel)
 erpl-adt-*	skills of the separate erpl-adt plugin (DataZooDE/erpl-adt)
 sap_bw	the SAP_BW software component in CVERS, named in API_REFERENCE
+sap_dhcdc_rt_start_acp_daemon	the SAP batch event SAP_DHCDC_RT_START_ACP_DAEMON that starts the CDC daemon APE needs

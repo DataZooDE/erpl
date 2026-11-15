@@ -50,6 +50,7 @@ SELECT extension_name, extension_version FROM duckdb_extensions() WHERE extensio
 | `sap_read_table` fails on a string column | No `ET_DATA` support | `READ_TABLE_FUNCTION`; see `erpl-rfc-tables` |
 | ODP numbers look aggregated | `columns` on a BW provider | See gotcha 1 of `erpl-odp-replication` |
 | APE read waits long, then times out | SAP prepare job not finished | Check the application log named in the error; `erpl_ape_prepare_timeout` |
+| Every APE read times out; DHCDC log says `Cannot start ACP daemon` | No job waits for event `SAP_DHCDC_RT_START_ACP_DAEMON` | Basis schedules that job (technical job repository) |
 | BICS result empty / all NULL | Authorizations, variables, budget | `sap_bics_result_stats` (below) |
 | BICS "too large to read in one go" | Cell budget | Filter, or the suggested `erpl_bics_max_result_memory` |
 

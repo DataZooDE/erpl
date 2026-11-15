@@ -23,7 +23,11 @@ LOAD erpl;
 
 ---
 
-## Unreleased
+## v2026.11.15 — A Claude Code plugin, and two silent-result fixes
+
+erpl now ships a Claude Code plugin, so an assistant working with you on SAP data knows the SQL surface task by
+task, from setup to operation. Checking the plugin's SQL against a live system turned up two bugs that returned
+wrong or no results without an error; both are fixed.
 
 ### Added
 
