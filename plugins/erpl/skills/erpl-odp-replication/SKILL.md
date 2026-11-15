@@ -24,7 +24,7 @@ over RFC. Objects live in **contexts** — `SAPI` (extractors/DataSources), `BW`
 1. **`columns => [...]` aggregates on BW providers.** ODP returns key figures aggregated over the fields a
    request names: `sap_odp_read_full('BW', '0D_FC_C01$F', columns => ['CALYEAR'])` yields one row per
    year, not one per record. A SQL projection (`SELECT CALYEAR FROM sap_odp_read_full(…)`) does not — erpl
-   requests every field and projects locally (erpl ≥ the release after v2026.11.09; older versions
+   requests every field and projects locally (erpl v2026.11.15 or later; older versions
    aggregated here too). Use `columns` only when you want SAP to aggregate or to cut the transfer of a
    non-aggregating source.
 2. **`ODQ_*` columns are change metadata**, not source fields: `ODQ_CHANGEMODE`, `ODQ_ENTITYCNTR`,
