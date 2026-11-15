@@ -1,0 +1,11 @@
+# Names shaped like an erpl SQL name (sap_* / tunnel_* / erpl_*) that docs mention but no build
+# registers, one per line: name<TAB>reason. check_skill_docs.py --names accepts these and
+# reports an entry STALE once it is registered or no longer mentioned anywhere.
+sap_type	a result column of sap_describe_fields
+erpl_bics_sessions	the in-memory session table a read-only database falls back to
+erpl_only	a named parameter of sap_odp_show_subscriptions / sap_ape_show_subscriptions
+erpl_something	placeholder for a third party's subscription name in the APE prefix convention
+tunnel_import	registered by the separate erpl_tunnel extension, not by erpl
+erpl-tunnel-*	skills of the separate erpl-tunnel plugin (DataZooDE/erpl-tunnel)
+erpl-adt-*	skills of the separate erpl-adt plugin (DataZooDE/erpl-adt)
+sap_bw	the SAP_BW software component in CVERS, named in API_REFERENCE

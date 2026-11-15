@@ -183,3 +183,19 @@ test: add coverage for ODP delta extraction
 ## API Reference Maintenance
 
 `API_REFERENCE.md` is the authoritative public API reference. When changing the public API (adding/removing/modifying functions, pragmas, secret types, configuration options, or type mappings), update `API_REFERENCE.md` to match. If the change is non-trivial, create a beads task to track the documentation update.
+
+## Claude Code Plugin Maintenance
+
+`plugins/erpl/` is the user-facing Claude Code plugin (marketplace manifest at `.claude-plugin/marketplace.json`):
+skills under `skills/erpl-*/SKILL.md` (with `references/` for long material) and slash commands under `commands/`.
+It documents the same public API as `API_REFERENCE.md`, task by task, so every public API change updates **both**:
+the reference and the skill (or command) that covers it.
+
+- `make check_skill_names` (offline; also step 7 of `scripts/smoke-test.sh`, i.e. the Linux and macOS CI legs) fails on any `sap_*`/`erpl_*`
+  name, `sap_rfc` secret field, skill or `/erpl:` command the plugin or the reference docs mention that the build or
+  the plugin does not have. Exceptions go in `scripts/doc_snippets/allowed_names.txt` with a reason.
+- `make check_skills` runs the plugin's SQL against a4h; part of the release checklist. Fences that cannot run there
+  start with `-- check:skip-live (reason)`; illustrative SQL goes in ```text fences.
+- Skills reference other DataZoo plugins (anofox-*, flapi, erpl-tunnel, erpl-adt) by skill name with their install
+  line; never copy their content.
+- At release, set `plugins/erpl/.claude-plugin/plugin.json` `version` to the tag date.

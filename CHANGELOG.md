@@ -12,14 +12,43 @@ Each bullet is tagged with the affected sub-extension(s):
 - **[trampoline]** — `erpl`, the umbrella extension that bundles the SAP SDK
 - **[all]** — cross-cutting work that touches every sub-extension
 
-Binaries are self-distributed via [get.erpl.io](http://get.erpl.io) for the
+Binaries are self-distributed via [get.erpl.io](https://get.erpl.io) for the
 matrix `{linux_amd64, linux_amd64_musl, osx_amd64, osx_arm64, windows_amd64} ×
 {DuckDB v1.5.6}`. Install with:
 
 ```sql
-INSTALL erpl FROM 'http://get.erpl.io';
+INSTALL erpl FROM 'https://get.erpl.io';
 LOAD erpl;
 ```
+
+---
+
+## Unreleased
+
+### Added
+
+- **[all]** A Claude Code plugin in `plugins/erpl/` (install: `/plugin marketplace add DataZooDE/erpl` →
+  `/plugin install erpl@erpl`). Twelve skills cover setup, choosing an interface, RFC tables and function
+  modules, ODP, APE, BICS queries and metadata, pipelines, deployment, operation and performance. Seven commands
+  check a connection, diagnose a failure, write the Basis handout, and find, run, navigate and clean up BW
+  queries. `make check_skill_names` (run by the Linux and macOS smoke tests in CI) checks every name the plugin and the reference
+  docs use against the build; `make check_skills` runs the plugin's SQL against the trial system.
+
+### Fixed
+
+- **[docs]** API_REFERENCE.md: `sap_bics_show_hierarchies` columns, the read-table function scope
+  (`sap_bics_begin`, not the removed `sap_bics_query`), the SSH tunnel example (`tunnel_import`, matching
+  gateway port), `sap_odp_drop` semantics. README: telemetry section matches TELEMETRY.md. DEVELOPMENT.md
+  rewritten for the current build.
+- **[rfc]** `sap_describe_fields('T', LANGUAGE => 'D')` returns the field texts in the requested language.
+  The parameter was documented and read, but never declared, so DuckDB rejected the call with
+  `Invalid named parameter "LANGUAGE"`.
+- **[odp]** A SQL projection no longer changes which records `sap_odp_read_full` and `sap_odp_read_delta`
+  return. ODP aggregates key figures over the fields a request names, and erpl used to send DuckDB's
+  projection along: on a BW provider `SELECT CALYEAR …` returned one row per year, `count(*)` counted the
+  distinct values of one column, and selecting only `ODQ_*` columns returned no rows. erpl now always
+  requests the bound fields (the `columns` argument, or every field) and projects locally. `columns` keeps
+  its meaning: it asks SAP for fewer fields, and SAP aggregates over them.
 
 ---
 

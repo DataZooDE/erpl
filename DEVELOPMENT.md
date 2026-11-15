@@ -1,68 +1,52 @@
-## Build on windows
+# Developing erpl
 
-Creating a DuckDB extension on Windows using MinGW on MSYS2 requires several steps, including setting up your environment, obtaining the necessary source code and dependencies, and compiling the extension. Here’s a detailed guide:
+This page is for people changing erpl itself. To *use* erpl, start with the [README](./README.md),
+[API_REFERENCE.md](./API_REFERENCE.md) and the Claude Code plugin in [`plugins/erpl/`](./plugins/erpl/).
 
-Sources
+## Build
 
-- https://duckdb.org/dev/building.html
-- https://github.com/duckdb/duckdb/blob/v0.8.1/.github/workflows/Windows.yml#L158
+```sh
+GEN=ninja make debug      # statically linked debug build: build/debug/duckdb
+GEN=ninja make release    # loadable extensions + trampoline: build/release/extension/erpl/erpl.duckdb_extension
+```
 
+Prerequisites: `VCPKG_ROOT` pointing at a vcpkg checkout (manifest `rfc/vcpkg.json`), and the SAP NetWeaver
+RFC SDK under `nwrfcsdk/<platform>/` (`linux`, `win`, `osx_arm`, `osx_amd64`; proprietary, not committed).
+`bics/`, `odp/` and `ape/` are private submodules; without them only `erpl_rfc` is built.
 
-Set environmet variable
+The debug build links every extension into `build/debug/duckdb`; start it with
+`./scripts/start-duckdb-debug.sh`, which puts the SDK on `LD_LIBRARY_PATH`.
 
-1. **Install MSYS2 and MinGW:**
+Windows builds (MSVC, `windows_amd64`) run in CI (`.github/workflows/_extension_build.yml`); that workflow is the
+reference for the toolchain and steps.
 
-   - Download MSYS2 installer from the [official website](https://www.msys2.org/).
-   - Run the installer and follow the instructions to install MSYS2 on your machine.
-   - Open MSYS2 terminal and update the package database and core system packages with: `pacman -Syu`.
-   - Install MinGW-w64 by running: `pacman -S git mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja`.
+## Test
 
-2. **Setup Environment:**
+```sh
+make sql_tests_rfc TEST_FILE=sap_read_table.test   # SQL tests need the ABAP Platform Trial (a4h)
+make cpp_tests_rfc                                 # C++ unit tests, no SAP needed
+make smoke_test                                    # release artifact installs, loads, registers functions
+make check_skill_names                             # plugin + reference docs vs. the registered surface
+make check_skills                                  # plugin SQL against a4h
+```
 
-   - Close and reopen MSYS2 terminal.
-   - Add MinGW to your system PATH: `export PATH="/mingw64/bin:$PATH"`.
+`CLAUDE.md` has the full set of commands, the architecture and the conventions.
 
-3. **Download Extension Source Code:**
+## Releasing
 
-   - Clone the ERPL repository: `git clone https://github.com/duckdb/duckdb.git`.
-   - Fetch the `duckdb` submodule after clone:  `git submodule update --init --recursive`.
-     (To make this work under windows I had to first `git config --global core.sshCommand 'C:/Windows/System32/OpenSSH/ssh.exe'`)
-   - Navigate to the duckdb directory: `cd duckdb` and checkout the `v0.9.0` tag: `git checkout v0.9.0`.
+Releases are date-tagged (`vYYYY.MM.DD`); CI builds every platform on the tag and publishes to
+`https://get.erpl.io`. Before tagging: add the release to `CHANGELOG.md`, set `plugins/erpl/.claude-plugin/plugin.json`
+`version` to the tag's date, and run `make check_skills` against a4h.
 
-4. **Download sapnwrfc Library:**
+## Looking at the SAP side
 
-   - Download the sapnwrfc library from the [official website](https://support.sap.com/en/product/connectors/nwrfcsdk.html) (or the Zip from our Google Drive).
-   - Extract the downloaded archive and copy the `sapnwrfc` directory to the `sapnwrfc` directory in the erpl repository.
-
-5. **Configure and Build:**
-
-   - Run the following command in the root directory of the extension: `mingw32-make release`.
-
-6. **Testing Your Extension:**
-
-   - Create a directory (e.g. `test`).
-   - Copy the following artifacts to that directory.
-    - The built duckdb executable (e.g. `.\build\release\duckdb.exe`).
-    - The built erpl extension (e.g. `.\build\release\extension\erpl\erpl.duckdb_extension`).
-    - All `*.dll` files from `.\sapnwrfc\lib`.
-   - Run duckdb with the following command: `.\duckdb.exe -unsigned`.
-   - In the DuckDB shell_
-        - First install the erpl-extension with: `INSTALL 'erpl.duckdb_extension';`.
-        - And then load the extension with: `LOAD 'erpl';`.
-
-
-## 📦 Deploying the extension (TODO)
-To deploy the extension, simply run:
-```sh ./scripts/extension_upload.sh```
-
-
-## Debuging SAP behavior
-
-### Relevant transctions
-
-- [SM04](https://help.sap.com/doc/saphelp_nw74/7.4.16/en-us/02/3b3ad97b0b4526839377f4c2112f33/content.htm?no_cache=true) Login List
-- [SM50](https://help.sap.com/doc/saphelp_nw74/7.4.16/en-us/19/28d51a81c748b399947f3e354d2ffb/content.htm?no_cache=true) Work Process Overview
-- [ST02](https://help.sap.com/docs/ABAP_PLATFORM_BW4HANA/f146e75588924fa4987b6c8f1a7a8c7e/ce7a5224577d4713b1d695bdf9baf656.html) Memory Statistics / Tune Summary
-- [ST03](https://help.sap.com/saphelp_gbt10/helpdata/EN/2d/b8be3befaefc75e10000000a114084/frameset.htm) Workload and Performance Statistics
-- [SM21](https://help.sap.com/doc/saphelp_nw75/7.5.5/de-DE/b1/f4652c0f4d4e8fa04e165d161e386f/content.htm?no_cache=true) System Log
-- [DBACOCKPIT]() DBA Cockpit
+| Transaction | Shows |
+|---|---|
+| SM04 | Logged-on users and their RFC sessions |
+| SM50 / SM66 | Work processes — what erpl's connections are doing |
+| ST22 | ABAP short dumps |
+| SM21 | System log |
+| ST03 | Workload statistics |
+| ODQMON | ODP queues, subscriptions and requests |
+| DHCDC_MON | APE / change data capture subscriptions |
+| RSRT | Run a BW query as BW does (compare with `sap_bics_result`) |

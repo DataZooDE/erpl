@@ -1,0 +1,27 @@
+{
+  "name": "erpl",
+  "description": "Claude Code plugin for erpl — SAP data in DuckDB from SQL.",
+  "owner": {
+    "name": "DataZoo GmbH",
+    "url": "https://github.com/DataZooDE"
+  },
+  "plugins": [
+    {
+      "name": "erpl",
+      "source": "./plugins/erpl",
+      "description": "SAP data in DuckDB from SQL: skills and commands for the erpl extension suite — setup and secrets, RFC table reads and function calls, ODP replication, CDS extraction via the ABAP Pipeline Engine, SAP BW queries via BICS, deployment, operation and performance.",
+      "keywords": [
+        "duckdb",
+        "sap",
+        "erp",
+        "bw",
+        "rfc",
+        "odp",
+        "cds",
+        "sql",
+        "data-engineering",
+        "claude-code"
+      ]
+    }
+  ]
+}

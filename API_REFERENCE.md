@@ -2,7 +2,7 @@
 
 > Complete function reference for SAP data integration in DuckDB
 
-**DuckDB Version:** >= v1.2.0
+**DuckDB Version:** v1.5.6 (binaries are built per DuckDB release; see the matrix in CHANGELOG.md)
 **Extensions:** erpl_rfc, erpl_bics, erpl_odp, erpl_ape
 
 ---
@@ -25,13 +25,16 @@ The ERPL extension suite brings SAP data integration directly into DuckDB. It en
 | **erpl_ape** | SAP CDS entity extraction via the ABAP Pipeline Engine — full and delta reads including deletes |
 | *(SSH tunnelling)* | moved to the [erpl_tunnel](https://github.com/DataZooDE/erpl-tunnel) extension |
 
+> **Working with an AI assistant?** The [Claude Code plugin](./README.md#-claude-code-plugin) carries this
+> reference as task-oriented skills; `make check_skill_names` keeps both in sync with the build.
+
 ---
 
 ## Quick Start
 
 ```sql
 -- 1. Install and load
-INSTALL 'erpl' FROM 'http://get.erpl.io';
+INSTALL 'erpl' FROM 'https://get.erpl.io';
 LOAD 'erpl';
 
 -- 2. Create SAP connection secret
@@ -171,7 +174,7 @@ The function module and delimiter are resolved independently using the 5-tier pr
 When reading string or xstring columns, `ET_DATA` is required. Standard `RFC_READ_TABLE` supports `ET_DATA` when SAP Note 2246160 is installed (`USE_ET_DATA_4_RETURN`). Alternatively, a custom reader function declaring `ET_DATA` may be configured. If the active reader function lacks `ET_DATA` support, querying string or xstring columns fails immediately with an `InvalidInputException` naming the table, column, reader module, and configuration source.
 
 *BICS and ODP Requirements:*
-The configured read table function applies to `sap_read_table`, `sap_show_tables`, `ATTACH (TYPE sap_rfc)`, BICS query execution (`sap_bics_query`, `sap_bics_query_cube`), and ODP subscription queries (`sap_odp_show_subscriptions`). BICS query execution requires a `DELIMITER` parameter in the reader function module; if a custom reader lacking `DELIMITER` is configured, query execution fails fast with an `InvalidInputException`. (Note: BICS catalog metadata scanners `sap_bics_meta_*` currently use standard `RFC_READ_TABLE`).
+The configured read table function applies to `sap_read_table`, `sap_show_tables`, `ATTACH (TYPE sap_rfc)`, BICS query execution (`sap_bics_begin` on a query or cube), and ODP subscription queries (`sap_odp_show_subscriptions`). BICS query execution requires a `DELIMITER` parameter in the reader function module; if a custom reader lacking `DELIMITER` is configured, query execution fails fast with an `InvalidInputException`. (Note: BICS catalog metadata scanners `sap_bics_meta_*` currently use standard `RFC_READ_TABLE`).
 
 ```sql
 -- Basic read
@@ -555,7 +558,7 @@ List available BW hierarchies.
 | `info_object` | VARCHAR | — | Filter by InfoObject |
 | `secret` | VARCHAR | — | Named secret |
 
-**Returns:** `technical_name`, `text`, `version`, `valid_to_date`
+**Returns:** `hierarchy_name`, `info_object`, `description`, `date_to`, `version`
 
 ```sql
 SELECT * FROM sap_bics_show_hierarchies();
@@ -1561,7 +1564,7 @@ will re-snapshot via DELTAINIT.
 #### `PRAGMA sap_odp_drop(odp_context, subscriber_name, subscriber_process, odp_name)`
 
 Drop an ODP subscription/cursor on the SAP system (invokes `RODPS_REPL_ODP_RESET`).
-A subsequent `sap_odp_read_full` will re-create the subscription from scratch.
+The next `sap_odp_read_delta` with the same subscriber starts over with an initial load (DELTAINIT).
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -2039,7 +2042,7 @@ The SSH tunnel that erpl used to bundle now lives in a dedicated extension,
 Tailscale and NetBird backends, and peer discovery.
 
 ```sql
-INSTALL erpl_tunnel FROM 'http://get.erpl.io';
+INSTALL erpl_tunnel FROM 'https://get.erpl.io';
 LOAD erpl_tunnel;
 ```
 
@@ -2205,6 +2208,7 @@ CREATE SECRET my_ssh_key (
 |------|--------|---------|
 | `BICS_RETURN` | `'DESCRIBE'`, `'RESULT'` | BICS query workflow functions |
 | `BICS_OPERATION` | `'SET'`, `'ADD'`, `'REMOVE'` | BICS axis/filter configuration |
+| `ODP_REPLICATION_MODE` | `'FULL'`, `'DELTA'`, `'RECOVER'` | ODP extraction mode |
 
 The `return =>` and `op =>` parameters take plain text and accept any case (`op => 'set'`);
 an unknown value is an error listing the allowed ones. Characteristic and query names are
@@ -2224,7 +2228,6 @@ is answered by DuckDB without running the function, so it neither applies a muta
 session. Clearing an axis (`op => 'SET'`) keeps the key-figure
 structure on it; remove it explicitly with `op => 'REMOVE'`. A characteristic the query uses
 only internally (on no axis and not free) cannot be moved onto an axis.
-| `ODP_REPLICATION_MODE` | `'FULL'`, `'DELTA'`, `'RECOVER'` | ODP extraction mode |
 
 ---
 
@@ -2303,7 +2306,7 @@ Notes:
 | `erpl_rfc_partitions` | UBIGINT | 0 | Split a `sap_read_table` scan into this many row ranges read in parallel. `0` reads in one pass, parallelising across columns instead. See [Narrow tables](#narrow-tables-use-partitions-not-threads) |
 | `erpl_rfc_partition_window_rows` | UBIGINT | 0 | Rows a partition worker claims at a time; `0` uses one RFC batch per window |
 | `erpl_rfc_pushdown_filters` | BOOLEAN | `true` | Translate SQL `WHERE` predicates into `RFC_READ_TABLE`'s `OPTIONS` table so SAP filters the rows instead of sending them all. Turning it off never changes which rows come back, only how many cross the wire. See [Filter Pushdown](#filter-pushdown) |
-| `erpl_rfc_read_table_function` | VARCHAR | `''` | Default RFC function module used by `sap_read_table`, `sap_show_tables`, `ATTACH (TYPE sap_rfc)`, BICS catalog query resolution (`sap_bics_query` / `sap_bics_query_cube`), and ODP subscription queries (`sap_odp_show_subscriptions`). Empty = `RFC_READ_TABLE` with auto-fallback to ET_DATA-capable functions on string columns. |
+| `erpl_rfc_read_table_function` | VARCHAR | `''` | Default RFC function module used by `sap_read_table`, `sap_show_tables`, `ATTACH (TYPE sap_rfc)`, BICS catalog query resolution (`sap_bics_begin`), and ODP subscription queries (`sap_odp_show_subscriptions`). Empty = `RFC_READ_TABLE` with auto-fallback to ET_DATA-capable functions on string columns. |
 | `erpl_rfc_read_table_delimiter` | VARCHAR | `''` | Single printable non-whitespace ASCII character delimiter for RFC table reads. When set, passed to the `DELIMITER` parameter of the RFC read table function. |
 | `erpl_rfc_backend` | VARCHAR | `'nwrfc'` | Which implementation serves RFC calls: `'nwrfc'` (SAP's NetWeaver RFC SDK) or `'proto'` (the pure-Rust erpl-proto implementation). Must be set **before the first SAP call**; frozen for the life of the process once resolved. Environment override: `ERPL_RFC_BACKEND` |
 | `erpl_rfc_backend_path` | VARCHAR | `''` | Explicit path to the RFC backend shared library, overriding the search. Empty means: next to the extension, then the loader's library path. Environment override: `ERPL_RFC_BACKEND_PATH` |
@@ -2557,25 +2560,29 @@ client program. Check with your Basis team first.
 
 ### SSH Tunnel + SAP Connection
 
-Complete workflow for connecting through an SSH jump host:
+Reaching an SAP system behind a jump host, with the separate `erpl_tunnel` extension. The RFC gateway
+port is `33<sysnr>`, so the local end of the tunnel must be `33<sysnr>` as well (or set `GWSERV` in the
+secret):
 
 ```sql
--- 1. Create SSH tunnel secret
+INSTALL erpl_tunnel FROM 'https://get.erpl.io';
+LOAD erpl_tunnel;
+
+-- 1. SSH secret and tunnel: local 3300 -> sap.internal:3300 (system number 00)
 CREATE SECRET my_ssh (TYPE ssh_tunnel, ssh_host 'jump.example.com', ssh_user 'user', password 'pw');
+PRAGMA tunnel_import(secret = 'my_ssh', remote_host = 'sap.internal', remote_port = 3300, local_port = 3300);
 
--- 2. Create tunnel
-PRAGMA tunnel_create(secret='my_ssh', remote_host='sap.internal', remote_port=3300, local_port=13300);
-
--- 3. Create SAP connection pointing to local tunnel port
-CREATE SECRET my_sap (TYPE sap_rfc, ASHOST 'localhost', SYSNR '00', CLIENT '100', USER 'sap', PASSWD 'pw');
-
--- 4. Query through tunnel
+-- 2. SAP connection through the local end
+CREATE SECRET my_sap (TYPE sap_rfc, ASHOST '127.0.0.1', SYSNR '00', CLIENT '100', USER 'sap', PASSWD 'pw');
 SELECT * FROM sap_read_table('SFLIGHT');
 
--- 5. Cleanup
+-- 3. Cleanup
 PRAGMA tunnel_close_all;
 ```
 
+See the [erpl_tunnel README](https://github.com/DataZooDE/erpl-tunnel) for key authentication, reverse
+tunnels and Tailscale/NetBird.
+
 ---
 
-**Last Updated:** 2026-02-11
+

@@ -11,9 +11,13 @@ With ERPL, use Enterprise Data in your Data Science and ML pipelines within minu
 Install with two lines of code in DuckDB (unsigned option must be set):
 
 ```
-INSTALL 'erpl' FROM 'http://get.erpl.io';
+INSTALL 'erpl' FROM 'https://get.erpl.io';
 LOAD 'erpl';
 ```
+
+> **🤖 Using an AI assistant?** ERPL ships a [Claude Code plugin](#-claude-code-plugin): twelve skills that
+> know the erpl SQL surface from setup to operation, and commands that check a connection, diagnose a
+> failure or run a BW query for you. Install with `/plugin marketplace add DataZooDE/erpl` → `/plugin install erpl@erpl`.
 
 
 ## Quicklinks
@@ -22,6 +26,7 @@ LOAD 'erpl';
 - [⚙ Example Usage](#-example-usage) 
 - [➜ Obtaining the ERPL Extension](#-obtaining-the-erpl-extension)
 - [💻 Installing the ERPL Binaries](#-installing-the-erpl-binaries)
+- [🤖 Claude Code Plugin](#-claude-code-plugin)
 - [Tracking](#tracking)
 - [Licence](#license)
 
@@ -289,11 +294,11 @@ Upon successful installation and loading, the extension will output messages sim
 ```
 -- Loading ERPL Trampoline Extension. --
 (The purpose of the extension is to extract dependencies and load the ERPL implementation)
-Saving ERPL SAP dependencies to '/home/user/.duckdb/extensions/v1.2.0/linux_amd64' and loading them ... done
-ERPL RFC extension extracted and saved to /home/user/.duckdb/extensions/v1.2.0/linux_amd64.
-ERPL BICS extension extracted and saved to /home/user/.duckdb/extensions/v1.2.0/linux_amd64.
-ERPL ODP extension extracted and saved to /home/user/.duckdb/extensions/v1.2.0/linux_amd64.
-ERPL APE extension extracted and saved to /home/user/.duckdb/extensions/v1.2.0/linux_amd64.
+Saving ERPL SAP dependencies to '/home/user/.duckdb/extensions/v1.5.6/linux_amd64' and loading them ... done
+ERPL RFC extension extracted and saved to /home/user/.duckdb/extensions/v1.5.6/linux_amd64.
+ERPL BICS extension extracted and saved to /home/user/.duckdb/extensions/v1.5.6/linux_amd64.
+ERPL ODP extension extracted and saved to /home/user/.duckdb/extensions/v1.5.6/linux_amd64.
+ERPL APE extension extracted and saved to /home/user/.duckdb/extensions/v1.5.6/linux_amd64.
 ERPL RFC extension installed and loaded.
 ERPL BICS extension installed and loaded.
 ERPL ODP extension installed and loaded.
@@ -322,6 +327,54 @@ libsapucum.so
 
 [Back to Top](#top)
 
+## 🤖 Claude Code Plugin
+
+ERPL ships a [Claude Code](https://claude.com/claude-code) plugin, so an assistant working with you on SAP
+data knows the erpl functions, secret fields and settings instead of guessing them. Install it in any
+Claude Code session:
+
+```
+/plugin marketplace add DataZooDE/erpl
+/plugin install erpl@erpl
+```
+
+| Skill | Covers |
+|-------|--------|
+| `erpl-setup` | Installing erpl, `sap_rfc` secrets (direct, load-balanced, SAProuter, SNC, wsRFC), RFC backend, connection check, telemetry |
+| `erpl-choose-interface` | Which interface for which SAP object: tables, function modules, CDS views, extractors, BW providers and queries; full vs delta |
+| `erpl-rfc-tables` | `sap_read_table`, filter pushdown, `ATTACH`, data-dictionary discovery, type mapping |
+| `erpl-rfc-functions` | `sap_rfc_invoke` for BAPIs and function modules, signatures, BAPI `RETURN` |
+| `erpl-odp-replication` | ODP full and delta extraction, subscribers, recovery, cursor and subscription management |
+| `erpl-ape-cds` | CDS extraction via the ABAP Pipeline Engine, delta with deletes, spill and recovery, authorizations |
+| `erpl-bics-queries` | BW queries via BICS: variables, navigation, results, hierarchies, sessions |
+| `erpl-bics-metadata` | BW models, transformations, query anatomy, lineage and impact analysis |
+| `erpl-pipelines` | Landing full loads and deltas idempotently, scheduling, recovery, next steps with other DataZoo plugins |
+| `erpl-deploy` | Servers and containers, version pinning, secrets in production, the SAP-side package for Basis |
+| `erpl-operate` | Tracing, troubleshooting, housekeeping of cursors, subscriptions and sessions, tickets |
+| `erpl-performance` | Threads, partitions, fetch sizes, BICS result budget, scaling out |
+
+| Command | Does |
+|---------|------|
+| `/erpl:connect-check` | Checks versions, backend, logon and authorizations of a connection |
+| `/erpl:diagnose` | Reproduces a failing query, collects trace, stats and versions, drafts a ticket |
+| `/erpl:basis-handout` | Writes the authorization and network handout for the SAP Basis team |
+| `/erpl:bics-find` | Finds BW queries and cubes and describes one |
+| `/erpl:bics-run` | Runs a BW query and renders the result as a table, chart, dashboard or file |
+| `/erpl:bics-navigate` | Navigates an open BW query step by step |
+| `/erpl:bics-sessions` | Lists and cleans up stored BW query sessions |
+
+Companion plugins: [erpl-tunnel](https://github.com/DataZooDE/erpl-tunnel) (SSH, Tailscale and NetBird
+tunnels to SAP) and [erpl-adt](https://github.com/DataZooDE/erpl-adt) (ABAP and BW development from the
+command line). The skills hand follow-up work — data quality, dashboards, APIs, forecasting — to the
+anofox and flapi plugins instead of repeating them.
+
+The skills load on their own when a question needs them. They live in [`plugins/erpl/`](plugins/erpl/);
+`make check_skill_names` verifies every function, setting and secret field they mention against the build
+(it runs in the Linux and macOS smoke tests in CI), and `make check_skills` runs their SQL against an SAP trial system.
+To try local changes, start Claude Code with `claude --plugin-dir ./plugins/erpl`.
+
+[Back to Top](#top)
+
 ## Function Reference
 
 The complete API reference is in [API_REFERENCE.md](./API_REFERENCE.md); what to run and what to paste into a bug report is in [TROUBLESHOOTING.md](./TROUBLESHOOTING.md). Below is a summary.
@@ -334,7 +387,7 @@ The complete API reference is in [API_REFERENCE.md](./API_REFERENCE.md); what to
 | **erpl_bics** | `sap_bics_show*`, `sap_bics_begin/rows/columns/filter/result`, `sap_bics_hierarchy`, `sap_bics_meta_*`, `sap_bics_lineage_*` | SAP BW queries, hierarchies, metadata views, lineage analysis |
 | **erpl_odp** | `sap_odp_show*`, `sap_odp_describe`, `sap_odp_read_full`, `sap_odp_preview` | SAP ODP data extraction and replication |
 | **erpl_ape** | `sap_ape_show`, `sap_ape_describe`, `sap_ape_preview`, `sap_ape_read_full`, `sap_ape_read_delta`, `sap_ape_show_subscriptions`, `sap_ape_check_authorizations` | SAP CDS entity extraction via the ABAP Pipeline Engine — full and delta reads including deletes |
-| *(SSH tunnelling)* | — | Moved to the dedicated [erpl_tunnel](https://github.com/DataZooDE/erpl-tunnel) extension: `INSTALL erpl_tunnel FROM 'http://get.erpl.io'` |
+| *(SSH tunnelling)* | — | Moved to the dedicated [erpl_tunnel](https://github.com/DataZooDE/erpl-tunnel) extension: `INSTALL erpl_tunnel FROM 'https://get.erpl.io'` |
 
 ### Common Functions Quick Reference
 
@@ -355,37 +408,22 @@ For full parameter details, return types, and advanced usage see [API_REFERENCE.
 
 ## Tracking
 
-### Overview
-Our extension automatically collects basic usage data to enhance its performance and gain insights into user engagement. We employ [Posthog](https://posthog.com/) for data analysis, transmitting information securely to the European Posthog instance at [https://eu.posthog.com](https://eu.posthog.com) via HTTPS.
+ERPL sends **anonymous usage telemetry** to the EU PostHog instance so we can see which capabilities are
+used, on which platforms, and where they fail. It is on by default and off with either of:
 
-### Data Collected
-Each transmitted request includes the following information:
-- Extension Version
-- DuckDB Version
-- Operating System
-- System Architecture
-- MAC Address of the Primary Network Interface
+```sql
+SET erpl_telemetry_enabled = false;
+```
 
-### Event Tracking
-Data is transmitted under these circumstances:
-- **Extension Load**: No extra data is sent beyond the initial usage information.
-- **Function Invocation**: The name of the invoked function is sent. *Note: Function inputs/outputs are not transmitted.*
-- **Error Occurrence**: The error message is transmitted.
+```
+export DATAZOO_DISABLE_TELEMETRY=1
+```
 
-### User Configuration Options
-Users can control tracking through these settings:
-
-1. **Enable/Disable Tracking**:
-   ```sql
-   SET erpl_telemetry_enabled = TRUE; -- Enabled by default; set to FALSE to disable tracking
-   ```
-   
-2. **Posthog API Key Configuration** (usually unchanged):
-   ```sql
-   SET erpl_telemetry_key = 'phc_XXX'; -- Pre-set to our key; customizable to your own key
-   ```
-
-This approach ensures transparency about data collection while offering users control over their privacy settings.
+What is sent: the erpl and DuckDB versions, OS, architecture, a pseudonymous machine id (a SHA-256 hash),
+which erpl functions and features ran (aggregated counts and durations), and enumerated error classes.
+Never sent: SAP host names, system or client numbers, user names, table, field or function-module names,
+filters, SQL text, data, or SAP error messages. [TELEMETRY.md](./TELEMETRY.md) lists every event and
+property.
 
 [Back to Top](#top)
 
