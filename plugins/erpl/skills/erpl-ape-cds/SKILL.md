@@ -154,6 +154,8 @@ If a client was killed mid-scan, its graph keeps running on SAP and the subscrip
 | View not delta-enabled | Ask the owner for the CDC annotation; meanwhile full reads |
 | `REFUSED`/authorisation error | `sap_ape_check_authorizations('<ENTITY>')`, then `/erpl:basis-handout` |
 | First read hangs | Expected while SAP prepares; check the application log named in the error after `erpl_ape_prepare_timeout` |
+| Every read times out; SLG1 object `DHCDC` shows `DHCDC_RT/064 Cannot start ACP daemon` | No batch job waits for event `SAP_DHCDC_RT_START_ACP_DAEMON` (technical job repository) — Basis schedules it; nothing else in APE preparation runs without that daemon |
+| First delta over an **empty** view times out | The initial load of an empty source delivers no package, which reads as a preparation timeout; check the source has rows |
 | Delta crashed | `recover => true`, apply, then continue normally |
 
 ## Canonical delta cycle
