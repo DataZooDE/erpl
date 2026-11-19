@@ -33,8 +33,16 @@ _WS_KEY="$_WS_DIR/client_key.pk8.der"
 # that is what rustls takes and what SUSR_CERT_ASSIGN wants; a PEM copy is kept only
 # because sapgenpse will not read DER.
 _ensure_ws_pair() {
+    # An existing pair is kept only while it is valid. Keeping it because it
+    # exists is how erpl-proto's pair outlived itself: it expired on 2026-09-13
+    # and every wsRFC test then failed on `CertificateExpired`, a TLS alert that
+    # reads like a transport bug. A renewed pair is mapped again further down.
     if [ -f "$_WS_CERT" ] && [ -f "$_WS_KEY" ]; then
-        return 0
+        if openssl x509 -inform DER -in "$_WS_CERT" -noout -checkend 86400 >/dev/null 2>&1; then
+            return 0
+        fi
+        warn "wsRFC client certificate expired or expiring within a day -- generating a new pair"
+        rm -f "$_WS_CERT" "$_WS_KEY" "$_WS_DIR/client.crt" "$_WS_DIR/client_key.pem"
     fi
     mkdir -p "$_WS_DIR" || return 1
     openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
@@ -83,7 +91,12 @@ _trust() {  # _trust <pse> <local pem> <label>
     # owner maps to a different uid inside the container -- so sapgenpse, running as
     # a4hadm, reported the file as "not existing".  These are public certificates.
     chmod 644 "$2" 2>/dev/null
-    docker cp "$2" "$A4H_CONTAINER:/tmp/$base" >/dev/null 2>&1 || {
+    # Streamed through `docker exec` rather than `docker cp`: with a bind mount under
+    # /opt/erpl (the lcp build), `docker cp` fails outright -- "mkdirat opt/erpl/lcp:
+    # file exists" -- whatever the destination path.  The mode is set explicitly, since
+    # nothing is preserved this way.
+    docker exec -i "$A4H_CONTAINER" sh -c "cat > /tmp/$base && chmod 644 /tmp/$base" \
+        < "$2" >/dev/null 2>&1 || {
         warn "$3 (could not copy $2 into the container)"; return 1; }
     local out
     out=$(docker exec -u a4hadm "$A4H_CONTAINER" bash -lc \
