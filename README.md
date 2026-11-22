@@ -234,6 +234,26 @@ You can optionally restrict which tables are accessible using the `TABLES` optio
 ATTACH '' AS sap (TYPE sap_rfc, SECRET 'abap_trial', TABLES '/DMO/FLIGHT,/DMO/CARRIER');
 ```
 
+### Writing to SAP: the transaction is the SAP LUW
+
+Write BAPIs need the BAPI call and `BAPI_TRANSACTION_COMMIT` on the same SAP session. Wrap them in a DuckDB
+transaction: between `BEGIN` and `COMMIT` every erpl call to SAP (RFC, BICS, ODP, APE) shares one session per secret, `COMMIT` calls
+`BAPI_TRANSACTION_COMMIT` (`WAIT = 'X'`) and fails if SAP rejects it, and `ROLLBACK` calls
+`BAPI_TRANSACTION_ROLLBACK`. Statements outside a transaction behave as before and never commit.
+
+```sql
+BEGIN;
+SELECT TYPE, MESSAGE FROM sap_rfc_invoke('BAPI_FLCUST_CHANGE', {
+    'CUSTOMERNUMBER': '00004687',
+    'CUSTOMER_DATA':   {'EMAIL': 'new@example.com'},
+    'CUSTOMER_DATA_X': {'EMAIL': 'X'}
+}, path='/RETURN');   -- preview / write; check RETURN for TYPE E/A
+COMMIT;               -- BAPI_TRANSACTION_COMMIT (WAIT='X') on the same session
+```
+
+Details and caveats (SAP commits before DuckDB, but the two are not atomic; ODP extraction and APE read graphs keep their own connections) are in
+[API_REFERENCE.md](./API_REFERENCE.md#transactions-the-duckdb-transaction-is-the-sap-luw).
+
 [Back to Top](#top)
 
 ## ➜ Obtaining the ERPL Extension
@@ -343,7 +363,7 @@ Claude Code session:
 | `erpl-setup` | Installing erpl, `sap_rfc` secrets (direct, load-balanced, SAProuter, SNC, wsRFC), RFC backend, connection check, telemetry |
 | `erpl-choose-interface` | Which interface for which SAP object: tables, function modules, CDS views, extractors, BW providers and queries; full vs delta |
 | `erpl-rfc-tables` | `sap_read_table`, filter pushdown, `ATTACH`, data-dictionary discovery, type mapping |
-| `erpl-rfc-functions` | `sap_rfc_invoke` for BAPIs and function modules, signatures, BAPI `RETURN` |
+| `erpl-rfc-functions` | `sap_rfc_invoke` for BAPIs and function modules, signatures, BAPI `RETURN`, committing write BAPIs in `BEGIN … COMMIT` |
 | `erpl-odp-replication` | ODP full and delta extraction, subscribers, recovery, cursor and subscription management |
 | `erpl-ape-cds` | CDS extraction via the ABAP Pipeline Engine, delta with deletes, spill and recovery, authorizations |
 | `erpl-bics-queries` | BW queries via BICS: variables, navigation, results, hierarchies, sessions |

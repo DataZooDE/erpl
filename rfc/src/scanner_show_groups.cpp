@@ -1,4 +1,5 @@
 #include "duckdb.hpp"
+#include "sap_luw.hpp"
 #include "scanner_show_groups.hpp"
 #include "telemetry.hpp"
 #include "duckdb_compat.hpp"
@@ -34,7 +35,8 @@ static unique_ptr<FunctionData> RfcShowGroupBind(ClientContext &context,
     PostHogTelemetry::Instance().RecordFunctionCall("sap_rfc_search_group");
 
     // Connect to the SAP system
-    auto connection = RfcAuthParams::FromContext(context).Connect();
+    auto auth_params = RfcAuthParams::FromContext(context);
+    auto connection = ConnectInContext(context, auth_params);
 
     // Create the function
     auto func_args = CreateFunctionArguments(input);

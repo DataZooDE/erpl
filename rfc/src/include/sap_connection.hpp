@@ -1,6 +1,9 @@
 #pragma once
 
 #include "duckdb.hpp"
+#include <atomic>
+#include <memory>
+#include <mutex>
 #include "sap_rfc_api.hpp"
 #include "sap_secret.hpp"
 
@@ -52,19 +55,65 @@ namespace duckdb
 		std::string partner_ipv6;
 	} RfcConnectionAttributes;
 
-    /**
-     * @brief A wrapper class for the RFC_CONNECTION_HANDLE structure.
-     * 
-     * This class wraps the RFC_CONNECTION_HANDLE structure used in the SAP NWRFC SDK.
-     * It manages the lifetime of the connection handle and provides convenient
-     * member functions for accessing the connection data.
-     */
+    // The SAP session behind a shared connection -- the SAP LUW session a DuckDB transaction
+    // holds (sap_luw.hpp) -- and every non-owning view of it. One lock serialises the
+    // round-trips (an RFC handle must not be used by two threads at once) and lets the owner
+    // close the session without racing a call in flight; once it is closed, `handle` is
+    // NULL and every view's next call fails cleanly instead of handing the SDK a dead
+    // handle.
+    struct RfcSessionCore {
+        std::mutex lock;
+        RFC_CONNECTION_HANDLE handle = NULL;
+        // A round-trip failed in a way that ends an RFC session (communication failure,
+        // ABAP runtime error / short dump, invalid handle): the LUW is gone on the SAP side.
+        std::atomic<bool> lost {false};
+    };
+
+    // Held for the duration of one SDK call that takes a connection handle. For a shared
+    // session it holds the session's lock; for an ordinary connection it is free.
+    class RfcCallGuard {
+    public:
+        RfcCallGuard(RFC_CONNECTION_HANDLE handle, std::shared_ptr<RfcSessionCore> core,
+                     std::unique_lock<std::mutex> lock);
+        RFC_CONNECTION_HANDLE Handle() const { return handle; }
+        // Report the call's return code: one that ends the RFC session marks a shared
+        // session lost (see RfcSessionCore::lost).
+        void Note(RFC_RC rc);
+
+    private:
+        RFC_CONNECTION_HANDLE handle;
+        std::shared_ptr<RfcSessionCore> core;
+        std::unique_lock<std::mutex> lock;
+    };
+
+    // Owns the handle of an ordinary connection. A connection that is shared (Share())
+    // keeps its handle in an RfcSessionCore that its non-owning views (Borrow()) see too.
     typedef struct RfcConnection
     {
+        // The handle as this object last knew it. Non-NULL means "this object has not
+        // been closed"; SDK calls must take the live handle from CallGuard().
         RFC_CONNECTION_HANDLE handle;
+        // False for a view onto a session somebody else owns. Close() on a view only
+        // forgets the session; the owner closes it.
+        bool owns_handle = true;
+        // Set for shared sessions and their views.
+        std::shared_ptr<RfcSessionCore> core;
 
         RfcConnection(RFC_CONNECTION_HANDLE handle);
+        RfcConnection(std::shared_ptr<RfcSessionCore> core, bool owns_handle);
         ~RfcConnection();
+
+        // Make this (owning) connection shareable: move its handle into a session core.
+        void Share();
+        // A non-owning view of this shared connection.
+        std::shared_ptr<RfcConnection> Borrow();
+        // Lock (for a shared session) and return the live handle for one SDK call.
+        // Throws if the shared session has been closed -- the SAP transaction a statement
+        // was bound in has ended.
+        RfcCallGuard CallGuard();
+        bool IsLost() const;
+        // Forget the handle without closing it (tests with fake handles only).
+        void Abandon();
 
 		void Close();
         void Ping();

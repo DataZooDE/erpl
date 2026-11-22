@@ -1,4 +1,5 @@
 #include "duckdb.hpp"
+#include "sap_luw.hpp"
 #include "scanner_describe_fields.hpp"
 #include "telemetry.hpp"
 #include "duckdb_compat.hpp"
@@ -30,7 +31,8 @@ namespace duckdb
         PostHogTelemetry::Instance().RecordFunctionCall("sap_describe_fields");
 
         // Connect to the SAP system
-        auto connection = RfcAuthParams::FromContext(context).Connect();
+        auto auth_params = RfcAuthParams::FromContext(context);
+        auto connection = ConnectInContext(context, auth_params);
 
         // Create the function
         auto func = std::make_shared<RfcFunction>(connection, "DDIF_FIELDINFO_GET");

@@ -3,10 +3,13 @@ name: erpl-rfc-functions
 description: >
   Calling SAP RFC function modules and BAPIs from DuckDB with erpl_rfc: sap_rfc_invoke(function, {params}
   [, path, secret]) with scalar, structure (STRUCT) and table (LIST of STRUCT) arguments, unnesting one
-  output table with path => '/TABLE', reading the BAPI RETURN messages, and finding and describing function
+  output table with path => '/TABLE', reading the BAPI RETURN messages, committing write BAPIs inside
+  BEGIN ... COMMIT (the DuckDB transaction is the SAP LUW: BAPI_TRANSACTION_COMMIT / _ROLLBACK on one
+  session), and finding and describing function
   modules with sap_rfc_show_function, sap_rfc_show_groups and sap_rfc_describe_function (import, export,
   changing, tables parameters with their DuckDB types). Use when a user wants to call a BAPI or RFC function
-  module (BAPI_*_GETLIST, BAPI_*_GETDETAIL, RFC_*, Z function modules), needs to know a function's
+  module (BAPI_*_GETLIST, BAPI_*_GETDETAIL, BAPI_*_CREATE/CHANGE, RFC_*, Z function modules), needs to
+  write to SAP and commit, needs to know a function's
   parameters, or gets a type or "parameter not found" error from sap_rfc_invoke.
 user-invocable: false
 ---
@@ -22,9 +25,10 @@ scalar columns, structures as STRUCT, tables as LIST of STRUCT. `path` turns one
    function module. Never wrap a function with side effects in an exploratory query.
 2. **A BAPI error is not an SQL error.** BAPIs report failure in their `RETURN` table (`TYPE` `E` or `A`)
    and the SQL statement still succeeds. Always read `RETURN`.
-3. **Each call is its own RFC session.** A later `sap_rfc_invoke('BAPI_TRANSACTION_COMMIT')` runs in a new
-   session and commits nothing from an earlier call. Use erpl for reading; write BAPIs that need an
-   explicit commit do not work this way.
+3. **Write BAPIs need a transaction.** Outside `BEGIN … COMMIT` each call is its own RFC session, so a
+   later `sap_rfc_invoke('BAPI_TRANSACTION_COMMIT')` commits nothing from an earlier call. Inside a
+   transaction all calls share one session and `COMMIT` commits them (see "Writing: the transaction is the
+   SAP LUW" below).
 4. **Parameter and field names are SAP's, in upper case** (`'AIRLINE'`, `'DATE_RANGE'`, `'SIGN'`). Look them
    up with `sap_rfc_describe_function`. Optional parameters can be omitted.
 5. **Types follow the DDIC:** a `DATS` parameter takes a `DATE` (`DATE '2024-01-31'`), `NUMC` a string with
@@ -71,6 +75,41 @@ FROM sap_rfc_invoke('BAPI_FLIGHT_GETLIST', {'AIRLINE': 'XX'}, path => '/RETURN')
 WHERE TYPE IN ('E', 'A');
 ```
 
+## Writing: the transaction is the SAP LUW
+
+Between `BEGIN` and `COMMIT`/`ROLLBACK`, every erpl call to SAP (`sap_rfc_invoke`, `sap_read_table`, `sap_bics_*`,
+`sap_odp_*`, `sap_ape_*`, …) runs on
+one SAP session per secret. `COMMIT` calls `BAPI_TRANSACTION_COMMIT` with `WAIT = 'X'` on it and fails if SAP
+reports an error; `ROLLBACK` — also after a failed statement — calls `BAPI_TRANSACTION_ROLLBACK`.
+
+```sql
+-- check:skip-live (writes to SAP)
+BEGIN;
+SELECT TYPE, MESSAGE FROM sap_rfc_invoke('BAPI_FLCUST_CHANGE', {
+    'CUSTOMERNUMBER': '00004687',
+    'CUSTOMER_DATA':   {'EMAIL': 'new@example.com'},
+    'CUSTOMER_DATA_X': {'EMAIL': 'X'}
+}, path => '/RETURN');
+COMMIT;   -- BAPI_TRANSACTION_COMMIT (WAIT='X') on the same session; ROLLBACK discards it
+```
+
+- Read `RETURN` before `COMMIT`: a `TYPE` `E`/`A` row does not fail the statement and erpl does not roll back
+  on its own — issue `ROLLBACK` yourself.
+- Never call a write BAPI in autocommit mode (no `BEGIN`): it runs, reports success, and is discarded.
+- `PREPARE` calls the BAPI immediately (gotcha 1) — inside the transaction only if `PREPARE` itself is inside
+  `BEGIN`. Prepared erpl statements belong to the transaction they were prepared in; after `COMMIT`/`ROLLBACK`
+  prepare them again.
+- Keep transactions short: the BAPIs' SAP locks are held until `COMMIT`/`ROLLBACK`, and `sap_read_table` reads
+  serially inside `BEGIN`.
+- A `COMMIT` error saying the outcome is **unknown** means SAP may have committed: check SM13 or the object
+  before running the write again.
+- SAP commits first, then DuckDB; a rejected SAP commit fails `COMMIT` and leaves only `ROLLBACK`. DuckDB writes
+  and SAP writes are still not atomic — keep DuckDB writes that must match SAP in a later transaction.
+- `sap_bics_*`, `sap_odp_*` and `sap_ape_*` calls share the transaction's session too, except the ODP extraction
+  calls (open/fetch/close of `sap_odp_read_full` / `_delta`) and the APE read graphs (`sap_ape_read_full` /
+  `_delta`), which keep their own connections — the APE engine commits as it goes and would otherwise commit
+  your pending writes. ODP and APE commit their own extraction progress, so `ROLLBACK` does not undo it.
+
 ## Finding and describing function modules
 
 ```sql
@@ -101,6 +140,7 @@ enabled modules can be called.
 | Several output tables | call once without `path` and `unnest` each column, or call once per table |
 | Find which BAPI exists | `sap_rfc_show_function(FUNCNAME => 'BAPI_<OBJECT>*')` |
 | Function with side effects | Do not call it from exploratory SQL (gotcha 1) |
+| Write BAPI that needs a commit | `BEGIN; SELECT … FROM sap_rfc_invoke('BAPI_…', …); COMMIT;` |
 
 ## Canonical pattern
 

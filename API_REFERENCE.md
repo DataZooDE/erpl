@@ -219,6 +219,97 @@ SELECT * FROM sap_rfc_invoke('BAPI_FLIGHT_GETLIST',
 );
 ```
 
+#### Transactions: the DuckDB transaction is the SAP LUW
+
+Write BAPIs (`BAPI_*_CREATE*`, `BAPI_*_CHANGE`, …) post through SAP's update task: the BAPI and
+`BAPI_TRANSACTION_COMMIT` must run on the **same** RFC session. erpl therefore maps the DuckDB transaction onto
+the SAP logical unit of work (LUW):
+
+| Statement | What erpl does on the SAP side |
+|---|---|
+| `BEGIN` | nothing yet |
+| any erpl function or pragma that talks to SAP, between `BEGIN` and `COMMIT`/`ROLLBACK`: all of erpl_rfc (`sap_rfc_invoke`, `sap_read_table`, `sap_describe_fields`, `sap_rfc_describe_function`, `sap_rfc_show_function`, `sap_rfc_show_groups`, `PRAGMA sap_rfc_ping`, `ATTACH`ed tables), erpl_bics (`sap_bics_*`), erpl_odp (`sap_odp_*`, `PRAGMA sap_odp_*` — except the extraction calls of `sap_odp_read_full` / `sap_odp_read_delta`, see below) and erpl_ape (`sap_ape_*`, `PRAGMA sap_ape_*` — except the read graphs of `sap_ape_read_full` / `sap_ape_read_delta`, see below) | runs on **one** RFC session per secret, opened on first use and held until the transaction ends |
+| `COMMIT` | `BAPI_TRANSACTION_COMMIT` with `WAIT = 'X'` on each held session, then closes it. If SAP returns `TYPE` `E` or `A` in its `RETURN`, the `COMMIT` statement fails with SAP's message ("SAP rejected the commit … not committed"). If the call itself fails (connection lost, runtime error), the outcome is **unknown** and the error says so: check the SAP side (SM13, or the objects) before retrying |
+| `ROLLBACK`, a failed statement followed by `COMMIT`/`ROLLBACK`, or closing the DuckDB connection with an open transaction | `BAPI_TRANSACTION_ROLLBACK`, then closes the session |
+| autocommit statement (no `BEGIN`) | unchanged: a connection per call, no commit — a write BAPI called this way is discarded |
+
+```sql
+BEGIN;
+-- preview / write: the BAPI's RETURN comes back as data
+SELECT TYPE, MESSAGE FROM sap_rfc_invoke('BAPI_FLCUST_CHANGE', {
+    'CUSTOMERNUMBER': '00004687',
+    'CUSTOMER_DATA':   {'EMAIL': 'new@example.com'},
+    'CUSTOMER_DATA_X': {'EMAIL': 'X'}
+}, path='/RETURN');
+COMMIT;   -- BAPI_TRANSACTION_COMMIT (WAIT='X') on the same session
+```
+
+- **A BAPI error is still data.** `RETURN` rows with `TYPE` `E`/`A` inside the transaction are returned to you;
+  erpl does not roll back on its own. Check `RETURN` and issue `ROLLBACK` yourself.
+- **The call happens at bind time**, as everywhere in erpl: a `PREPARE` of a write BAPI calls it right away —
+  on the transaction's session if the `PREPARE` is inside `BEGIN`, otherwise on a connection of its own (and then
+  discarded) — and `EXECUTE` does not call it again.
+- **Prepared statements belong to their transaction.** A statement prepared inside a transaction keeps that
+  transaction's session where its bind data holds a connection (e.g. `sap_bics_result_stats`); executed after
+  `COMMIT`/`ROLLBACK` it fails with "the SAP transaction this statement was bound in has ended … prepare the
+  statement again". `sap_read_table` opens its connections per execution and is not affected. A statement
+  prepared *outside* a transaction and executed inside one keeps the connection it was bound with and so does not
+  take part in the LUW: prepare erpl statements inside the transaction they are meant for.
+- **SAP locks are held until the transaction ends.** Write BAPIs take SAP enqueue locks that live as long as the
+  session's LUW, i.e. until `COMMIT`/`ROLLBACK`; keep transactions short.
+- **One session, serial reads.** Inside a transaction `sap_read_table` uses the transaction's session for all of
+  its calls: no row partitions, no per-column parallel connections — a large read is therefore slower inside
+  `BEGIN` than outside it. Reads inside the transaction do not see its
+  own BAPI changes yet — update-task writes reach the database only at `COMMIT`; after `COMMIT` (`WAIT = 'X'`)
+  every read sees them.
+- **SAP commits first, then DuckDB.** `COMMIT` runs `BAPI_TRANSACTION_COMMIT` before DuckDB commits its own
+  changes. If SAP rejects it, the `COMMIT` statement fails and the DuckDB transaction is aborted: it can only be
+  rolled back (a further `COMMIT` acts as `ROLLBACK`), so DuckDB-local writes of that transaction are discarded
+  too. The two are still **not atomic**: if SAP commits and DuckDB's own commit then fails (e.g. a write-write
+  conflict on a DuckDB table), the SAP changes stay committed. Keep DuckDB writes that must match SAP in a
+  separate, later transaction.
+- **Several secrets** in one transaction are committed one after the other; if one is rejected, the ones not yet
+  committed are rolled back — the ones already committed stay committed.
+- A `COMMIT` that is prepared first and executed later (`PREPARE c AS COMMIT`, a client's prepared `COMMIT`)
+  commits SAP after DuckDB's local commit instead, where an error can no longer fail the `COMMIT` statement
+  without leaving DuckDB's own transaction state inconsistent. The `COMMIT` then succeeds, the DuckDB changes are
+  committed, and a SAP rejection (or unknown outcome) is traced and raised by the **next erpl call** on that
+  connection ("the previous COMMIT … did not complete on the SAP side"). Use a plain `COMMIT` statement.
+- **A lost session ends the LUW.** If a round-trip on the transaction's session fails with a communication error
+  or an ABAP runtime error (short dump), SAP has discarded the session and its changes: the next erpl call in the
+  transaction and the `COMMIT` fail with "the SAP session of this transaction was lost"; `ROLLBACK` and run the
+  transaction again.
+- **`COMMIT` waits for the update task.** `WAIT = 'X'` returns only when SAP's update has finished; a stuck V1
+  update keeps the `COMMIT` statement waiting, and interrupting the query does not cancel the RFC call. The
+  commit duration is traced at `erpl_trace_level = 'INFO'`.
+- `sap_rfc_live_connections()` is 1 per secret while such a transaction is open, and back to 0 after it ends —
+  in the statically linked build, and in an installed release as long as the transaction's first SAP call came
+  from erpl_rfc. In a release install each erpl extension is its own binary with its own counters: a session
+  opened by a `sap_bics_*`/`sap_odp_*`/`sap_ape_*` call is shared by all of them (checked on 1.5.6, BICS first,
+  then RFC/ODP/APE and a write BAPI committed), but `sap_rfc_live_connections()` does not count it.
+- **ODP extraction keeps its own connections.** Inside a transaction the binds and metadata calls of `sap_odp_*`
+  (describe, show, subscriptions, cursors, the bind of a read) use the transaction's session, but the extraction
+  calls of `sap_odp_read_full` / `sap_odp_read_delta` — `RODPS_REPL_ODP_OPEN`, `_FETCH`, `_CLOSE` — open their own
+  connections as outside a transaction: they are read-only, the ODQ commits them itself (delta pointers move
+  regardless of `COMMIT`/`ROLLBACK`), and their packages are fetched in parallel, which one shared session would
+  serialise. `sap_rfc_connections_opened()` therefore grows by more than one during such a read; the extra
+  connections are released when it ends.
+- **APE read graphs keep their own connections.** The ABAP Pipeline Engine commits as it hands over packages, and
+  a commit on a session commits that session's whole LUW: measured on the A4H trial, `BEGIN; <write BAPI>;
+  sap_ape_read_full(...); ROLLBACK` left the write committed when the read ran on the transaction's session. So
+  the read graphs of `sap_ape_read_full` / `sap_ape_read_delta` — the subscription lookup, the graph session and
+  the eraser that drops a full read's subscription — run on connections of their own even inside a transaction;
+  the read's bind (schema lookup) and the APE metadata calls (`sap_ape_describe`, `sap_ape_preview`, `sap_ape_show`,
+  `sap_ape_show_subscriptions`, `sap_ape_system_info`, `sap_ape_check_authorizations`, `PRAGMA sap_ape_ping`,
+  `PRAGMA sap_ape_drop`) use the transaction's session. The engine still commits its own progress (subscriptions,
+  packages), so `ROLLBACK` does not undo an extraction step.
+- **Measured, not assumed.** On A4H none of these committed pending writes when run on the transaction's session:
+  `sap_read_table`, the APE metadata calls above, `PRAGMA sap_odp_drop` and `PRAGMA sap_odp_close_delta_cursor`
+  (for a subscription that does not exist), the binds of `sap_odp_read_full`, `sap_bics_begin`/`sap_bics_result`,
+  `sap_bics_describe`. **Not verified:** the ODP/APE administrative pragmas on an *existing* subscription (they may
+  take a code path that commits), and `sap_ape_read_delta` (no CDC-enabled entity on the trial). BICS navigation state (`sap_bics_begin` … `sap_bics_end`) is stored
+  by erpl through its own DuckDB connection, so it is kept on `ROLLBACK` as well.
+
 ---
 
 ### Discovery & Metadata
@@ -351,6 +442,13 @@ queries it should be 0.** A non-zero value means erpl is still holding SAP sessi
 ```sql
 SELECT sap_rfc_live_connections();   -- 0 between queries
 ```
+
+Inside an explicit transaction erpl holds one session per secret until `COMMIT` or `ROLLBACK`
+(see [Transactions](#transactions-the-duckdb-transaction-is-the-sap-luw)), so the count is 1 per
+secret there and returns to 0 when the transaction ends.
+In an installed release the counters are those of erpl_rfc's binary: connections that erpl_bics,
+erpl_odp or erpl_ape open (including a transaction's session whose first call came from one of them) are
+not counted.
 
 These are process-wide counters, not per-connection state, and they are `VOLATILE` so
 DuckDB never constant-folds them at bind time. Their intended use is asserting in tests

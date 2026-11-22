@@ -23,6 +23,31 @@ LOAD erpl;
 
 ---
 
+## Unreleased
+
+### Added
+
+- **[rfc] [bics] [odp] [ape]** The DuckDB transaction is the SAP LUW (#244). Between `BEGIN` and `COMMIT`/`ROLLBACK`, every
+  erpl call to SAP (`sap_rfc_invoke`, `sap_read_table`, the describe/show functions, `PRAGMA sap_rfc_ping`,
+  `ATTACH`ed tables) runs on one RFC session per secret. `COMMIT` calls `BAPI_TRANSACTION_COMMIT` with
+  `WAIT = 'X'` on it and fails with SAP's message if `RETURN` reports `E`/`A`; `ROLLBACK` — also after a failed
+  statement, or when the connection closes with the transaction open — calls `BAPI_TRANSACTION_ROLLBACK`. Write
+  BAPIs that post through the update task can now be committed from SQL. Autocommit statements are unchanged
+  (a connection per call, no commit). Inside a transaction `sap_read_table` reads serially on that session.
+  SAP commits before DuckDB does; a rejected SAP commit aborts the DuckDB transaction, but a DuckDB commit that
+  fails after SAP committed cannot undo the SAP changes, so DuckDB writes and SAP writes are not atomic together.
+  A commit whose call fails reports its outcome as unknown (check SM13 before retrying); a session lost to a
+  communication failure or short dump fails the rest of the transaction; a statement prepared in a transaction
+  and executed after it fails cleanly ("prepare the statement again"); a prepared `COMMIT` executed later reports
+  a SAP rejection on the next erpl call.
+  **[bics] [odp] [ape]** take part as well: every `sap_bics_*`, `sap_odp_*` and `sap_ape_*` function and pragma
+  runs on the transaction's session, except the ODP extraction calls (`RODPS_REPL_ODP_OPEN`/`_FETCH`/`_CLOSE`),
+  which stay on their own, parallel connections, and the APE read graphs of `sap_ape_read_full`/`_delta`, which
+  stay on their own because the engine's commits would otherwise commit the transaction's pending writes
+  (measured on A4H); ODP and APE still commit their own extraction progress on the SAP side.
+
+---
+
 ## v2026.11.22 — DuckDB 2.0.1, and a sturdier proto backend
 
 erpl is now built and published for **DuckDB v2.0.1** as well as v1.5.6: `INSTALL erpl FROM 'https://get.erpl.io'`

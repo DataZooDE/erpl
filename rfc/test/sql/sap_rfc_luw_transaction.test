@@ -1,0 +1,324 @@
+# name: test/sql/sap_rfc_luw_transaction.test
+# description: The DuckDB transaction is the SAP LUW (issue #244).
+#
+#              Write BAPIs post through the update task: the BAPI and
+#              BAPI_TRANSACTION_COMMIT must run on the same RFC session. Between BEGIN and
+#              COMMIT / ROLLBACK every erpl RFC call shares one session per secret; COMMIT
+#              calls BAPI_TRANSACTION_COMMIT (WAIT = 'X') on it, ROLLBACK -- also after a
+#              failed statement -- calls BAPI_TRANSACTION_ROLLBACK. Autocommit statements
+#              keep a connection per call and never commit.
+#
+#              Uses the standard flight model only. Each run creates its own flight
+#              customer (BAPI_FLCUST_CREATEFROMDATA, inside BEGIN ... COMMIT) and then
+#              changes its e-mail address with BAPI_FLCUST_CHANGE, so a failed run leaves no
+#              existing customer modified and concurrent runs do not interfere; each run
+#              adds one SCUSTOM row named 'ERPL LUW TEST'. (The flight data on the A4H trial is from 2016/2017, and
+#              BAPI_FLBOOKING_CREATEFROMDATA refuses past flights; the booking BAPI is
+#              used below to show that a BAPI error inside the LUW is returned as data.)
+# group: [rfc]
+
+require erpl_rfc
+
+require-env ERPL_SAP_ASHOST
+
+require-env ERPL_SAP_SYSNR
+
+require-env ERPL_SAP_USER
+
+require-env ERPL_SAP_PASSWORD
+
+require-env ERPL_SAP_CLIENT
+
+require-env ERPL_SAP_LANG
+
+statement ok
+CREATE SECRET abap_trial (
+    TYPE sap_rfc,
+    ASHOST '${ERPL_SAP_ASHOST}',
+    SYSNR '${ERPL_SAP_SYSNR}',
+    CLIENT '${ERPL_SAP_CLIENT}',
+    USER '${ERPL_SAP_USER}',
+    PASSWD '${ERPL_SAP_PASSWORD}',
+    LANG '${ERPL_SAP_LANG}'
+);
+
+statement ok
+CREATE TABLE baseline AS
+SELECT sap_rfc_live_connections() AS live, sap_rfc_connections_opened() AS opened;
+
+# Creating a customer, as a macro.
+statement ok
+CREATE MACRO luw_create_customer(mail) AS TABLE
+SELECT CUSTOMERNUMBER FROM sap_rfc_invoke('BAPI_FLCUST_CREATEFROMDATA', {
+    'CUSTOMER_DATA': {
+        'CUSTNAME': 'ERPL LUW TEST', 'FORM': 'Herr', 'STREET': 'Teststr. 1', 'POSTCODE': '69190',
+        'CITY': 'Walldorf', 'COUNTR': 'DE', 'EMAIL': mail, 'CUSTTYPE': 'P', 'DISCOUNT': '000', 'LANGU': 'E'
+    }
+});
+
+# -------------------------------------------------------------------------
+# 0. An autocommit create is discarded (today's behaviour); inside BEGIN ... COMMIT
+#    it is committed. The committed one is this run's customer.
+# -------------------------------------------------------------------------
+statement ok
+SET VARIABLE luw_discarded = (SELECT CUSTOMERNUMBER FROM luw_create_customer('erpl-luw-discarded@example.com'));
+
+query I
+SELECT count(*) FROM sap_read_table('SCUSTOM', COLUMNS => ['ID']) WHERE ID = getvariable('luw_discarded');
+----
+0
+
+statement ok
+BEGIN;
+
+statement ok
+SET VARIABLE luw_cust = (SELECT CUSTOMERNUMBER FROM luw_create_customer('erpl-luw-created@example.com'));
+
+statement ok
+COMMIT;
+
+query I
+SELECT count(*) FROM sap_read_table('SCUSTOM', COLUMNS => ['ID']) WHERE ID = getvariable('luw_cust');
+----
+1
+
+statement ok
+SET VARIABLE luw_original_email = 'erpl-luw-created@example.com';
+
+# Reads the customer's e-mail on a fresh connection (outside any transaction).
+statement ok
+CREATE MACRO luw_email() AS TABLE
+SELECT EMAIL FROM sap_read_table('SCUSTOM', COLUMNS => ['ID', 'EMAIL'])
+WHERE ID = getvariable('luw_cust');
+
+# The SAP-side change, as a macro: BAPI_FLCUST_CHANGE on the e-mail address only.
+statement ok
+CREATE MACRO luw_set_email(mail) AS TABLE
+SELECT * FROM sap_rfc_invoke('BAPI_FLCUST_CHANGE', {
+    'CUSTOMERNUMBER': getvariable('luw_cust'),
+    'CUSTOMER_DATA': {'EMAIL': mail},
+    'CUSTOMER_DATA_X': {'EMAIL': 'X'}
+}, path => '/RETURN');
+
+# BAPI_FLCUST_CREATEFROMDATA leaves the e-mail address empty; give the new customer its
+# starting address in a LUW of its own.
+statement ok
+BEGIN;
+
+statement ok
+SELECT * FROM luw_set_email(getvariable('luw_original_email'));
+
+statement ok
+COMMIT;
+
+# -------------------------------------------------------------------------
+# 1. Today's behaviour, kept for autocommit statements: the BAPI and the commit
+#    run on two sessions, so the commit commits nothing.
+# -------------------------------------------------------------------------
+statement ok
+SELECT * FROM luw_set_email('erpl-luw-autocommit@example.com');
+
+statement ok
+SELECT * FROM sap_rfc_invoke('BAPI_TRANSACTION_COMMIT', {'WAIT': 'X'}, path => '/RETURN');
+
+query I
+SELECT EMAIL FROM luw_email();
+----
+erpl-luw-created@example.com
+
+query I
+SELECT sap_rfc_live_connections() - (SELECT live FROM baseline);
+----
+0
+
+# -------------------------------------------------------------------------
+# 2. BEGIN ... COMMIT: one session, committed with BAPI_TRANSACTION_COMMIT.
+# -------------------------------------------------------------------------
+statement ok
+CREATE TABLE before_commit AS SELECT sap_rfc_connections_opened() AS opened;
+
+statement ok
+BEGIN;
+
+# The change is accepted (no E/A in RETURN) ...
+query I
+SELECT count(*) FROM luw_set_email('erpl-luw-commit@example.com') WHERE TYPE IN ('E', 'A');
+----
+0
+
+# ... and the transaction now holds exactly one SAP session.
+query I
+SELECT sap_rfc_live_connections() - (SELECT live FROM baseline);
+----
+1
+
+# sap_read_table runs on that same session too: no further connection is opened
+# for its per-column calls, and none is closed.
+query I
+SELECT count(*) > 0 FROM sap_read_table('SFLIGHT', COLUMNS => ['CARRID', 'CONNID', 'FLDATE']);
+----
+true
+
+query I
+SELECT sap_rfc_connections_opened() - (SELECT opened FROM before_commit);
+----
+1
+
+statement ok
+COMMIT;
+
+query I
+SELECT sap_rfc_live_connections() - (SELECT live FROM baseline);
+----
+0
+
+query I
+SELECT EMAIL FROM luw_email();
+----
+erpl-luw-commit@example.com
+
+# -------------------------------------------------------------------------
+# 3. BEGIN ... ROLLBACK: BAPI_TRANSACTION_ROLLBACK, nothing reaches SAP.
+# -------------------------------------------------------------------------
+statement ok
+BEGIN;
+
+query I
+SELECT count(*) FROM luw_set_email('erpl-luw-rollback@example.com') WHERE TYPE IN ('E', 'A');
+----
+0
+
+statement ok
+ROLLBACK;
+
+query I
+SELECT sap_rfc_live_connections() - (SELECT live FROM baseline);
+----
+0
+
+query I
+SELECT EMAIL FROM luw_email();
+----
+erpl-luw-commit@example.com
+
+# -------------------------------------------------------------------------
+# 4. A failed statement aborts the DuckDB transaction; ending it rolls the SAP
+#    LUW back, whether the client says COMMIT or ROLLBACK.
+# -------------------------------------------------------------------------
+statement ok
+BEGIN;
+
+statement ok
+SELECT * FROM luw_set_email('erpl-luw-failed@example.com');
+
+statement error
+SELECT error('something went wrong in the middle of the LUW');
+----
+something went wrong
+
+# DuckDB turns the COMMIT of an aborted transaction into a ROLLBACK.
+statement ok
+COMMIT;
+
+query I
+SELECT sap_rfc_live_connections() - (SELECT live FROM baseline);
+----
+0
+
+query I
+SELECT EMAIL FROM luw_email();
+----
+erpl-luw-commit@example.com
+
+statement ok
+BEGIN;
+
+statement ok
+SELECT * FROM luw_set_email('erpl-luw-failed@example.com');
+
+statement error
+SELECT * FROM sap_rfc_invoke('THIS_FUNCTION_DOES_NOT_EXIST_XYZ');
+----
+
+statement ok
+ROLLBACK;
+
+query I
+SELECT EMAIL FROM luw_email();
+----
+erpl-luw-commit@example.com
+
+# -------------------------------------------------------------------------
+# 5. A BAPI error inside the LUW is the caller's to handle: it comes back as
+#    data, the statement succeeds, and nothing rolls back on its own. The flight
+#    dates on the trial are in the past, so the booking BAPI refuses with an E.
+# -------------------------------------------------------------------------
+statement ok
+CREATE TABLE luw_flight AS
+SELECT CARRID, CONNID, FLDATE FROM sap_read_table('SFLIGHT', COLUMNS => ['CARRID', 'CONNID', 'FLDATE'])
+ORDER BY FLDATE LIMIT 1;
+
+statement ok
+SET VARIABLE luw_carrid = (SELECT CARRID FROM luw_flight);
+
+statement ok
+SET VARIABLE luw_connid = (SELECT CONNID FROM luw_flight);
+
+statement ok
+SET VARIABLE luw_fldate = (SELECT FLDATE FROM luw_flight);
+
+statement ok
+BEGIN;
+
+query I
+SELECT count(*) > 0 FROM sap_rfc_invoke('BAPI_FLBOOKING_CREATEFROMDATA', {
+    'BOOKING_DATA': {
+        'AIRLINEID': getvariable('luw_carrid'),
+        'CONNECTID': getvariable('luw_connid'),
+        'FLIGHTDATE': getvariable('luw_fldate'),
+        'CUSTOMERID': getvariable('luw_cust'),
+        'CLASS': 'Y',
+        'PASSNAME': 'ERPL LUW TEST'
+    }
+}, path => '/RETURN') WHERE TYPE = 'E';
+----
+true
+
+# The session is still usable, and the change made after the refused BAPI commits.
+query I
+SELECT count(*) FROM luw_set_email('erpl-luw-after-error@example.com') WHERE TYPE IN ('E', 'A');
+----
+0
+
+statement ok
+COMMIT;
+
+query I
+SELECT EMAIL FROM luw_email();
+----
+erpl-luw-after-error@example.com
+
+# -------------------------------------------------------------------------
+# 6. A statement prepared inside a transaction belongs to it: sap_read_table opens
+#    its connections per execution, so executed after COMMIT it reads on a
+#    connection of its own. (Functions that keep the transaction's session in their
+#    bind data fail cleanly instead -- see sap_bics_luw_transaction.test.)
+# -------------------------------------------------------------------------
+statement ok
+BEGIN;
+
+statement ok
+PREPARE luw_prepared_read AS SELECT count(*) > 0 FROM sap_read_table('SFLIGHT', COLUMNS => ['CARRID']);
+
+statement ok
+COMMIT;
+
+query I
+EXECUTE luw_prepared_read;
+----
+true
+
+query I
+SELECT sap_rfc_live_connections() - (SELECT live FROM baseline);
+----
+0

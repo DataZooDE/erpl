@@ -304,6 +304,8 @@ namespace duckdb
 			// reachable without the state machines.
 			std::vector<idx_t> projected_to_rfc_column;
 			idx_t partition_count = 0;
+			// Set per execution by PrepareForExecution().
+			bool in_luw = false;
 			// Guards the one post-bind write to the bind data: the runtime
 			// RFC_READ_TABLE fallback, which reassigns read_table_function.
 			mutable std::mutex fallback_selection_lock;
@@ -362,8 +364,16 @@ namespace duckdb
 			// column-parallel path unchanged.
 			void SetPartitionCount(idx_t n) { partition_count = n; }
 			idx_t GetPartitionCount() const {
+				if (in_luw) {
+					return 1;
+				}
 				return partition_count != 0 ? partition_count : GetRfcPartitions();
 			}
+			// True when this execution runs inside an explicit DuckDB transaction, i.e.
+			// on the transaction's single SAP session (see sap_luw.hpp). The scan then
+			// reads serially -- no row partitions, one RFC call at a time, no cached
+			// per-column connections -- so every read sees that session's LUW.
+			bool InLuw() const { return in_luw; }
 			idx_t GetPartitionWindowRows() const;
 			// Compute effective_max_batch_size from the active column count once, before
 			// any worker runs.  Step() does the same for the unpartitioned path.

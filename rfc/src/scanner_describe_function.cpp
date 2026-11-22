@@ -1,4 +1,5 @@
 #include "scanner_describe_function.hpp"
+#include "sap_luw.hpp"
 #include "telemetry.hpp"
 #include "erpl_tracing.hpp"
 #include "duckdb_compat.hpp"
@@ -23,7 +24,8 @@ static unique_ptr<FunctionData> RfcDescribeFunctionBind(ClientContext &context,
     auto &inputs = input.inputs;
 
     // Connect to the SAP system
-    auto connection = RfcAuthParams::FromContext(context).Connect();
+    auto auth_params = RfcAuthParams::FromContext(context);
+    auto connection = ConnectInContext(context, auth_params);
 
     // Create the function — gives us the SDK-side parameter introspection
     // (param names, types, directions). This works for every callable RFC.
