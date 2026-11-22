@@ -10,8 +10,7 @@ namespace duckdb {
         PostHogTelemetry::Instance().RecordFunctionCall("sap_rfc_ping");
 
         // Connect to the SAP system
-        auto auth_params = GetAuthParamsFromContext(context, parameters);
-        auto connection = ConnectInContext(context, auth_params);
+        auto connection = ConnectInContext(context, parameters);
         connection->Ping();
         
         auto pragma_query = StringUtil::Format("SELECT 'PONG' as msg");

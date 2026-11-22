@@ -237,7 +237,7 @@ ATTACH '' AS sap (TYPE sap_rfc, SECRET 'abap_trial', TABLES '/DMO/FLIGHT,/DMO/CA
 ### Writing to SAP: the transaction is the SAP LUW
 
 Write BAPIs need the BAPI call and `BAPI_TRANSACTION_COMMIT` on the same SAP session. Wrap them in a DuckDB
-transaction: between `BEGIN` and `COMMIT` every erpl RFC call shares one session per secret, `COMMIT` calls
+transaction: between `BEGIN` and `COMMIT` every erpl call to SAP (RFC, BICS, ODP, APE) shares one session per secret, `COMMIT` calls
 `BAPI_TRANSACTION_COMMIT` (`WAIT = 'X'`) and fails if SAP rejects it, and `ROLLBACK` calls
 `BAPI_TRANSACTION_ROLLBACK`. Statements outside a transaction behave as before and never commit.
 
@@ -251,7 +251,7 @@ SELECT TYPE, MESSAGE FROM sap_rfc_invoke('BAPI_FLCUST_CHANGE', {
 COMMIT;               -- BAPI_TRANSACTION_COMMIT (WAIT='X') on the same session
 ```
 
-Details and caveats (SAP commits before DuckDB, but the two are not atomic; BICS/ODP/APE not included) are in
+Details and caveats (SAP commits before DuckDB, but the two are not atomic; ODP and APE commit their own extraction progress) are in
 [API_REFERENCE.md](./API_REFERENCE.md#transactions-the-duckdb-transaction-is-the-sap-luw).
 
 [Back to Top](#top)

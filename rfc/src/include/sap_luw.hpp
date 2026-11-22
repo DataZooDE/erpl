@@ -39,6 +39,12 @@ namespace duckdb
 	// one it is a non-owning view of the transaction's session for these connection
 	// parameters, opened on first use; Close() on it is a no-op.
 	std::shared_ptr<RfcConnection> ConnectInContext(ClientContext &context, RfcAuthParams &auth);
+	// The same, resolving the secret named by the call's `secret` parameter (or the
+	// default sap_rfc secret) -- the replacement for
+	// GetAuthParamsFromContext(context, input).Connect() in every scanner and pragma,
+	// erpl_bics, erpl_odp and erpl_ape included.
+	std::shared_ptr<RfcConnection> ConnectInContext(ClientContext &context, const TableFunctionBindInput &input);
+	std::shared_ptr<RfcConnection> ConnectInContext(ClientContext &context, const FunctionParameters &parameters);
 
 	enum class RfcLuwOutcome { COMMIT, ROLLBACK };
 

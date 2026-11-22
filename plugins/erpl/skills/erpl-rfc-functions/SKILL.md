@@ -77,7 +77,8 @@ WHERE TYPE IN ('E', 'A');
 
 ## Writing: the transaction is the SAP LUW
 
-Between `BEGIN` and `COMMIT`/`ROLLBACK`, every erpl RFC call (`sap_rfc_invoke`, `sap_read_table`, …) runs on
+Between `BEGIN` and `COMMIT`/`ROLLBACK`, every erpl call to SAP (`sap_rfc_invoke`, `sap_read_table`, `sap_bics_*`,
+`sap_odp_*`, `sap_ape_*`, …) runs on
 one SAP session per secret. `COMMIT` calls `BAPI_TRANSACTION_COMMIT` with `WAIT = 'X'` on it and fails if SAP
 reports an error; `ROLLBACK` — also after a failed statement — calls `BAPI_TRANSACTION_ROLLBACK`.
 
@@ -98,7 +99,8 @@ COMMIT;   -- BAPI_TRANSACTION_COMMIT (WAIT='X') on the same session; ROLLBACK di
 - `PREPARE` calls the BAPI immediately (gotcha 1), outside the transaction; do not prepare write BAPIs.
 - SAP commits first, then DuckDB; a rejected SAP commit fails `COMMIT` and leaves only `ROLLBACK`. DuckDB writes
   and SAP writes are still not atomic — keep DuckDB writes that must match SAP in a later transaction.
-- `sap_bics_*`, `sap_odp_*` and `sap_ape_*` functions are not part of the LUW.
+- `sap_bics_*`, `sap_odp_*` and `sap_ape_*` calls share the transaction's session too; ODP and APE commit their
+  own extraction progress on the SAP side, so `ROLLBACK` does not undo it.
 
 ## Finding and describing function modules
 

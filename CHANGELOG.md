@@ -27,8 +27,8 @@ LOAD erpl;
 
 ### Added
 
-- **[rfc]** The DuckDB transaction is the SAP LUW (#244). Between `BEGIN` and `COMMIT`/`ROLLBACK`, every
-  erpl_rfc call (`sap_rfc_invoke`, `sap_read_table`, the describe/show functions, `PRAGMA sap_rfc_ping`,
+- **[rfc] [bics] [odp] [ape]** The DuckDB transaction is the SAP LUW (#244). Between `BEGIN` and `COMMIT`/`ROLLBACK`, every
+  erpl call to SAP (`sap_rfc_invoke`, `sap_read_table`, the describe/show functions, `PRAGMA sap_rfc_ping`,
   `ATTACH`ed tables) runs on one RFC session per secret. `COMMIT` calls `BAPI_TRANSACTION_COMMIT` with
   `WAIT = 'X'` on it and fails with SAP's message if `RETURN` reports `E`/`A`; `ROLLBACK` — also after a failed
   statement, or when the connection closes with the transaction open — calls `BAPI_TRANSACTION_ROLLBACK`. Write
@@ -36,7 +36,8 @@ LOAD erpl;
   (a connection per call, no commit). Inside a transaction `sap_read_table` reads serially on that session.
   SAP commits before DuckDB does; a rejected SAP commit aborts the DuckDB transaction, but a DuckDB commit that
   fails after SAP committed cannot undo the SAP changes, so DuckDB writes and SAP writes are not atomic together.
-  `erpl_bics`, `erpl_odp` and `erpl_ape` are not part of the LUW yet.
+  **[bics] [odp] [ape]** take part as well: every `sap_bics_*`, `sap_odp_*` and `sap_ape_*` function and pragma
+  runs on the transaction's session (ODP and APE still commit their own extraction progress on the SAP side).
 
 ---
 

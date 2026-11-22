@@ -228,7 +228,7 @@ the SAP logical unit of work (LUW):
 | Statement | What erpl does on the SAP side |
 |---|---|
 | `BEGIN` | nothing yet |
-| any erpl RFC call between `BEGIN` and `COMMIT`/`ROLLBACK` (`sap_rfc_invoke`, `sap_read_table`, `sap_describe_fields`, `sap_rfc_describe_function`, `sap_rfc_show_function`, `sap_rfc_show_groups`, `PRAGMA sap_rfc_ping`, `ATTACH`ed tables) | runs on **one** RFC session per secret, opened on first use and held until the transaction ends |
+| any erpl function or pragma that talks to SAP, between `BEGIN` and `COMMIT`/`ROLLBACK`: all of erpl_rfc (`sap_rfc_invoke`, `sap_read_table`, `sap_describe_fields`, `sap_rfc_describe_function`, `sap_rfc_show_function`, `sap_rfc_show_groups`, `PRAGMA sap_rfc_ping`, `ATTACH`ed tables), erpl_bics (`sap_bics_*`), erpl_odp (`sap_odp_*`, `PRAGMA sap_odp_*`) and erpl_ape (`sap_ape_*`, `PRAGMA sap_ape_*`) | runs on **one** RFC session per secret, opened on first use and held until the transaction ends |
 | `COMMIT` | `BAPI_TRANSACTION_COMMIT` with `WAIT = 'X'` on each held session, then closes it. If SAP returns `TYPE` `E` or `A` in its `RETURN`, the `COMMIT` statement fails with SAP's message |
 | `ROLLBACK`, a failed statement followed by `COMMIT`/`ROLLBACK`, or closing the DuckDB connection with an open transaction | `BAPI_TRANSACTION_ROLLBACK`, then closes the session |
 | autocommit statement (no `BEGIN`) | unchanged: a connection per call, no commit — a write BAPI called this way is discarded |
@@ -264,8 +264,11 @@ COMMIT;   -- BAPI_TRANSACTION_COMMIT (WAIT='X') on the same session
   commits SAP after DuckDB's local commit instead; a rejection is then reported by that `COMMIT` while the
   DuckDB changes are already committed.
 - `sap_rfc_live_connections()` is 1 per secret while such a transaction is open, and back to 0 after it ends.
-- The `erpl_bics`, `erpl_odp` and `erpl_ape` functions are not part of the LUW yet; they keep their own
-  connections.
+- **ODP and APE commit on their own.** `sap_odp_*` and `sap_ape_*` run inside the transaction's session too, but
+  the ODQ and the ABAP Pipeline Engine commit their own work (delta pointers, subscriptions, packages) as they go;
+  a `ROLLBACK` does not undo an extraction step. Inside a transaction their parallel package fetches share the
+  one session and run one after the other. BICS navigation state (`sap_bics_begin` … `sap_bics_end`) is stored
+  by erpl through its own DuckDB connection, so it is kept on `ROLLBACK` as well.
 
 ---
 

@@ -30,6 +30,18 @@ namespace duckdb
 		return state->Acquire(auth);
 	}
 
+	std::shared_ptr<RfcConnection> ConnectInContext(ClientContext &context, const TableFunctionBindInput &input)
+	{
+		auto auth = GetAuthParamsFromContext(context, input);
+		return ConnectInContext(context, auth);
+	}
+
+	std::shared_ptr<RfcConnection> ConnectInContext(ClientContext &context, const FunctionParameters &parameters)
+	{
+		auto auth = GetAuthParamsFromContext(context, parameters);
+		return ConnectInContext(context, auth);
+	}
+
 	// --- RfcLuwState ----------------------------------------------------------
 
 	RfcLuwState::RfcLuwState()

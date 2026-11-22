@@ -31,8 +31,7 @@ namespace duckdb
 
         // Connect to the SAP system
         // Inside BEGIN ... COMMIT this is the transaction's SAP session (see sap_luw.hpp).
-        auto auth_params = GetAuthParamsFromContext(context, input);
-        auto connection = ConnectInContext(context, auth_params);
+        auto connection = ConnectInContext(context, input);
 
         // Create the function
         auto func_name = inputs[0].GetValue<string>();
