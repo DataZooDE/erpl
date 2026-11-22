@@ -42,8 +42,9 @@ LOAD erpl;
   a SAP rejection on the next erpl call.
   **[bics] [odp] [ape]** take part as well: every `sap_bics_*`, `sap_odp_*` and `sap_ape_*` function and pragma
   runs on the transaction's session, except the ODP extraction calls (`RODPS_REPL_ODP_OPEN`/`_FETCH`/`_CLOSE`),
-  which stay on their own, parallel connections; ODP and APE still commit their own extraction progress on the
-  SAP side.
+  which stay on their own, parallel connections, and the APE read graphs of `sap_ape_read_full`/`_delta`, which
+  stay on their own because the engine's commits would otherwise commit the transaction's pending writes
+  (measured on A4H); ODP and APE still commit their own extraction progress on the SAP side.
 
 ---
 

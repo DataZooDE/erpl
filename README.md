@@ -251,7 +251,7 @@ SELECT TYPE, MESSAGE FROM sap_rfc_invoke('BAPI_FLCUST_CHANGE', {
 COMMIT;               -- BAPI_TRANSACTION_COMMIT (WAIT='X') on the same session
 ```
 
-Details and caveats (SAP commits before DuckDB, but the two are not atomic; ODP and APE commit their own extraction progress) are in
+Details and caveats (SAP commits before DuckDB, but the two are not atomic; ODP extraction and APE read graphs keep their own connections) are in
 [API_REFERENCE.md](./API_REFERENCE.md#transactions-the-duckdb-transaction-is-the-sap-luw).
 
 [Back to Top](#top)
