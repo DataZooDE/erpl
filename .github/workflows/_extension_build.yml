@@ -94,7 +94,16 @@ jobs:
       - name: Fetch DuckDB 2.0 source commit
         if: ${{ inputs.ci_tools_version != '' }}
         shell: bash
-        run: git -C duckdb fetch --depth=1 https://github.com/duckdb/duckdb.git "${{ inputs.duckdb_version }}"
+        # A release tag is fetched as a tag ref, not just its commit: DuckDB
+        # stamps the binary from `git describe`, and without the tag a v2.0.1
+        # build was stamped '8d78114e90' -- which a stock v2.0.1 refuses to load.
+        run: |
+          v="${{ inputs.duckdb_version }}"
+          if [[ "$v" =~ ^v[0-9] ]]; then
+            git -C duckdb fetch --depth=1 https://github.com/duckdb/duckdb.git "+refs/tags/$v:refs/tags/$v"
+          else
+            git -C duckdb fetch --depth=1 https://github.com/duckdb/duckdb.git "$v"
+          fi
 
       - name: Checkout DuckDB to version
         run: |
@@ -281,7 +290,16 @@ jobs:
       - name: Fetch DuckDB 2.0 source commit
         if: ${{ inputs.ci_tools_version != '' }}
         shell: bash
-        run: git -C duckdb fetch --depth=1 https://github.com/duckdb/duckdb.git "${{ inputs.duckdb_version }}"
+        # A release tag is fetched as a tag ref, not just its commit: DuckDB
+        # stamps the binary from `git describe`, and without the tag a v2.0.1
+        # build was stamped '8d78114e90' -- which a stock v2.0.1 refuses to load.
+        run: |
+          v="${{ inputs.duckdb_version }}"
+          if [[ "$v" =~ ^v[0-9] ]]; then
+            git -C duckdb fetch --depth=1 https://github.com/duckdb/duckdb.git "+refs/tags/$v:refs/tags/$v"
+          else
+            git -C duckdb fetch --depth=1 https://github.com/duckdb/duckdb.git "$v"
+          fi
 
       - name: Checkout DuckDB to version
         run: |
@@ -328,6 +346,7 @@ jobs:
           OPENSSL_USE_STATIC_LIBS=true
           DUCKDB_PLATFORM=${{ matrix.duckdb_arch }}
           DUCKDB_GIT_VERSION=${{ inputs.duckdb_version }}
+          OVERRIDE_GIT_DESCRIBE=${{ startsWith(inputs.duckdb_version, 'v') && inputs.duckdb_version || '' }}
           LINUX_CI_IN_DOCKER=1
           TOOLCHAIN_FLAGS=${{ matrix.duckdb_arch == 'linux_arm64' && '-DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ -DCMAKE_Fortran_COMPILER=aarch64-linux-gnu-gfortran' || '' }}
           AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
@@ -415,6 +434,10 @@ jobs:
       VCPKG_TOOLCHAIN_PATH: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
       VCPKG_TARGET_TRIPLET: ${{ matrix.vcpkg_triplet }}
       DUCKDB_PLATFORM: ${{ matrix.duckdb_arch }}
+      # DuckDB 2.0's CMake takes its version from here, not from git: without it
+      # a release build is a -dev build stamped with the commit hash, which a
+      # stock DuckDB of that release refuses to load. 1.x honours it too.
+      OVERRIDE_GIT_DESCRIBE: ${{ startsWith(inputs.duckdb_version, 'v') && inputs.duckdb_version || '' }}
       CC: ${{ (matrix.duckdb_arch == 'windows_amd64_rtools' || matrix.duckdb_arch == 'windows_amd64_mingw') && 'gcc' || '' }}
       CXX: ${{ (matrix.duckdb_arch == 'windows_amd64_rtools' || matrix.duckdb_arch == 'windows_amd64_mingw') && 'g++' || '' }}
 
@@ -452,7 +475,16 @@ jobs:
       - name: Fetch DuckDB 2.0 source commit
         if: ${{ inputs.ci_tools_version != '' }}
         shell: bash
-        run: git -C duckdb fetch --depth=1 https://github.com/duckdb/duckdb.git "${{ inputs.duckdb_version }}"
+        # A release tag is fetched as a tag ref, not just its commit: DuckDB
+        # stamps the binary from `git describe`, and without the tag a v2.0.1
+        # build was stamped '8d78114e90' -- which a stock v2.0.1 refuses to load.
+        run: |
+          v="${{ inputs.duckdb_version }}"
+          if [[ "$v" =~ ^v[0-9] ]]; then
+            git -C duckdb fetch --depth=1 https://github.com/duckdb/duckdb.git "+refs/tags/$v:refs/tags/$v"
+          else
+            git -C duckdb fetch --depth=1 https://github.com/duckdb/duckdb.git "$v"
+          fi
 
       - name: Checkout DuckDB to version
         run: |
@@ -555,6 +587,10 @@ jobs:
       VCPKG_TARGET_TRIPLET: ${{ matrix.vcpkg_triplet }}
       VCPKG_TOOLCHAIN_PATH: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
       OSX_BUILD_ARCH: ${{ matrix.osx_build_arch }}
+      # DuckDB 2.0's CMake takes its version from here, not from git: without it
+      # a release build is a -dev build stamped with the commit hash, which a
+      # stock DuckDB of that release refuses to load. 1.x honours it too.
+      OVERRIDE_GIT_DESCRIBE: ${{ startsWith(inputs.duckdb_version, 'v') && inputs.duckdb_version || '' }}
       GEN: 'ninja'
 
     steps:
@@ -587,7 +623,16 @@ jobs:
       - name: Fetch DuckDB 2.0 source commit
         if: ${{ inputs.ci_tools_version != '' }}
         shell: bash
-        run: git -C duckdb fetch --depth=1 https://github.com/duckdb/duckdb.git "${{ inputs.duckdb_version }}"
+        # A release tag is fetched as a tag ref, not just its commit: DuckDB
+        # stamps the binary from `git describe`, and without the tag a v2.0.1
+        # build was stamped '8d78114e90' -- which a stock v2.0.1 refuses to load.
+        run: |
+          v="${{ inputs.duckdb_version }}"
+          if [[ "$v" =~ ^v[0-9] ]]; then
+            git -C duckdb fetch --depth=1 https://github.com/duckdb/duckdb.git "+refs/tags/$v:refs/tags/$v"
+          else
+            git -C duckdb fetch --depth=1 https://github.com/duckdb/duckdb.git "$v"
+          fi
 
       - name: Checkout DuckDB to version
         run: |

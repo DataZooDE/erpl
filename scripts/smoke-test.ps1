@@ -67,10 +67,16 @@ if ($DuckdbVersion -match '^[0-9a-f]{40}$') {
     }
 } elseif (-not (Test-Path $CliExe)) {
     New-Item -ItemType Directory -Path $CliDir -Force | Out-Null
-    $Url    = "https://github.com/duckdb/duckdb/releases/download/$DuckdbVersion/duckdb_cli-$CliSlug.zip"
+    # DuckDB 2.0.1 renamed its CLI assets: duckdb_cli-<slug>.zip up to 1.5.x
+    # (and 2.0.0), duckdb-cli-<slug>.zip from 2.0.1. Try both, oldest first.
+    $Base   = "https://github.com/duckdb/duckdb/releases/download/$DuckdbVersion"
     $ZipTmp = Join-Path $env:TEMP "duckdb-cli-$([System.Guid]::NewGuid()).zip"
     Write-Host "[smoke-test] Downloading DuckDB $DuckdbVersion CLI for $CliSlug ..."
-    Invoke-WebRequest -Uri $Url -OutFile $ZipTmp -UseBasicParsing
+    try {
+        Invoke-WebRequest -Uri "$Base/duckdb_cli-$CliSlug.zip" -OutFile $ZipTmp -UseBasicParsing
+    } catch {
+        Invoke-WebRequest -Uri "$Base/duckdb-cli-$CliSlug.zip" -OutFile $ZipTmp -UseBasicParsing
+    }
     Expand-Archive -Path $ZipTmp -DestinationPath $CliDir -Force
     Remove-Item $ZipTmp
 } else {
