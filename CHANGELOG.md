@@ -14,7 +14,7 @@ Each bullet is tagged with the affected sub-extension(s):
 
 Binaries are self-distributed via [get.erpl.io](https://get.erpl.io) for the
 matrix `{linux_amd64, linux_amd64_musl, osx_amd64, osx_arm64, windows_amd64} ×
-{DuckDB v1.5.6}`. Install with:
+{DuckDB v1.5.6, DuckDB v2.0.1}`. Install with:
 
 ```sql
 INSTALL erpl FROM 'https://get.erpl.io';
@@ -45,6 +45,45 @@ LOAD erpl;
   which stay on their own, parallel connections, and the APE read graphs of `sap_ape_read_full`/`_delta`, which
   stay on their own because the engine's commits would otherwise commit the transaction's pending writes
   (measured on A4H); ODP and APE still commit their own extraction progress on the SAP side.
+
+---
+
+## v2026.11.22 — DuckDB 2.0.1, and a sturdier proto backend
+
+erpl is now built and published for **DuckDB v2.0.1** as well as v1.5.6: `INSTALL erpl FROM 'https://get.erpl.io'`
+works on either, with the same binaries matrix. The proto backend, erpl's own RFC implementation selected with
+`SET erpl_rfc_backend = 'proto'` (the default is still SAP's NW RFC SDK), picks up two months of fixes, every one
+measured against SAP's library. The two below change what a running query sees.
+
+### Added
+
+- **[all]** DuckDB v2.0.1 binaries on get.erpl.io (`linux_amd64`, `linux_amd64_musl`, `osx_amd64`, `osx_arm64`,
+  `windows_amd64`), next to v1.5.6. They replace the v2.0.0 build, which was compiled and tested in CI but never
+  published.
+
+### Fixed (proto backend)
+
+- **[rfc]** **A call longer than 60 seconds no longer fails.** It came back as a communication error and the
+  connection was dropped, while SAP's library completes it. Logon stays bounded at 60 s, as SAP's is.
+- **[rfc]** **An application server with an instance number other than 00 is reached.** The handshake announced
+  instance 00 whatever was configured, so the gateway refused the partner, or on a host that also runs an
+  instance 00, logged on to the wrong system.
+- **[rfc]** The connection lives exactly as long as with SAP's library. A `MESSAGE`-raised failure ends it at
+  once, a declared exception leaves it usable, and a short dump is found on the next call. Short dumps are reported
+  as runtime failures again, not as messages: kernel 816 changed the placeholder the server sends.
+- **[rfc]** A signal arriving during a socket read no longer costs the connection.
+- **[rfc]** NUMC values are right-aligned and zero-padded, and non-digits are refused. Unset parameters read
+  as their initial values. Metadata is cached per system, not per connection.
+- **[rfc]** `DESTINATION 'BACK'` callbacks: imports, exports, structures and tables travel both ways.
+
+erpl-proto `908b4c0` → `6548f70`. Through the proto backend on a4h: DuckDB v1.5.6 rfc 34/34, bics 182/182;
+DuckDB v2.0.1 rfc 34/34, bics 182/182, odp 26/26. `make check_skills`: 52 PASS, 0 FAIL on both lines.
+
+### Fixed (build)
+
+- **[all]** A DuckDB 2.0 build is stamped with its release version. 2.0's CMake no longer reads it from git,
+  so without `OVERRIDE_GIT_DESCRIBE` the binary carried the commit hash and a stock DuckDB v2.0.1 refused to
+  install it. Caught by the smoke test before anything was published.
 
 ---
 
