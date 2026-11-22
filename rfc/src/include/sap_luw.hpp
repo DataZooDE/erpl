@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <type_traits>
 
 namespace duckdb
 {
@@ -28,10 +29,12 @@ namespace duckdb
 	// an open transaction just closes it, which discards the SAP LUW as well.
 	// Autocommit statements are unaffected: a connection per call, no commit.
 	//
-	// The SAP commit runs when the COMMIT statement is prepared, before DuckDB commits
-	// locally (see OnFinalizePrepare): a rejected SAP commit aborts the DuckDB
-	// transaction. The two are still not atomic -- a DuckDB commit that fails after SAP
-	// committed cannot take the SAP changes back.
+	// The SAP commit runs when the COMMIT statement is planned -- or, for a COMMIT
+	// prepared earlier, just before it executes -- and so before DuckDB commits locally
+	// (see OnFinalizePrepare / OnPreparedCommit): a rejected SAP commit aborts the DuckDB
+	// transaction. The two are still not atomic: if DuckDB then rolls back instead of
+	// committing, the SAP changes stay committed. That case is reported (the next erpl
+	// call raises it), never silent.
 
 	// True while the client is inside an explicit BEGIN ... COMMIT / ROLLBACK.
 	bool InExplicitTransaction(ClientContext &context);
@@ -70,14 +73,53 @@ namespace duckdb
 	string RfcCommitRejectedMessage(const RfcCommitVerdict &verdict);
 	string RfcCommitOutcomeUnknownMessage(const string &cause);
 
-	class RfcLuwState : public ClientContextState {
+	namespace luw_detail
+	{
+		// The type of a hook's second parameter, read off the hook itself, so it is named
+		// only where the hook exists.
+		template <class F>
+		struct SecondParameter;
+		template <class C, class R, class A1, class A2, class A3>
+		struct SecondParameter<R (C::*)(A1, A2, A3)> {
+			using type = typename std::remove_reference<A2>::type;
+		};
+
+		// DuckDB 1.5.6 executes a COMMIT prepared earlier (Connection::Prepare + Execute,
+		// what client libraries do for commit()) through OnExecutePrepared, before the
+		// statement runs. DuckDB 2.0 has no such hook -- it runs the prepared COMMIT as an
+		// EXECUTE statement, which OnFinalizePrepare sees. Detected by shape, so this
+		// header builds on both lines: where the hook exists it is overridden and handed
+		// to OnPreparedCommit, elsewhere OnPreparedCommit is simply never called.
+		template <class Base, class = void>
+		struct ExecutePreparedHook : Base {
+		protected:
+			virtual void OnPreparedCommit(ClientContext &, PreparedStatementData &) {
+			}
+		};
+		template <class Base>
+		struct ExecutePreparedHook<Base, decltype(void(&Base::OnExecutePrepared))> : Base {
+		protected:
+			virtual void OnPreparedCommit(ClientContext &, PreparedStatementData &) {
+			}
+
+		public:
+			using CallbackInfo = typename SecondParameter<decltype(&Base::OnExecutePrepared)>::type;
+			RebindQueryInfo OnExecutePrepared(ClientContext &context, CallbackInfo &info,
+			                                  RebindQueryInfo current_rebind) override {
+				OnPreparedCommit(context, info.prepared_statement);
+				return current_rebind;
+			}
+		};
+	} // namespace luw_detail
+
+	class RfcLuwState : public luw_detail::ExecutePreparedHook<ClientContextState> {
 	public:
 		// Versioned: in release builds erpl_rfc, erpl_bics, erpl_odp and erpl_ape are
 		// separate binaries, each with its own copy of this class, and they share one
 		// state object per client through this key. A layout change bumps the version, so
 		// binaries of different builds never cast each other's state.
-		static constexpr const char *KEY = "erpl_rfc_luw/v1";
-		static constexpr uint64_t LAYOUT_MAGIC = 0x45524C504C555701ULL; // "ERLPLUW" v1
+		static constexpr const char *KEY = "erpl_rfc_luw/v2";
+		static constexpr uint64_t LAYOUT_MAGIC = 0x45524C504C555702ULL; // "ERLPLUW" v2
 
 		// Opens a session. Injectable so the state logic can be tested without SAP.
 		using Connector = std::function<std::shared_ptr<RfcConnection>(RfcAuthParams &)>;
@@ -110,11 +152,14 @@ namespace duckdb
 		bool CanRequestRebind() override;
 		RebindQueryInfo OnFinalizePrepare(ClientContext &context, PreparedStatementData &prepared,
 		                                  PreparedStatementMode mode) override;
-		// Fallback for a commit that did not go through a COMMIT statement prepared and
-		// executed in one go (a COMMIT prepared earlier and executed later): DuckDB has
-		// already committed locally. Commits what is still held and never throws -- a
-		// failure is traced and raised by the next erpl call on this connection.
+		// A COMMIT prepared earlier and executed later (DuckDB 1.5.6; see luw_detail).
+		void OnPreparedCommit(ClientContext &context, PreparedStatementData &prepared) override;
+		// DuckDB has committed locally. Every COMMIT statement has committed SAP before this
+		// (OnFinalizePrepare / OnPreparedCommit); a session still held here means DuckDB
+		// committed some other way, so this fails closed: it rolls SAP back and records an
+		// error the next erpl call on this connection raises. It never throws (see above).
 		void TransactionCommit(MetaTransaction &transaction, ClientContext &context) override;
+		void TransactionBegin(MetaTransaction &transaction, ClientContext &context) override;
 		using ClientContextState::TransactionRollback;
 		void TransactionRollback(MetaTransaction &transaction, ClientContext &context,
 		                         optional_ptr<ErrorData> error) override;
@@ -131,11 +176,17 @@ namespace duckdb
 	private:
 		struct Session {
 			string key;
+			// host/sysnr/client/user: names the session in an error, credential-free.
+			string label;
 			std::shared_ptr<RfcConnection> connection;
 		};
 
 		std::vector<Session> TakeSessions();
+		// SAP first, then DuckDB: commits every held session, and on failure invalidates the
+		// DuckDB transaction and throws.
+		void CommitBeforeLocal(ClientContext &context);
 		void CommitAll();
+		void RecordPendingError(const string &error);
 		void RollbackAll(std::vector<Session> &sessions, bool call_rollback);
 		void CloseSession(Session &session);
 
@@ -148,5 +199,8 @@ namespace duckdb
 		std::atomic<bool> has_sessions {false};
 		std::mutex pending_lock;
 		string pending_error;
+		// SAP was committed when DuckDB planned the COMMIT; set until DuckDB commits locally.
+		// A rollback in this state means SAP and DuckDB disagree, and is reported.
+		std::atomic<bool> sap_committed_awaiting_local {false};
 	};
 } // namespace duckdb

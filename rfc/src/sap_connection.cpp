@@ -227,13 +227,21 @@ namespace duckdb
         : handle(handle_p), core(std::move(core_p)), lock(std::move(lock_p))
     { }
 
+    const char *const kRfcSessionLostMessage =
+        "SAP LUW: the SAP session of this transaction was lost (a communication failure, an ABAP runtime "
+        "error or a MESSAGE-raised failure ended it); SAP discarded its changes, nothing was committed. ROLLBACK "
+        "and run the transaction again";
+
     void RfcCallGuard::Note(RFC_RC rc)
     {
         if (!core) {
             return;
         }
-        if (rc == RFC_COMMUNICATION_FAILURE || rc == RFC_ABAP_RUNTIME_FAILURE || rc == RFC_INVALID_HANDLE ||
-            rc == RFC_CLOSED) {
+        // The codes that end an RFC session, as SAP's library ends it (erpl-proto spec
+        // PRO-12, measured): RFC_ABAP_EXCEPTION -- a declared exception -- does not.
+        if (rc == RFC_COMMUNICATION_FAILURE || rc == RFC_ABAP_RUNTIME_FAILURE || rc == RFC_ABAP_MESSAGE ||
+            rc == RFC_INVALID_HANDLE || rc == RFC_CLOSED || rc == RFC_CANCELED) {
+            core->lost_rc.store(static_cast<int>(rc));
             core->lost.store(true);
         }
     }
@@ -247,6 +255,11 @@ namespace duckdb
         if (core->handle == NULL) {
             throw IOException("The SAP transaction this statement was bound in has ended (COMMIT or ROLLBACK closed "
                               "its SAP session); prepare the statement again.");
+        }
+        // A view borrowed before the session was lost must not make another round-trip on
+        // it: SAP has already discarded the LUW.
+        if (core->lost.load()) {
+            throw IOException(kRfcSessionLostMessage);
         }
         return RfcCallGuard(core->handle, core, std::move(lock));
     }
