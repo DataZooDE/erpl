@@ -96,7 +96,13 @@ COMMIT;   -- BAPI_TRANSACTION_COMMIT (WAIT='X') on the same session; ROLLBACK di
 - Read `RETURN` before `COMMIT`: a `TYPE` `E`/`A` row does not fail the statement and erpl does not roll back
   on its own — issue `ROLLBACK` yourself.
 - Never call a write BAPI in autocommit mode (no `BEGIN`): it runs, reports success, and is discarded.
-- `PREPARE` calls the BAPI immediately (gotcha 1), outside the transaction; do not prepare write BAPIs.
+- `PREPARE` calls the BAPI immediately (gotcha 1) — inside the transaction only if `PREPARE` itself is inside
+  `BEGIN`. Prepared erpl statements belong to the transaction they were prepared in; after `COMMIT`/`ROLLBACK`
+  prepare them again.
+- Keep transactions short: the BAPIs' SAP locks are held until `COMMIT`/`ROLLBACK`, and `sap_read_table` reads
+  serially inside `BEGIN`.
+- A `COMMIT` error saying the outcome is **unknown** means SAP may have committed: check SM13 or the object
+  before running the write again.
 - SAP commits first, then DuckDB; a rejected SAP commit fails `COMMIT` and leaves only `ROLLBACK`. DuckDB writes
   and SAP writes are still not atomic — keep DuckDB writes that must match SAP in a later transaction.
 - `sap_bics_*`, `sap_odp_*` and `sap_ape_*` calls share the transaction's session too, except the ODP extraction

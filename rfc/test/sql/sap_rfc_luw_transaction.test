@@ -8,10 +8,11 @@
 #              failed statement -- calls BAPI_TRANSACTION_ROLLBACK. Autocommit statements
 #              keep a connection per call and never commit.
 #
-#              Uses the standard flight model only. The write is BAPI_FLCUST_CHANGE on the
-#              e-mail address of one existing flight customer, chosen at run time and
-#              restored at the end, so the file is repeatable and leaves no new rows
-#              behind. (The flight data on the A4H trial is from 2016/2017, and
+#              Uses the standard flight model only. Each run creates its own flight
+#              customer (BAPI_FLCUST_CREATEFROMDATA, inside BEGIN ... COMMIT) and then
+#              changes its e-mail address with BAPI_FLCUST_CHANGE, so a failed run leaves no
+#              existing customer modified and concurrent runs do not interfere; each run
+#              adds one SCUSTOM row named 'ERPL LUW TEST'. (The flight data on the A4H trial is from 2016/2017, and
 #              BAPI_FLBOOKING_CREATEFROMDATA refuses past flights; the booking BAPI is
 #              used below to show that a BAPI error inside the LUW is returned as data.)
 # group: [rfc]
@@ -45,17 +46,44 @@ statement ok
 CREATE TABLE baseline AS
 SELECT sap_rfc_live_connections() AS live, sap_rfc_connections_opened() AS opened;
 
-# The customer to change: the one with the highest number, and its current e-mail.
+# Creating a customer, as a macro.
 statement ok
-CREATE TABLE luw_customer AS
-SELECT ID, EMAIL FROM sap_read_table('SCUSTOM', COLUMNS => ['ID', 'EMAIL'])
-ORDER BY ID DESC LIMIT 1;
+CREATE MACRO luw_create_customer(mail) AS TABLE
+SELECT CUSTOMERNUMBER FROM sap_rfc_invoke('BAPI_FLCUST_CREATEFROMDATA', {
+    'CUSTOMER_DATA': {
+        'CUSTNAME': 'ERPL LUW TEST', 'FORM': 'Herr', 'STREET': 'Teststr. 1', 'POSTCODE': '69190',
+        'CITY': 'Walldorf', 'COUNTR': 'DE', 'EMAIL': mail, 'CUSTTYPE': 'P', 'DISCOUNT': '000', 'LANGU': 'E'
+    }
+});
+
+# -------------------------------------------------------------------------
+# 0. An autocommit create is discarded (today's behaviour); inside BEGIN ... COMMIT
+#    it is committed. The committed one is this run's customer.
+# -------------------------------------------------------------------------
+statement ok
+SET VARIABLE luw_discarded = (SELECT CUSTOMERNUMBER FROM luw_create_customer('erpl-luw-discarded@example.com'));
+
+query I
+SELECT count(*) FROM sap_read_table('SCUSTOM', COLUMNS => ['ID']) WHERE ID = getvariable('luw_discarded');
+----
+0
 
 statement ok
-SET VARIABLE luw_cust = (SELECT ID FROM luw_customer);
+BEGIN;
 
 statement ok
-SET VARIABLE luw_original_email = (SELECT EMAIL FROM luw_customer);
+SET VARIABLE luw_cust = (SELECT CUSTOMERNUMBER FROM luw_create_customer('erpl-luw-created@example.com'));
+
+statement ok
+COMMIT;
+
+query I
+SELECT count(*) FROM sap_read_table('SCUSTOM', COLUMNS => ['ID']) WHERE ID = getvariable('luw_cust');
+----
+1
+
+statement ok
+SET VARIABLE luw_original_email = 'erpl-luw-created@example.com';
 
 # Reads the customer's e-mail on a fresh connection (outside any transaction).
 statement ok
@@ -72,6 +100,17 @@ SELECT * FROM sap_rfc_invoke('BAPI_FLCUST_CHANGE', {
     'CUSTOMER_DATA_X': {'EMAIL': 'X'}
 }, path => '/RETURN');
 
+# BAPI_FLCUST_CREATEFROMDATA leaves the e-mail address empty; give the new customer its
+# starting address in a LUW of its own.
+statement ok
+BEGIN;
+
+statement ok
+SELECT * FROM luw_set_email(getvariable('luw_original_email'));
+
+statement ok
+COMMIT;
+
 # -------------------------------------------------------------------------
 # 1. Today's behaviour, kept for autocommit statements: the BAPI and the commit
 #    run on two sessions, so the commit commits nothing.
@@ -83,9 +122,9 @@ statement ok
 SELECT * FROM sap_rfc_invoke('BAPI_TRANSACTION_COMMIT', {'WAIT': 'X'}, path => '/RETURN');
 
 query I
-SELECT EMAIL = (SELECT EMAIL FROM luw_customer) FROM luw_email();
+SELECT EMAIL FROM luw_email();
 ----
-true
+erpl-luw-created@example.com
 
 query I
 SELECT sap_rfc_live_connections() - (SELECT live FROM baseline);
@@ -260,19 +299,22 @@ SELECT EMAIL FROM luw_email();
 erpl-luw-after-error@example.com
 
 # -------------------------------------------------------------------------
-# Restore the customer's e-mail address, as a LUW.
+# 6. A statement prepared inside a transaction belongs to it: sap_read_table opens
+#    its connections per execution, so executed after COMMIT it reads on a
+#    connection of its own. (Functions that keep the transaction's session in their
+#    bind data fail cleanly instead -- see sap_bics_luw_transaction.test.)
 # -------------------------------------------------------------------------
 statement ok
 BEGIN;
 
 statement ok
-SELECT * FROM luw_set_email(getvariable('luw_original_email'));
+PREPARE luw_prepared_read AS SELECT count(*) > 0 FROM sap_read_table('SFLIGHT', COLUMNS => ['CARRID']);
 
 statement ok
 COMMIT;
 
 query I
-SELECT EMAIL = (SELECT EMAIL FROM luw_customer) FROM luw_email();
+EXECUTE luw_prepared_read;
 ----
 true
 

@@ -203,14 +203,66 @@ namespace duckdb
     RfcConnection::RfcConnection(RFC_CONNECTION_HANDLE handle) : handle(handle)
     { }
 
-    RfcConnection::RfcConnection(RFC_CONNECTION_HANDLE handle, bool owns_handle,
-                                 std::shared_ptr<std::mutex> call_lock)
-        : handle(handle), owns_handle(owns_handle), call_lock(std::move(call_lock))
+    RfcConnection::RfcConnection(std::shared_ptr<RfcSessionCore> core_p, bool owns_handle_p)
+        : handle(core_p ? core_p->handle : NULL), owns_handle(owns_handle_p), core(std::move(core_p))
     { }
+
+    void RfcConnection::Share()
+    {
+        if (core) {
+            return;
+        }
+        core = std::make_shared<RfcSessionCore>();
+        core->handle = handle;
+    }
 
     std::shared_ptr<RfcConnection> RfcConnection::Borrow()
     {
-        return std::make_shared<RfcConnection>(handle, false, call_lock);
+        Share();
+        return std::make_shared<RfcConnection>(core, false);
+    }
+
+    RfcCallGuard::RfcCallGuard(RFC_CONNECTION_HANDLE handle_p, std::shared_ptr<RfcSessionCore> core_p,
+                               std::unique_lock<std::mutex> lock_p)
+        : handle(handle_p), core(std::move(core_p)), lock(std::move(lock_p))
+    { }
+
+    void RfcCallGuard::Note(RFC_RC rc)
+    {
+        if (!core) {
+            return;
+        }
+        if (rc == RFC_COMMUNICATION_FAILURE || rc == RFC_ABAP_RUNTIME_FAILURE || rc == RFC_INVALID_HANDLE ||
+            rc == RFC_CLOSED) {
+            core->lost.store(true);
+        }
+    }
+
+    RfcCallGuard RfcConnection::CallGuard()
+    {
+        if (!core) {
+            return RfcCallGuard(handle, nullptr, std::unique_lock<std::mutex>());
+        }
+        std::unique_lock<std::mutex> lock(core->lock);
+        if (core->handle == NULL) {
+            throw IOException("The SAP transaction this statement was bound in has ended (COMMIT or ROLLBACK closed "
+                              "its SAP session); prepare the statement again.");
+        }
+        return RfcCallGuard(core->handle, core, std::move(lock));
+    }
+
+    bool RfcConnection::IsLost() const
+    {
+        return core && core->lost.load();
+    }
+
+    void RfcConnection::Abandon()
+    {
+        if (core && owns_handle) {
+            std::lock_guard<std::mutex> lock(core->lock);
+            core->handle = NULL;
+        }
+        handle = NULL;
     }
 
     RfcConnection::~RfcConnection()
@@ -228,17 +280,26 @@ namespace duckdb
 
     void RfcConnection::Close()
     {
-        if (handle == NULL)
-            return;
         if (!owns_handle) {
             // A view onto a session owned elsewhere (the SAP LUW session): closing it
             // would end the LUW under its owner. Just stop using it.
             handle = NULL;
+            core.reset();
             return;
         }
 
         RFC_RC rc = RFC_OK;
         RFC_ERROR_INFO error_info;
+        std::unique_lock<std::mutex> core_lock;
+        if (core) {
+            // Under the session lock: no view's call is in flight, and every later one
+            // finds the core closed.
+            core_lock = std::unique_lock<std::mutex>(core->lock);
+            handle = core->handle;
+            core->handle = NULL;
+        }
+        if (handle == NULL)
+            return;
 
         rc = RfcCloseConnection(handle, &error_info);
         // Counted regardless of rc: the handle is released either way (it is nulled
@@ -263,11 +324,9 @@ namespace duckdb
         RFC_RC rc = RFC_OK;
         RFC_ERROR_INFO error_info;
         
-        std::unique_lock<std::mutex> guard;
-        if (call_lock) {
-            guard = std::unique_lock<std::mutex>(*call_lock);
-        }
-        rc = RfcPing(handle, &error_info);
+        auto guard = CallGuard();
+        rc = RfcPing(guard.Handle(), &error_info);
+        guard.Note(rc);
         if (rc != RFC_OK) {
             throw IOException(StringUtil::Format("Error during SAP connection ping: %s: %s",rfcrc2std(error_info.code), uc2std(error_info.message)));
         }
@@ -279,7 +338,11 @@ namespace duckdb
         RFC_ERROR_INFO error_info;
         RFC_ATTRIBUTES attributes;
 
-        rc = RfcGetConnectionAttributes(handle, &attributes, &error_info);
+        {
+            auto guard = CallGuard();
+            rc = RfcGetConnectionAttributes(guard.Handle(), &attributes, &error_info);
+            guard.Note(rc);
+        }
         if (rc != RFC_OK) {
             throw IOException(StringUtil::Format("Error during SAP connection attributes retrieval: %s: %s",rfcrc2std(error_info.code), uc2std(error_info.message)));
         }

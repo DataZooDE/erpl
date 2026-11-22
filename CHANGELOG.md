@@ -36,6 +36,10 @@ LOAD erpl;
   (a connection per call, no commit). Inside a transaction `sap_read_table` reads serially on that session.
   SAP commits before DuckDB does; a rejected SAP commit aborts the DuckDB transaction, but a DuckDB commit that
   fails after SAP committed cannot undo the SAP changes, so DuckDB writes and SAP writes are not atomic together.
+  A commit whose call fails reports its outcome as unknown (check SM13 before retrying); a session lost to a
+  communication failure or short dump fails the rest of the transaction; a statement prepared in a transaction
+  and executed after it fails cleanly ("prepare the statement again"); a prepared `COMMIT` executed later reports
+  a SAP rejection on the next erpl call.
   **[bics] [odp] [ape]** take part as well: every `sap_bics_*`, `sap_odp_*` and `sap_ape_*` function and pragma
   runs on the transaction's session, except the ODP extraction calls (`RODPS_REPL_ODP_OPEN`/`_FETCH`/`_CLOSE`),
   which stay on their own, parallel connections; ODP and APE still commit their own extraction progress on the
