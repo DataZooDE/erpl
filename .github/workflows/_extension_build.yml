@@ -388,6 +388,17 @@ jobs:
         run: |
           docker run --env-file=docker_env.txt -v `pwd`:/duckdb_build_dir -v `pwd`/ccache_dir:/ccache_dir duckdb/${{ matrix.duckdb_arch }} make release
 
+      # The SAP LUW's commit-first guarantee rests on DuckDB internals (which hook sees a
+      # COMMIT, and when): a DuckDB bump that moves them would quietly fall back to a late
+      # commit, and the live SQL suite never provokes a rejection. These offline cases do,
+      # against a fake SAP, on every DuckDB line this workflow builds. Publishes nothing.
+      - name: SAP LUW unit tests (offline) — linux_amd64
+        if: matrix.duckdb_arch == 'linux_amd64'
+        run: |
+          t=build/release/extension/erpl_rfc/test/cpp/erpl_rfc_tests
+          if [ ! -x "$t" ]; then echo "::error::$t was not built"; exit 1; fi
+          docker run --env-file=docker_env.txt -e LD_LIBRARY_PATH=/duckdb_build_dir/nwrfcsdk/linux/lib -v `pwd`:/duckdb_build_dir duckdb/${{ matrix.duckdb_arch }} "$t" "[luw]"
+
       - name: Cache DuckDB CLI for smoke test
         if: matrix.duckdb_arch == 'linux_amd64'
         uses: actions/cache@v4
