@@ -27,11 +27,11 @@ jobs:
       exclude_archs: linux_arm64;windows_amd64_rtools;wasm_mvp;wasm_eh;wasm_threads;
 
   duckdb-build-v20:
-    name: Build DuckDB 2.0 extension binaries and smoke test
+    name: Build v.2.0.1 extension binaries and smoke test
     uses: ./.github/workflows/_extension_build.yml
     secrets: inherit
     with:
-      duckdb_version: d54cbbe3df17e8e5ce68312f483b4155836112aa
+      duckdb_version: v2.0.1
       ci_tools_version: v2.0-cyanoptera
       extension_name: erpl
       exclude_archs: linux_arm64;windows_amd64_rtools;wasm_mvp;wasm_eh;wasm_threads;
@@ -67,3 +67,17 @@ jobs:
       # it could overwrite the release with a pre-tag build (hit duckdb-gdrive v2026.10.17).
       deploy_versioned: ${{ startsWith(github.ref, 'refs/tags/v') }}
 
+  # DuckDB 2.0.1 is a stable release, so its binaries are published next to
+  # v1.5.6's: get.erpl.io/erpl/<version>/v2.0.1/<arch>/. Same gating as above.
+  duckdb-deploy-v20:
+    name: Deploy v.2.0.1 extension binaries
+    needs: duckdb-build-v20
+    if: ${{ !cancelled() && github.event_name != 'pull_request' }}
+    uses: ./.github/workflows/_extension_deploy.yml
+    secrets: inherit
+    with:
+      duckdb_version: v2.0.1
+      extension_name: erpl
+      exclude_archs: linux_arm64;windows_amd64_rtools;wasm_mvp;wasm_eh;wasm_threads;
+      deploy_latest: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
+      deploy_versioned: ${{ startsWith(github.ref, 'refs/tags/v') }}
