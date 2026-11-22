@@ -43,8 +43,15 @@ target_link_libraries(erpl_rfc_tests ${EXTENSION_NAME} duckdb_static test_helper
 # DuckDB v1.5+ requires dummy_static_extension_loader for LoadAllExtensions.
 # The target is defined in duckdb/extension/CMakeLists.txt which is processed
 # AFTER this file due to cmake ordering, so defer the link to the top-level scope.
+# DuckDB 2.0 has no such target at all; linking the bare name then becomes -l and fails, so
+# the deferred call checks again once every target is known.
+function(erpl_rfc_tests_link_static_loader)
+    if(TARGET dummy_static_extension_loader)
+        target_link_libraries(erpl_rfc_tests dummy_static_extension_loader)
+    endif()
+endfunction()
 if(TARGET dummy_static_extension_loader)
-    target_link_libraries(erpl_rfc_tests dummy_static_extension_loader)
+    erpl_rfc_tests_link_static_loader()
 else()
-    cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}" CALL target_link_libraries erpl_rfc_tests dummy_static_extension_loader)
+    cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}" CALL erpl_rfc_tests_link_static_loader)
 endif()
