@@ -442,6 +442,19 @@ TEST_CASE("LUW: a COMMIT whose local half fails after SAP committed is reported"
 	REQUIRE_FALSE(con.Query("SELECT 1")->HasError());
 }
 
+// DuckDB 2.0 removed the pending-query API (Connection::PendingQuery), so a COMMIT can no
+// longer be started and then dropped there. Detected by shape, not by version number.
+template <class CON>
+static auto TryPendingCommit(CON &con, int) -> decltype(con.PendingQuery("COMMIT"), bool()) {
+	auto pending = con.PendingQuery("COMMIT");
+	REQUIRE_FALSE(pending->HasError());
+	return true;
+}
+template <class CON>
+static bool TryPendingCommit(CON &, long) {
+	return false;
+}
+
 TEST_CASE("LUW: a pending COMMIT that is dropped still commits both sides", "[erpl_rfc][luw]") {
 	DuckDB db(nullptr);
 	Connection con(db);
@@ -455,9 +468,9 @@ TEST_CASE("LUW: a pending COMMIT that is dropped still commits both sides", "[er
 	// (a ROLLBACK issued then finds no transaction to roll back).
 	REQUIRE_FALSE(con.Query("BEGIN")->HasError());
 	ConnectInContext(*con.context, a);
-	{
-		auto pending = con.PendingQuery("COMMIT");
-		REQUIRE_FALSE(pending->HasError());
+	if (!TryPendingCommit(con, 0)) {
+		WARN("skipped: this DuckDB has no pending-query API, so a COMMIT cannot be left pending");
+		return;
 	}
 	REQUIRE(sap.finished == std::vector<std::string>({"COMMIT:DEVELOPER"}));
 	REQUIRE_FALSE(con.Query("SELECT 1")->HasError());
