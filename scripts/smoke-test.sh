@@ -72,17 +72,29 @@ if [[ "$DUCKDB_VERSION_TAG" =~ ^[0-9a-f]{40}$ ]]; then
     fi
 elif [[ ! -f "$DUCK" ]]; then
     mkdir -p "$CLI_DIR"
-    URL="https://github.com/duckdb/duckdb/releases/download/${DUCKDB_VERSION_TAG}/duckdb_cli-${CLI_SLUG}.zip"
+    # DuckDB 2.0.1 renamed its CLI assets: `duckdb_cli-<slug>.zip` up to 1.5.x
+    # (and 2.0.0), `duckdb-cli-<slug>.tar.gz` from 2.0.1. Try both, oldest first.
+    BASE="https://github.com/duckdb/duckdb/releases/download/${DUCKDB_VERSION_TAG}"
     echo "[smoke-test] Downloading DuckDB ${DUCKDB_VERSION_TAG} CLI for ${CLI_SLUG} ..."
-    TMP_ZIP="$(mktemp /tmp/duckdb-cli-XXXXXX.zip)"
-    if command -v curl &>/dev/null; then
-        curl -fsSL --retry 3 -o "$TMP_ZIP" "$URL"
+    TMP_ARCHIVE="$(mktemp /tmp/duckdb-cli-XXXXXX)"
+    fetch() {
+        if command -v curl &>/dev/null; then
+            curl -fsSL --retry 3 -o "$TMP_ARCHIVE" "$1"
+        else
+            wget -q --tries=3 -O "$TMP_ARCHIVE" "$1"
+        fi
+    }
+    if fetch "$BASE/duckdb_cli-${CLI_SLUG}.zip"; then
+        unzip -q "$TMP_ARCHIVE" -d "$CLI_DIR"
+    elif fetch "$BASE/duckdb-cli-${CLI_SLUG}.tar.gz"; then
+        tar -xzf "$TMP_ARCHIVE" -C "$CLI_DIR"
     else
-        wget -q --tries=3 -O "$TMP_ZIP" "$URL"
+        echo "ERROR: no DuckDB ${DUCKDB_VERSION_TAG} CLI for ${CLI_SLUG} under either asset name" >&2
+        rm -f "$TMP_ARCHIVE"
+        exit 1
     fi
-    unzip -q "$TMP_ZIP" -d "$CLI_DIR"
     chmod +x "$DUCK"
-    rm -f "$TMP_ZIP"
+    rm -f "$TMP_ARCHIVE"
 else
     echo "[smoke-test] Using cached CLI: $DUCK"
 fi
