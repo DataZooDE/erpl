@@ -99,8 +99,9 @@ COMMIT;   -- BAPI_TRANSACTION_COMMIT (WAIT='X') on the same session; ROLLBACK di
 - `PREPARE` calls the BAPI immediately (gotcha 1), outside the transaction; do not prepare write BAPIs.
 - SAP commits first, then DuckDB; a rejected SAP commit fails `COMMIT` and leaves only `ROLLBACK`. DuckDB writes
   and SAP writes are still not atomic — keep DuckDB writes that must match SAP in a later transaction.
-- `sap_bics_*`, `sap_odp_*` and `sap_ape_*` calls share the transaction's session too; ODP and APE commit their
-  own extraction progress on the SAP side, so `ROLLBACK` does not undo it.
+- `sap_bics_*`, `sap_odp_*` and `sap_ape_*` calls share the transaction's session too, except the ODP extraction
+  calls (open/fetch/close of `sap_odp_read_full` / `_delta`), which keep their own connections. ODP and APE commit
+  their own extraction progress on the SAP side, so `ROLLBACK` does not undo it.
 
 ## Finding and describing function modules
 

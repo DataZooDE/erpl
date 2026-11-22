@@ -37,7 +37,9 @@ LOAD erpl;
   SAP commits before DuckDB does; a rejected SAP commit aborts the DuckDB transaction, but a DuckDB commit that
   fails after SAP committed cannot undo the SAP changes, so DuckDB writes and SAP writes are not atomic together.
   **[bics] [odp] [ape]** take part as well: every `sap_bics_*`, `sap_odp_*` and `sap_ape_*` function and pragma
-  runs on the transaction's session (ODP and APE still commit their own extraction progress on the SAP side).
+  runs on the transaction's session, except the ODP extraction calls (`RODPS_REPL_ODP_OPEN`/`_FETCH`/`_CLOSE`),
+  which stay on their own, parallel connections; ODP and APE still commit their own extraction progress on the
+  SAP side.
 
 ---
 
