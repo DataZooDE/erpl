@@ -203,6 +203,16 @@ namespace duckdb
     RfcConnection::RfcConnection(RFC_CONNECTION_HANDLE handle) : handle(handle)
     { }
 
+    RfcConnection::RfcConnection(RFC_CONNECTION_HANDLE handle, bool owns_handle,
+                                 std::shared_ptr<std::mutex> call_lock)
+        : handle(handle), owns_handle(owns_handle), call_lock(std::move(call_lock))
+    { }
+
+    std::shared_ptr<RfcConnection> RfcConnection::Borrow()
+    {
+        return std::make_shared<RfcConnection>(handle, false, call_lock);
+    }
+
     RfcConnection::~RfcConnection()
     {
         // A destructor must never throw: an escaping exception calls
@@ -220,6 +230,12 @@ namespace duckdb
     {
         if (handle == NULL)
             return;
+        if (!owns_handle) {
+            // A view onto a session owned elsewhere (the SAP LUW session): closing it
+            // would end the LUW under its owner. Just stop using it.
+            handle = NULL;
+            return;
+        }
 
         RFC_RC rc = RFC_OK;
         RFC_ERROR_INFO error_info;
@@ -247,6 +263,10 @@ namespace duckdb
         RFC_RC rc = RFC_OK;
         RFC_ERROR_INFO error_info;
         
+        std::unique_lock<std::mutex> guard;
+        if (call_lock) {
+            guard = std::unique_lock<std::mutex>(*call_lock);
+        }
         rc = RfcPing(handle, &error_info);
         if (rc != RFC_OK) {
             throw IOException(StringUtil::Format("Error during SAP connection ping: %s: %s",rfcrc2std(error_info.code), uc2std(error_info.message)));

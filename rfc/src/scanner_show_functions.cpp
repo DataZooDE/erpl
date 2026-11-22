@@ -1,4 +1,5 @@
 #include "duckdb.hpp"
+#include "sap_luw.hpp"
 #include "scanner_show_functions.hpp"
 #include "telemetry.hpp"
 #include "duckdb_compat.hpp"
@@ -37,7 +38,8 @@ namespace duckdb
         PostHogTelemetry::Instance().RecordFunctionCall("sap_rfc_search_function");
 
         // Connect to the SAP system
-        auto connection = RfcAuthParams::FromContext(context).Connect();
+        auto auth_params = RfcAuthParams::FromContext(context);
+        auto connection = ConnectInContext(context, auth_params);
 
         // Create the function
         auto func_args = CreateFunctionArguments(input);

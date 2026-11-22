@@ -1,4 +1,5 @@
 #include "pragma_ping.hpp"
+#include "sap_luw.hpp"
 #include "duckdb/parser/parsed_data/create_pragma_function_info.hpp"
 #include "telemetry.hpp"
 #include "duckdb_compat.hpp"
@@ -10,7 +11,7 @@ namespace duckdb {
 
         // Connect to the SAP system
         auto auth_params = GetAuthParamsFromContext(context, parameters);
-        auto connection = auth_params.Connect();
+        auto connection = ConnectInContext(context, auth_params);
         connection->Ping();
         
         auto pragma_query = StringUtil::Format("SELECT 'PONG' as msg");

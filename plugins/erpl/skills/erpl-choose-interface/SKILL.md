@@ -56,7 +56,7 @@ Pick by the object *and* by whether the load will recur.
 | Table or CDS view: `sap_read_table` or ODP/SLT/APE? | `sap_read_table` for occasional reads and small/medium tables; ODP/SLT for recurring incremental loads | `sap_read_table` has no change tracking; every run is a full (filtered) read |
 | BW: BICS or ODP `BW`? | BICS when the answer must match what users see in the BW query; ODP when you want the provider's raw records | BICS executes the query (variables, restrictions, conditions); ODP bypasses query logic |
 | BW query too large for one result? | Narrow it with `sap_bics_filter`, or read the underlying provider via ODP | BW cannot page a query result |
-| Need a business object as the application derives it (e.g. read a sales order with its texts and status)? | `sap_rfc_invoke` on the reading BAPI | Tables bypass the application logic. Writing BAPIs that need `BAPI_TRANSACTION_COMMIT` are not supported: each call is its own RFC session |
+| Need a business object as the application derives it (e.g. read a sales order with its texts and status)? | `sap_rfc_invoke` on the reading BAPI | Tables bypass the application logic. Write BAPIs work inside `BEGIN … COMMIT`: the transaction is one SAP session and `COMMIT` calls `BAPI_TRANSACTION_COMMIT` (see `erpl-rfc-functions`) |
 
 ## Discover first, then read
 

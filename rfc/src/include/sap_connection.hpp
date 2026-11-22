@@ -1,6 +1,8 @@
 #pragma once
 
 #include "duckdb.hpp"
+#include <memory>
+#include <mutex>
 #include "sap_rfc_api.hpp"
 #include "sap_secret.hpp"
 
@@ -62,9 +64,21 @@ namespace duckdb
     typedef struct RfcConnection
     {
         RFC_CONNECTION_HANDLE handle;
+        // False for a view onto a session somebody else owns -- the SAP LUW session a
+        // DuckDB transaction holds (see sap_luw.hpp). Close() on such a view only
+        // forgets the handle; the owner closes the session at COMMIT / ROLLBACK.
+        bool owns_handle = true;
+        // Set on sessions that several scans may share (the LUW session): an RFC
+        // connection handle must not be used by two threads at once, so every RFC
+        // round-trip on it takes this lock. Null for an ordinary per-call connection.
+        std::shared_ptr<std::mutex> call_lock;
 
         RfcConnection(RFC_CONNECTION_HANDLE handle);
+        RfcConnection(RFC_CONNECTION_HANDLE handle, bool owns_handle, std::shared_ptr<std::mutex> call_lock);
         ~RfcConnection();
+
+        // A non-owning view of this connection that shares its call lock.
+        std::shared_ptr<RfcConnection> Borrow();
 
 		void Close();
         void Ping();

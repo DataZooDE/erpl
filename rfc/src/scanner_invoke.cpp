@@ -1,4 +1,5 @@
 #include "duckdb.hpp"
+#include "sap_luw.hpp"
 #include "scanner_invoke.hpp"
 #include "sap_secret.hpp"
 #include "telemetry.hpp"
@@ -29,7 +30,9 @@ namespace duckdb
         auto &inputs = input.inputs;
 
         // Connect to the SAP system
-        auto connection = GetAuthParamsFromContext(context, input).Connect();
+        // Inside BEGIN ... COMMIT this is the transaction's SAP session (see sap_luw.hpp).
+        auto auth_params = GetAuthParamsFromContext(context, input);
+        auto connection = ConnectInContext(context, auth_params);
 
         // Create the function
         auto func_name = inputs[0].GetValue<string>();

@@ -1,4 +1,5 @@
 #include "duckdb.hpp"
+#include "sap_luw.hpp"
 #include <limits>
 #include <cmath>
 #include <functional>
@@ -105,7 +106,7 @@ namespace duckdb
     string RfcFunctionDesc(ClientContext &context, const FunctionParameters &parameters)
     {
         auto auth_params = RfcAuthParams::FromContext(context);
-        auto connection = auth_params.Connect();
+        auto connection = ConnectInContext(context, auth_params);
         auto func_name = StringValue::Get(parameters.values[0]);
         auto func = make_uniq<RfcFunction>(connection, func_name);
 
@@ -139,7 +140,8 @@ namespace duckdb
 
     std::shared_ptr<RfcConnection> DefaultRfcConnectionFactory(ClientContext &context)
     {
-        return RfcAuthParams::FromContext(context).Connect();
+        auto auth_params = RfcAuthParams::FromContext(context);
+        return ConnectInContext(context, auth_params);
     }
 
     RfcReadTableBindData::RfcReadTableBindData(std::string table_name,
@@ -164,6 +166,7 @@ namespace duckdb
     {
         // Note: read_table_descriptor and fallback_selection_* are intentionally sticky
         // across executions of the same bound plan to avoid redundant RFC introspection.
+        in_luw = InExplicitTransaction(context);
         PinAuthParams(context);
         ResetPersistentSlots();
         ResolveEffectiveMaxBatchSize();
@@ -249,10 +252,11 @@ namespace duckdb
                 auth = pinned_auth;
             }
             if (auth) {
-                return auth->Connect();
+                return ConnectInContext(client_context, *auth);
             }
             // No pin (a helper that never went through init-global): resolve now.
-            return RfcAuthParams::FromContext(client_context, secret_name).Connect();
+            auto resolved = RfcAuthParams::FromContext(client_context, secret_name);
+            return ConnectInContext(client_context, resolved);
         }
         return connection_factory(client_context);
     }
@@ -1758,6 +1762,10 @@ namespace duckdb
         if (max_threads > 0 && max_threads < batch_size) {
             batch_size = max_threads;
         }
+        if (in_luw) {
+            // One session for the whole transaction: its calls are serial anyway.
+            batch_size = 1;
+        }
         if (batch_size == 0) {
             batch_size = 1;
         }
@@ -2027,7 +2035,9 @@ namespace duckdb
     std::shared_ptr<RfcConnection> RfcReadColumnStateMachine::AcquireConnection()
     {
         // Caller already holds thread_lock (we only get here from ExecuteTask).
-        if (!GetRfcPersistentConnections()) {
+        // In a transaction every call borrows the transaction's SAP session; there is
+        // nothing to cache, and no slot to reserve.
+        if (!GetRfcPersistentConnections() || bind_data->InLuw()) {
             return bind_data->OpenNewConnection();
         }
         // On first use, ask the bind-data budget whether this state machine
@@ -2357,6 +2367,11 @@ namespace duckdb
                     throw;
                 }
 
+                if (bind_data->InLuw()) {
+                    // A retry would reuse the transaction's one SAP session -- the one
+                    // that just failed. Fail the statement; the transaction rolls back.
+                    throw;
+                }
                 int delay = initial_delay * std::pow(2, attempt);
                 ERPL_TRACE_WARN_DATA("sap_rfc", StringUtil::Format("Warning during fetching next batch. Attempt: %d, Delay: %ds", attempt + 1, (int)(delay / 1000.)), err_msg);
                 std::this_thread::sleep_for(std::chrono::milliseconds(delay));

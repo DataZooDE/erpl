@@ -219,6 +219,54 @@ SELECT * FROM sap_rfc_invoke('BAPI_FLIGHT_GETLIST',
 );
 ```
 
+#### Transactions: the DuckDB transaction is the SAP LUW
+
+Write BAPIs (`BAPI_*_CREATE*`, `BAPI_*_CHANGE`, …) post through SAP's update task: the BAPI and
+`BAPI_TRANSACTION_COMMIT` must run on the **same** RFC session. erpl therefore maps the DuckDB transaction onto
+the SAP logical unit of work (LUW):
+
+| Statement | What erpl does on the SAP side |
+|---|---|
+| `BEGIN` | nothing yet |
+| any erpl RFC call between `BEGIN` and `COMMIT`/`ROLLBACK` (`sap_rfc_invoke`, `sap_read_table`, `sap_describe_fields`, `sap_rfc_describe_function`, `sap_rfc_show_function`, `sap_rfc_show_groups`, `PRAGMA sap_rfc_ping`, `ATTACH`ed tables) | runs on **one** RFC session per secret, opened on first use and held until the transaction ends |
+| `COMMIT` | `BAPI_TRANSACTION_COMMIT` with `WAIT = 'X'` on each held session, then closes it. If SAP returns `TYPE` `E` or `A` in its `RETURN`, the `COMMIT` statement fails with SAP's message |
+| `ROLLBACK`, a failed statement followed by `COMMIT`/`ROLLBACK`, or closing the DuckDB connection with an open transaction | `BAPI_TRANSACTION_ROLLBACK`, then closes the session |
+| autocommit statement (no `BEGIN`) | unchanged: a connection per call, no commit — a write BAPI called this way is discarded |
+
+```sql
+BEGIN;
+-- preview / write: the BAPI's RETURN comes back as data
+SELECT TYPE, MESSAGE FROM sap_rfc_invoke('BAPI_FLCUST_CHANGE', {
+    'CUSTOMERNUMBER': '00004687',
+    'CUSTOMER_DATA':   {'EMAIL': 'new@example.com'},
+    'CUSTOMER_DATA_X': {'EMAIL': 'X'}
+}, path='/RETURN');
+COMMIT;   -- BAPI_TRANSACTION_COMMIT (WAIT='X') on the same session
+```
+
+- **A BAPI error is still data.** `RETURN` rows with `TYPE` `E`/`A` inside the transaction are returned to you;
+  erpl does not roll back on its own. Check `RETURN` and issue `ROLLBACK` yourself.
+- **The call happens at bind time**, as everywhere in erpl: a `PREPARE` of a write BAPI calls it right away
+  (outside any transaction), and `EXECUTE` does not call it again.
+- **One session, serial reads.** Inside a transaction `sap_read_table` uses the transaction's session for all of
+  its calls: no row partitions, no per-column parallel connections. Reads inside the transaction do not see its
+  own BAPI changes yet — update-task writes reach the database only at `COMMIT`; after `COMMIT` (`WAIT = 'X'`)
+  every read sees them.
+- **SAP commits first, then DuckDB.** `COMMIT` runs `BAPI_TRANSACTION_COMMIT` before DuckDB commits its own
+  changes. If SAP rejects it, the `COMMIT` statement fails and the DuckDB transaction is aborted: it can only be
+  rolled back (a further `COMMIT` acts as `ROLLBACK`), so DuckDB-local writes of that transaction are discarded
+  too. The two are still **not atomic**: if SAP commits and DuckDB's own commit then fails (e.g. a write-write
+  conflict on a DuckDB table), the SAP changes stay committed. Keep DuckDB writes that must match SAP in a
+  separate, later transaction.
+- **Several secrets** in one transaction are committed one after the other; if one is rejected, the ones not yet
+  committed are rolled back — the ones already committed stay committed.
+- A `COMMIT` that is prepared first and executed later (`PREPARE c AS COMMIT`, a client's prepared `COMMIT`)
+  commits SAP after DuckDB's local commit instead; a rejection is then reported by that `COMMIT` while the
+  DuckDB changes are already committed.
+- `sap_rfc_live_connections()` is 1 per secret while such a transaction is open, and back to 0 after it ends.
+- The `erpl_bics`, `erpl_odp` and `erpl_ape` functions are not part of the LUW yet; they keep their own
+  connections.
+
 ---
 
 ### Discovery & Metadata
@@ -351,6 +399,10 @@ queries it should be 0.** A non-zero value means erpl is still holding SAP sessi
 ```sql
 SELECT sap_rfc_live_connections();   -- 0 between queries
 ```
+
+Inside an explicit transaction erpl holds one session per secret until `COMMIT` or `ROLLBACK`
+(see [Transactions](#transactions-the-duckdb-transaction-is-the-sap-luw)), so the count is 1 per
+secret there and returns to 0 when the transaction ends.
 
 These are process-wide counters, not per-connection state, and they are `VOLATILE` so
 DuckDB never constant-folds them at bind time. Their intended use is asserting in tests

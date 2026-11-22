@@ -65,6 +65,7 @@ set(EXTENSION_SOURCES
       src/sap_secret.cpp
       src/erpl_tracing.cpp
       src/sap_connection.cpp
+      src/sap_luw.cpp
       src/sap_rfc_api.cpp
       src/sap_function.cpp
       src/sap_type_conversion.cpp

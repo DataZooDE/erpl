@@ -1386,7 +1386,14 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         _function_name(function_name), _connection(connection)
     {
         RFC_ERROR_INFO error_info;
-        _desc_handle = RfcGetFunctionDesc(connection->handle, std2uc(function_name).get(), &error_info);
+        {
+            // A shared (LUW) session serialises its round-trips; see RfcConnection::call_lock.
+            std::unique_lock<std::mutex> guard;
+            if (connection->call_lock) {
+                guard = std::unique_lock<std::mutex>(*connection->call_lock);
+            }
+            _desc_handle = RfcGetFunctionDesc(connection->handle, std2uc(function_name).get(), &error_info);
+        }
         if (_desc_handle == NULL || error_info.code != RFC_OK) {
             throw std::runtime_error(StringUtil::Format("Error getting function description: %s: %s",
                                                         rfcrc2std(error_info.code), uc2std(error_info.message)));
@@ -1799,7 +1806,15 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         RFC_ERROR_INFO error_info;
         auto connection = GetFunction()->GetConnection();
 
-        RFC_RC rc = RfcInvoke(connection->handle, _handle, &error_info);
+        RFC_RC rc;
+        {
+            // A shared (LUW) session serialises its round-trips; see RfcConnection::call_lock.
+            std::unique_lock<std::mutex> guard;
+            if (connection->call_lock) {
+                guard = std::unique_lock<std::mutex>(*connection->call_lock);
+            }
+            rc = RfcInvoke(connection->handle, _handle, &error_info);
+        }
         if (rc != RFC_OK) {
             throw std::runtime_error(StringUtil::Format("Failed to invoke function:\n%s", rfcerrorinfo2std(error_info)));
         }

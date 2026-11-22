@@ -31,6 +31,7 @@ set(TEST_SOURCES
     test_read_table_function.cpp
     test_select_supported_args.cpp
     test_rfc_api_dispatch.cpp
+    test_luw.cpp
     test_main.cpp
 )
 
