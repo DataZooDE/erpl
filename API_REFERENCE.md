@@ -265,20 +265,21 @@ COMMIT;   -- BAPI_TRANSACTION_COMMIT (WAIT='X') on the same session
 - **SAP commits first, then DuckDB.** `COMMIT` runs `BAPI_TRANSACTION_COMMIT` before DuckDB commits its own
   changes. If SAP rejects it, the `COMMIT` statement fails and the DuckDB transaction is aborted: it can only be
   rolled back (a further `COMMIT` acts as `ROLLBACK`), so DuckDB-local writes of that transaction are discarded
-  too. The two are still **not atomic**: if SAP commits and DuckDB's own commit then fails (e.g. a write-write
-  conflict on a DuckDB table), the SAP changes stay committed. Keep DuckDB writes that must match SAP in a
-  separate, later transaction.
+  too. The two are still **not atomic**: if SAP commits and DuckDB's own commit then fails (e.g. a primary key
+  another connection committed first), the SAP changes stay committed. That case is not silent: the next erpl call
+  on the connection raises "SAP was committed by a COMMIT that DuckDB then rolled back". Keep DuckDB writes that
+  must match SAP in a separate, later transaction.
 - **Several secrets** in one transaction are committed one after the other; if one is rejected, the ones not yet
-  committed are rolled back — the ones already committed stay committed.
-- A `COMMIT` that is prepared first and executed later (`PREPARE c AS COMMIT`, a client's prepared `COMMIT`)
-  commits SAP after DuckDB's local commit instead, where an error can no longer fail the `COMMIT` statement
-  without leaving DuckDB's own transaction state inconsistent. The `COMMIT` then succeeds, the DuckDB changes are
-  committed, and a SAP rejection (or unknown outcome) is traced and raised by the **next erpl call** on that
-  connection ("the previous COMMIT … did not complete on the SAP side"). Use a plain `COMMIT` statement.
-- **A lost session ends the LUW.** If a round-trip on the transaction's session fails with a communication error
-  or an ABAP runtime error (short dump), SAP has discarded the session and its changes: the next erpl call in the
-  transaction and the `COMMIT` fail with "the SAP session of this transaction was lost"; `ROLLBACK` and run the
-  transaction again.
+  committed are rolled back — the ones already committed stay committed, and the error names them ("1 of 2 SAP
+  sessions were already committed and stay committed"): do not rerun the whole transaction.
+- A `COMMIT` that is prepared first and executed later (a client library's `commit()`, `Connection::Prepare`)
+  commits SAP before DuckDB too, so a SAP rejection fails it the same way. A transaction that DuckDB commits
+  without any `COMMIT` statement erpl saw first is rolled back on the SAP side, and the next erpl call says the
+  SAP changes were **not** committed.
+- **A lost session ends the LUW.** If a round-trip on the transaction's session fails with a communication error,
+  a short dump, a `MESSAGE`-raised ABAP failure or a cancel, SAP has discarded the session and its changes: the
+  next erpl call in the transaction and the `COMMIT` fail with "the SAP session of this transaction was lost";
+  `ROLLBACK` and run the transaction again. A declared ABAP exception leaves the session usable.
 - **`COMMIT` waits for the update task.** `WAIT = 'X'` returns only when SAP's update has finished; a stuck V1
   update keeps the `COMMIT` statement waiting, and interrupting the query does not cancel the RFC call. The
   commit duration is traced at `erpl_trace_level = 'INFO'`.

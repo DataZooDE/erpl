@@ -103,8 +103,12 @@ COMMIT;   -- BAPI_TRANSACTION_COMMIT (WAIT='X') on the same session; ROLLBACK di
   serially inside `BEGIN`.
 - A `COMMIT` error saying the outcome is **unknown** means SAP may have committed: check SM13 or the object
   before running the write again.
-- SAP commits first, then DuckDB; a rejected SAP commit fails `COMMIT` and leaves only `ROLLBACK`. DuckDB writes
-  and SAP writes are still not atomic — keep DuckDB writes that must match SAP in a later transaction.
+- SAP commits first, then DuckDB — for a plain `COMMIT` and for a prepared one (a client's `commit()`) alike; a
+  rejected SAP commit fails `COMMIT` and leaves only `ROLLBACK`. DuckDB writes and SAP writes are still not
+  atomic — keep DuckDB writes that must match SAP in a later transaction. If DuckDB's own commit fails after SAP
+  committed, the next erpl call says so.
+- With several secrets, an error saying "N of M SAP sessions were already committed" means those stay committed:
+  do not rerun the whole transaction.
 - `sap_bics_*`, `sap_odp_*` and `sap_ape_*` calls share the transaction's session too, except the ODP extraction
   calls (open/fetch/close of `sap_odp_read_full` / `_delta`) and the APE read graphs (`sap_ape_read_full` /
   `_delta`), which keep their own connections — the APE engine commits as it goes and would otherwise commit
