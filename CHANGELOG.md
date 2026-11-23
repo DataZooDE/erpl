@@ -23,7 +23,13 @@ LOAD erpl;
 
 ---
 
-## Unreleased
+## v2026.11.23 — The DuckDB transaction is the SAP LUW, and a faster proto backend
+
+`BEGIN … COMMIT` now spans one SAP session per secret and ends in `BAPI_TRANSACTION_COMMIT`, so write BAPIs can be
+committed from SQL. An ODP read no longer risks putting values in the wrong column when another read runs in the
+same process. And the proto backend (`SET erpl_rfc_backend = 'proto'`; SAP's NW RFC SDK is still the default) reads
+large tables as fast as SAP's library: on a 297,000-row `sap_read_table('DD04T')` it now takes no more wall time and
+less CPU.
 
 ### Added
 
@@ -54,6 +60,24 @@ LOAD erpl;
   next `sap_odp_read_*`, even with `threads = 1` -- could redefine an id, and the first read's later values went
   to the wrong column or to none, with no error. It was also a data race on that map across scan threads. Each
   document now has its own dictionary, carried across fetch chunks with the rest of the parser state.
+- **[odp]** A full ODP read under load no longer fails intermittently with the XML parse error `Next char ffff`
+  (#247): the inflate stream of a package could end early. **[ape]** `sap_ape_read_full`'s test no longer depends
+  on the exact row count of the source (#248).
+
+### Faster (proto backend)
+
+- **[rfc]** **Parallel table reads no longer queue on one lock.** DuckDB reads a result with several threads, and
+  every cell read took the same exclusive lock in the shim: 8 million acquisitions on a 297,000-row read, 2.6
+  million of them waiting. Cell reads now share it. DD04T through erpl: 10.4 s → 8.1–8.4 s against SAP's library's
+  7.7–8.0 s, system time 18.5 s → 4.2–4.7 s.
+- **[rfc]** **Text cells are converted without allocating.** Each cell's conversion to UTF-8 grew its output one
+  character at a time (2.8 million reallocations on that read, against 7 thousand in SAP's library); ASCII text is
+  now copied in one pass. The same read then takes 6.4 s against SAP's library's 7.0 s, and 12.7 s of user CPU
+  against 13.1 s.
+- **[rfc]** Background RFC units (bgRFC) are accepted by the server and their states are read correctly; this
+  does not change any erpl SQL function.
+
+erpl-proto `6548f70` → `35be92c`.
 
 ---
 
