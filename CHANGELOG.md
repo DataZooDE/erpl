@@ -47,6 +47,14 @@ LOAD erpl;
   stay on their own because the engine's commits would otherwise commit the transaction's pending writes
   (measured on A4H); ODP and APE still commit their own extraction progress on the SAP side.
 
+### Fixed
+
+- **[odp]** ODP reads in one process no longer share a tag dictionary (#249). A BXML document numbers its own
+  tags, and the parser kept the id-to-name map process-wide, so a second read -- a parallel scan thread, or the
+  next `sap_odp_read_*`, even with `threads = 1` -- could redefine an id, and the first read's later values went
+  to the wrong column or to none, with no error. It was also a data race on that map across scan threads. Each
+  document now has its own dictionary, carried across fetch chunks with the rest of the parser state.
+
 ---
 
 ## v2026.11.22 — DuckDB 2.0.1, and a sturdier proto backend
