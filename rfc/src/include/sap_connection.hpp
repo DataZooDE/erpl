@@ -65,9 +65,16 @@ namespace duckdb
         std::mutex lock;
         RFC_CONNECTION_HANDLE handle = NULL;
         // A round-trip failed in a way that ends an RFC session (communication failure,
-        // ABAP runtime error / short dump, invalid handle): the LUW is gone on the SAP side.
+        // short dump, MESSAGE-raised failure, cancel, closed or invalid handle): the LUW is
+        // gone on the SAP side.
         std::atomic<bool> lost {false};
+        // The return code that ended it, to tell "nothing was sent" (an invalid or closed
+        // handle) from "the reply was lost" (a communication failure).
+        std::atomic<int> lost_rc {0};
     };
+
+    // The error a call on a lost SAP session gets.
+    extern const char *const kRfcSessionLostMessage;
 
     // Held for the duration of one SDK call that takes a connection handle. For a shared
     // session it holds the session's lock; for an ordinary connection it is free.

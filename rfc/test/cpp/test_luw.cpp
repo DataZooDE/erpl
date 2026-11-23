@@ -1,6 +1,7 @@
 #include "catch.hpp"
 #include "duckdb.hpp"
 #include "duckdb/main/client_context.hpp"
+#include "duckdb/transaction/meta_transaction.hpp"
 
 #include "sap_function.hpp"
 #include "sap_luw.hpp"
@@ -252,8 +253,8 @@ TEST_CASE("LUW: a lost session fails the next call and the COMMIT, without commi
 
 	REQUIRE_FALSE(con.Query("BEGIN")->HasError());
 	auto view = ConnectInContext(*con.context, a);
-	// What RfcCallGuard::Note does when a round-trip ends with RFC_COMMUNICATION_FAILURE,
-	// RFC_ABAP_RUNTIME_FAILURE (a short dump) or RFC_INVALID_HANDLE.
+	// What RfcCallGuard::Note does when a round-trip ends with a code that ends the RFC
+	// session (see the parameterized case below).
 	{
 		auto guard = view->CallGuard();
 		guard.Note(RFC_COMMUNICATION_FAILURE);
@@ -268,6 +269,56 @@ TEST_CASE("LUW: a lost session fails the next call and the COMMIT, without commi
 	REQUIRE(sap.finished.empty());
 	REQUIRE_FALSE(con.Query("ROLLBACK")->HasError());
 	REQUIRE(state->HeldSessions() == 0);
+}
+
+TEST_CASE("LUW: every code that ends an RFC session marks it lost, a declared exception does not",
+          "[erpl_rfc][luw]") {
+	// erpl-proto spec PRO-12, measured against SAP's library: a communication failure, a
+	// short dump, a MESSAGE-raised failure, a closed connection, a cancel and an invalid
+	// handle all end the session; a declared ABAP exception leaves it usable.
+	const std::vector<RFC_RC> ending = {RFC_COMMUNICATION_FAILURE, RFC_ABAP_RUNTIME_FAILURE, RFC_ABAP_MESSAGE,
+	                                    RFC_CLOSED,                RFC_CANCELED,             RFC_INVALID_HANDLE};
+	for (auto rc : ending) {
+		DuckDB db(nullptr);
+		Connection con(db);
+		FakeSap sap;
+		auto state = sap.MakeState();
+		con.context->registered_state->Insert(RfcLuwState::KEY, state);
+		auto a = Auth("DEVELOPER");
+		REQUIRE_FALSE(con.Query("BEGIN")->HasError());
+		auto view = ConnectInContext(*con.context, a);
+		{
+			auto guard = view->CallGuard();
+			guard.Note(rc);
+		}
+		INFO("rc=" << rc);
+		REQUIRE(view->IsLost());
+		// A view already borrowed must not make another round-trip on the dead session.
+		REQUIRE_THROWS_WITH(view->CallGuard(), Catch::Contains("was lost"));
+		// Nor may BAPI_TRANSACTION_COMMIT claim an unknown outcome: nothing was sent.
+		REQUIRE_THROWS_WITH(RfcLuwState::FinishWithBapi(view, RfcLuwOutcome::COMMIT),
+		                    Catch::Contains("nothing was committed"));
+		auto result = con.Query("COMMIT");
+		REQUIRE(result->HasError());
+		REQUIRE(sap.finished.empty());
+		REQUIRE_FALSE(con.Query("ROLLBACK")->HasError());
+	}
+
+	DuckDB db(nullptr);
+	Connection con(db);
+	FakeSap sap;
+	auto state = sap.MakeState();
+	con.context->registered_state->Insert(RfcLuwState::KEY, state);
+	auto a = Auth("DEVELOPER");
+	REQUIRE_FALSE(con.Query("BEGIN")->HasError());
+	auto view = ConnectInContext(*con.context, a);
+	{
+		auto guard = view->CallGuard();
+		guard.Note(RFC_ABAP_EXCEPTION);
+	}
+	REQUIRE_FALSE(view->IsLost());
+	REQUIRE_FALSE(con.Query("COMMIT")->HasError());
+	REQUIRE(sap.finished == std::vector<std::string>({"COMMIT:DEVELOPER"}));
 }
 
 TEST_CASE("LUW: closing the DuckDB connection mid-transaction rolls back", "[erpl_rfc][luw]") {
@@ -313,8 +364,7 @@ TEST_CASE("LUW: a COMMIT that SAP accepts commits SAP first, then DuckDB", "[erp
 	REQUIRE(state->HeldSessions() == 0);
 }
 
-TEST_CASE("LUW: a SAP rejection of a prepared COMMIT is reported later, never thrown from the commit hook",
-          "[erpl_rfc][luw]") {
+TEST_CASE("LUW: a SAP rejection of a prepared COMMIT fails the COMMIT and rolls back locally", "[erpl_rfc][luw]") {
 	DuckDB db(nullptr);
 	Connection con(db);
 	FakeSap sap;
@@ -322,33 +372,140 @@ TEST_CASE("LUW: a SAP rejection of a prepared COMMIT is reported later, never th
 	auto state = sap.MakeState();
 	con.context->registered_state->Insert(RfcLuwState::KEY, state);
 	auto a = Auth("DEVELOPER");
-	auto b = Auth("BWDEVELOPER");
 
-	// A prepared COMMIT executed later commits in TransactionCommit, after DuckDB's local
-	// commit. Throwing there would skip the other states' TransactionCommit and
-	// Finalize() -- in a debug build DuckDB's own DebugClientContextState then fails the
-	// next statement with "transaction already active".
+	// A COMMIT prepared earlier (as a client library does for commit()) and executed
+	// inside the transaction commits SAP *before* DuckDB commits locally, so a rejection
+	// fails the COMMIT instead of being reported after the fact (crew review of #245, F1).
 	auto prepared_commit = con.Prepare("COMMIT");
 	REQUIRE_FALSE(prepared_commit->HasError());
 	REQUIRE_FALSE(con.Query("BEGIN")->HasError());
 	ConnectInContext(*con.context, a);
-	REQUIRE_FALSE(con.Query("CREATE TABLE committed_locally AS SELECT 1 AS x")->HasError());
-	REQUIRE_FALSE(prepared_commit->Execute()->HasError());
+	REQUIRE_FALSE(con.Query("CREATE TABLE rejected_locally AS SELECT 1 AS x")->HasError());
+	auto executed = prepared_commit->Execute();
+	REQUIRE(executed->HasError());
+	REQUIRE(executed->GetError().find("SAP rejected the commit") != std::string::npos);
 	REQUIRE(sap.finished == std::vector<std::string>({"COMMIT:DEVELOPER"}));
 	REQUIRE(state->HeldSessions() == 0);
+	// The DuckDB transaction is aborted: it can only end in a rollback, and the local
+	// write goes with it.
+	REQUIRE_FALSE(con.Query("ROLLBACK")->HasError());
+	REQUIRE(con.Query("SELECT * FROM rejected_locally")->HasError());
+	REQUIRE_FALSE(con.Query("SELECT 1")->HasError());
+}
 
-	// DuckDB is consistent: the local write is committed and the connection works.
-	REQUIRE_FALSE(con.Query("SELECT * FROM committed_locally")->HasError());
-	REQUIRE_FALSE(con.Query("BEGIN")->HasError());
-	REQUIRE_FALSE(con.Query("COMMIT")->HasError());
+TEST_CASE("LUW: a commit that reaches the after-commit fallback rolls SAP back and says so", "[erpl_rfc][luw]") {
+	DuckDB db(nullptr);
+	Connection con(db);
+	FakeSap sap;
+	auto state = sap.MakeState();
+	con.context->registered_state->Insert(RfcLuwState::KEY, state);
+	auto a = Auth("DEVELOPER");
 
-	// The SAP rejection surfaces on the next erpl call, once.
+	// Every COMMIT statement commits SAP before DuckDB does; a transaction that still holds
+	// a session when DuckDB has already committed locally got there some other way. Failing
+	// closed is the only safe answer: SAP is rolled back, and the next erpl call says so.
 	REQUIRE_FALSE(con.Query("BEGIN")->HasError());
-	REQUIRE_THROWS_WITH(ConnectInContext(*con.context, b), Catch::Contains("did not complete on the SAP side"));
-	auto next = ConnectInContext(*con.context, b);
-	REQUIRE(next != nullptr);
-	REQUIRE_FALSE(con.Query("COMMIT")->HasError());
-	REQUIRE(sap.finished.back() == "COMMIT:BWDEVELOPER");
+	ConnectInContext(*con.context, a);
+	auto &meta = MetaTransaction::Get(*con.context);
+	state->TransactionCommit(meta, *con.context);
+	REQUIRE(sap.finished == std::vector<std::string>({"ROLLBACK:DEVELOPER"}));
+	REQUIRE(state->HeldSessions() == 0);
+	REQUIRE_THROWS_WITH(state->RaisePendingError(), Catch::Contains("NOT committed"));
+	REQUIRE_FALSE(con.Query("ROLLBACK")->HasError());
+}
+
+TEST_CASE("LUW: a COMMIT whose local half fails after SAP committed is reported", "[erpl_rfc][luw]") {
+	DuckDB db(nullptr);
+	Connection con(db);
+	Connection other(db);
+	FakeSap sap;
+	auto state = sap.MakeState();
+	con.context->registered_state->Insert(RfcLuwState::KEY, state);
+	auto a = Auth("DEVELOPER");
+
+	// The SAP commit runs before DuckDB's (no later hook can still fail the COMMIT). When
+	// DuckDB's own commit then fails -- here a primary key another connection committed
+	// first -- DuckDB rolls back while SAP stays committed. That window cannot be closed,
+	// so it must not be silent (crew review of #245, F2).
+	REQUIRE_FALSE(con.Query("CREATE TABLE keyed (id INTEGER PRIMARY KEY)")->HasError());
+	REQUIRE_FALSE(con.Query("BEGIN")->HasError());
+	ConnectInContext(*con.context, a);
+	REQUIRE_FALSE(con.Query("INSERT INTO keyed VALUES (1)")->HasError());
+	REQUIRE_FALSE(other.Query("INSERT INTO keyed VALUES (1)")->HasError());
+	auto committed = con.Query("COMMIT");
+	REQUIRE(committed->HasError());
+	REQUIRE(sap.finished == std::vector<std::string>({"COMMIT:DEVELOPER"}));
+	REQUIRE_THROWS_WITH(state->RaisePendingError(),
+	                    Catch::Contains("SAP was committed by a COMMIT that DuckDB then rolled back"));
+	// Reported once; the connection works afterwards.
+	REQUIRE_NOTHROW(state->RaisePendingError());
+	REQUIRE_FALSE(con.Query("SELECT 1")->HasError());
+}
+
+// DuckDB 2.0 removed the pending-query API (Connection::PendingQuery), so a COMMIT can no
+// longer be started and then dropped there. Detected by shape, not by version number.
+template <class CON>
+static auto TryPendingCommit(CON &con, int) -> decltype(con.PendingQuery("COMMIT"), bool()) {
+	auto pending = con.PendingQuery("COMMIT");
+	REQUIRE_FALSE(pending->HasError());
+	return true;
+}
+template <class CON>
+static bool TryPendingCommit(CON &, long) {
+	return false;
+}
+
+TEST_CASE("LUW: a pending COMMIT that is dropped still commits both sides", "[erpl_rfc][luw]") {
+	DuckDB db(nullptr);
+	Connection con(db);
+	FakeSap sap;
+	auto state = sap.MakeState();
+	con.context->registered_state->Insert(RfcLuwState::KEY, state);
+	auto a = Auth("DEVELOPER");
+
+	// Measured: dropping a pending COMMIT before executing it does not abandon it -- the next
+	// statement on the connection completes it, so DuckDB commits too and SAP and DuckDB agree
+	// (a ROLLBACK issued then finds no transaction to roll back).
+	REQUIRE_FALSE(con.Query("BEGIN")->HasError());
+	ConnectInContext(*con.context, a);
+	if (!TryPendingCommit(con, 0)) {
+		WARN("skipped: this DuckDB has no pending-query API, so a COMMIT cannot be left pending");
+		return;
+	}
+	REQUIRE(sap.finished == std::vector<std::string>({"COMMIT:DEVELOPER"}));
+	REQUIRE_FALSE(con.Query("SELECT 1")->HasError());
+	REQUIRE_FALSE(InExplicitTransaction(*con.context));
+	REQUIRE_NOTHROW(state->RaisePendingError());
+}
+
+TEST_CASE("LUW: a commit that fails on the second secret says the first stays committed", "[erpl_rfc][luw]") {
+	DuckDB db(nullptr);
+	Connection con(db);
+	FakeSap sap;
+	sap.fail_commit_for_user = "BWDEVELOPER";
+	auto state = sap.MakeState();
+	con.context->registered_state->Insert(RfcLuwState::KEY, state);
+
+	REQUIRE_FALSE(con.Query("BEGIN")->HasError());
+	auto a = Auth("DEVELOPER");
+	auto b = Auth("BWDEVELOPER");
+	auto c = Auth("THIRDUSER");
+	ConnectInContext(*con.context, a);
+	ConnectInContext(*con.context, b);
+	ConnectInContext(*con.context, c);
+	auto result = con.Query("COMMIT");
+	REQUIRE(result->HasError());
+	auto error = result->GetError();
+	INFO(error);
+	// Retrying would write DEVELOPER's changes twice: the message must say they stay.
+	REQUIRE(error.find("1 of 3 SAP sessions were already committed and stay committed") != std::string::npos);
+	REQUIRE(error.find("fake-host/00/001/DEVELOPER") != std::string::npos);
+	REQUIRE(error.find("fake-host/00/001/BWDEVELOPER") != std::string::npos);
+	REQUIRE(error.find("1 not yet committed were rolled back") != std::string::npos);
+	REQUIRE(error.find("not-a-password") == std::string::npos);
+	REQUIRE(sap.finished ==
+	        std::vector<std::string>({"COMMIT:DEVELOPER", "COMMIT:BWDEVELOPER", "ROLLBACK:THIRDUSER"}));
+	REQUIRE_FALSE(con.Query("ROLLBACK")->HasError());
 }
 
 TEST_CASE("LUW: two DuckDB connections have separate SAP sessions", "[erpl_rfc][luw]") {

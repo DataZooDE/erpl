@@ -322,3 +322,116 @@ query I
 SELECT sap_rfc_live_connections() - (SELECT live FROM baseline);
 ----
 0
+
+# -------------------------------------------------------------------------
+# 7. An ABAP failure inside the LUW, after a write: the statement fails, the
+#    transaction is aborted, and ending it -- COMMIT included -- discards the
+#    write. Three kinds, because they end the SAP session differently (erpl-proto
+#    spec PRO-12, measured against SAP's library): a MESSAGE-raised failure ends
+#    it at once (the handle is invalid), a short dump leaves it dead for the next
+#    call, a declared exception leaves it usable. In every case no session may
+#    leak, and the next transaction must start on a fresh session and commit.
+# -------------------------------------------------------------------------
+statement ok
+CREATE MACRO luw_raise(method) AS TABLE
+SELECT * FROM sap_rfc_invoke('RFC_RAISE_ERROR', {'METHOD': method, 'MESSAGETYPE': 'E'});
+
+# MESSAGE-raised (METHOD 0).
+statement ok
+BEGIN;
+
+statement ok
+SELECT * FROM luw_set_email('erpl-luw-message@example.com');
+
+statement error
+SELECT * FROM luw_raise('0');
+----
+
+statement ok
+COMMIT;
+
+query I
+SELECT EMAIL FROM luw_email();
+----
+erpl-luw-after-error@example.com
+
+query I
+SELECT sap_rfc_live_connections() - (SELECT live FROM baseline);
+----
+0
+
+# Short dump (METHOD 3).
+statement ok
+BEGIN;
+
+statement ok
+SELECT * FROM luw_set_email('erpl-luw-dump@example.com');
+
+statement error
+SELECT * FROM luw_raise('3');
+----
+
+statement ok
+ROLLBACK;
+
+query I
+SELECT EMAIL FROM luw_email();
+----
+erpl-luw-after-error@example.com
+
+query I
+SELECT sap_rfc_live_connections() - (SELECT live FROM baseline);
+----
+0
+
+# Declared exception (METHOD 1): the session survives, the transaction does not.
+statement ok
+BEGIN;
+
+statement ok
+SELECT * FROM luw_set_email('erpl-luw-exception@example.com');
+
+statement error
+SELECT * FROM luw_raise('1');
+----
+
+statement ok
+COMMIT;
+
+query I
+SELECT EMAIL FROM luw_email();
+----
+erpl-luw-after-error@example.com
+
+# After all three, a transaction starts on a fresh session and commits.
+statement ok
+BEGIN;
+
+statement ok
+SELECT * FROM luw_set_email('erpl-luw-after-failures@example.com');
+
+statement ok
+COMMIT;
+
+query I
+SELECT EMAIL FROM luw_email();
+----
+erpl-luw-after-failures@example.com
+
+query I
+SELECT sap_rfc_live_connections() - (SELECT live FROM baseline);
+----
+0
+
+# -------------------------------------------------------------------------
+# 8. The commit verdict reads TYPE / ID / NUMBER / MESSAGE from
+#    BAPI_TRANSACTION_COMMIT's RETURN (crew review of #245, F6): pin that shape on
+#    the live system, so a RETURN that could not be read is never taken as accepted.
+# -------------------------------------------------------------------------
+query I
+SELECT count(*) >= 0 FROM (
+    SELECT TYPE, ID, NUMBER, MESSAGE
+    FROM sap_rfc_invoke('BAPI_TRANSACTION_COMMIT', {'WAIT': 'X'}, path => '/RETURN')
+);
+----
+true

@@ -7,6 +7,7 @@
 #include "duckdb/main/prepared_statement_data.hpp"
 #include "duckdb/execution/physical_plan_generator.hpp"
 #include "duckdb/execution/operator/helper/physical_transaction.hpp"
+#include "duckdb/execution/operator/helper/physical_execute.hpp"
 #include "duckdb/parser/parsed_data/transaction_info.hpp"
 
 #include "duckdb_argument_helper.hpp"
@@ -187,9 +188,15 @@ namespace duckdb
 		return key;
 	}
 
-	static const char *kSessionLost = "SAP LUW: the SAP session of this transaction was lost (a communication failure "
-	                                  "or an ABAP runtime error ended it); SAP discarded its changes. ROLLBACK and "
-	                                  "run the transaction again";
+	static const char *const kSessionLost = kRfcSessionLostMessage;
+
+	// host/sysnr/client/user: enough to tell the sessions of a transaction apart in an
+	// error, and never a credential.
+	static string SessionLabel(const RfcAuthParams &auth)
+	{
+		auto host = !auth.ashost.empty() ? auth.ashost : (!auth.mshost.empty() ? auth.mshost : string("?"));
+		return host + "/" + auth.sysnr + "/" + auth.client + "/" + auth.user;
+	}
 
 	std::shared_ptr<RfcConnection> RfcLuwState::Acquire(RfcAuthParams &auth)
 	{
@@ -222,7 +229,7 @@ namespace duckdb
 			}
 			if (!existing) {
 				ERPL_TRACE_DEBUG("SAP_LUW", "Opened the SAP session for this transaction");
-				sessions.push_back(Session {std::move(key), opened});
+				sessions.push_back(Session {std::move(key), SessionLabel(auth), opened});
 				has_sessions.store(true);
 				return opened->Borrow();
 			}
@@ -249,10 +256,15 @@ namespace duckdb
 			error.swap(pending_error);
 		}
 		if (!error.empty()) {
-			throw IOException("SAP LUW: the previous COMMIT, which ran after DuckDB had committed locally (a COMMIT "
-			                  "prepared earlier and executed later), did not complete on the SAP side: %s",
-			                  error);
+			throw IOException(error);
 		}
+	}
+
+	void RfcLuwState::RecordPendingError(const string &error)
+	{
+		ERPL_TRACE_ERROR_DATA("SAP_LUW", "Recorded for the next erpl call", error);
+		std::lock_guard<std::mutex> guard(pending_lock);
+		pending_error = error;
 	}
 
 	std::vector<RfcLuwState::Session> RfcLuwState::TakeSessions()
@@ -310,9 +322,29 @@ namespace duckdb
 				              .count();
 				ERPL_TRACE_INFO("SAP_LUW", StringUtil::Format("BAPI_TRANSACTION_COMMIT (WAIT = 'X') took %d ms", ms));
 				CloseSession(session);
-			} catch (...) {
+			} catch (std::exception &ex) {
 				// Close this session and roll back every one not committed yet, so a
 				// rejected commit on the first secret leaves the others untouched.
+				CloseSession(session);
+				std::vector<Session> rest(to_commit.begin() + i + 1, to_commit.end());
+				auto rolled_back = rest.size();
+				RollbackAll(rest, true);
+				if (i == 0) {
+					throw;
+				}
+				// The sessions before this one are committed and stay committed: a retry of
+				// the whole transaction would write their changes twice, so say so.
+				string committed;
+				for (idx_t j = 0; j < i; j++) {
+					committed += (j ? ", " : "") + to_commit[j].label;
+				}
+				ErrorData error(ex);
+				throw IOException(StringUtil::Format(
+				    "SAP LUW: %d of %d SAP sessions were already committed and stay committed (%s); the commit of %s "
+				    "failed: %s; %d not yet committed were rolled back. Do not rerun the whole transaction: the "
+				    "committed sessions' changes are permanent",
+				    i, to_commit.size(), committed, session.label, error.RawMessage(), rolled_back));
+			} catch (...) {
 				CloseSession(session);
 				std::vector<Session> rest(to_commit.begin() + i + 1, to_commit.end());
 				RollbackAll(rest, true);
@@ -321,20 +353,34 @@ namespace duckdb
 		}
 	}
 
+	void RfcLuwState::TransactionBegin(MetaTransaction &, ClientContext &)
+	{
+		sap_committed_awaiting_local.store(false);
+	}
+
 	void RfcLuwState::TransactionCommit(MetaTransaction &, ClientContext &)
 	{
+		// DuckDB committed locally: the SAP commit that preceded it is now matched.
+		sap_committed_awaiting_local.store(false);
 		// Throwing here would skip the other states' TransactionCommit and the
 		// transaction's Finalize(); see the header.
 		try {
-			CommitAll();
+			auto left = TakeSessions();
+			if (left.empty()) {
+				return;
+			}
+			// DuckDB committed without a COMMIT statement this state saw first. Committing SAP
+			// now could fail with nothing left to tell the caller; rolling back cannot leave
+			// the two halves silently apart, so fail closed.
+			RollbackAll(left, true);
+			RecordPendingError("SAP LUW: DuckDB committed this transaction without a COMMIT statement that erpl "
+			                   "could commit SAP for first, so its SAP changes were NOT committed: SAP was rolled "
+			                   "back. Run the SAP part of the transaction again, ending it with COMMIT");
 		} catch (std::exception &ex) {
 			ErrorData error(ex);
-			ERPL_TRACE_ERROR_DATA("SAP_LUW", "SAP commit after DuckDB's local commit failed", error.RawMessage());
-			std::lock_guard<std::mutex> guard(pending_lock);
-			pending_error = error.RawMessage();
+			RecordPendingError(error.RawMessage());
 		} catch (...) {
-			std::lock_guard<std::mutex> guard(pending_lock);
-			pending_error = "unknown error";
+			RecordPendingError("SAP LUW: rolling back after DuckDB's local commit failed");
 		}
 	}
 
@@ -345,33 +391,42 @@ namespace duckdb
 		return has_sessions.load();
 	}
 
+	static bool IsCommitPlan(PhysicalOperator &root)
+	{
+		if (root.type == PhysicalOperatorType::TRANSACTION) {
+			auto &transaction = root.Cast<PhysicalTransaction>();
+			return transaction.info && transaction.info->type == TransactionType::COMMIT;
+		}
+		// EXECUTE of a prepared COMMIT: how DuckDB 2.0 runs Connection::Prepare("COMMIT")
+		// + Execute().
+		if (root.type == PhysicalOperatorType::EXECUTE) {
+			return IsCommitPlan(root.Cast<PhysicalExecute>().plan);
+		}
+		return false;
+	}
+
 	static bool IsCommitStatement(PreparedStatementData &prepared)
 	{
 		// PreparedStatementData::unbound_statement is not set yet when OnFinalizePrepare
 		// runs (DuckDB 1.5.6 and 2.0 assign it only in PrepareInternal, afterwards), so the
 		// statement is recognised by its plan: a COMMIT plans to a PhysicalTransaction.
-		if (prepared.statement_type != StatementType::TRANSACTION_STATEMENT || !prepared.physical_plan) {
+		if ((prepared.statement_type != StatementType::TRANSACTION_STATEMENT &&
+		     prepared.statement_type != StatementType::EXECUTE_STATEMENT) ||
+		    !prepared.physical_plan) {
 			return false;
 		}
-		auto &root = prepared.physical_plan->Root();
-		if (root.type != PhysicalOperatorType::TRANSACTION) {
-			return false;
-		}
-		auto &transaction = root.Cast<PhysicalTransaction>();
-		return transaction.info && transaction.info->type == TransactionType::COMMIT;
+		return IsCommitPlan(prepared.physical_plan->Root());
 	}
 
-	RebindQueryInfo RfcLuwState::OnFinalizePrepare(ClientContext &context, PreparedStatementData &prepared,
-	                                               PreparedStatementMode mode)
+	void RfcLuwState::CommitBeforeLocal(ClientContext &context)
 	{
-		if (mode != PreparedStatementMode::PREPARE_AND_EXECUTE || !IsCommitStatement(prepared) ||
-		    !InExplicitTransaction(context) || HeldSessions() == 0) {
-			return RebindQueryInfo::DO_NOT_REBIND;
+		if (!InExplicitTransaction(context) || HeldSessions() == 0) {
+			return;
 		}
 		auto &transaction = context.ActiveTransaction();
 		if (ValidChecker::IsInvalidated(transaction)) {
 			// DuckDB turns this COMMIT into a ROLLBACK; TransactionRollback handles SAP.
-			return RebindQueryInfo::DO_NOT_REBIND;
+			return;
 		}
 		try {
 			CommitAll();
@@ -382,13 +437,36 @@ namespace duckdb
 			ValidChecker::Invalidate(transaction, error.RawMessage());
 			throw;
 		}
+		sap_committed_awaiting_local.store(true);
+	}
+
+	void RfcLuwState::OnPreparedCommit(ClientContext &context, PreparedStatementData &prepared)
+	{
+		if (IsCommitStatement(prepared)) {
+			CommitBeforeLocal(context);
+		}
+	}
+
+	RebindQueryInfo RfcLuwState::OnFinalizePrepare(ClientContext &context, PreparedStatementData &prepared,
+	                                               PreparedStatementMode mode)
+	{
+		if (mode == PreparedStatementMode::PREPARE_AND_EXECUTE && IsCommitStatement(prepared)) {
+			CommitBeforeLocal(context);
+		}
 		return RebindQueryInfo::DO_NOT_REBIND;
 	}
 
 	void RfcLuwState::TransactionRollback(MetaTransaction &, ClientContext &, optional_ptr<ErrorData>)
 	{
+		auto sap_committed = sap_committed_awaiting_local.exchange(false);
 		auto to_roll_back = TakeSessions();
 		RollbackAll(to_roll_back, true);
+		if (sap_committed) {
+			// The SAP commit ran when DuckDB planned the COMMIT; DuckDB rolled back instead of
+			// committing. No hook can take that window away, so it must not be silent.
+			RecordPendingError("SAP LUW: SAP was committed by a COMMIT that DuckDB then rolled back: the SAP changes "
+			                   "of that transaction are permanent, its DuckDB changes are not");
+		}
 	}
 
 	void RfcLuwState::FinishWithBapi(std::shared_ptr<RfcConnection> &session, RfcLuwOutcome outcome)
@@ -403,20 +481,32 @@ namespace duckdb
 		// WAIT = 'X': return only once the update task has finished, so the next
 		// statement reads what the transaction wrote, and update errors come back in
 		// RETURN instead of only in SM13.
+		// A session already lost never sends the commit: nothing can have been committed.
+		if (session->IsLost()) {
+			throw IOException(kSessionLost);
+		}
 		auto args = ArgBuilder().Add("WAIT", Value("X")).BuildArgList();
 		std::shared_ptr<RfcResultSet> result;
 		try {
 			result = RfcResultSet::InvokeFunction(session, "BAPI_TRANSACTION_COMMIT", args);
 		} catch (std::exception &ex) {
-			// The call itself failed: SAP may have committed before the reply was lost.
 			ErrorData error(ex);
+			// An invalid or closed handle fails before anything reaches SAP; only a lost reply
+			// (a communication failure) leaves the outcome open.
+			auto rc = session->core ? session->core->lost_rc.load() : 0;
+			if (rc == RFC_INVALID_HANDLE || rc == RFC_CLOSED) {
+				throw IOException(kSessionLost);
+			}
 			throw IOException(RfcCommitOutcomeUnknownMessage(error.RawMessage()));
 		}
+		// BAPI_TRANSACTION_COMMIT always exports RETURN (BAPIRET2). Reading it must not fail
+		// open: a RETURN that cannot be read is an outcome nobody can vouch for.
 		Value ret;
 		try {
 			ret = result->GetResultValue(string("RETURN"));
-		} catch (...) {
-			// No RETURN parameter: nothing to check.
+		} catch (std::exception &ex) {
+			ErrorData error(ex);
+			throw IOException(RfcCommitOutcomeUnknownMessage("its RETURN could not be read: " + error.RawMessage()));
 		}
 		auto verdict = EvaluateCommitReturn(ret);
 		if (verdict.rejected) {
