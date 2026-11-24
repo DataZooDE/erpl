@@ -23,6 +23,15 @@ LOAD erpl;
 
 ---
 
+## Unreleased
+
+- **[rfc]** `sap_read_table` reads text cells faster on both backends. Every
+  cell arrives as a blank-padded `CHAR(512)` field; the trailing blanks were
+  converted to UTF-8 and then trimmed again one byte at a time. They are now
+  dropped on the UTF-16 units first, so only the text is converted. Results are
+  identical (a row hash over DD04T matches); DD04T takes 46% fewer instructions
+  through SAP's library and 19% fewer through the proto shim.
+
 ## v2026.11.23 — The DuckDB transaction is the SAP LUW, and a faster proto backend
 
 `BEGIN … COMMIT` now spans one SAP session per secret and ends in `BAPI_TRANSACTION_COMMIT`, so write BAPIs can be

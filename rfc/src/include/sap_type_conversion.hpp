@@ -8,6 +8,9 @@
 
 namespace duckdb 
 {
+    // The length of `str` without the trailing characters uc2std(..., rtrim=true)
+    // removes, measured on the UTF-16 units before converting.
+    unsigned int UcRtrimLength(const SAP_UC *str, unsigned int len);
     std::string uc2std(SAP_UC *str, unsigned int len, bool rtrim);
     std::string uc2std(SAP_UC *str, unsigned int len);
     std::string uc2std(SAP_UC *str);

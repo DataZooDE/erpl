@@ -566,3 +566,85 @@ TEST_CASE("ConvertCsvValue decimal precision matches the declared column type",
     auto d34 = RfcType::FromTypeName("D34D", 34, 2);
     REQUIRE(d34.ConvertCsvValue(Value("123.45")).type() == d34.CreateDuckDbType());
 }
+
+// uc2std(..., rtrim=true) trims on the UTF-16 units before converting. The
+// reference below is the algorithm it replaced, kept verbatim: convert every
+// unit, then trim '\0' and isspace() bytes off the UTF-8. Both run against the
+// loaded backend's RfcSAPUCToUTF8, so the comparison covers either library.
+static std::string ReferenceUc2stdRtrim(SAP_UC *uc_str, unsigned int uc_str_len) {
+    if (uc_str == NULL || uc_str_len == 0) {
+        return std::string();
+    }
+    RFC_ERROR_INFO error_info;
+    unsigned int utf8_size = uc_str_len * 5 + 1;
+    unsigned int result_len = 0;
+    std::vector<char> utf8(utf8_size);
+    auto rc = RfcSAPUCToUTF8(uc_str, uc_str_len, (RFC_BYTE *)utf8.data(), &utf8_size, &result_len, &error_info);
+    if (rc != RFC_OK || result_len <= 0) {
+        return std::string();
+    }
+    int i = result_len - 1;
+    while (i >= 0 && (utf8[i] == '\0' || isspace(utf8[i]))) {
+        i--;
+    }
+    return std::string(utf8.data(), i + 1);
+}
+
+static void RequireSameAsReference(std::vector<SAP_UC> units, const std::string &label) {
+    auto expected = ReferenceUc2stdRtrim(units.data(), (unsigned int)units.size());
+    auto actual = uc2std(units.data(), (unsigned int)units.size(), true);
+    INFO(label);
+    REQUIRE(actual == expected);
+}
+
+static std::vector<SAP_UC> Units(const std::u16string &text, size_t pad_to = 0, SAP_UC pad = ' ') {
+    std::vector<SAP_UC> units(text.begin(), text.end());
+    while (units.size() < pad_to) {
+        units.push_back(pad);
+    }
+    return units;
+}
+
+TEST_CASE("uc2std rtrim trims on UTF-16 exactly as it did on UTF-8", "[sap_type_conversion]") {
+    RequireSameAsReference(Units(u"", 512), "all blanks");
+    RequireSameAsReference(Units(u"PROG000001", 512), "CHAR(512) WA cell");
+    RequireSameAsReference(Units(u"NOBLANKS"), "no blanks");
+    RequireSameAsReference(Units(u"AB  CD", 40), "inner blanks stay");
+    RequireSameAsReference(Units(u" LEAD", 10), "leading blanks stay");
+    RequireSameAsReference(Units(u"TAB\t\t"), "trailing tabs");
+    RequireSameAsReference(Units(u"LINE\r\n\v\f \t"), "every isspace character");
+    RequireSameAsReference(Units(u"NUL", 8, 0), "trailing NUL units");
+    RequireSameAsReference(Units(u"MIX \t", 9, 0), "blanks, a tab and NULs");
+    RequireSameAsReference(Units(u"straße €", 30), "non-ASCII then blanks");
+    RequireSameAsReference(Units(u" NBSP ", 12), "U+00A0 is not trimmed");
+    RequireSameAsReference(Units(u"　IDEO　"), "U+3000 is not trimmed");
+    RequireSameAsReference(Units(u"G \U0001D11E", 20), "a surrogate pair then blanks");
+    RequireSameAsReference(Units(u"\U0001D11E"), "a surrogate pair at the end");
+    // Invalid UTF-16: an unpaired high surrogate right before the blanks is
+    // left to the convert-then-trim path, so it converts as it always did.
+    std::vector<SAP_UC> lone = {'A', 0xD834, ' ', ' '};
+    RequireSameAsReference(lone, "an unpaired high surrogate before blanks");
+    std::vector<SAP_UC> lone_low = {'A', 0xDD1E, ' '};
+    RequireSameAsReference(lone_low, "an unpaired low surrogate before a blank");
+    // Seeded random cells over the characters that matter.
+    const SAP_UC alphabet[] = {'A', 'z', '0', ' ', '\t', '\n', '\r', 0x0B, 0x0C, 0, 0x00A0, 0x00DF, 0x20AC, 0x3000, 0xD834, 0xDD1E};
+    uint32_t seed = 0x5EED;
+    for (int n = 0; n < 2000; n++) {
+        seed = seed * 1664525u + 1013904223u;
+        std::vector<SAP_UC> units(1 + (seed >> 24) % 24);
+        for (auto &u : units) {
+            seed = seed * 1664525u + 1013904223u;
+            u = alphabet[(seed >> 20) % (sizeof(alphabet) / sizeof(alphabet[0]))];
+        }
+        RequireSameAsReference(units, "random cell " + std::to_string(n));
+    }
+}
+
+TEST_CASE("UcRtrimLength measures on UTF-16 units", "[sap_type_conversion]") {
+    auto blanks = Units(u"ABC", 512);
+    REQUIRE(UcRtrimLength(blanks.data(), (unsigned int)blanks.size()) == 3);
+    auto none = Units(u"", 512);
+    REQUIRE(UcRtrimLength(none.data(), (unsigned int)none.size()) == 0);
+    std::vector<SAP_UC> lone = {'A', 0xD834, ' '};
+    REQUIRE(UcRtrimLength(lone.data(), 3) == 3);
+}
