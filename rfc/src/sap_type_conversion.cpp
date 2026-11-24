@@ -1,3 +1,4 @@
+#include <climits>
 #include <codecvt>
 #include <regex>
 #include <sstream>
@@ -19,10 +20,48 @@ namespace duckdb
      * @param rtrim If true, trims trailing spaces from the resulting string.
      * @return The SAP_UC string as a std::string.
      */
+    unsigned int UcRtrimLength(const SAP_UC *uc_str, unsigned int uc_str_len)
+    {
+        // Exactly the characters the UTF-8 trim below removes in the C locale:
+        // '\0' and what isspace() accepts there (space, \t \n \v \f \r).
+        // Every byte of a multi-byte UTF-8 sequence is >= 0x80, which the C
+        // locale's isspace() rejects. A locale that counts more bytes as space
+        // still has them removed by the unchanged trim after the conversion.
+        auto trimmed = [](SAP_UC u) { return u == 0 || u == 0x20 || (u >= 0x09 && u <= 0x0D); };
+        unsigned int n = uc_str_len;
+        while (n > 0 && trimmed(uc_str[n - 1])) {
+            n--;
+        }
+        // An unpaired high surrogate right before the cut could convert
+        // differently at the end of the input than before a blank: leave
+        // that (invalid, rare) string to the convert-then-trim path.
+        if (n > 0 && n < uc_str_len && uc_str[n - 1] >= 0xD800 && uc_str[n - 1] <= 0xDBFF) {
+            return uc_str_len;
+        }
+        return n;
+    }
+
     std::string uc2std(SAP_UC *uc_str, unsigned int uc_str_len, bool rtrim) 
     {
         if (uc_str == NULL || uc_str_len == 0) {
             return std::string();
+        }
+
+        // A fixed-width field is mostly padding (a CHAR(512) WA row carries a
+        // few characters and ~500 blanks), so drop it before converting
+        // rather than converting it and trimming the UTF-8 afterwards.
+        // Past this length `uc_str_len * 5 + 1` below wraps, the conversion
+        // fails, and the result has always been empty. Keep that outcome
+        // explicit, so trimming first cannot turn it into a value (~1.7 GB of
+        // text; no field is that wide).
+        if (uc_str_len > (UINT_MAX - 1) / 5) {
+            return std::string();
+        }
+        if (rtrim) {
+            uc_str_len = UcRtrimLength(uc_str, uc_str_len);
+            if (uc_str_len == 0) {
+                return std::string();
+            }
         }
 
         RFC_RC rc = RFC_OK;
