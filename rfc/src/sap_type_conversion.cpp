@@ -1,3 +1,4 @@
+#include <climits>
 #include <codecvt>
 #include <regex>
 #include <sstream>
@@ -21,10 +22,11 @@ namespace duckdb
      */
     unsigned int UcRtrimLength(const SAP_UC *uc_str, unsigned int uc_str_len)
     {
-        // Exactly the characters the UTF-8 trim below removes: '\0' and what
-        // isspace() accepts in the C locale (space, \t \n \v \f \r). Every
-        // byte of a multi-byte UTF-8 sequence is >= 0x80, which isspace()
-        // rejects, so only these ASCII characters can ever be trimmed there.
+        // Exactly the characters the UTF-8 trim below removes in the C locale:
+        // '\0' and what isspace() accepts there (space, \t \n \v \f \r).
+        // Every byte of a multi-byte UTF-8 sequence is >= 0x80, which the C
+        // locale's isspace() rejects. A locale that counts more bytes as space
+        // still has them removed by the unchanged trim after the conversion.
         auto trimmed = [](SAP_UC u) { return u == 0 || u == 0x20 || (u >= 0x09 && u <= 0x0D); };
         unsigned int n = uc_str_len;
         while (n > 0 && trimmed(uc_str[n - 1])) {
@@ -48,6 +50,13 @@ namespace duckdb
         // A fixed-width field is mostly padding (a CHAR(512) WA row carries a
         // few characters and ~500 blanks), so drop it before converting
         // rather than converting it and trimming the UTF-8 afterwards.
+        // Past this length `uc_str_len * 5 + 1` below wraps, the conversion
+        // fails, and the result has always been empty. Keep that outcome
+        // explicit, so trimming first cannot turn it into a value (~1.7 GB of
+        // text; no field is that wide).
+        if (uc_str_len > (UINT_MAX - 1) / 5) {
+            return std::string();
+        }
         if (rtrim) {
             uc_str_len = UcRtrimLength(uc_str, uc_str_len);
             if (uc_str_len == 0) {
