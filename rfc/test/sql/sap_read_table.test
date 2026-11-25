@@ -237,14 +237,17 @@ SELECT COUNT(*) FROM sap_read_table('/DMO/FLIGHT', COLUMNS=['CARRIER_ID'], READ_
 # (the all-spaces RFC_READ_TABLE form). USR02 contains at least one
 # row whose TRDAT/LTIME are initial — the trial ships with the SAP*
 # user that never logged on. The fix in dats2duck/tims2duck must keep
-# those rows non-empty in the result set but report them as NULL.
-query II
+# those rows non-empty in the result set and report the date as NULL. An
+# initial TIMS is midnight, a real time, and reads as 00:00:00 (decided
+# with issue #255); only a blank TIMS is NULL.
+query III
 SELECT
     SUM(CASE WHEN TRDAT IS NULL THEN 1 ELSE 0 END) > 0 AS has_null_dats,
-    SUM(CASE WHEN LTIME IS NULL THEN 1 ELSE 0 END) > 0 AS has_null_tims
+    SUM(CASE WHEN LTIME IS NULL THEN 1 ELSE 0 END) > 0 AS has_null_tims,
+    SUM(CASE WHEN TRDAT IS NULL AND LTIME = TIME '00:00:00' THEN 1 ELSE 0 END) > 0 AS initial_tims_is_midnight
 FROM sap_read_table('USR02', COLUMNS=['TRDAT','LTIME']);
 ----
-true	true
+true	false	true
 
 # The legacy buggy behaviour materialised initial DATS as 1970-01-01
 # (the all-zeros case) or wild garbage dates above year 9999 (the

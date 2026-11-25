@@ -50,7 +50,8 @@ CREATE SECRET abap_trial (
 # 1. Canonical round-trip — every field of SAPCRFC_STRU_ALLTYPES at once.
 #
 # Every value is compared as VARCHAR so the assertion is on the exact digits,
-# not on a rounded floating-point rendering.
+# not on a rounded floating-point rendering. DECFLOAT16/34 are DOUBLE (decided
+# with issue #255): 16 and 34 nines round to 1e+16 and 1e+34.
 # -------------------------------------------------------------------------
 query TTTTTTTTTTTTTTTT
 SELECT O.CHAR10,
@@ -98,8 +99,8 @@ straße 東京
 9223372036854775123
 1.5
 -123456789
-9999999999999999
-9999999999999999999999999999999999
+1e+16
+1e+34
 1234567890
 2013-12-11
 23:59:59
@@ -145,8 +146,8 @@ FROM sap_rfc_invoke('S_APCRFC_ECHO', {'I': {
 -9223372036854775808
 -1.7976931348623157e+308
 -1234567890123456789012345
--9999999999999999
--9999999999999999999999999999999999
+-1e+16
+-1e+34
 
 # -------------------------------------------------------------------------
 # 3. DECFLOAT16 vs DECFLOAT34 must not be confused.
@@ -154,7 +155,8 @@ FROM sap_rfc_invoke('S_APCRFC_ECHO', {'I': {
 # The two share a decoder shape and differ only in width (8 vs 16 bytes).
 # Swapping the type codes decodes a DECFLOAT34 as a decimal64: a plausible
 # wrong number rather than an error.  The DECFLOAT34 value below needs 34
-# significant digits, so it cannot survive a decimal64 decode intact.
+# significant digits, so it cannot survive a decimal64 decode intact. As DOUBLE
+# (issue #255) it reads as its nearest double, which a decimal64 decode is not.
 # -------------------------------------------------------------------------
 query TT
 SELECT O.DECFLOAT16::VARCHAR, O.DECFLOAT34::VARCHAR
@@ -163,8 +165,8 @@ FROM sap_rfc_invoke('S_APCRFC_ECHO', {'I': {
     'DECFLOAT34':'1234567890123456789012345678901234'::DECIMAL(34,0)
 }}, SECRET='abap_trial');
 ----
-1234567890123456
-1234567890123456789012345678901234
+1234567890123456.0
+1.2345678901234568e+33
 
 # -------------------------------------------------------------------------
 # 4. RFC_DATE is exactly 8 characters, RFC_TIME exactly 6.
@@ -172,8 +174,9 @@ FROM sap_rfc_invoke('S_APCRFC_ECHO', {'I': {
 # An off-by-one in either buffer shifts the digits, so a year at each end of
 # the range plus the last representable second are asserted verbatim.
 #
-# ABAP-initial DATS ('00000000') and TIMS ('000000') surface as NULL: DATE
-# and TIME_ILL below are left unsupplied, and TIME is sent as 00:00:00.
+# ABAP-initial DATS ('00000000') surfaces as NULL. TIMS '000000' is midnight
+# and round-trips as 00:00:00 (decided with issue #255; it used to come back
+# NULL although 00:00:00 was sent).
 # -------------------------------------------------------------------------
 query TTTT
 SELECT O.DATE::VARCHAR,
@@ -189,7 +192,7 @@ FROM sap_rfc_invoke('S_APCRFC_ECHO', {'I': {
 ----
 0001-01-01
 9999-12-31
-<initial>
+00:00:00
 23:59:59
 
 # -------------------------------------------------------------------------
@@ -285,7 +288,7 @@ FROM sap_rfc_invoke('S_APCRFC_ECHO', {'I': {
 # S_APCRFC_PACKED verifies the packed values it receives on the server side
 # and then adds 1 to P_4, so the returned 13.3456 proves the server decoded
 # 12.3456 exactly; MAX/MAX1 exercise the widest packed field, which does not
-# fit a 64-bit integer.
+# fit a 64-bit integer. DF is a DECFLOAT and therefore DOUBLE (issue #255).
 # -------------------------------------------------------------------------
 query TTTTTT
 SELECT P.P_2::VARCHAR,
@@ -309,6 +312,6 @@ FROM sap_rfc_invoke('S_APCRFC_PACKED', {'P': {
 -1234.56
 13.3456
 123456
--12.34560000000000
+-12.3456
 12345678901234567890123456789.12
 1234567890123456789012345678.91

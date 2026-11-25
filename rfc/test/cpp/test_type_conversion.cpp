@@ -210,11 +210,13 @@ TEST_CASE("TEST rfc2duck with RFC time", "[sap_type_conversion]") {
     REQUIRE(TimeValue::Get(result) == Time::FromTime(10, 30, 0, 0));
 }
 
-TEST_CASE("TEST rfc2duck with empty time", "[sap_type_conversion]") {
+TEST_CASE("TEST rfc2duck with initial time is midnight", "[sap_type_conversion]") {
+    // 000000 is midnight, a real time; this test used to pin NULL (issue #255
+    // audit, decided).
     RFC_TIME time = {'0', '0', '0', '0', '0', '0'};
     Value result = rfc2duck(time);
-    REQUIRE(result.IsNull());
-    REQUIRE(result.type().id() == LogicalTypeId::TIME);
+    REQUIRE(!result.IsNull());
+    REQUIRE(TimeValue::Get(result) == Time::FromTime(0, 0, 0, 0));
 }
 
 TEST_CASE("Test tims2duck with all-spaces time returns NULL", "[sap_type_conversion]") {
@@ -251,9 +253,13 @@ TEST_CASE("Test rfc2duck for int", "[sap_type_conversion]") {
 }
 
 TEST_CASE("Test rfc2duck for int1", "[sap_type_conversion]") {
+    // INT1 is unsigned (issue #255 audit); this test used to pin the signed
+    // TINYINT, under which 255 read back as -1.
     RFC_INT1 rfc_int = 10;
     Value result = rfc2duck(rfc_int);
-    REQUIRE(TinyIntValue::Get(result) == 10);
+    REQUIRE(UTinyIntValue::Get(result) == 10);
+    RFC_INT1 top = 255;
+    REQUIRE(UTinyIntValue::Get(rfc2duck(top)) == 255);
 }
 
 TEST_CASE("Test rfc2duck for int2", "[sap_type_conversion]") {
@@ -647,4 +653,152 @@ TEST_CASE("UcRtrimLength measures on UTF-16 units", "[sap_type_conversion]") {
     REQUIRE(UcRtrimLength(none.data(), (unsigned int)none.size()) == 0);
     std::vector<SAP_UC> lone = {'A', 0xD834, ' '};
     REQUIRE(UcRtrimLength(lone.data(), 3) == 3);
+}
+
+TEST_CASE("A packed field holds every digit its DDIC length declares (issue #255)",
+          "[sap_function][issue255]") {
+    // DDIC LENG of DEC/CURR/QUAN counts digits; the packed storage is LENG/2 + 1
+    // bytes (digits plus a sign nibble). The read path used (LENG + 1) / 2,
+    // which is one byte short for every even LENG: DEC(4,1) became
+    // DECIMAL(3,1), so a value such as 100.0 or 999.9 aborted the whole scan
+    // with "Could not convert string '100.0' to DECIMAL(3,1)".
+    struct Case { const char *name; unsigned int leng; unsigned int dec; };
+    const Case cases[] = {
+        {"DEC", 1, 0},  {"DEC", 2, 0},   {"DEC", 2, 1},   {"DEC", 2, 2},
+        {"DEC", 3, 1},  {"DEC", 4, 1},   {"DEC", 4, 2},   {"DEC", 5, 5},
+        {"CURR", 13, 2},{"CURR", 15, 2}, {"CURR", 16, 2}, {"QUAN", 13, 3},
+        {"QUAN", 14, 3},{"DEC", 30, 14}, {"DEC", 31, 14}, {"DEC", 31, 0},
+    };
+
+    for (auto &c : cases) {
+        INFO("DDIC " << c.name << "(" << c.leng << "," << c.dec << ")");
+        auto rfc_type = RfcType::FromTypeName(c.name, c.leng, c.dec);
+        auto declared = rfc_type.CreateDuckDbType();
+
+        // The storage size SAP itself uses, and therefore the digits a value
+        // can physically carry: never fewer than the DDIC length.
+        const unsigned int bytes = c.leng / 2 + 1;
+        REQUIRE(rfc_type.GetLength() == bytes);
+        REQUIRE(DecimalType::GetWidth(declared) == 2 * bytes - 1);
+        REQUIRE(DecimalType::GetWidth(declared) >= c.leng);
+        REQUIRE(DecimalType::GetWidth(declared) <= 38);
+        REQUIRE(DecimalType::GetScale(declared) == c.dec);
+
+        // The largest value the DDIC field can hold, positive and in SAP's
+        // trailing-minus form, must convert without loss.
+        const std::string integer_part(c.leng - c.dec, '9');
+        const std::string fraction_part(c.dec, '9');
+        std::string text = (integer_part.empty() ? "0" : integer_part);
+        if (c.dec > 0) {
+            text += "." + fraction_part;
+        }
+        for (const std::string &cell : {text, text + "-"}) {
+            INFO("cell '" << cell << "'");
+            Value converted;
+            REQUIRE_NOTHROW(converted = rfc_type.ConvertCsvValue(Value(cell)));
+            REQUIRE(converted.type() == declared);
+            // Compared as values: DuckDB prints DECIMAL(5,5) as ".99999".
+            const std::string expect = (cell.back() == '-' ? "-" : "") + text;
+            REQUIRE(converted == Value(expect).DefaultCastAs(declared));
+        }
+    }
+}
+
+TEST_CASE("INT1 is unsigned: 0..255 survives every path (issue #255 audit)",
+          "[sap_function][issue255]") {
+    // ABAP INT1 holds 0..255. Mapped to DuckDB's signed TINYINT, 255 was a
+    // cast error through sap_read_table and came back as -1 through invoke,
+    // silently, and a caller could not send 128..255 at all. Measured on a4h
+    // with ZERPL_TYPES_BV / Z_ERPL_TYPES_BV.
+    auto rfc_type = RfcType::FromTypeName("INT1", 1, 0);
+    REQUIRE(rfc_type.CreateDuckDbType().id() == LogicalTypeId::UTINYINT);
+    for (int v : {0, 1, 127, 128, 255}) {
+        INFO("INT1 " << v);
+        auto read = rfc_type.ConvertCsvValue(Value(std::to_string(v)));
+        REQUIRE(read == Value::UTINYINT((uint8_t)v));
+        RFC_INT1 raw = (RFC_INT1)v;
+        REQUIRE(rfc2duck(raw) == Value::UTINYINT((uint8_t)v));
+        Value out = Value::UTINYINT((uint8_t)v);
+        RFC_INT1 sent = 0;
+        duck2rfc(out, sent);
+        REQUIRE((int)sent == v);
+    }
+    REQUIRE(rfctype2logicaltype(RFCTYPE_INT1) == LogicalTypeId::UTINYINT);
+}
+
+TEST_CASE("UTCLONG text in both SAP spellings parses, nothing is lost silently (issue #255 audit)",
+          "[sap_type_conversion][issue255]") {
+    // SAP's library renders a UTCLONG as YYYY-MM-DDTHH:MM:SS,fffffff (and its
+    // initial value as 0000-00-00T00:00:00,0000000); RFC_READ_TABLE and the
+    // older shim use YYYY-MM-DD HH:MM:SS.fffffff. The parser expected the
+    // compact YYYYMMDDHHMMSS,fffffff only and turned everything else into
+    // NULL without an error -- every UTCLONG read as NULL, on both paths.
+    auto ts = [](const char *s) { return Value(s).DefaultCastAs(LogicalType::TIMESTAMP); };
+    struct Case { const char *in; const char *want; };
+    const Case cases[] = {
+        {"9999-12-31T23:59:59,9999999", "9999-12-31 23:59:59.999999"},
+        {"9999-12-31 23:59:59.9999999", "9999-12-31 23:59:59.999999"},
+        {"0001-01-01T00:00:00,0000001", "0001-01-01 00:00:00"},
+        {"2026-11-25T12:00:00,1234567", "2026-11-25 12:00:00.123456"},
+        {"20261125120000,1234567",      "2026-11-25 12:00:00.123456"},
+    };
+    for (auto &c : cases) {
+        INFO("UTCLONG '" << c.in << "'");
+        std::string s = c.in;
+        REQUIRE(sap_utc2timestamp(s) == ts(c.want));
+    }
+    for (const char *initial : {"", "0000-00-00T00:00:00,0000000", "00000000000000,0000000"}) {
+        std::string s = initial;
+        REQUIRE(sap_utc2timestamp(s).IsNull());
+    }
+    std::string garbage = "not a timestamp";
+    REQUIRE_THROWS(sap_utc2timestamp(garbage));
+
+    // Writing: SAP's library accepts YYYY-MM-DDTHH:MM:SS,fffffff and refuses
+    // the compact form with RFC_CONVERSION_FAILURE (measured), which is what
+    // erpl used to send.
+    REQUIRE(timestamp2sap_utc(ts("2026-11-25 12:00:00.123456")) == "2026-11-25T12:00:00,1234560");
+    REQUIRE(timestamp2sap_utc(ts("2026-11-25 12:00:00")) == "2026-11-25T12:00:00,0000000");
+}
+
+TEST_CASE("UTCLONG: malformed text and unrepresentable timestamps are errors (codex review)",
+          "[sap_type_conversion][issue255]") {
+    // Initial-value detection ran before validation, so text with no non-zero
+    // digit read as NULL; and infinity was sliced as if it were a date.
+    for (const char *bad : {"garbage0", "0000-00-00T00:00:00,0000000junk", "2026-11-25X12:00:00"}) {
+        INFO("UTCLONG '" << bad << "'");
+        std::string s = bad;
+        REQUIRE_THROWS(sap_utc2timestamp(s));
+    }
+    for (const char *ts : {"infinity", "-infinity"}) {
+        INFO("TIMESTAMP " << ts);
+        REQUIRE_THROWS(timestamp2sap_utc(Value(ts).DefaultCastAs(LogicalType::TIMESTAMP)));
+    }
+}
+
+TEST_CASE("DECFLOAT16/34 are DOUBLE on every path (issue #255 audit, decision)",
+          "[sap_function][issue255]") {
+    // A decimal float has no fixed scale: as DECIMAL(16|34, 0) its fraction was
+    // cut off -- 1.234567890123456 read as 1 -- on both read and invoke.
+    for (const char *name : {"D16D", "D16N", "DECF16", "D34D", "D34N", "DECF34"}) {
+        INFO("DDIC " << name);
+        auto t = RfcType::FromTypeName(name, 16, 0);
+        REQUIRE(t.CreateDuckDbType().id() == LogicalTypeId::DOUBLE);
+        REQUIRE(t.ConvertCsvValue(Value("1.23456789012346")) == Value::DOUBLE(1.23456789012346));
+        REQUIRE(t.ConvertCsvValue(Value("-1.000000000E+16")) == Value::DOUBLE(-1e16));
+        REQUIRE(t.ConvertCsvValue(Value("   ")).IsNull());
+    }
+    REQUIRE(rfctype2logicaltype(RFCTYPE_DECF16) == LogicalTypeId::DOUBLE);
+    REQUIRE(rfctype2logicaltype(RFCTYPE_DECF34) == LogicalTypeId::DOUBLE);
+}
+
+TEST_CASE("An initial TIMS is midnight, not NULL (issue #255 audit, decision)",
+          "[sap_type_conversion][issue255]") {
+    // 000000 is a valid time; reading it as NULL made midnight indistinguishable
+    // from no value. Blank still reads as NULL, and DATS initial stays NULL.
+    std::string zero = "000000";
+    REQUIRE(tims2duck(zero) == Value::TIME(dtime_t(0)));
+    std::string blank = "      ";
+    REQUIRE(tims2duck(blank).IsNull());
+    REQUIRE(RfcType::FromTypeName("TIMS", 6, 0).ConvertCsvValue(Value("000000")) == Value::TIME(dtime_t(0)));
 }
