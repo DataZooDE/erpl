@@ -513,9 +513,8 @@ namespace duckdb
             : timestamp_value.DefaultCastAs(LogicalType::TIMESTAMP);
         // UTCLONG spans 0001-01-01..9999-12-31; infinity and BC dates have no
         // spelling in it, and slicing their text wrote past its end (codex review).
-        if (!Timestamp::IsFinite(cast_value.GetValue<timestamp_t>())) {
-            throw InvalidInputException("A UTCLONG cannot hold the timestamp %s", cast_value.ToString());
-        }
+        // The shape check below refuses them ("infinity" is not YYYY-MM-DD ...);
+        // Timestamp::IsFinite does not exist on DuckDB 2.0.
         auto iso = cast_value.ToString();   // "YYYY-MM-DD HH:MM:SS[.ffffff]"
         if (iso.size() < 19 || iso[4] != '-' || iso[10] != ' ' || iso.find('(') != std::string::npos) {
             throw InvalidInputException("A UTCLONG cannot hold the timestamp %s", iso);
