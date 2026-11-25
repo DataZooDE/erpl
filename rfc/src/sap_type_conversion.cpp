@@ -448,16 +448,6 @@ namespace duckdb
         }
         utc_str = utc_str.substr(first);
 
-        std::string digits;
-        for (char c : utc_str) {
-            if (c >= '0' && c <= '9') {
-                digits += c;
-            }
-        }
-        if (!digits.empty() && digits.find_first_not_of('0') == std::string::npos) {
-            return Value(LogicalType::TIMESTAMP);
-        }
-
         auto is_digit = [&](size_t i) { return i < utc_str.size() && utc_str[i] >= '0' && utc_str[i] <= '9'; };
         std::string date_time, fraction;
         if (utc_str.size() >= 19 && utc_str[4] == '-' && utc_str[7] == '-' &&
@@ -485,6 +475,11 @@ namespace duckdb
         if (fraction.find_first_not_of("0123456789") != std::string::npos) {
             throw std::runtime_error("Cannot read SAP UTCLONG '" + utc_str + "'");
         }
+        // Validated first, so only a well-formed zero timestamp is the initial
+        // value; "garbage0" used to pass as one (codex review).
+        if ((date_time + fraction).find_first_not_of("0 -:") == std::string::npos) {
+            return Value(LogicalType::TIMESTAMP);
+        }
         if (fraction.size() > 6) {
             fraction.resize(6);
         }
@@ -507,7 +502,15 @@ namespace duckdb
         auto cast_value = timestamp_value.type().id() == LogicalTypeId::TIMESTAMP
             ? timestamp_value
             : timestamp_value.DefaultCastAs(LogicalType::TIMESTAMP);
+        // UTCLONG spans 0001-01-01..9999-12-31; infinity and BC dates have no
+        // spelling in it, and slicing their text wrote past its end (codex review).
+        if (!Timestamp::IsFinite(cast_value.GetValue<timestamp_t>())) {
+            throw InvalidInputException("A UTCLONG cannot hold the timestamp %s", cast_value.ToString());
+        }
         auto iso = cast_value.ToString();   // "YYYY-MM-DD HH:MM:SS[.ffffff]"
+        if (iso.size() < 19 || iso[4] != '-' || iso[10] != ' ' || iso.find('(') != std::string::npos) {
+            throw InvalidInputException("A UTCLONG cannot hold the timestamp %s", iso);
+        }
         std::string date_time = iso.substr(0, 19);
         std::string fraction = iso.size() > 20 ? iso.substr(20) : std::string();
         fraction.resize(7, '0');

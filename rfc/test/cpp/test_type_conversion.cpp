@@ -758,3 +758,18 @@ TEST_CASE("UTCLONG text in both SAP spellings parses, nothing is lost silently (
     REQUIRE(timestamp2sap_utc(ts("2026-11-25 12:00:00.123456")) == "2026-11-25T12:00:00,1234560");
     REQUIRE(timestamp2sap_utc(ts("2026-11-25 12:00:00")) == "2026-11-25T12:00:00,0000000");
 }
+
+TEST_CASE("UTCLONG: malformed text and unrepresentable timestamps are errors (codex review)",
+          "[sap_type_conversion][issue255]") {
+    // Initial-value detection ran before validation, so text with no non-zero
+    // digit read as NULL; and infinity was sliced as if it were a date.
+    for (const char *bad : {"garbage0", "0000-00-00T00:00:00,0000000junk", "2026-11-25X12:00:00"}) {
+        INFO("UTCLONG '" << bad << "'");
+        std::string s = bad;
+        REQUIRE_THROWS(sap_utc2timestamp(s));
+    }
+    for (const char *ts : {"infinity", "-infinity"}) {
+        INFO("TIMESTAMP " << ts);
+        REQUIRE_THROWS(timestamp2sap_utc(Value(ts).DefaultCastAs(LogicalType::TIMESTAMP)));
+    }
+}

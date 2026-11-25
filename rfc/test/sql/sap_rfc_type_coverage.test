@@ -38,13 +38,13 @@ SELECT
     typeof(CARRIER_ID),     -- CHAR(3)
     typeof(CONNECTION_ID),  -- NUMC(4)
     typeof(FLIGHT_DATE),    -- DATS
-    typeof(PRICE),          -- CURR(8,2)
+    typeof(PRICE),          -- CURR(16,2): 16 digits; DECIMAL(15,2) here pinned issue #255
     typeof(CURRENCY_CODE),  -- CUKY(5)
     typeof(SEATS_MAX)       -- INT4
 FROM sap_read_table('/DMO/FLIGHT', SECRET='abap_trial', MAX_ROWS=1)
 LIMIT 1;
 ----
-VARCHAR	VARCHAR	VARCHAR	DATE	DECIMAL(15,2)	VARCHAR	BIGINT
+VARCHAR	VARCHAR	VARCHAR	DATE	DECIMAL(17,2)	VARCHAR	BIGINT
 
 # -------------------------------------------------------------------------
 # /DMO/A_BOOKING_D — RAW(16) ABAP UUID must surface as DuckDB BLOB.
