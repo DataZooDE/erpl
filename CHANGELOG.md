@@ -44,6 +44,14 @@ LOAD erpl;
   read as NULL on both paths. All three parse now (sub-microsecond digits are
   truncated, never rounded), text that is none of them is an error, and erpl
   writes the form SAP's library accepts -- it refused the compact one.
+- **[rfc][odp][ape] DECFLOAT16/34 columns are now `DOUBLE` (was `DECIMAL(16|34, 0)`).**
+  A decimal float has no fixed scale, and the zero scale cut every fraction
+  off -- `1.234567890123456` read as `1`, on `sap_read_table` and on
+  `sap_rfc_invoke` alike. Callers that compared a DECFLOAT column to a DECIMAL
+  literal, or relied on exact decimal arithmetic on it, see a type change.
+- **[rfc] An initial TIMS (`000000`) reads as `00:00:00`, not NULL.** Midnight
+  is a real time; `TM IS NULL` no longer matches it. A blank TIMS still reads as
+  NULL, and an initial DATS stays NULL.
 - **[rfc]** Packed, DECFLOAT and UTCLONG values read through `sap_rfc_invoke`
   converted the reader's whole buffer instead of the value's length, so the
   units after the terminator -- uninitialised memory -- were part of the text.

@@ -301,11 +301,10 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                 //     count (8 for DECF16, 16 for DECF34).
                 //   - DDIC introspection (DFIES_TAB) -> DDIC LENG, which can
                 //     be up to 31 for D34D.
-                // Both are *not* the digit count we need for DECIMAL(P, S).
-                // Hardcode the spec-defined precision instead.
-                unsigned int precision = (_rfc_type == RFCTYPE_DECF16) ? 16 : 34;
-                auto scale = std::min<unsigned int>(GetDecimals(), precision);
-                return LogicalType::DECIMAL(precision, scale);
+                // A decimal float has no fixed scale, so no DECIMAL(P, S) holds
+                // it: as DECIMAL(16|34, 0) its fraction was cut off (issue #255
+                // audit). DOUBLE keeps the magnitude and ~16 significant digits.
+                return LogicalType::DOUBLE;
             }
             case RFCTYPE_CHAR:
             case RFCTYPE_STRING:
@@ -914,11 +913,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                 // value (found by the boundary-value fixture, issue #255 audit).
                 auto dec_str = uc2std(string_value, result_len);
                 free(string_value);
-                // Same precision derivation as CreateDuckDbType — hardcoded
-                // per type, ignoring GetLength's byte-vs-digit ambiguity.
-                unsigned int precision = (_rfc_type == RFCTYPE_DECF16) ? 16 : 34;
-                auto scale = std::min<unsigned int>(GetDecimals(), precision);
-                return bcd2duck(dec_str, precision, scale);
+                return decfloat2double(dec_str);
             }
             case RFCTYPE_DTDAY:
             case RFCTYPE_DTWEEK:
@@ -1093,13 +1088,9 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             case RFCTYPE_DECF16:
             case RFCTYPE_DECF34:
             {
-                // Declared as DECIMAL(16|34, scale). Without this branch the
-                // VARCHAR cell was handed to a DECIMAL column and silently
-                // cast per cell.
+                // Declared as DOUBLE, as CreateDuckDbType does.
                 auto str_value = csv_value.GetValue<std::string>();
-                unsigned int precision = (_rfc_type == RFCTYPE_DECF16) ? 16 : 34;
-                auto scale = std::min<unsigned int>(GetDecimals(), precision);
-                return bcd2duck(str_value, precision, scale);
+                return decfloat2double(str_value);
             }
             case RFCTYPE_BYTE:
             case RFCTYPE_XSTRING:
@@ -1198,7 +1189,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
             //   D16R / D34R — "DECFLOAT raw"
             //   D16S / D34S — "DECFLOAT scaled"
             // All represent IEEE 754-2008 decimal floats and round-trip through
-            // RFCTYPE_DECF16 / RFCTYPE_DECF34 -> DuckDB DECIMAL.
+            // RFCTYPE_DECF16 / RFCTYPE_DECF34 -> DuckDB DOUBLE (no fixed scale exists).
             {"D16D",        RFCTYPE_DECF16},
             {"D16N",        RFCTYPE_DECF16},
             {"D16R",        RFCTYPE_DECF16},

@@ -210,11 +210,13 @@ TEST_CASE("TEST rfc2duck with RFC time", "[sap_type_conversion]") {
     REQUIRE(TimeValue::Get(result) == Time::FromTime(10, 30, 0, 0));
 }
 
-TEST_CASE("TEST rfc2duck with empty time", "[sap_type_conversion]") {
+TEST_CASE("TEST rfc2duck with initial time is midnight", "[sap_type_conversion]") {
+    // 000000 is midnight, a real time; this test used to pin NULL (issue #255
+    // audit, decided).
     RFC_TIME time = {'0', '0', '0', '0', '0', '0'};
     Value result = rfc2duck(time);
-    REQUIRE(result.IsNull());
-    REQUIRE(result.type().id() == LogicalTypeId::TIME);
+    REQUIRE(!result.IsNull());
+    REQUIRE(TimeValue::Get(result) == Time::FromTime(0, 0, 0, 0));
 }
 
 TEST_CASE("Test tims2duck with all-spaces time returns NULL", "[sap_type_conversion]") {
@@ -772,4 +774,31 @@ TEST_CASE("UTCLONG: malformed text and unrepresentable timestamps are errors (co
         INFO("TIMESTAMP " << ts);
         REQUIRE_THROWS(timestamp2sap_utc(Value(ts).DefaultCastAs(LogicalType::TIMESTAMP)));
     }
+}
+
+TEST_CASE("DECFLOAT16/34 are DOUBLE on every path (issue #255 audit, decision)",
+          "[sap_function][issue255]") {
+    // A decimal float has no fixed scale: as DECIMAL(16|34, 0) its fraction was
+    // cut off -- 1.234567890123456 read as 1 -- on both read and invoke.
+    for (const char *name : {"D16D", "D16N", "DECF16", "D34D", "D34N", "DECF34"}) {
+        INFO("DDIC " << name);
+        auto t = RfcType::FromTypeName(name, 16, 0);
+        REQUIRE(t.CreateDuckDbType().id() == LogicalTypeId::DOUBLE);
+        REQUIRE(t.ConvertCsvValue(Value("1.23456789012346")) == Value::DOUBLE(1.23456789012346));
+        REQUIRE(t.ConvertCsvValue(Value("-1.000000000E+16")) == Value::DOUBLE(-1e16));
+        REQUIRE(t.ConvertCsvValue(Value("   ")).IsNull());
+    }
+    REQUIRE(rfctype2logicaltype(RFCTYPE_DECF16) == LogicalTypeId::DOUBLE);
+    REQUIRE(rfctype2logicaltype(RFCTYPE_DECF34) == LogicalTypeId::DOUBLE);
+}
+
+TEST_CASE("An initial TIMS is midnight, not NULL (issue #255 audit, decision)",
+          "[sap_type_conversion][issue255]") {
+    // 000000 is a valid time; reading it as NULL made midnight indistinguishable
+    // from no value. Blank still reads as NULL, and DATS initial stays NULL.
+    std::string zero = "000000";
+    REQUIRE(tims2duck(zero) == Value::TIME(dtime_t(0)));
+    std::string blank = "      ";
+    REQUIRE(tims2duck(blank).IsNull());
+    REQUIRE(RfcType::FromTypeName("TIMS", 6, 0).ConvertCsvValue(Value("000000")) == Value::TIME(dtime_t(0)));
 }

@@ -160,8 +160,8 @@ namespace duckdb
             case RFCTYPE_INT8: return LogicalTypeId::BIGINT;
             case RFCTYPE_FLOAT: return LogicalTypeId::DOUBLE;
             case RFCTYPE_BCD: return LogicalTypeId::DECIMAL;
-            case RFCTYPE_DECF16: return LogicalTypeId::DECIMAL;
-            case RFCTYPE_DECF34: return LogicalTypeId::DECIMAL;
+            case RFCTYPE_DECF16: return LogicalTypeId::DOUBLE;
+            case RFCTYPE_DECF34: return LogicalTypeId::DOUBLE;
             // Character types
             case RFCTYPE_CHAR: return LogicalTypeId::VARCHAR;
             case RFCTYPE_STRING: return LogicalTypeId::VARCHAR;
@@ -380,6 +380,16 @@ namespace duckdb
      * @note The SAP time is expected to be in the format HHMMSS.
      * @note If the time is invalid a default DuckDB time is returned.
     */
+    Value decfloat2double(std::string dec_str)
+    {
+        // SAP's text for a DECFLOAT: plain or E-notation, sign leading.
+        StringUtil::Trim(dec_str);
+        if (dec_str.empty()) {
+            return Value(LogicalType::DOUBLE);
+        }
+        return Value(dec_str).DefaultCastAs(LogicalType::DOUBLE);
+    }
+
     Value tims2duck(std::string &tims_str)
     {
         // Trim trailing whitespace/null bytes the SDK may leave behind.
@@ -390,10 +400,9 @@ namespace duckdb
         if (trimmed.empty()) {
             return Value(LogicalType::TIME);
         }
-        // ABAP initial value for TIMS is all zeros; treat as NULL.
-        if (trimmed.find_first_not_of('0') == std::string::npos) {
-            return Value(LogicalType::TIME);
-        }
+        // 000000 is ABAP's initial TIMS and also midnight, a real time: it
+        // reads as 00:00:00, not NULL (issue #255 audit, decided). Blank stays
+        // NULL, and so does an initial DATS, which is no date at all.
         if (trimmed.size() < 6) {
             return Value(LogicalType::TIME);
         }

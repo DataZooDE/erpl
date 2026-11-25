@@ -81,6 +81,7 @@ namespace duckdb
     std::string rfctype2std(RFCTYPE &type, bool short_name = false);
     const std::string rfctype2std(const RFCTYPE &type, const bool short_name = false);
     LogicalTypeId rfctype2logicaltype(RFCTYPE rfc_type);
+    Value decfloat2double(std::string dec_str);
 
     std::string rfcdirection2std(RFC_DIRECTION &direction, bool short_name = false);
     const std::string rfcdirection2std(const RFC_DIRECTION &direction, const bool short_name = false);
