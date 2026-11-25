@@ -23,7 +23,29 @@ LOAD erpl;
 
 ---
 
-## Unreleased
+## v2026.11.25 — Packed fields of every length, unsigned INT1, UTCLONG, and a leaner proto backend
+
+A packed field of even length no longer fails `sap_read_table` (#255), and an audit of every DDIC type that #255
+prompted fixed four more silent errors: INT1 255 read as -1, every UTCLONG read as NULL, DECFLOAT lost its
+fraction, and a real midnight read as NULL. A boundary-value fixture now reads every DDIC type erpl maps at its
+extremes, on both backends. Text cells are cheaper on both backends, and the proto backend
+(`SET erpl_rfc_backend = 'proto'`; SAP's NW RFC SDK is still the default) now reads large tables with less peak
+memory, fewer instructions and less CPU than SAP's library.
+
+### Changes visible to callers
+
+- **INT1 columns are `UTINYINT`** (were `TINYINT`). 255 used to fail `sap_read_table` and came back as **-1** from
+  `sap_rfc_invoke`.
+- **Even-length DEC/CURR/QUAN columns are declared one digit wider**, e.g. DEC(4,1) is `DECIMAL(4,1)`, not
+  `DECIMAL(3,1)`.
+- **DECFLOAT16/34 columns are `DOUBLE`** (were `DECIMAL(16|34, 0)`, which cut every fraction off). A double holds
+  about 15–17 significant digits: a full 16-digit DECFLOAT16 such as `9999999999999999` reads as `1e+16`, and a
+  DECFLOAT34 keeps about 17 digits.
+- **An initial TIMS (`000000`) reads as `00:00:00`**, so `TM IS NULL` no longer matches midnight. A blank TIMS and
+  an initial DATS still read as NULL.
+- **UTCLONG values are read** instead of turning into NULL, and erpl writes the spelling SAP's library accepts.
+
+### Fixed
 
 - **[rfc]** **A packed field of even length no longer fails the whole read
   (#255).** `sap_read_table` sized a DEC/CURR/QUAN field one digit short for
@@ -69,6 +91,22 @@ LOAD erpl;
   dropped on the UTF-16 units first, so only the text is converted. Results are
   identical (a row hash over DD04T matches); DD04T takes 46% fewer instructions
   through SAP's library and 19% fewer through the proto shim.
+
+### Faster (proto backend)
+
+- **[rfc]** **A text cell as wide as erpl's buffer is copied without scanning it.** The shim searched each
+  512-character `RFC_READ_TABLE` field for its last non-blank only to refuse text that does not fit; erpl's buffer
+  always fits. DD04T: 31% fewer instructions (erpl-proto #106).
+- **[rfc]** **Large replies are mapped by the shim itself, and decompression copies in bulk.** Freeing a large
+  reply let glibc raise its mmap threshold, after which later replies fragmented DuckDB's heap; the shim now maps
+  and unmaps each large reply directly, without changing the host's allocator settings (Linux glibc; musl, macOS
+  and Windows keep the plain buffer). On a 297,000-row `sap_read_table('DD04T')` the proto backend now peaks at
+  664–827 MB against SAP's library's 975–1160 MB, with 53 G instructions against 109 G and 10.3–11.4 s of CPU
+  against 17.5–18.5 s (erpl-proto #107).
+- **[rfc]** The shim renders text as SAP's library does: CHAR read through `RfcGetString` drops trailing blanks,
+  UTCLONG uses SAP's spelling, and narrow field descriptors carry SAP's byte offsets (erpl-proto #109).
+
+erpl-proto `35be92c` → `020adea`.
 
 ## v2026.11.23 — The DuckDB transaction is the SAP LUW, and a faster proto backend
 
