@@ -174,8 +174,9 @@ FROM sap_rfc_invoke('S_APCRFC_ECHO', {'I': {
 # An off-by-one in either buffer shifts the digits, so a year at each end of
 # the range plus the last representable second are asserted verbatim.
 #
-# ABAP-initial DATS ('00000000') and TIMS ('000000') surface as NULL: DATE
-# and TIME_ILL below are left unsupplied, and TIME is sent as 00:00:00.
+# ABAP-initial DATS ('00000000') surfaces as NULL. TIMS '000000' is midnight
+# and round-trips as 00:00:00 (decided with issue #255; it used to come back
+# NULL although 00:00:00 was sent).
 # -------------------------------------------------------------------------
 query TTTT
 SELECT O.DATE::VARCHAR,
@@ -191,7 +192,7 @@ FROM sap_rfc_invoke('S_APCRFC_ECHO', {'I': {
 ----
 0001-01-01
 9999-12-31
-<initial>
+00:00:00
 23:59:59
 
 # -------------------------------------------------------------------------
@@ -287,7 +288,7 @@ FROM sap_rfc_invoke('S_APCRFC_ECHO', {'I': {
 # S_APCRFC_PACKED verifies the packed values it receives on the server side
 # and then adds 1 to P_4, so the returned 13.3456 proves the server decoded
 # 12.3456 exactly; MAX/MAX1 exercise the widest packed field, which does not
-# fit a 64-bit integer.
+# fit a 64-bit integer. DF is a DECFLOAT and therefore DOUBLE (issue #255).
 # -------------------------------------------------------------------------
 query TTTTTT
 SELECT P.P_2::VARCHAR,
@@ -311,6 +312,6 @@ FROM sap_rfc_invoke('S_APCRFC_PACKED', {'P': {
 -1234.56
 13.3456
 123456
--12.34560000000000
+-12.3456
 12345678901234567890123456789.12
 1234567890123456789012345678.91
