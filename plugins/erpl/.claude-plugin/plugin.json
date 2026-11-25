@@ -1,7 +1,7 @@
 {
   "name": "erpl",
   "description": "SAP data in DuckDB from SQL: skills and commands for the erpl extension suite — setup and secrets, RFC table reads and function calls, ODP replication, CDS extraction via the ABAP Pipeline Engine, SAP BW queries via BICS, deployment, operation and performance.",
-  "version": "2026.11.23",
+  "version": "2026.11.25",
   "author": {
     "name": "DataZoo GmbH",
     "url": "https://github.com/DataZooDE"
