@@ -271,7 +271,8 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                 return LogicalType::BIGINT;
                 break;
             case RFCTYPE_INT1: 
-                return LogicalType::TINYINT;
+                // ABAP INT1 is unsigned, 0..255 (issue #255 audit).
+                return LogicalType::UTINYINT;
                 break;
             case RFCTYPE_INT2:
                 return LogicalType::SMALLINT;
@@ -743,7 +744,10 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                                                                 field_name, rfcrc2std(error_info.code), uc2std(error_info.message)));
                 }
 
-                auto bcd_str = uc2std(string_value, str_len);
+                // result_len, not the buffer's capacity: the units after the terminator
+                // are uninitialised heap, and converting them appended garbage to the
+                // value (found by the boundary-value fixture, issue #255 audit).
+                auto bcd_str = uc2std(string_value, result_len);
                 free(string_value);
 
                 // Match CreateDuckDbType's precision cap so DECIMAL(P, S) is valid.
@@ -905,7 +909,10 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                     rc = RfcGetString(function_handle, rfc_name.get(), string_value, str_len + 1, &result_len, &error_info);
                 }
                 if (rc != RFC_OK) { free(string_value); break; }
-                auto dec_str = uc2std(string_value, str_len);
+                // result_len, not the buffer's capacity: the units after the terminator
+                // are uninitialised heap, and converting them appended garbage to the
+                // value (found by the boundary-value fixture, issue #255 audit).
+                auto dec_str = uc2std(string_value, result_len);
                 free(string_value);
                 // Same precision derivation as CreateDuckDbType — hardcoded
                 // per type, ignoring GetLength's byte-vs-digit ambiguity.
@@ -942,7 +949,10 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                     rc = RfcGetString(function_handle, rfc_name.get(), str_buf, str_len + 1, &result_len, &error_info);
                 }
                 if (rc != RFC_OK) { free(str_buf); break; }
-                auto utc_str = uc2std(str_buf, str_len);
+                // result_len, not the buffer's capacity: the units after the terminator
+                // are uninitialised heap, and converting them appended garbage to the
+                // value (found by the boundary-value fixture, issue #255 audit).
+                auto utc_str = uc2std(str_buf, result_len);
                 free(str_buf);
                 return sap_utc2timestamp(utc_str);
             }
@@ -1126,7 +1136,7 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
                 // called from here.
                 LogicalType target;
                 switch (_rfc_type) {
-                    case RFCTYPE_INT1: target = LogicalType::TINYINT;  break;
+                    case RFCTYPE_INT1: target = LogicalType::UTINYINT; break;
                     case RFCTYPE_INT2: target = LogicalType::SMALLINT; break;
                     case RFCTYPE_FLOAT: target = LogicalType::DOUBLE;  break;
                     default: target = LogicalType::BIGINT;             break;
@@ -1242,7 +1252,13 @@ RfcFieldDesc::RfcFieldDesc(const RFC_FIELD_DESC& sap_desc) : _desc_handle(sap_de
         if (it != GetTypeMap().end()) {
             auto abap_internal_lenght = length;
             if (it->second == RFCTYPE_BCD) {
-                abap_internal_lenght = (length + 1) / 2;
+                // DDIC LENG counts digits; packed storage is the digits plus a
+                // sign nibble, LENG / 2 + 1 bytes. (LENG + 1) / 2 was one byte
+                // short for every even LENG, so DEC(4,1) became DECIMAL(3,1)
+                // and a full-width value aborted the scan (issue #255).
+                // GetLength() is a byte count on every path, as it is for the
+                // SDK's nucLength on the invoke path.
+                abap_internal_lenght = length / 2 + 1;
             }
 
             return RfcType(it->second, nullptr, abap_internal_lenght, decimals);

@@ -25,6 +25,36 @@ LOAD erpl;
 
 ## Unreleased
 
+- **[rfc]** **A packed field of even length no longer fails the whole read
+  (#255).** `sap_read_table` sized a DEC/CURR/QUAN field one digit short for
+  every even DDIC length -- DEC(4,1) became `DECIMAL(3,1)` -- so a value using
+  all its digits (`100.0`, `999.9`) aborted the scan with *Could not convert
+  string ... to DECIMAL(3,1)*. The byte count is now `LENG / 2 + 1`, the rule the
+  invoke path already used. The reporter's diagnosis was exact. Columns of even
+  length are declared one digit wider than before; ODP columns of even length
+  too (ODP reports a character width there, so they only widen).
+- **[rfc]** **INT1 is unsigned.** ABAP's INT1 holds 0..255 and was mapped to the
+  signed `TINYINT`: 255 failed `sap_read_table` and came back as **-1** from
+  `sap_rfc_invoke`, silently, and 128..255 could not be sent. It is now
+  `UTINYINT` on every path.
+- **[rfc]** **UTCLONG values are read instead of turning into NULL.** Only the
+  compact `YYYYMMDDHHMMSS,fffffff` spelling parsed; what SAP's library sends
+  (`YYYY-MM-DDTHH:MM:SS,fffffff`) and what `RFC_READ_TABLE` sends
+  (`YYYY-MM-DD HH:MM:SS.fffffff`) became NULL without an error, so every UTCLONG
+  read as NULL on both paths. All three parse now (sub-microsecond digits are
+  truncated, never rounded), text that is none of them is an error, and erpl
+  writes the form SAP's library accepts -- it refused the compact one.
+- **[rfc]** Packed, DECFLOAT and UTCLONG values read through `sap_rfc_invoke`
+  converted the reader's whole buffer instead of the value's length, so the
+  units after the terminator -- uninitialised memory -- were part of the text.
+- **[rfc]** A boundary-value fixture covers every DDIC type erpl maps:
+  `scripts/sap/provision.d/26-types-boundary.sh` creates `ZERPL_TYPES_BV`
+  (packed fields at every length up to DEC(31,14), CURR/QUAN, INT1..INT8, FLTP,
+  DECFLOAT, DATS, TIMS, RAW, NUMC, CHAR, ACCP, PREC, LANG, UTCLONG at their
+  largest, most negative, initial and smallest values, plus non-BMP text) and
+  `Z_ERPL_TYPES_BV`, and `sap_read_table_packed_even_length.test` reads it
+  through `sap_read_table` and `sap_rfc_invoke` on both backends.
+
 - **[rfc]** `sap_read_table` reads text cells faster on both backends. Every
   cell arrives as a blank-padded `CHAR(512)` field; the trailing blanks were
   converted to UTF-8 and then trimmed again one byte at a time. They are now

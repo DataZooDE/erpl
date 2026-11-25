@@ -152,7 +152,7 @@ namespace duckdb
             // Numeric types
             case RFCTYPE_NUM: return LogicalTypeId::VARCHAR;
             case RFCTYPE_INT: return LogicalTypeId::INTEGER;
-            case RFCTYPE_INT1: return LogicalTypeId::TINYINT;
+            case RFCTYPE_INT1: return LogicalTypeId::UTINYINT;
             case RFCTYPE_INT2: return LogicalTypeId::SMALLINT;
             // RFC_INT8 is an 8-byte signed integer. The natural DuckDB
             // equivalent is BIGINT (also 8 bytes); INTEGER would lose half
@@ -428,51 +428,71 @@ namespace duckdb
     // string represents an uninitialized timestamp -> NULL.
     Value sap_utc2timestamp(std::string &utc_str)
     {
-        // Trim trailing whitespace/null bytes the SDK may leave behind.
+        // A UTCLONG arrives in one of three spellings (issue #255 audit,
+        // measured with SAP's library and on a4h):
+        //   YYYY-MM-DDTHH:MM:SS,fffffff  SAP's library (RfcGetString)
+        //   YYYY-MM-DD HH:MM:SS.fffffff  RFC_READ_TABLE and the proto shim
+        //   YYYYMMDDHHMMSS,fffffff       the compact form
+        // and the initial value as all zeros in any of them. Only the compact
+        // form used to parse; the others became NULL without an error, so
+        // every UTCLONG read as NULL. Now each parses, the fraction is cut to
+        // DuckDB's microseconds (truncated, never rounded: .9999999 must not
+        // roll 9999-12-31 over into year 10000), and text that is none of
+        // them is an error rather than a silent NULL.
         while (!utc_str.empty() && (utc_str.back() == ' ' || utc_str.back() == '\0')) {
             utc_str.pop_back();
         }
-        if (utc_str.empty()) {
+        size_t first = utc_str.find_first_not_of(' ');
+        if (first == std::string::npos) {
             return Value(LogicalType::TIMESTAMP);
         }
-        // ABAP initial value for UTCLONG is all zeros; treat as NULL.
-        if (utc_str.find_first_not_of('0') == std::string::npos) {
-            return Value(LogicalType::TIMESTAMP);
-        }
-        // Build ISO "YYYY-MM-DD HH:MM:SS[.fffffff]" from compact SAP form.
-        if (utc_str.size() < 8) {
-            return Value(LogicalType::TIMESTAMP);
-        }
-        std::string iso;
-        iso.reserve(30);
-        iso += utc_str.substr(0, 4);
-        iso += '-';
-        iso += utc_str.substr(4, 2);
-        iso += '-';
-        iso += utc_str.substr(6, 2);
-        if (utc_str.size() >= 10) {
-            iso += ' ';
-            iso += utc_str.substr(8, 2);
-            iso += ':';
-            iso += (utc_str.size() >= 12) ? utc_str.substr(10, 2) : std::string("00");
-            iso += ':';
-            iso += (utc_str.size() >= 14) ? utc_str.substr(12, 2) : std::string("00");
-        }
-        if (utc_str.size() > 14) {
-            // Skip the SAP separator ('.' or ',') and append fractional digits.
-            std::string frac = utc_str.substr(14);
-            if (!frac.empty() && (frac[0] == ',' || frac[0] == '.')) {
-                frac[0] = '.';
-            } else {
-                frac.insert(frac.begin(), '.');
+        utc_str = utc_str.substr(first);
+
+        std::string digits;
+        for (char c : utc_str) {
+            if (c >= '0' && c <= '9') {
+                digits += c;
             }
-            iso += frac;
         }
-        try {
-            return Value(iso).DefaultCastAs(LogicalType::TIMESTAMP);
-        } catch (...) {
+        if (!digits.empty() && digits.find_first_not_of('0') == std::string::npos) {
             return Value(LogicalType::TIMESTAMP);
         }
+
+        auto is_digit = [&](size_t i) { return i < utc_str.size() && utc_str[i] >= '0' && utc_str[i] <= '9'; };
+        std::string date_time, fraction;
+        if (utc_str.size() >= 19 && utc_str[4] == '-' && utc_str[7] == '-' &&
+            (utc_str[10] == 'T' || utc_str[10] == ' ') && utc_str[13] == ':' && utc_str[16] == ':') {
+            date_time = utc_str.substr(0, 10) + " " + utc_str.substr(11, 8);
+            if (utc_str.size() > 19) {
+                if (utc_str[19] != ',' && utc_str[19] != '.') {
+                    throw std::runtime_error("Cannot read SAP UTCLONG '" + utc_str + "'");
+                }
+                fraction = utc_str.substr(20);
+            }
+        } else if (utc_str.size() >= 14 && std::all_of(utc_str.begin(), utc_str.begin() + 14, ::isdigit)) {
+            date_time = utc_str.substr(0, 4) + "-" + utc_str.substr(4, 2) + "-" + utc_str.substr(6, 2) + " " +
+                        utc_str.substr(8, 2) + ":" + utc_str.substr(10, 2) + ":" + utc_str.substr(12, 2);
+            if (utc_str.size() > 14) {
+                if (utc_str[14] != ',' && utc_str[14] != '.') {
+                    throw std::runtime_error("Cannot read SAP UTCLONG '" + utc_str + "'");
+                }
+                fraction = utc_str.substr(15);
+            }
+        } else {
+            throw std::runtime_error("Cannot read SAP UTCLONG '" + utc_str + "'");
+        }
+        (void)is_digit;
+        if (fraction.find_first_not_of("0123456789") != std::string::npos) {
+            throw std::runtime_error("Cannot read SAP UTCLONG '" + utc_str + "'");
+        }
+        if (fraction.size() > 6) {
+            fraction.resize(6);
+        }
+        std::string iso = date_time;
+        if (!fraction.empty() && fraction.find_first_not_of('0') != std::string::npos) {
+            iso += "." + fraction;
+        }
+        return Value(iso).DefaultCastAs(LogicalType::TIMESTAMP);
     }
 
     std::string timestamp2sap_utc(const Value &timestamp_value)
@@ -480,20 +500,19 @@ namespace duckdb
         if (timestamp_value.IsNull()) {
             return std::string();
         }
-        // DuckDB Timestamp::ToString format: "YYYY-MM-DD HH:MM:SS[.fffffff]".
-        // Convert to SAP compact form "YYYYMMDDHHMMSS,sssssss".
+        // SAP's library accepts YYYY-MM-DDTHH:MM:SS,fffffff and refuses the
+        // compact YYYYMMDDHHMMSS,fffffff this used to send with
+        // RFC_CONVERSION_FAILURE (measured; issue #255 audit). DuckDB's
+        // timestamps have six fractional digits; the seventh is zero.
         auto cast_value = timestamp_value.type().id() == LogicalTypeId::TIMESTAMP
             ? timestamp_value
             : timestamp_value.DefaultCastAs(LogicalType::TIMESTAMP);
-        auto iso = cast_value.ToString();
-        std::string sap;
-        sap.reserve(iso.size());
-        for (char c : iso) {
-            if (c == '-' || c == ' ' || c == ':') continue;
-            if (c == '.') { sap += ','; continue; }   // SAP decimal separator
-            sap += c;
-        }
-        return sap;
+        auto iso = cast_value.ToString();   // "YYYY-MM-DD HH:MM:SS[.ffffff]"
+        std::string date_time = iso.substr(0, 19);
+        std::string fraction = iso.size() > 20 ? iso.substr(20) : std::string();
+        fraction.resize(7, '0');
+        date_time[10] = 'T';
+        return date_time + "," + fraction;
     }
 
     Value bcd2duck(std::string &bcd_str, unsigned int length, unsigned int decimals)
@@ -678,7 +697,8 @@ namespace duckdb
      */
     Value rfc2duck(RFC_INT1 &rfc_int1) 
     {
-        return Value::TINYINT((int8_t)rfc_int1);
+        // ABAP INT1 is unsigned: 255 read through int8_t came back as -1.
+        return Value::UTINYINT((uint8_t)rfc_int1);
     }
 
     /**
@@ -888,7 +908,9 @@ namespace duckdb
      */
     void duck2rfc(Value &value, RFC_INT1 &rfc_int1) 
     {
-        auto duck_value = value.GetValue<int8_t>();
+        // 0..255; a value outside it fails the cast with DuckDB's own
+        // out-of-range error rather than wrapping.
+        auto duck_value = value.DefaultCastAs(LogicalType::UTINYINT).GetValue<uint8_t>();
         rfc_int1 = (RFC_INT1)duck_value;
     }
 
