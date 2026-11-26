@@ -329,27 +329,60 @@ John	Doe	John Doe
 
 # ---------------------------------------------------------------------
 # Path navigation into a TABLE result parameter — rows stream through.
+# Asserts invariants, not one system's user list: MAX_ROWS is honoured, and
+# the rows that came back are the alphabetically first ones of the full list
+# (the BAPI returns users sorted). An earlier version expected BWDEVELOPER
+# and broke as soon as a4h gained users that sort before it.
 query I
-SELECT USERNAME FROM sap_rfc_invoke(
+SELECT count(*) FROM sap_rfc_invoke(
     'BAPI_USER_GETLIST', {'MAX_ROWS': 3}, path := '/USERLIST'
-) ORDER BY USERNAME LIMIT 1;
+);
 ----
-BWDEVELOPER
+3
+
+query I
+SELECT (SELECT min(USERNAME) FROM sap_rfc_invoke(
+            'BAPI_USER_GETLIST', {'MAX_ROWS': 3}, path := '/USERLIST'))
+     = (SELECT min(USERNAME) FROM sap_rfc_invoke(
+            'BAPI_USER_GETLIST', {'MAX_ROWS': 0}, path := '/USERLIST'));
+----
+true
 
 # ---------------------------------------------------------------------
-# Negative integers across all integer widths must round-trip.
+# Negative integers round-trip through the signed widths (INT4, INT2), and
+# INT1 -- which ABAP defines as unsigned, 0..255 -- round-trips a value above
+# 127. (254, not 255: STFC_STRUCTURE adds one to every integer while building
+# RESPSTRUCT, so the maximum itself overflows on the server; see CLAUDE.md.)
+# An earlier version sent RFCINT1 = -5 and expected -5 back: that only
+# passed because erpl read and wrote INT1 as signed, so SAP stored 251 and
+# erpl read 251 back as -5 (issue #255's audit). The ECHOSTRUCT of
+# STFC_STRUCTURE echoes the import unchanged.
 query III
 SELECT (ECHOSTRUCT).RFCINT4, (ECHOSTRUCT).RFCINT2, (ECHOSTRUCT).RFCINT1
 FROM sap_rfc_invoke('STFC_STRUCTURE', {
     'IMPORTSTRUCT': {
-        'RFCFLOAT': -3.14, 'RFCINT4': -42, 'RFCINT2': -100::SMALLINT, 'RFCINT1': -5::TINYINT,
+        'RFCFLOAT': -3.14, 'RFCINT4': -42, 'RFCINT2': -100::SMALLINT, 'RFCINT1': 254::UTINYINT,
         'RFCCHAR1': 'N', 'RFCCHAR2': 'EG', 'RFCCHAR4': 'NEG ',
         'RFCDATE': '1990-01-01'::DATE, 'RFCTIME': '23:59:59'::TIME,
         'RFCHEX3': '\xFF\xFF\xFF'::BLOB, 'RFCDATA1': '', 'RFCDATA2': ''
     }
 });
 ----
--42	-100	-5
+-42	-100	254
+
+# A negative INT1 cannot be represented and is refused, not wrapped to 251.
+statement error
+SELECT (ECHOSTRUCT).RFCINT1
+FROM sap_rfc_invoke('STFC_STRUCTURE', {
+    'IMPORTSTRUCT': {
+        'RFCFLOAT': 0.0, 'RFCINT4': 0, 'RFCINT2': 0::SMALLINT, 'RFCINT1': -5::TINYINT,
+        'RFCCHAR1': 'N', 'RFCCHAR2': 'EG', 'RFCCHAR4': 'NEG ',
+        'RFCDATE': '1990-01-01'::DATE, 'RFCTIME': '23:59:59'::TIME,
+        'RFCHEX3': '\xFF\xFF\xFF'::BLOB, 'RFCDATA1': '', 'RFCDATA2': ''
+    }
+});
+----
+out of range for the destination type UINT8
 
 # ---------------------------------------------------------------------
 # Wrong-type argument should fail with a precise error pointing at the
@@ -467,16 +500,15 @@ FROM sap_rfc_describe_function('RFC_GET_ATTRIBUTES');
 true
 
 # ---------------------------------------------------------------------
-# DECFLOAT16/34 precision — SDK introspection reports nucLength as the
-# storage byte count (8 / 16), DDIC introspection as the digit count
-# (up to 16 / 34). Either way the schema must report the spec-defined
-# significand width (16 / 34). Regression: previously the SDK path gave
-# DECIMAL(8,0) for DECFLOAT16 and DECIMAL(16,0) for DECFLOAT34 — losing
-# half the digits.
+# DECFLOAT16/34 — both map to DOUBLE (decided with #255's audit): DuckDB
+# has no decimal float, and the earlier DECIMAL(16,0)/(34,0) mapping dropped
+# every fraction. Before that, the SDK path gave DECIMAL(8,0)/(16,0) from the
+# storage byte count. The boundary fixture (sap_read_table_packed_even_length.test)
+# pins the values; this pins the declared type on the describe path.
 query II
 SELECT
     list_element(d.changing, list_position(list_transform(d.changing, lambda p: p.name), 'DECFLOAT16')).duckdb_type AS df16_type,
     list_element(d.changing, list_position(list_transform(d.changing, lambda p: p.name), 'DECFLOAT34')).duckdb_type AS df34_type
 FROM sap_rfc_describe_function('S_APCRFC_ALLTYPES') d;
 ----
-DECIMAL(16,0)	DECIMAL(34,0)
+DOUBLE	DOUBLE
