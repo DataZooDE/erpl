@@ -7,17 +7,6 @@
 #   ./scripts/start-sap.sh --license FILE   # also install this AS ABAP licence (minisap, system A4H)
 #   ./scripts/start-sap.sh --no-lcp         # boot unpatched (SAP date window enforced)
 #
-# The image ships a three-month AS ABAP licence, but it was issued for the hardware key of the
-# image build host and expired 2026-11-09.  The lcp patch only neutralises the date comparison;
-# the identity/hardware-key binding stays active, so an installed key for another machine is
-# still rejected with "Logon not possible (error in license check)".  The repository's
-# A4H_2025.txt was issued for this host's hardware key and is mounted by default; it is valid
-# until 2027-02-06 and covers the period for which lcp extends the date window.
-# A licence file is bound to one hardware key: the image's update script deletes the installed
-# licence before it installs the file, so a file for another image (A4H_Multiple.txt was issued
-# for :2023) leaves the system with no valid licence.  Use --license FILE to override the
-# default, or A4H_LICENSE_FILE to point at a key issued for the current hardware key.
-#
 # The trial keys expire 2027-02-06 (ABAP) and 2028-02-11 (HANA) and cannot be re-issued, so by
 # default the container is started through the lcp submodule's entrypoint wrapper, which removes
 # the two date comparisons in the license engine before SAP starts.  lcp lives in the private
@@ -39,19 +28,8 @@ set -uo pipefail
 APAB_PLATFORM_IMAGE="${A4H_IMAGE:-sapse/abap-cloud-developer-trial:2025}"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 PROFILE_FILE="$SCRIPT_DIR/A4H_D00_vhcala4hci.profile"
-if [ -n "${A4H_LICENSE_FILE:-}" ]; then
-    LICENSE_FILE="$A4H_LICENSE_FILE"
-    [ -f "$LICENSE_FILE" ] || {
-        echo "note: A4H_LICENSE_FILE=$LICENSE_FILE does not exist; booting without an ABAP licence" >&2
-        LICENSE_FILE=""
-    }
-else
-    LICENSE_FILE="$SCRIPT_DIR/A4H_2025.txt"
-    [ -f "$LICENSE_FILE" ] || {
-        echo "note: no $LICENSE_FILE; booting without an ABAP licence (logon will fail while the image key is expired)" >&2
-        LICENSE_FILE=""
-    }
-fi
+LICENSE_FILE="${A4H_LICENSE_FILE:-$SCRIPT_DIR/A4H_2025.txt}"
+[ -f "$LICENSE_FILE" ] || LICENSE_FILE=""
 # Private submodule (like bics/odp); ERP_LCP_DIR points elsewhere if needed.
 LCP_DIR="${ERP_LCP_DIR:-$SCRIPT_DIR/../lcp}"
 LCP=1
